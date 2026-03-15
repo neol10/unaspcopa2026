@@ -490,6 +490,20 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
 
   return (
     <>
+      <div className="live-match-header-info">
+        <div className="live-score-display">
+          <div className="team-score">
+            <span className="team-name">{match.teams_a.name}</span>
+            <span className="score">{match.team_a_score}</span>
+          </div>
+          <span className="divider">×</span>
+          <div className="team-score">
+            <span className="score">{match.team_b_score}</span>
+            <span className="team-name">{match.teams_b.name}</span>
+          </div>
+        </div>
+        <div className="live-time-badge ao_vivo">ALV</div>
+      </div>
       <div className="live-control-grid">
         <div className="event-selector">
           <button className={eventType === 'gol' ? 'active' : ''} onClick={() => setEventType('gol')}>⚽ Gol</button>
@@ -1047,25 +1061,25 @@ const PlayerManagement: React.FC<{ teamId: string, teamName: string }> = ({ team
             </div>
           </div>
 
-          <div className="player-stats-editor-grid mt-2 glass-light">
+          <div className="player-stats-editor-grid mt-2">
              <div className="stat-input">
-                <label>Gols</label>
+                <label><Trophy size={14} /> Gols</label>
                 <input type="number" value={formData.goals_count} onChange={e => setFormData({...formData, goals_count: e.target.value})} />
              </div>
              <div className="stat-input">
-                <label>Assist.</label>
+                <label><Star size={14} /> Assist.</label>
                 <input type="number" value={formData.assists} onChange={e => setFormData({...formData, assists: e.target.value})} />
              </div>
              <div className="stat-input">
-                <label>Amarelos</label>
+                <label><CreditCard size={14} style={{ color: '#fbbf24' }} /> Amarelos</label>
                 <input type="number" value={formData.yellow_cards} onChange={e => setFormData({...formData, yellow_cards: e.target.value})} />
              </div>
              <div className="stat-input">
-                <label>Vermelhos</label>
+                <label><CreditCard size={14} style={{ color: '#ef4444' }} /> Vermelhos</label>
                 <input type="number" value={formData.red_cards} onChange={e => setFormData({...formData, red_cards: e.target.value})} />
              </div>
              <div className="stat-input">
-                <label>Clean Sheets</label>
+                <label><Shield size={14} /> Clean Sheets</label>
                 <input type="number" value={formData.clean_sheets} onChange={e => setFormData({...formData, clean_sheets: e.target.value})} />
              </div>
           </div>
