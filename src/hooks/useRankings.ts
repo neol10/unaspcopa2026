@@ -46,7 +46,7 @@ export const useRankings = () => {
           *,
           matches:match_id(round)
         `)
-        .or('event_type.eq.gol,event_type.eq.assistencia');
+        .in('event_type', ['gol', 'assistencia']);
 
       if (eventsError) throw eventsError;
 
