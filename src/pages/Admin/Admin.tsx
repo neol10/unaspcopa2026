@@ -1113,35 +1113,45 @@ const PlayerManagement: React.FC<{ teamId: string, teamName: string }> = ({ team
                     </select>
                   </div>
                   <div className="player-form-grid mt-2">
-                    <div className="image-edit-mini">
-                      <label className={`image-upload-container mini ${uploading ? 'uploading' : ''}`} style={{ width: '50px', height: '50px' }}>
-                        {uploading ? <div className="spinner mini"></div> : (
+                    <div className="player-form-field">
+                      <label>Foto</label>
+                      <label className={`image-upload-container mini ${uploading ? 'uploading' : ''}`} style={{ width: '60px', height: '60px' }}>
+                        {uploading ? (
+                          <div className="upload-loading-overlay">
+                            <div className="spinner"></div>
+                          </div>
+                        ) : formData.photo_url ? (
                           <img src={formData.photo_url} alt="Player" className="image-preview-badge" />
+                        ) : (
+                          <div className="upload-icon-box">
+                            <Camera size={16} />
+                            <span>Subir</span>
+                          </div>
                         )}
                         <input type="file" accept="image/*" className="hidden-file-input" onChange={handlePhotoUpload} />
                       </label>
                     </div>
                     <input value={formData.bio} onChange={e => setFormData({...formData, bio: e.target.value})} placeholder="Bio" />
                   </div>
-                  <div className="player-stats-edit-strip mt-2">
-                    <div className="s-field">
-                       <label>G</label>
+                  <div className="player-stats-editor-grid mt-2">
+                    <div className="stat-input">
+                       <label><Trophy size={14} /> G</label>
                        <input type="number" value={formData.goals_count} onChange={e => setFormData({...formData, goals_count: e.target.value})} />
                     </div>
-                    <div className="s-field">
-                       <label>A</label>
+                    <div className="stat-input">
+                       <label><Star size={14} /> A</label>
                        <input type="number" value={formData.assists} onChange={e => setFormData({...formData, assists: e.target.value})} />
                     </div>
-                    <div className="s-field">
-                       <label>CA</label>
+                    <div className="stat-input">
+                       <label><CreditCard size={14} style={{ color: '#fbbf24' }} /> CA</label>
                        <input type="number" value={formData.yellow_cards} onChange={e => setFormData({...formData, yellow_cards: e.target.value})} />
                     </div>
-                    <div className="s-field">
-                       <label>CV</label>
+                    <div className="stat-input">
+                       <label><CreditCard size={14} style={{ color: '#ef4444' }} /> CV</label>
                        <input type="number" value={formData.red_cards} onChange={e => setFormData({...formData, red_cards: e.target.value})} />
                     </div>
-                    <div className="s-field">
-                       <label>CS</label>
+                    <div className="stat-input">
+                       <label><Shield size={14} /> CS</label>
                        <input type="number" value={formData.clean_sheets} onChange={e => setFormData({...formData, clean_sheets: e.target.value})} />
                     </div>
                   </div>
