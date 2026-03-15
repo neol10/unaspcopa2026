@@ -170,6 +170,7 @@
   font-weight: 800;
 }
 
+
 .players-v2-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -570,4 +571,32 @@
   .profile-tags { justify-content: center; }
   .player-modal-content { padding: 2rem; border-radius: 30px; }
   .modal-player-header { flex-direction: column; text-align: center; gap: 1rem; }
+  
+  .players-v2-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 1rem;
+    padding: 0.5rem;
+  }
+  
+  .p-photo-wrapper {
+    height: 160px;
+  }
+  
+  .p-info h3 {
+    font-size: 1rem;
+  }
+  
+  .player-card-v2 {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .players-v2-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .p-photo-wrapper {
+    height: 240px;
+  }
 }

@@ -308,21 +308,6 @@
   box-shadow: 0 15px 30px rgba(251, 191, 36, 0.3);
 }
 
-@media (max-width: 992px) {
-  .countdown-content {
-    justify-content: center;
-    text-align: center;
-  }
-  
-  .next-match-teams, .match-detail-row {
-    justify-content: center;
-  }
-  
-  .btn-remind {
-    width: 100%;
-  }
-}
-
 .podium-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -476,6 +461,7 @@
   margin-bottom: 2rem;
   display: -webkit-box;
   -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -627,8 +613,19 @@
 }
 
 @media (max-width: 768px) {
-  .hero-title-v2 { font-size: 3rem; }
-  .btn-premium, .btn-secondary-glass { width: 100%; }
-  .hero-cta-group { flex-direction: column; width: 100%; }
-  .hero-cinematic { min-height: 70vh; }
+  .hero-title-v2 { font-size: 3.5rem; letter-spacing: -2px; }
+  .btn-premium, .btn-secondary-glass { width: 100%; justify-content: center; }
+  .hero-cta-group { flex-direction: column; width: 100%; gap: 1rem; }
+  .hero-cinematic { min-height: 70vh; padding: 3rem 1.5rem; }
+  .match-countdown-banner { margin: -1.5rem 1rem 3rem; padding: 1.5rem; }
+  .time-val { font-size: 1.8rem; }
+  .mini-team span { font-size: 1rem; }
+}
+
+@media (max-width: 480px) {
+  .hero-title-v2 { font-size: 2.8rem; }
+  .hero-desc-v2 { font-size: 1rem; }
+  .podium-grid { grid-template-columns: 1fr; }
+  .news-card-v2 { flex-direction: column; }
+  .news-card-img { width: 100%; height: 180px; }
 }

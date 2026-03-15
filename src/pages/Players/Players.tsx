@@ -46,7 +46,7 @@ const Players: React.FC = () => {
             {isGlobalView ? (
               <Users size={64} color="var(--secondary)" />
             ) : team?.badge_url ? (
-              <img src={team.badge_url} alt={team.name} className="profile-badge-img" />
+              <img src={team.badge_url} alt={team.name} className="profile-badge-img" loading="lazy" decoding="async" />
             ) : (
               <Shield size={64} color="var(--secondary)" />
             )}
@@ -111,7 +111,7 @@ const Players: React.FC = () => {
                   
                   <div className="p-photo-wrapper">
                     {player.photo_url ? (
-                      <img src={player.photo_url} alt={player.name} className="p-photo" />
+                      <img src={player.photo_url} alt={player.name} className="p-photo" loading="lazy" decoding="async" />
                     ) : (
                       <div className="p-photo-placeholder">
                         <User size={32} color="rgba(255,255,255,0.15)" />

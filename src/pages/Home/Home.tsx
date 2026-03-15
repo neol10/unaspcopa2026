@@ -210,7 +210,7 @@ const Home: React.FC = () => {
                 >
                   <div className="news-card-img">
                     {item.image_url ? (
-                      <img src={item.image_url} alt="" />
+                      <img src={item.image_url} alt="" loading="lazy" decoding="async" />
                     ) : (
                       <Zap size={index === 0 ? 64 : 32} color="var(--text-muted)" />
                     )}
