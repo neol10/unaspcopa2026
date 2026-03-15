@@ -1,0 +1,162 @@
+:root {
+  /* Color Palette - Official World Cup 2026 Shades */
+  --primary: #ffffff;
+  --secondary: #FFD700; /* Trophy Gold */
+  --gold-main: #FFD700;
+  --gold-glow: rgba(255, 215, 0, 0.4);
+  
+  /* Brand Colors from Logo */
+  --accent-navy: #1C237E;  /* FIFA Navy */
+  --accent-blue: #00A9E0;  /* Sky Blue */
+  --vibrant-green: #34A853; /* Official Green */
+  --vibrant-red: #E4002B;   /* Official Red */
+  
+  /* Dark Mode Foundation - Deep & Elegant */
+  --bg-main: #010204; 
+  --bg-sidebar: rgba(15, 23, 42, 0.98);
+  --bg-card: rgba(17, 25, 40, 0.85);
+  --bg-glass: rgba(255, 255, 255, 0.05);
+  
+  /* Text & Contrast */
+  --text-main: #ffffff;
+  --text-muted: #cbd5e1;
+  --text-dim: #94a3b8;
+  
+  /* Borders & Glassmorphism */
+  --border-light: rgba(255, 255, 255, 0.12);
+  --border-glow: rgba(255, 255, 255, 0.25);
+  
+  /* Transitions & Shadows */
+  --transition-smooth: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-fast: all 0.2s ease;
+  --shadow-glow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+  --primary-glow: 0 0 20px rgba(255, 215, 0, 0.2);
+  
+  /* Spacing & Radii */
+  --radius-lg: 24px;
+  --radius-md: 16px;
+  --radius-sm: 8px;
+  --gap-base: 2rem;
+}
+
+[data-theme='light'] {
+  --bg-main: #f8fafc;
+  --bg-sidebar: #ffffff;
+  --bg-card: rgba(255, 255, 255, 0.9);
+  --bg-glass: rgba(255, 255, 255, 0.5);
+  
+  --text-main: #020617;
+  --text-muted: #334155;
+  --text-dim: #64748b;
+  
+  --border-light: rgba(15, 23, 42, 0.08);
+  --border-glow: rgba(255, 215, 0, 0.5);
+  
+  --shadow-glow: 0 8px 32px 0 rgba(0, 0, 0, 0.05);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', 'Manrope', system-ui, -apple-system, sans-serif;
+  background-color: var(--bg-main);
+  background-image: 
+    radial-gradient(circle at 5% 5%, rgba(52, 168, 83, 0.08) 0%, transparent 45%),   /* Green glow */
+    radial-gradient(circle at 95% 5%, rgba(228, 0, 43, 0.08) 0%, transparent 45%),    /* Red glow */
+    radial-gradient(circle at 50% 95%, rgba(0, 169, 224, 0.08) 0%, transparent 45%),  /* Blue glow */
+    radial-gradient(circle at 50% 50%, rgba(255, 215, 0, 0.03) 0%, transparent 70%);  /* Gold ambient */
+  background-attachment: fixed;
+  color: var(--text-main);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  margin: 0;
+  overflow-x: hidden;
+  overflow-y: scroll;
+  transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+[data-theme='light'] body {
+  background-image: 
+    radial-gradient(circle at 5% 5%, rgba(52, 168, 83, 0.15) 0%, transparent 60%),
+    radial-gradient(circle at 95% 5%, rgba(228, 0, 43, 0.15) 0%, transparent 60%),
+    radial-gradient(circle at 50% 95%, rgba(0, 169, 224, 0.15) 0%, transparent 60%),
+    radial-gradient(circle at 50% 50%, rgba(255, 215, 0, 0.1) 0%, transparent 75%);
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+  transition: var(--transition-fast);
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  outline: none;
+  font-family: inherit;
+  transition: var(--transition-fast);
+}
+
+/* FIFA 2026 Brand Streak */
+.fifa-streak {
+  height: 4px;
+  width: 100%;
+  background: linear-gradient(90deg, #34A853 0%, #00A9E0 33%, #E4002B 66%, #FFD700 100%);
+  border-radius: 2px;
+}
+
+/* Glassmorphism Classes */
+.glass {
+  background: var(--bg-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-light);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
+
+.glass-hover:hover {
+  background: var(--bg-glass);
+  border-color: var(--border-glow);
+  transform: translateY(-2px);
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, var(--text-main), var(--text-muted));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-main);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-light);
+  border-radius: 5px;
+  border: 2px solid var(--bg-main);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-dim);
+}

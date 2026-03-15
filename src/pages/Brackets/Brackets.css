@@ -1,0 +1,324 @@
+.brackets-page {
+  padding: 3rem 1.5rem;
+  min-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  overflow: hidden;
+}
+
+.brackets-header {
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.header-icon-box {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1rem;
+  filter: drop-shadow(0 0 15px var(--secondary-glow));
+}
+
+.brackets-header h1 {
+  font-size: 2.5rem;
+  font-weight: 950;
+  margin-bottom: 0.5rem;
+  letter-spacing: -1px;
+}
+
+.scroll-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--secondary);
+  opacity: 0.8;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Scroll Container */
+.brackets-scroll-container {
+  width: 100%;
+  overflow-x: auto;
+  cursor: grab;
+  padding: 2rem 0;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none;  /* IE and Edge */
+}
+
+.brackets-scroll-container::-webkit-scrollbar {
+  display: none; /* Chrome, Safari and Opera */
+}
+
+.brackets-scroll-container.dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.brackets-scroll-content {
+  display: inline-flex;
+  gap: 3rem;
+  padding: 0 4rem;
+  min-width: 100%;
+}
+
+/* Rounds */
+.bracket-round {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  min-width: 320px;
+  max-width: 320px;
+}
+
+.round-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1.1rem;
+  font-weight: 850;
+  color: var(--text-main);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  position: relative;
+  padding-bottom: 1rem;
+}
+
+.round-title::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 40px;
+  height: 3px;
+  background: var(--secondary);
+  border-radius: 10px;
+}
+
+.round-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--secondary);
+  border-radius: 50%;
+  box-shadow: 0 0 10px var(--secondary);
+}
+
+.round-matches {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Match Cards */
+.match-box {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  padding: 1.25rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.match-box:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--secondary-border);
+  transform: translateY(-5px);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+.match-time-tiny {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.match-team {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  font-weight: 700;
+}
+
+.match-team.winner span {
+  color: var(--secondary);
+}
+
+.team-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.team-badge-mini {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+.team-score {
+  font-family: 'Inter', sans-serif;
+  font-weight: 900;
+  font-size: 1.2rem;
+  color: var(--text-main);
+}
+
+.live-badge-mini {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.25rem;
+  background: var(--primary);
+  color: white;
+  font-size: 0.6rem;
+  font-weight: 900;
+  padding: 2px 6px;
+  border-radius: 4px;
+  animation: pulse 2s infinite;
+}
+
+/* Knockout Tree Layout */
+.knockout-tree-container {
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+  margin-bottom: 4rem;
+}
+
+.knockout-columns {
+  display: flex;
+  gap: 0;
+  align-items: center;
+}
+
+.knockout-column {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  min-width: 320px;
+  gap: 1.5rem;
+}
+
+.knockout-title {
+  text-align: center;
+  margin-bottom: 2rem;
+  width: 100%;
+  justify-content: center;
+}
+
+.knockout-matches {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  height: 100%;
+  gap: 2rem;
+}
+
+.knockout-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* Connectors Logic */
+.bracket-connectors {
+  position: absolute;
+  right: -3rem; /* Same as gap? No, gap is 0 in .knockout-columns */
+}
+
+/* Let's refine the columns to have gaps and use pseudo-elements for connectors */
+.knockout-columns {
+  gap: 4rem;
+}
+
+.knockout-column {
+  flex-shrink: 0;
+}
+
+.knockout-item::after {
+  content: '';
+  position: absolute;
+  right: -4rem;
+  width: 2rem;
+  height: 1px;
+  background: var(--border-light);
+  top: 50%;
+  z-index: -1;
+}
+
+/* No line after the last column (Final) */
+.knockout-columns .knockout-column:last-child .knockout-item::after {
+  display: none;
+}
+
+/* Vertical Spacing Scaling for Stages */
+.phase-quartas .knockout-matches { min-height: 600px; gap: 4rem; }
+.phase-semifinal .knockout-matches, .phase-semi .knockout-matches { min-height: 600px; gap: 12rem; }
+.phase-final .knockout-matches { min-height: 600px; }
+
+/* Connecting lines for pairs */
+.phase-quartas .knockout-item:nth-child(odd)::after {
+  height: calc(50% + 2rem);
+  border-right: 1px solid var(--border-light);
+  top: 50%;
+}
+.phase-quartas .knockout-item:nth-child(even)::after {
+  height: calc(50% + 2rem);
+  border-right: 1px solid var(--border-light);
+  top: auto;
+  bottom: 50%;
+}
+
+.phase-semifinal .knockout-item:nth-child(odd)::after, 
+.phase-semi .knockout-item:nth-child(odd)::after {
+  height: calc(50% + 6rem);
+  border-right: 1px solid var(--border-light);
+  top: 50%;
+}
+.phase-semifinal .knockout-item:nth-child(even)::after,
+.phase-semi .knockout-item:nth-child(even)::after {
+  height: calc(50% + 6rem);
+  border-right: 1px solid var(--border-light);
+  top: auto;
+  bottom: 50%;
+}
+
+/* Group Stage Section */
+.group-stage-container {
+  border-top: 1px solid var(--border-light);
+  padding-top: 4rem;
+}
+
+.group-rounds {
+  display: flex;
+  gap: 3rem;
+  overflow-x: visible;
+}
+
+/* Responsive adjustments for Tree */
+@media (max-width: 1200px) {
+  .knockout-columns {
+    align-items: flex-start;
+  }
+}
+
+/* Empty State */
+.empty-matches {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 40vh;
+  gap: 1rem;
+  color: var(--text-dim);
+  width: 100%;
+}
+
+.icon-dim {
+  opacity: 0.2;
+}
