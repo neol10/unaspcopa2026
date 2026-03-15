@@ -284,6 +284,22 @@
   border-top: 1px solid var(--border-light);
   color: var(--text-muted);
   font-size: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.developer-credit {
+  font-size: 0.75rem;
+  opacity: 0.6;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.dev-name {
+  color: var(--secondary);
+  font-weight: 800;
+  text-transform: uppercase;
 }
 
 .nav-overlay {
