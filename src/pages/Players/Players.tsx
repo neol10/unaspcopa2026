@@ -109,6 +109,16 @@ const Players: React.FC = () => {
                     <div className="p-position">{player.position}</div>
                   </div>
                   
+                  <div className="p-photo-wrapper">
+                    {player.photo_url ? (
+                      <img src={player.photo_url} alt={player.name} className="p-photo" />
+                    ) : (
+                      <div className="p-photo-placeholder">
+                        <User size={32} color="rgba(255,255,255,0.15)" />
+                      </div>
+                    )}
+                  </div>
+                  
                   <div className="p-info">
                      <h3>{player.name}</h3>
                      {isGlobalView && (
