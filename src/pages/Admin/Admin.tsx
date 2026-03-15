@@ -553,7 +553,55 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
 
       {/* Craque do Jogo - NOVO */}
       <div className="mvp-selection-admin">
-        <h6>⭐ Definir Craque do Jogo</h6>
+        <div className="mvp-admin-header">
+          <h6>⭐ Definir Craque do Jogo</h6>
+          <button 
+            className="btn-suggest-mvp" 
+            onClick={() => {
+              const stats: Record<string, { points: number, goals: number, firstEvent: number }> = {};
+              
+              events.forEach(ev => {
+                if (ev.event_type === 'gol' || ev.event_type === 'assistencia' || (ev.event_type === 'gol' && ev.assistant_id)) {
+                  // Gols
+                  if (ev.event_type === 'gol' && ev.metadata?.goal_type !== 'contra') {
+                    if (!stats[ev.player_id]) stats[ev.player_id] = { points: 0, goals: 0, firstEvent: ev.minute };
+                    stats[ev.player_id].points += 1;
+                    stats[ev.player_id].goals += 1;
+                    if (ev.minute < stats[ev.player_id].firstEvent) stats[ev.player_id].firstEvent = ev.minute;
+                  }
+                  // Assistências via evento direto ou metadado de gol
+                  const assId = ev.assistant_id;
+                  if (assId) {
+                    if (!stats[assId]) stats[assId] = { points: 0, goals: 0, firstEvent: ev.minute };
+                    stats[assId].points += 1;
+                    if (ev.minute < stats[assId].firstEvent) stats[assId].firstEvent = ev.minute;
+                  }
+                }
+              });
+
+              const sorted = Object.entries(stats).sort(([, a], [, b]) => {
+                if (b.points !== a.points) return b.points - a.points;
+                if (b.goals !== a.goals) return b.goals - a.goals;
+                return a.firstEvent - b.firstEvent;
+              });
+
+              if (sorted.length > 0) {
+                const [bestId, bestStats] = sorted[0];
+                const player = [...playersA, ...playersB].find(p => p.id === bestId);
+                if (player) {
+                  setMvpData({
+                    player_id: bestId,
+                    description: `${bestStats.goals} Gol(s) e ${bestStats.points - bestStats.goals} Assistência(s)`
+                  });
+                }
+              } else {
+                alert('Nenhum gol ou assistência registrado nesta partida para sugerir.');
+              }
+            }}
+          >
+            ⭐ Sugerir por Estatísticas
+          </button>
+        </div>
         <div className="form-grid">
           <div className="form-group">
             <label>Jogador Destaque</label>
