@@ -5,8 +5,14 @@ import { Trophy, Activity, ShieldAlert, Zap, Medal, User } from 'lucide-react';
 import PlayerProfileModal from '../Players/PlayerProfileModal';
 
 const Rankings: React.FC = () => {
-  const { scorers, assistants, goalkeepers, galeraRank, disciplined, loading } = useRankings();
+  const { scorers, assistants, goalkeepers, galeraRank, disciplined, roundMvps, availableRounds, loading } = useRankings();
   const [selectedPlayer, setSelectedPlayer] = useState<RankingPlayer | null>(null);
+  const [selectedRound, setSelectedRound] = useState<string | null>(null);
+
+  // Set default round once available
+  if (!selectedRound && availableRounds.length > 0) {
+    setSelectedRound(availableRounds[availableRounds.length - 1]);
+  }
 
   if (loading) return (
     <div className="rankings-loading animate-fade-in">
@@ -16,6 +22,7 @@ const Rankings: React.FC = () => {
   );
 
   const topScorer = scorers[0];
+  const roundWinner = selectedRound ? roundMvps[selectedRound] : null;
 
   return (
     <div className="rankings-container animate-fade-in">
@@ -30,10 +37,55 @@ const Rankings: React.FC = () => {
         </div>
       </header>
 
-      <div className="rankings-featured">
+      <div className="rankings-featured-grid">
+        {/* Craque da Rodada - NOVO */}
+        <section className="round-mvp-highlight glass animate-slide-up">
+          <div className="panel-header-v2">
+            <div className="header-title-group">
+               <Trophy size={18} color="var(--secondary)" />
+               <h3>Craque da Rodada</h3>
+            </div>
+            
+            <div className="round-selector-tabs">
+              {availableRounds.map(r => (
+                <button 
+                  key={r} 
+                  className={`round-tab ${selectedRound === r ? 'active' : ''}`}
+                  onClick={() => setSelectedRound(r)}
+                >
+                  {r}ª R
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {roundWinner ? (
+            <div className="round-winner-card" onClick={() => setSelectedPlayer(roundWinner)}>
+               <div className="winner-avatar-box">
+                  {roundWinner.photo_url ? (
+                    <img src={roundWinner.photo_url} alt="" />
+                  ) : (
+                    <User size={32} />
+                  )}
+                  <div className="winner-badge">#1</div>
+               </div>
+               <div className="winner-details">
+                  <h4>{roundWinner.name}</h4>
+                  <span className="winner-team">{roundWinner.team_name}</span>
+                  <p className="winner-reason">Destaque estatístico da {selectedRound}ª rodada.</p>
+               </div>
+            </div>
+          ) : (
+            <div className="round-empty-state">
+               <Zap size={24} opacity={0.3} />
+               <p>Selecione uma rodada finalizada.</p>
+            </div>
+          )}
+        </section>
+
         {topScorer && (
           <div className="highlight-hero glass animate-fade-in" onClick={() => setSelectedPlayer(topScorer)}>
-            <div className="hero-label">O Cara da Copa</div>
+            <div className="hero-label">Chuteira de Ouro</div>
             <div className="hero-body">
               <div className="hero-player-icon">
                 <Medal size={60} color="var(--secondary)" />
@@ -63,7 +115,7 @@ const Rankings: React.FC = () => {
         <section className="rank-panel glass">
           <div className="panel-header">
             <Trophy size={20} color="#facc15" />
-            <h3>Chuteira de Ouro</h3>
+            <h3>Artilharia do Torneio</h3>
           </div>
           <div className="rank-rows">
             {scorers.map((p, i) => (
@@ -121,7 +173,10 @@ const Rankings: React.FC = () => {
         <section className="rank-panel glass highlighted-purple">
           <div className="panel-header">
             <Medal size={20} color="#a855f7" />
-            <h3>Craque da Galera</h3>
+            <div className="header-text-stacked">
+              <h3>Craque da Galera</h3>
+              <small>Prêmio final de encerramento</small>
+            </div>
           </div>
           <div className="rank-rows">
             {galeraRank.map((p, i) => (
