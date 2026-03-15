@@ -12,6 +12,29 @@ import { useTournamentConfig } from '../../hooks/useTournamentConfig';
 import { useAuthContext } from '../../contexts/AuthContext';
 import './Admin.css';
 
+const uploadToStorage = async (file: File, bucket: string = 'images', folder: string = 'team-badges'): Promise<string | null> => {
+  try {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+    const filePath = `${folder}/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(bucket)
+      .upload(filePath, file);
+
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage
+      .from(bucket)
+      .getPublicUrl(filePath);
+
+    return data.publicUrl;
+  } catch (err: any) {
+    alert('Erro no upload: ' + err.message);
+    return null;
+  }
+};
+
 const Admin: React.FC = () => {
   const { user, role, loading: authLoading } = useAuthContext();
   const [activeTab, setActiveTab] = useState<'matches' | 'teams' | 'players' | 'news' | 'tournament' | 'polls'>('matches');
@@ -664,6 +687,16 @@ const TeamManagement = () => {
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editGroupValue, setEditGroupValue] = useState('');
   const [formData, setFormData] = useState({ name: '', group: '', leader: '', badge_url: '' });
+  const [uploading, setUploading] = useState(false);
+
+  const handleBadgeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const url = await uploadToStorage(file, 'images', 'team-badges');
+    if (url) setFormData(prev => ({ ...prev, badge_url: url }));
+    setUploading(false);
+  };
 
   const handleSaveGroup = async (teamId: string) => {
     try {
@@ -753,12 +786,32 @@ const TeamManagement = () => {
               />
             </div>
             <div className="form-group">
-              <label>URL do Escudo (Opcional)</label>
-              <input 
-                type="url" 
-                value={formData.badge_url}
-                onChange={(e) => setFormData({...formData, badge_url: e.target.value})}
-              />
+              <label>Escudo da Equipe</label>
+              <div className="image-upload-wrapper">
+                <label className={`image-upload-container ${uploading ? 'uploading' : ''}`}>
+                  {uploading ? (
+                    <div className="upload-loading-overlay">
+                      <div className="spinner"></div>
+                    </div>
+                  ) : formData.badge_url ? (
+                    <img src={formData.badge_url} alt="Preview" className="image-preview-badge" />
+                  ) : (
+                    <div className="upload-icon-box">
+                      <Camera size={24} />
+                      <span>Upload</span>
+                    </div>
+                  )}
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden-file-input" 
+                    onChange={handleBadgeUpload} 
+                  />
+                </label>
+                {formData.badge_url && (
+                  <button type="button" className="btn-remove-photo" onClick={() => setFormData({...formData, badge_url: ''})}>Remover</button>
+                )}
+              </div>
             </div>
           </div>
           <button type="submit" className="btn-save"><Save size={18} /> Salvar Equipe</button>
@@ -777,20 +830,18 @@ const TeamManagement = () => {
                     {editingGroupId === team.id ? (
                       <div className="team-edit-full-form glass" onClick={e => e.stopPropagation()}>
                         <div className="form-grid-mini">
+                          <div className="image-edit-mini">
+                            <label className={`image-upload-container mini ${uploading ? 'uploading' : ''}`} style={{ width: '60px', height: '60px' }}>
+                              {uploading ? <div className="spinner mini"></div> : (
+                                <img src={formData.badge_url || team.badge_url} alt="Badge" className="image-preview-badge" />
+                              )}
+                              <input type="file" accept="image/*" className="hidden-file-input" onChange={handleBadgeUpload} />
+                            </label>
+                          </div>
                           <input 
                             placeholder="Nome da Equipe"
-                            value={formData.name || team.name}
+                            value={formData.name}
                             onChange={e => setFormData({...formData, name: e.target.value})}
-                          />
-                          <input 
-                            placeholder="Líder"
-                            value={formData.leader || team.leader}
-                            onChange={e => setFormData({...formData, leader: e.target.value})}
-                          />
-                          <input 
-                            placeholder="Escudo URL"
-                            value={formData.badge_url || team.badge_url}
-                            onChange={e => setFormData({...formData, badge_url: e.target.value})}
                           />
                           <input 
                             placeholder="Grupo"
@@ -851,10 +902,20 @@ const PlayerManagement: React.FC<{ teamId: string, teamName: string }> = ({ team
   const { players, loading, refresh } = usePlayers(teamId);
   const [isAdding, setIsAdding] = useState(false);
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [formData, setFormData] = useState({ 
     name: '', number: '', position: 'Ala', photo_url: '', bio: '',
     goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0'
   });
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const url = await uploadToStorage(file, 'images', 'player-photos');
+    if (url) setFormData(prev => ({ ...prev, photo_url: url }));
+    setUploading(false);
+  };
 
   const handleAddPlayer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -956,8 +1017,29 @@ const PlayerManagement: React.FC<{ teamId: string, teamName: string }> = ({ team
           </div>
           <div className="player-form-grid mt-2">
             <div className="player-form-field">
-              <label>Foto URL</label>
-              <input type="url" placeholder="https://..." value={formData.photo_url} onChange={e => setFormData({...formData, photo_url: e.target.value})} />
+              <label>Foto do Atleta</label>
+              <div className="image-upload-wrapper">
+                <label className={`image-upload-container ${uploading ? 'uploading' : ''}`} style={{ width: '80px', height: '80px' }}>
+                  {uploading ? (
+                    <div className="upload-loading-overlay">
+                      <div className="spinner"></div>
+                    </div>
+                  ) : formData.photo_url ? (
+                    <img src={formData.photo_url} alt="Preview" className="image-preview-badge" />
+                  ) : (
+                    <div className="upload-icon-box">
+                      <Camera size={20} />
+                      <span>Adicionar</span>
+                    </div>
+                  )}
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden-file-input" 
+                    onChange={handlePhotoUpload} 
+                  />
+                </label>
+              </div>
             </div>
             <div className="player-form-field">
               <label>Bio/Histórico</label>
@@ -1017,7 +1099,14 @@ const PlayerManagement: React.FC<{ teamId: string, teamName: string }> = ({ team
                     </select>
                   </div>
                   <div className="player-form-grid mt-2">
-                    <input value={formData.photo_url} onChange={e => setFormData({...formData, photo_url: e.target.value})} placeholder="Foto URL" />
+                    <div className="image-edit-mini">
+                      <label className={`image-upload-container mini ${uploading ? 'uploading' : ''}`} style={{ width: '50px', height: '50px' }}>
+                        {uploading ? <div className="spinner mini"></div> : (
+                          <img src={formData.photo_url} alt="Player" className="image-preview-badge" />
+                        )}
+                        <input type="file" accept="image/*" className="hidden-file-input" onChange={handlePhotoUpload} />
+                      </label>
+                    </div>
                     <input value={formData.bio} onChange={e => setFormData({...formData, bio: e.target.value})} placeholder="Bio" />
                   </div>
                   <div className="player-stats-edit-strip mt-2">
@@ -1091,6 +1180,16 @@ const NewsManagement = () => {
   const [isAdding, setIsAdding] = useState(false);
   const [editingNewsId, setEditingNewsId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ title: '', summary: '', content: '', image_url: '' });
+  const [uploading, setUploading] = useState(false);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const url = await uploadToStorage(file, 'images', 'news');
+    if (url) setFormData(prev => ({ ...prev, image_url: url }));
+    setUploading(false);
+  };
 
   const handleAddNews = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1175,12 +1274,24 @@ const NewsManagement = () => {
               />
             </div>
             <div className="form-group">
-              <label>URL da Imagem (Opcional)</label>
-              <input 
-                type="url" 
-                value={formData.image_url}
-                onChange={(e) => setFormData({...formData, image_url: e.target.value})}
-              />
+              <label>Imagem de Capa</label>
+              <div className="image-upload-wrapper">
+                <label className={`image-upload-container news-upload ${uploading ? 'uploading' : ''}`} style={{ width: '100%', height: '160px' }}>
+                  {uploading ? (
+                    <div className="upload-loading-overlay">
+                      <div className="spinner"></div>
+                    </div>
+                  ) : formData.image_url ? (
+                    <img src={formData.image_url} alt="Preview" className="image-preview-badge" style={{ objectFit: 'cover' }} />
+                  ) : (
+                    <div className="upload-icon-box">
+                      <Camera size={32} />
+                      <span>Upload de Capa</span>
+                    </div>
+                  )}
+                  <input type="file" accept="image/*" className="hidden-file-input" onChange={handleImageUpload} />
+                </label>
+              </div>
             </div>
           </div>
           <button type="submit" className="btn-save"><Save size={18} /> Publicar Notícia</button>
@@ -1224,8 +1335,13 @@ const NewsManagement = () => {
                       <textarea rows={4} required value={formData.content} onChange={(e) => setFormData({...formData, content: e.target.value})} />
                     </div>
                     <div className="form-group">
-                      <label>Imagem URL</label>
-                      <input type="url" value={formData.image_url} onChange={(e) => setFormData({...formData, image_url: e.target.value})} />
+                      <label>Imagem de Capa</label>
+                      <label className={`image-upload-container mini ${uploading ? 'uploading' : ''}`} style={{ width: '100px', height: '60px' }}>
+                        {uploading ? <div className="spinner mini"></div> : (
+                          <img src={formData.image_url} alt="News" className="image-preview-badge" style={{ objectFit: 'cover' }} />
+                        )}
+                        <input type="file" accept="image/*" className="hidden-file-input" onChange={handleImageUpload} />
+                      </label>
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
