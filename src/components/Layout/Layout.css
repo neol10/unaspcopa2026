@@ -1,8 +1,22 @@
-.app-container {
-  min-height: 100vh;
-  display: flex;
-  border-top: 5px solid;
-  border-image: linear-gradient(90deg, #34A853 0%, #00A9E0 33%, #E4002B 66%, #FFD700 100%) 1;
+.app-container::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: linear-gradient(90deg, 
+    #34A853, #00A9E0, #E4002B, #FFD700,
+    #34A853, #00A9E0, #E4002B, #FFD700
+  );
+  background-size: 200% 100%;
+  animation: rainbow-flow 4s linear infinite;
+  z-index: 9999;
+}
+
+@keyframes rainbow-flow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
 }
 
 /* SIDEBAR STYLES */
@@ -265,8 +279,13 @@
   align-items: center;
   background: var(--bg-card);
   backdrop-filter: blur(20px);
-  border-bottom: 3px solid;
-  border-image: linear-gradient(90deg, #34A853 0%, #00A9E0 33%, #E4002B 66%, #FFD700 100%) 1;
+  position: relative;
+}
+
+.mobile-navbar::after {
+  top: auto;
+  bottom: 0;
+  height: 3px;
 }
 
 .content {

@@ -149,11 +149,20 @@ const MatchManagement = () => {
   const [formData, setFormData] = useState({ 
     team_a_id: '', 
     team_b_id: '', 
-    scheduled_at: '', 
+    match_date: '', 
     location: 'Ginásio Principal',
     status: 'agendado',
-    round: '1ª Rodada' 
+    round: '1' 
   });
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Agrupar equipes por grupo
+  const groupedTeams = teams.reduce((acc: any, team) => {
+    const groupName = team.group || 'Sem Grupo';
+    if (!acc[groupName]) acc[groupName] = [];
+    acc[groupName].push(team);
+    return acc;
+  }, {});
 
   const handleCreateMatch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,7 +173,7 @@ const MatchManagement = () => {
         round: parseInt(formData.round) || 1
       }]);
       if (error) throw error;
-      setFormData({ team_a_id: '', team_b_id: '', scheduled_at: '', location: 'Ginásio Principal', status: 'agendado', round: '1' });
+      setFormData({ team_a_id: '', team_b_id: '', match_date: '', location: 'Ginásio Principal', status: 'agendado', round: '1' });
       setIsAdding(false);
       refresh();
     } catch (err: any) { alert(err.message); }
@@ -200,7 +209,11 @@ const MatchManagement = () => {
   const handleUpdateMatch = async (id: string, data: any) => {
     try {
       const { error } = await supabase.from('matches').update({
-        ...data,
+        team_a_id: data.team_a_id,
+        team_b_id: data.team_b_id,
+        match_date: data.match_date,
+        location: data.location,
+        status: data.status,
         round: parseInt(data.round) || 1
       }).eq('id', id);
       if (error) throw error;
@@ -209,6 +222,12 @@ const MatchManagement = () => {
       alert('Partida atualizada!');
     } catch (err: any) { alert(err.message); }
   };
+
+  const filteredMatches = matches.filter(m => 
+    m.teams_a?.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    m.teams_b?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    String(m.round).includes(searchTerm)
+  );
 
   return (
     <div className="admin-section glass">
@@ -234,8 +253,12 @@ const MatchManagement = () => {
                 <label>Equipe A</label>
                 <select required value={formData.team_a_id} onChange={e => setFormData({...formData, team_a_id: e.target.value})}>
                   <option value="">Selecione...</option>
-                  {teams.sort((a, b) => (a.group || '').localeCompare(b.group || '')).map(t => (
-                    <option key={t.id} value={t.id}>{t.name} ({t.group || 'Sem Grupo'})</option>
+                  {Object.keys(groupedTeams).sort().map(group => (
+                    <optgroup key={group} label={`Grupo ${group}`}>
+                      {groupedTeams[group].sort((a: any, b: any) => a.name.localeCompare(b.name)).map((t: any) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
               </div>
@@ -243,14 +266,18 @@ const MatchManagement = () => {
                 <label>Equipe B</label>
                 <select required value={formData.team_b_id} onChange={e => setFormData({...formData, team_b_id: e.target.value})}>
                   <option value="">Selecione...</option>
-                  {teams.sort((a, b) => (a.group || '').localeCompare(b.group || '')).map(t => (
-                    <option key={t.id} value={t.id}>{t.name} ({t.group || 'Sem Grupo'})</option>
+                  {Object.keys(groupedTeams).sort().map(group => (
+                    <optgroup key={group} label={`Grupo ${group}`}>
+                      {groupedTeams[group].sort((a: any, b: any) => a.name.localeCompare(b.name)).map((t: any) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
               </div>
                <div className="form-group">
                  <label>Data/Hora</label>
-                 <input type="datetime-local" required value={formData.scheduled_at} onChange={e => setFormData({...formData, scheduled_at: e.target.value})} />
+                 <input type="datetime-local" required value={formData.match_date} onChange={e => setFormData({...formData, match_date: e.target.value})} />
                </div>
                <div className="form-group">
                  <label>Rodada (Apenas número)</label>
@@ -261,8 +288,20 @@ const MatchManagement = () => {
         </form>
       )}
 
+      <div className="admin-filters-bar">
+        <div className="search-input-wrapper">
+          <Search size={18} />
+          <input 
+            type="text" 
+            placeholder="Buscar por equipe ou rodada..." 
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+          />
+        </div>
+      </div>
+
       <div className="admin-list">
-        {loading ? <p>Carregando...</p> : matches.map(match => (
+        {loading ? <p>Carregando...</p> : filteredMatches.map(match => (
           <React.Fragment key={match.id}>
             <div className={`admin-list-item match-admin-card ${match.status}`}>
               <div className="match-status-info">
@@ -283,7 +322,7 @@ const MatchManagement = () => {
                        setFormData({
                          team_a_id: match.team_a_id,
                          team_b_id: match.team_b_id,
-                         scheduled_at: match.match_date ? new Date(match.match_date).toISOString().slice(0, 16) : '',
+                         match_date: match.match_date ? new Date(match.match_date).toISOString().slice(0, 16) : '',
                          location: match.location,
                          status: match.status,
                          round: String(match.round)
@@ -307,7 +346,7 @@ const MatchManagement = () => {
                         setFormData({
                           team_a_id: match.team_a_id,
                           team_b_id: match.team_b_id,
-                          scheduled_at: match.match_date ? new Date(match.match_date).toISOString().slice(0, 16) : '',
+                          match_date: match.match_date ? new Date(match.match_date).toISOString().slice(0, 16) : '',
                           location: match.location,
                           status: match.status,
                           round: String(match.round)
@@ -337,7 +376,7 @@ const MatchManagement = () => {
                   </div>
                   <div className="form-group">
                     <label>Data/Hora</label>
-                    <input type="datetime-local" value={formData.scheduled_at} onChange={e => setFormData({...formData, scheduled_at: e.target.value})} />
+                    <input type="datetime-local" value={formData.match_date} onChange={e => setFormData({...formData, match_date: e.target.value})} />
                   </div>
                   <div className="form-group">
                     <label>Rodada</label>

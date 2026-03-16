@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Home.css';
-import { Trophy, Bell, ArrowRight, Zap, Shield, Vote, Timer, Calendar } from 'lucide-react';
+import { Trophy, Bell, ArrowRight, Zap, Shield, Vote, Timer, Calendar, X } from 'lucide-react';
 import Skeleton from '../../components/Skeleton/Skeleton';
-import { useNews } from '../../hooks/useNews';
+import { useNews, News } from '../../hooks/useNews';
 import { useStandings } from '../../hooks/useStandings';
 import { usePolls } from '../../hooks/usePolls';
 import { useMatches } from '../../hooks/useMatches';
@@ -14,6 +14,7 @@ const Home: React.FC = () => {
   const navigate = useNavigate();
   const { activePoll, loading: pollLoading, hasVoted, submitVote } = usePolls();
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [selectedNews, setSelectedNews] = useState<News | null>(null);
   
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [nextMatch, setNextMatch] = useState<any>(null);
@@ -184,11 +185,11 @@ const Home: React.FC = () => {
 
         <div className="home-dual-layout">
           {/* News Stream */}
-          <section className="news-stream">
+           <section className="news-stream">
             <div className="section-head-v2">
                <Bell size={24} color="var(--primary)" />
                <h2>Últimos Comunicados</h2>
-               <button className="btn-view-all" onClick={() => navigate('/jogadores')}>
+               <button className="btn-view-all" onClick={() => navigate('/')}>
                  Ver tudo <ArrowRight size={16} />
                </button>
             </div>
@@ -203,10 +204,10 @@ const Home: React.FC = () => {
                   </div>
                 ))
               ) : news.map((item, index) => (
-                <article 
+                 <article 
                   key={item.id} 
                   className={`news-card-v2 glass-hover glass ${index === 0 ? 'featured-news' : ''}`} 
-                  onClick={() => navigate('/jogadores')}
+                  onClick={() => setSelectedNews(item)}
                 >
                   <div className="news-card-img">
                     {item.image_url ? (
@@ -229,8 +230,37 @@ const Home: React.FC = () => {
                   </div>
                 </article>
               ))}
-            </div>
+             </div>
           </section>
+
+          {/* News Modal */}
+          {selectedNews && (
+            <div className="news-modal-overlay animate-fade-in" onClick={() => setSelectedNews(null)}>
+              <div className="news-modal-content glass animate-slide-up" onClick={e => e.stopPropagation()}>
+                <button className="news-modal-close" onClick={() => setSelectedNews(null)}><X size={24} /></button>
+                <div className="news-modal-hero">
+                  {selectedNews.image_url ? (
+                    <img src={selectedNews.image_url} alt={selectedNews.title} className="news-modal-img" />
+                  ) : (
+                    <div className="news-modal-img-placeholder"><Zap size={64} /></div>
+                  )}
+                  <span className="news-badge">Oficial</span>
+                </div>
+                <div className="news-modal-body">
+                  <div className="news-meta">
+                    <span className="news-tag">COBERTURA</span>
+                    <span className="news-date">{new Date(selectedNews.published_at).toLocaleDateString('pt-BR')}</span>
+                  </div>
+                  <h2>{selectedNews.title}</h2>
+                  <div className="news-modal-text">
+                    {selectedNews.content.split('\n').map((para, i) => (
+                      <p key={i}>{para}</p>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Engagement Hub */}
           <aside className="engagement-hub">

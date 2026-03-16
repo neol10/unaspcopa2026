@@ -11,7 +11,7 @@ import './Layout.css';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { theme, toggleTheme } = useTheme();
-  const { user, signOut } = useAuthContext();
+  const { user, role, signOut } = useAuthContext();
   const { isSubscribed, subscribe, unsubscribe } = usePushNotifications();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -75,11 +75,13 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                   <Users size={20} /> <span>Jogadores</span>
                 </NavLink>
               </li>
-              <li>
-                <NavLink to="/admin" className={({ isActive }) => isActive ? 'nav-active' : ''} onClick={closeMobileMenu}>
-                  <Settings size={20} /> <span>Admin</span>
-                </NavLink>
-              </li>
+              {role === 'admin' && (
+                <li>
+                  <NavLink to="/admin" className={({ isActive }) => isActive ? 'nav-active' : ''} onClick={closeMobileMenu}>
+                    <Settings size={20} /> <span>Admin</span>
+                  </NavLink>
+                </li>
+              )}
             </ul>
           </nav>
 
