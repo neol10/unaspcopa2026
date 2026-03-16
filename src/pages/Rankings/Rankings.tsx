@@ -10,9 +10,11 @@ const Rankings: React.FC = () => {
   const [selectedRound, setSelectedRound] = useState<string | null>(null);
 
   // Set default round once available
-  if (!selectedRound && availableRounds.length > 0) {
-    setSelectedRound(availableRounds[availableRounds.length - 1]);
-  }
+  React.useEffect(() => {
+    if (!selectedRound && availableRounds.length > 0) {
+      setSelectedRound(availableRounds[availableRounds.length - 1]);
+    }
+  }, [availableRounds, selectedRound]);
 
   if (loading) return (
     <div className="rankings-loading animate-fade-in">

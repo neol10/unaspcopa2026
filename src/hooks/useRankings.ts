@@ -109,7 +109,13 @@ export const useRankings = () => {
       });
 
       setRoundMvps(calculatedRoundMvps);
-      setAvailableRounds(Array.from(roundsFound).sort((a, b) => parseInt(a) - parseInt(b)));
+      const sortedRounds = Array.from(roundsFound).sort((a, b) => {
+        const numA = parseInt(a);
+        const numB = parseInt(b);
+        if (isNaN(numA) || isNaN(numB)) return a.localeCompare(b);
+        return numA - numB;
+      });
+      setAvailableRounds(sortedRounds);
 
       // Top Artilheiros
       setScorers([...playersWithTeam].sort((a, b) => b.goals_count - a.goals_count).filter(p => p.goals_count > 0).slice(0, 10));
