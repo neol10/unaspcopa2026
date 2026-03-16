@@ -290,7 +290,7 @@
 
 .content {
   flex: 1;
-  padding: 3rem;
+  padding: 1.5rem 3rem 3rem;
   width: 100%;
   max-width: 1400px;
   margin: 0 auto;
@@ -336,7 +336,7 @@
     width: 240px;
   }
   .content {
-    padding: 2rem;
+    padding: 1.5rem 2rem 2rem;
   }
 }
 
@@ -375,7 +375,7 @@
   }
 
   .content {
-    padding: 2rem 1.5rem;
+    padding: 1rem 1.25rem 2rem;
   }
 
   .mobile-menu-btn {
