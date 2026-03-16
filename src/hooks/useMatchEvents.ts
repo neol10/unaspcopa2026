@@ -17,7 +17,10 @@ export const useMatchEvents = (matchId: string) => {
   const [loading, setLoading] = useState(true);
 
   const fetchEvents = async () => {
-    if (!matchId) return;
+    if (!matchId) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const { data, error } = await supabase

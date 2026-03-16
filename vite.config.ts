@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'icons.svg'],
+      includeAssets: ['favicon.svg', 'favicon.png', 'icons.svg'],
       manifest: {
         name: 'Copa Unasp 2026',
         short_name: 'Copa Unasp',
@@ -18,17 +18,17 @@ export default defineConfig({
         start_url: '/',
         icons: [
           {
-            src: 'https://pwa-lib.vercel.app/icons/icon-192x192.png',
+            src: '/favicon.png',
             sizes: '192x192',
             type: 'image/png'
           },
           {
-            src: 'https://pwa-lib.vercel.app/icons/icon-512x512.png',
+            src: '/favicon.png',
             sizes: '512x512',
             type: 'image/png'
           },
           {
-            src: 'https://pwa-lib.vercel.app/icons/icon-512x512.png',
+            src: '/favicon.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable'
@@ -37,7 +37,11 @@ export default defineConfig({
       },
       workbox: {
         importScripts: ['push-sw.js'],
+        // Cacheia apenas assets estáticos, NUNCA a API
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        // Força o SW a assumir o controle imediatamente ao atualizar
+        skipWaiting: true,
+        clientsClaim: true,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -54,18 +58,9 @@ export default defineConfig({
             }
           },
           {
+            // NUNCA cacheia a API do Supabase – sempre busca da rede
             urlPattern: /^https:\/\/etxqacjtqleucpkhvyhg\.supabase\.co\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
+            handler: 'NetworkOnly'
           },
           {
             urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/i,
@@ -74,7 +69,7 @@ export default defineConfig({
               cacheName: 'image-cache',
               expiration: {
                 maxEntries: 200,
-                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 dias
+                maxAgeSeconds: 60 * 60 * 24 * 30
               },
               cacheableResponse: {
                 statuses: [0, 200]
