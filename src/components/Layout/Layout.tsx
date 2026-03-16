@@ -119,22 +119,22 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </div>
       </aside>
 
-      <header className="mobile-navbar glass">
-        <NavLink to="/" className="brand">
-          <img src={logo} alt="Logo UNASP" className="nav-logo" />
-          <div className="brand-text">
-            <span className="brand-copa">COPA</span>
-            <span className="brand-year">2026</span>
-          </div>
-        </NavLink>
-        <button className="mobile-menu-btn" onClick={toggleMobileMenu} aria-label="Abrir menu">
-          <Menu size={24} />
-        </button>
-      </header>
-      
-      <div className={`nav-overlay ${isMobileMenuOpen ? 'show' : ''}`} onClick={closeMobileMenu}></div>
-
       <div className="main-wrapper">
+        <header className="mobile-navbar glass">
+          <NavLink to="/" className="brand">
+            <img src={logo} alt="Logo UNASP" className="nav-logo" />
+            <div className="brand-text">
+              <span className="brand-copa">COPA</span>
+              <span className="brand-year">2026</span>
+            </div>
+          </NavLink>
+          <button className="mobile-menu-btn" onClick={toggleMobileMenu} aria-label="Abrir menu">
+            <Menu size={24} />
+          </button>
+        </header>
+
+        <div className={`nav-overlay ${isMobileMenuOpen ? 'show' : ''}`} onClick={closeMobileMenu}></div>
+
         <main className="content">
           {children}
         </main>
