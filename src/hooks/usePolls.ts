@@ -28,9 +28,9 @@ export const usePolls = () => {
         .eq('active', true)
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
         
-      if (error && error.code !== 'PGRST116') throw error; // Ignora erro de nao encontrar registro
+      if (error) throw error; // maybeSingle() retorna null sem erro quando não encontra registro
       
       if (data) {
         setActivePoll(data);

@@ -60,7 +60,7 @@ export const useMatchMvpVoting = (matchId: string) => {
           .select('player_id')
           .eq('match_id', matchId)
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
         setUserVote(myVote?.player_id || null);
       }
     } catch (err: any) {

@@ -59,7 +59,7 @@ export const useMvpVoting = (round: string) => {
           .select('player_id')
           .eq('user_id', user.id)
           .eq('round', round)
-          .single();
+          .maybeSingle();
         setUserVote(myVote?.player_id || null);
       } else {
         setUserVote(null);
