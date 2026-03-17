@@ -3,6 +3,7 @@ import './Rankings.css';
 import { useRankings, RankingPlayer } from '../../hooks/useRankings';
 import { Trophy, Activity, ShieldAlert, Zap, Medal, User } from 'lucide-react';
 import PlayerProfileModal from '../Players/PlayerProfileModal';
+import Skeleton from '../../components/Skeleton/Skeleton';
 
 const Rankings: React.FC = () => {
   const { scorers, assistants, goalkeepers, galeraRank, disciplined, roundMvps, availableRounds, loading } = useRankings();
@@ -16,10 +17,22 @@ const Rankings: React.FC = () => {
     }
   }, [availableRounds, selectedRound]);
 
-  if (loading) return (
-    <div className="rankings-loading animate-fade-in">
-      <div className="spinner"></div>
-      <p>Computando recordes...</p>
+  if (loading && scorers.length === 0) return (
+    <div className="rankings-container animate-fade-in">
+      <header className="rankings-header">
+        <div className="header-info">
+          <Skeleton width="200px" height="40px" className="mb-2" />
+          <Skeleton width="300px" height="20px" />
+        </div>
+      </header>
+      <div className="rankings-featured-grid">
+        <Skeleton width="100%" height="200px" borderRadius="16px" />
+        <Skeleton width="100%" height="200px" borderRadius="16px" />
+      </div>
+      <div className="rankings-grid">
+        <Skeleton width="100%" height="400px" />
+        <Skeleton width="100%" height="400px" />
+      </div>
     </div>
   );
 
@@ -65,7 +78,13 @@ const Rankings: React.FC = () => {
             <div className="round-winner-card" onClick={() => setSelectedPlayer(roundWinner)}>
                <div className="winner-avatar-box">
                   {roundWinner.photo_url ? (
-                    <img src={roundWinner.photo_url} alt="" />
+                    <img 
+                      src={roundWinner.photo_url} 
+                      alt="" 
+                      width="64" 
+                      height="64" 
+                      loading="lazy" 
+                    />
                   ) : (
                     <User size={32} />
                   )}
@@ -102,7 +121,7 @@ const Rankings: React.FC = () => {
                   </div>
                   <div className="h-stat">
                     <strong>{topScorer.assists || 0}</strong>
-                    <span>Assistências</span>
+                    <span>ASS</span>
                   </div>
                 </div>
               </div>
@@ -124,13 +143,30 @@ const Rankings: React.FC = () => {
               <div key={p.id} className="rank-row-item glass-hover" onClick={() => setSelectedPlayer(p)}>
                 <div className="rank-idx">{i + 1}º</div>
                 <div className="rank-avatar">
-                  {p.photo_url ? <img src={p.photo_url} alt={p.name} /> : <div className="avatar-dummy"><User size={14} /></div>}
+                  {p.photo_url ? (
+                    <img 
+                      src={p.photo_url} 
+                      alt={p.name} 
+                      width="32" 
+                      height="32" 
+                      loading="lazy" 
+                    />
+                  ) : <div className="avatar-dummy"><User size={14} /></div>}
                 </div>
                 <div className="rank-player">
                   <div className="player-name-wrapper">
                     <strong>{p.name}</strong>
                     <div className="team-mini-info">
-                      {p.team_badge_url && <img src={p.team_badge_url} alt="" className="mini-badge" />}
+                      {p.team_badge_url && (
+                        <img 
+                          src={p.team_badge_url} 
+                          alt="" 
+                          className="mini-badge" 
+                          width="16" 
+                          height="16" 
+                          loading="lazy" 
+                        />
+                      )}
                       <span>{p.team_name}</span>
                     </div>
                   </div>
@@ -214,18 +250,35 @@ const Rankings: React.FC = () => {
               <div key={p.id} className="rank-row-item glass-hover" onClick={() => setSelectedPlayer(p)}>
                 <div className="rank-idx">{i + 1}º</div>
                 <div className="rank-avatar">
-                  {p.photo_url ? <img src={p.photo_url} alt={p.name} /> : <div className="avatar-dummy"><User size={14} /></div>}
+                  {p.photo_url ? (
+                    <img 
+                      src={p.photo_url} 
+                      alt={p.name} 
+                      width="32" 
+                      height="32" 
+                      loading="lazy" 
+                    />
+                  ) : <div className="avatar-dummy"><User size={14} /></div>}
                 </div>
                 <div className="rank-player">
                   <div className="player-name-wrapper">
                     <strong>{p.name}</strong>
                     <div className="team-mini-info">
-                      {p.team_badge_url && <img src={p.team_badge_url} alt="" className="mini-badge" />}
+                      {p.team_badge_url && (
+                        <img 
+                          src={p.team_badge_url} 
+                          alt="" 
+                          className="mini-badge" 
+                          width="16" 
+                          height="16" 
+                          loading="lazy" 
+                        />
+                      )}
                       <span>{p.team_name}</span>
                     </div>
                   </div>
                 </div>
-                <div className="rank-val">{p.assists} A</div>
+                <div className="rank-val">{p.assists} ASS</div>
               </div>
             ))}
             {assistants.length === 0 && <p className="empty-rank">Nenhuma assistência.</p>}
@@ -243,13 +296,30 @@ const Rankings: React.FC = () => {
               <div key={p.id} className="rank-row-item glass-hover" onClick={() => setSelectedPlayer(p)}>
                 <div className="rank-idx">{i + 1}º</div>
                 <div className="rank-avatar">
-                  {p.photo_url ? <img src={p.photo_url} alt={p.name} /> : <div className="avatar-dummy"><User size={14} /></div>}
+                  {p.photo_url ? (
+                    <img 
+                      src={p.photo_url} 
+                      alt={p.name} 
+                      width="32" 
+                      height="32" 
+                      loading="lazy" 
+                    />
+                  ) : <div className="avatar-dummy"><User size={14} /></div>}
                 </div>
                 <div className="rank-player">
                   <div className="player-name-wrapper">
                     <strong>{p.name}</strong>
                     <div className="team-mini-info">
-                      {p.team_badge_url && <img src={p.team_badge_url} alt="" className="mini-badge" />}
+                      {p.team_badge_url && (
+                        <img 
+                          src={p.team_badge_url} 
+                          alt="" 
+                          className="mini-badge" 
+                          width="16" 
+                          height="16" 
+                          loading="lazy" 
+                        />
+                      )}
                       <span>{p.team_name}</span>
                     </div>
                   </div>

@@ -58,9 +58,21 @@ export default defineConfig({
             }
           },
           {
-            // NUNCA cacheia a API do Supabase – sempre busca da rede
-            urlPattern: /^https:\/\/etxqacjtqleucpkhvyhg\.supabase\.co\/.*/i,
-            handler: 'NetworkOnly'
+            // Cacheia as requisições de leitura do Supabase para suporte offline
+            urlPattern: ({ url, request }) => {
+              return url.hostname === 'etxqacjtqleucpkhvyhg.supabase.co' && request.method === 'GET';
+            },
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'supabase-data-cache',
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 60 * 60 * 24 // 1 dia
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
           },
           {
             urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/i,

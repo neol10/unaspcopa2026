@@ -7,7 +7,8 @@ import { useMatchMvpVoting } from '../../hooks/useMatchMvpVoting';
 import Skeleton from '../../components/Skeleton/Skeleton';
 import { useTournamentConfig } from '../../hooks/useTournamentConfig';
 import { useAuthContext } from '../../contexts/AuthContext';
-import { Shield, Timer, Award, Zap, History, Target, Square, Vote, Download, Trophy } from 'lucide-react';
+import { Shield, Timer, Award, Zap, History, Target, Square, Vote, Download, Trophy, ArrowRightLeft } from 'lucide-react';
+import toast from 'react-hot-toast';
 import ShareCard, { useShareCard } from '../../components/ShareCard/ShareCard';
 import './MatchCenter.css';
 
@@ -21,8 +22,25 @@ const MatchCenter: React.FC = () => {
 
   const [elapsedTime, setElapsedTime] = useState('00:00');
 
-  const { events, loading: eventsLoading } = useMatchEvents(activeMatch?.id || '');
   const { players } = usePlayers();
+
+  const handleNewEvent = (event: any) => {
+    // Only show toasts if the event is from the active match
+    if (event.match_id !== activeMatch?.id) return;
+
+    if (event.event_type === 'gol') {
+      toast.success(`⚽ GOOOOL! ${event.players?.name || ''}`);
+    } else if (event.event_type === 'amarelo') {
+      toast(`🟨 Cartão Amarelo para ${event.players?.name || ''}`, { icon: '🟨' });
+    } else if (event.event_type === 'vermelho') {
+      toast.error(`🟥 Cartão Vermelho para ${event.players?.name || ''}`);
+    } else if (event.event_type === 'substituicao') {
+      const playerIn = players.find((p: any) => p.id === event.assistant_id)?.name;
+      toast(`🔄 Substituição: Sai ${event.players?.name || ''}, Entra ${playerIn || 'jogador'}`, { icon: '🔄' });
+    }
+  };
+
+  const { events, loading: eventsLoading } = useMatchEvents(activeMatch?.id || '', handleNewEvent);
   const { user } = useAuthContext();
   const { config } = useTournamentConfig();
   const { voteCounts: roundVotes, userVote: roundUserVote, vote: castRoundVote, loading: roundMvpLoading } = useMvpVoting(String(config.current_round));
@@ -30,6 +48,32 @@ const MatchCenter: React.FC = () => {
   
   const { cardRef, downloadCard } = useShareCard();
   const [isExporting, setIsExporting] = useState(false);
+  const [newComment, setNewComment] = useState('');
+  const [isSendingComment, setIsSendingComment] = useState(false);
+
+  const handleSendComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !newComment.trim() || !activeMatch) return;
+
+    setIsSendingComment(true);
+    try {
+      const { error } = await supabase.from('match_events').insert({
+        match_id: activeMatch.id,
+        event_type: 'comentario',
+        commentary: newComment.trim(),
+        minute: elapsedTime === 'Fim' || elapsedTime === 'Pré-jogo' ? 0 : parseInt(elapsedTime.split(':')[0]) || 0,
+        player_id: null
+      });
+
+      if (error) throw error;
+      setNewComment('');
+      toast.success('Comentário enviado!');
+    } catch (err: any) {
+      toast.error('Erro ao enviar comentário');
+    } finally {
+      setIsSendingComment(false);
+    }
+  };
 
   // Lógica do Cronômetro em Tempo Real
   useEffect(() => {
@@ -128,7 +172,14 @@ const MatchCenter: React.FC = () => {
               <div className="sb-team">
                 <div className="sb-shield glass">
                   {activeMatch.teams_a?.badge_url ? (
-                    <img src={activeMatch.teams_a.badge_url} alt="" />
+                    <img 
+                      src={activeMatch.teams_a.badge_url} 
+                      alt="" 
+                      width="48" 
+                      height="48" 
+                      loading="lazy"
+                      style={{ objectFit: 'contain', padding: '4px' }} 
+                    />
                   ) : <Shield size={48} color="var(--secondary)" />}
                 </div>
                 <h3>{activeMatch.teams_a?.name}</h3>
@@ -149,7 +200,14 @@ const MatchCenter: React.FC = () => {
               <div className="sb-team">
                 <div className="sb-shield glass">
                   {activeMatch.teams_b?.badge_url ? (
-                    <img src={activeMatch.teams_b.badge_url} alt="" />
+                    <img 
+                      src={activeMatch.teams_b.badge_url} 
+                      alt="" 
+                      width="48" 
+                      height="48" 
+                      loading="lazy"
+                      style={{ objectFit: 'contain', padding: '4px' }} 
+                    />
                   ) : <Shield size={48} color="var(--primary)" />}
                 </div>
                 <h3>{activeMatch.teams_b?.name}</h3>
@@ -227,6 +285,7 @@ const MatchCenter: React.FC = () => {
                       {event.event_type === 'gol' && <Trophy size={14} color="var(--secondary)" />}
                       {event.event_type === 'amarelo' && <div className="card-yellow"></div>}
                       {event.event_type === 'vermelho' && <div className="card-red"></div>}
+                      {event.event_type === 'substituicao' && <ArrowRightLeft size={14} color="#fff" />}
                       {event.event_type === 'comentario' && <Zap size={14} color="var(--accent-blue)" />}
                     </div>
                     <div className="t-content glass">
@@ -234,7 +293,8 @@ const MatchCenter: React.FC = () => {
                         <span className="t-type">
                           {event.event_type === 'gol' ? 'GOL!' : 
                            event.event_type === 'amarelo' ? 'Cartão Amarelo' :
-                           event.event_type === 'vermelho' ? 'Cartão Vermelho' : 'Informação'}
+                           event.event_type === 'vermelho' ? 'Cartão Vermelho' :
+                           event.event_type === 'substituicao' ? 'Substituição' : 'Informação'}
                         </span>
                       </div>
                       <p>
@@ -242,6 +302,12 @@ const MatchCenter: React.FC = () => {
                         {event.event_type === 'gol' && event.assistant_id && (
                           <span className="assistant">
                              Assistência: {players.find(p => p.id === event.assistant_id)?.name}
+                          </span>
+                        )}
+                        {event.event_type === 'substituicao' && (
+                          <span className="assistant" style={{ color: '#94a3b8' }}>
+                            <ArrowRightLeft size={12} style={{ display: 'inline', marginRight: 4 }} />
+                            Entra: {players.find(p => p.id === event.assistant_id)?.name}
                           </span>
                         )}
                         {event.event_type === 'comentario' && event.commentary}
@@ -268,6 +334,27 @@ const MatchCenter: React.FC = () => {
                 ))}
                 {events.filter(e => e.event_type === 'comentario').length === 0 && (
                   <p className="empty-feed">Aguardando lances da partida...</p>
+                )}
+              </div>
+              
+              <div className="comment-input-area">
+                {user ? (
+                  <form className="comment-form" onSubmit={handleSendComment}>
+                    <input 
+                      type="text" 
+                      placeholder="Escreva um comentário..." 
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      disabled={isSendingComment}
+                    />
+                    <button type="submit" disabled={isSendingComment || !newComment.trim()}>
+                      {isSendingComment ? <div className="spinner-mini"></div> : <Zap size={16} />}
+                    </button>
+                  </form>
+                ) : (
+                  <div className="login-to-comment">
+                    <p>Faça login para participar dos comentários ao vivo!</p>
+                  </div>
                 )}
               </div>
             </div>

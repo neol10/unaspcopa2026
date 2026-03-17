@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Trophy, Users, Calendar, Plus, Save, Trash2, Shield, ChevronDown, ChevronUp, Newspaper, Image as ImageIcon, CheckCircle, Play, Camera, Search, Settings2, Vote, ShieldAlert, Bell, Star, CreditCard } from 'lucide-react';
+import { Trophy, Users, Calendar, Plus, Save, Trash2, Shield, ChevronDown, ChevronUp, Newspaper, Image as ImageIcon, CheckCircle, Play, Camera, Search, Settings2, Vote, ShieldAlert, Bell, Star, CreditCard, Target, Square, ArrowRightLeft, MessageSquare, Zap, Clock, ArrowRight } from 'lucide-react';
 import { useMatchMvpVoting } from '../../hooks/useMatchMvpVoting';
 import { useTeams } from '../../hooks/useTeams';
 import { usePlayers } from '../../hooks/usePlayers';
@@ -18,9 +18,16 @@ const uploadToStorage = async (file: File, bucket: string = 'images', folder: st
     const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
     const filePath = `${folder}/${fileName}`;
 
-    const { error: uploadError } = await supabase.storage
+    // Adicionar timeout ao upload
+    const uploadPromise = supabase.storage
       .from(bucket)
       .upload(filePath, file);
+
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Tempo limite de upload excedido (15s)')), 15000)
+    );
+
+    const { error: uploadError } = await Promise.race([uploadPromise, timeoutPromise]) as any;
 
     if (uploadError) throw uploadError;
 
@@ -30,10 +37,18 @@ const uploadToStorage = async (file: File, bucket: string = 'images', folder: st
 
     return data.publicUrl;
   } catch (err: any) {
+    console.error('Upload error:', err);
     alert('Erro no upload: ' + err.message);
     return null;
   }
 };
+
+const formatDatetimeLocal = (dateStr: string | null) => {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+};
+
 
 const Admin: React.FC = () => {
   const { user, role, loading: authLoading } = useAuthContext();
@@ -167,10 +182,26 @@ const MatchManagement = () => {
   const handleCreateMatch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.team_a_id === formData.team_b_id) return alert('Selecione times diferentes!');
+    
+    // Validação: Impedir que o mesmo time jogue duas vezes na mesma rodada
+    const currentRound = parseInt(formData.round) || 1;
+    const teamACollision = matches.find(m => m.round === currentRound && (m.team_a_id === formData.team_a_id || m.team_b_id === formData.team_a_id));
+    const teamBCollision = matches.find(m => m.round === currentRound && (m.team_a_id === formData.team_b_id || m.team_b_id === formData.team_b_id));
+
+    if (teamACollision) {
+      const teamName = teams.find(t => t.id === formData.team_a_id)?.name;
+      return alert(`Erro: O time ${teamName} já possui uma partida na rodada ${currentRound}!`);
+    }
+    if (teamBCollision) {
+      const teamName = teams.find(t => t.id === formData.team_b_id)?.name;
+      return alert(`Erro: O time ${teamName} já possui uma partida na rodada ${currentRound}!`);
+    }
+
     try {
       const { error } = await supabase.from('matches').insert([{
         ...formData,
-        round: parseInt(formData.round) || 1
+        match_date: formData.match_date ? new Date(formData.match_date).toISOString() : null,
+        round: currentRound
       }]);
       if (error) throw error;
       setFormData({ team_a_id: '', team_b_id: '', match_date: '', location: 'Ginásio Principal', status: 'agendado', round: '1' });
@@ -207,14 +238,28 @@ const MatchManagement = () => {
   const [editingMatchId, setEditingMatchId] = useState<string | null>(null);
 
   const handleUpdateMatch = async (id: string, data: any) => {
+    // Validação: Impedir que o mesmo time jogue duas vezes na mesma rodada (ignorando a própria partida sendo editada)
+    const currentRound = parseInt(data.round) || 1;
+    const teamACollision = matches.find(m => m.id !== id && m.round === currentRound && (m.team_a_id === data.team_a_id || m.team_b_id === data.team_a_id));
+    const teamBCollision = matches.find(m => m.id !== id && m.round === currentRound && (m.team_a_id === data.team_b_id || m.team_b_id === data.team_b_id));
+
+    if (teamACollision) {
+      const teamName = teams.find(t => t.id === data.team_a_id)?.name;
+      return alert(`Erro: O time ${teamName} já possui outra partida na rodada ${currentRound}!`);
+    }
+    if (teamBCollision) {
+      const teamName = teams.find(t => t.id === data.team_b_id)?.name;
+      return alert(`Erro: O time ${teamName} já possui outra partida na rodada ${currentRound}!`);
+    }
+
     try {
       const { error } = await supabase.from('matches').update({
         team_a_id: data.team_a_id,
         team_b_id: data.team_b_id,
-        match_date: data.match_date,
+        match_date: data.match_date ? new Date(data.match_date).toISOString() : null,
         location: data.location,
         status: data.status,
-        round: parseInt(data.round) || 1
+        round: currentRound
       }).eq('id', id);
       if (error) throw error;
       setEditingMatchId(null);
@@ -228,6 +273,22 @@ const MatchManagement = () => {
     m.teams_b?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     String(m.round).includes(searchTerm)
   );
+
+  // Times ocupados na rodada selecionada (Nova Partida)
+  const busyTeamIdsInRound = new Set(
+    matches
+      .filter(m => m.round === (parseInt(formData.round) || 1))
+      .flatMap(m => [m.team_a_id, m.team_b_id])
+  );
+
+  // Times ocupados na rodada da partida sendo editada (Ignorando a própria partida)
+  const getBusyTeamIdsForEdit = (matchId: string, round: number) => {
+    return new Set(
+      matches
+        .filter(m => m.id !== matchId && m.round === round)
+        .flatMap(m => [m.team_a_id, m.team_b_id])
+    );
+  };
 
   return (
     <div className="admin-section glass">
@@ -253,26 +314,34 @@ const MatchManagement = () => {
                 <label>Equipe A</label>
                 <select required value={formData.team_a_id} onChange={e => setFormData({...formData, team_a_id: e.target.value})}>
                   <option value="">Selecione...</option>
-                  {Object.keys(groupedTeams).sort().map(group => (
-                    <optgroup key={group} label={`Grupo ${group}`}>
-                      {groupedTeams[group].sort((a: any, b: any) => a.name.localeCompare(b.name)).map((t: any) => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                      ))}
-                    </optgroup>
-                  ))}
+                  {Object.keys(groupedTeams).sort().map(group => {
+                    const availableTeamsInGroup = groupedTeams[group].filter((t: any) => !busyTeamIdsInRound.has(t.id) || t.id === formData.team_a_id);
+                    if (availableTeamsInGroup.length === 0) return null;
+                    return (
+                      <optgroup key={group} label={`Grupo ${group}`}>
+                        {availableTeamsInGroup.sort((a: any, b: any) => a.name.localeCompare(b.name)).map((t: any) => (
+                          <option key={t.id} value={t.id} disabled={formData.team_b_id === t.id}>{t.name}</option>
+                        ))}
+                      </optgroup>
+                    );
+                  })}
                 </select>
               </div>
               <div className="form-group">
                 <label>Equipe B</label>
                 <select required value={formData.team_b_id} onChange={e => setFormData({...formData, team_b_id: e.target.value})}>
                   <option value="">Selecione...</option>
-                  {Object.keys(groupedTeams).sort().map(group => (
-                    <optgroup key={group} label={`Grupo ${group}`}>
-                      {groupedTeams[group].sort((a: any, b: any) => a.name.localeCompare(b.name)).map((t: any) => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                      ))}
-                    </optgroup>
-                  ))}
+                  {Object.keys(groupedTeams).sort().map(group => {
+                    const availableTeamsInGroup = groupedTeams[group].filter((t: any) => !busyTeamIdsInRound.has(t.id) || t.id === formData.team_b_id);
+                    if (availableTeamsInGroup.length === 0) return null;
+                    return (
+                      <optgroup key={group} label={`Grupo ${group}`}>
+                        {availableTeamsInGroup.sort((a: any, b: any) => a.name.localeCompare(b.name)).map((t: any) => (
+                          <option key={t.id} value={t.id} disabled={formData.team_a_id === t.id}>{t.name}</option>
+                        ))}
+                      </optgroup>
+                    );
+                  })}
                 </select>
               </div>
                <div className="form-group">
@@ -307,7 +376,19 @@ const MatchManagement = () => {
               <div className="match-status-info">
                   <span className={`status-dot ${match.status}`}></span>
                   <div className="match-info-main">
-                    <strong>{match.teams_a?.name} {match.team_a_score} x {match.team_b_score} {match.teams_b?.name}</strong>
+                    <strong style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {match.teams_a?.badge_url ? (
+                        <img src={match.teams_a.badge_url} alt="" style={{ width: 24, height: 24, objectFit: 'contain' }} />
+                      ) : (
+                        <Shield size={20} />
+                      )}
+                      <span>{match.teams_a?.name} {match.team_a_score} x {match.team_b_score} {match.teams_b?.name}</span>
+                      {match.teams_b?.badge_url ? (
+                        <img src={match.teams_b.badge_url} alt="" style={{ width: 24, height: 24, objectFit: 'contain' }} />
+                      ) : (
+                        <Shield size={20} />
+                      )}
+                    </strong>
                     <div className="match-meta-admin">
                       <span className="round-badge">{match.round}</span>
                       <span className="match-date">{new Date(match.match_date).toLocaleString('pt-BR')}</span>
@@ -322,7 +403,7 @@ const MatchManagement = () => {
                        setFormData({
                          team_a_id: match.team_a_id,
                          team_b_id: match.team_b_id,
-                         match_date: match.match_date ? new Date(match.match_date).toISOString().slice(0, 16) : '',
+                         match_date: formatDatetimeLocal(match.match_date),
                          location: match.location,
                          status: match.status,
                          round: String(match.round)
@@ -346,7 +427,7 @@ const MatchManagement = () => {
                         setFormData({
                           team_a_id: match.team_a_id,
                           team_b_id: match.team_b_id,
-                          match_date: match.match_date ? new Date(match.match_date).toISOString().slice(0, 16) : '',
+                          match_date: formatDatetimeLocal(match.match_date),
                           location: match.location,
                           status: match.status,
                           round: String(match.round)
@@ -365,13 +446,19 @@ const MatchManagement = () => {
                   <div className="form-group">
                     <label>Equipe A</label>
                     <select value={formData.team_a_id} onChange={e => setFormData({...formData, team_a_id: e.target.value})}>
-                      {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      {teams
+                        .filter(t => !getBusyTeamIdsForEdit(match.id, parseInt(formData.round)).has(t.id) || t.id === match.team_a_id)
+                        .map(t => <option key={t.id} value={t.id}>{t.name}</option>)
+                      }
                     </select>
                   </div>
                   <div className="form-group">
                     <label>Equipe B</label>
                     <select value={formData.team_b_id} onChange={e => setFormData({...formData, team_b_id: e.target.value})}>
-                      {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      {teams
+                        .filter(t => !getBusyTeamIdsForEdit(match.id, parseInt(formData.round)).has(t.id) || t.id === match.team_b_id)
+                        .map(t => <option key={t.id} value={t.id}>{t.name}</option>)
+                      }
                     </select>
                   </div>
                   <div className="form-group">
@@ -414,6 +501,7 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
   const [goalType, setGoalType] = useState<'normal' | 'penalti' | 'contra'>('normal');
   const [selectedMinute, setSelectedMinute] = useState<number>(0);
   const [assistantId, setAssistantId] = useState<string>('');
+  const [playerOutId, setPlayerOutId] = useState<string>('');
   const [commentaryText, setCommentaryText] = useState('');
   const [mvpData, setMvpData] = useState({ 
     player_id: match.match_mvp_player_id || '', 
@@ -427,11 +515,16 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
         match_id: match.id,
         player_id: playerId,
         event_type: eventType,
-        minute: selectedMinute || 0,
-        metadata: eventType === 'gol' ? { goal_type: goalType } : null
+        minute: selectedMinute || 0
       };
 
-      if (eventType === 'gol' && assistantId) {
+      // Como a coluna metadata não existe no banco, usamos o comentário para o tipo de gol
+      if (eventType === 'gol') {
+        eventData.commentary = goalType === 'normal' ? '' : `[${goalType.toUpperCase()}]`;
+        if (assistantId) eventData.assistant_id = assistantId;
+      }
+      
+      if (eventType === 'substituicao' && assistantId) {
         eventData.assistant_id = assistantId;
       }
 
@@ -447,9 +540,9 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
         let newScore = {};
         if (goalType === 'contra') {
           // Gol contra: oponente ganha o ponto
-          newScore = team === 'a' ? { team_b_score: match.team_b_score + 1 } : { team_a_score: match.team_a_score + 1 };
+          newScore = team === 'a' ? { team_b_score: match.team_b_score + 1 } : { team_a_score: (match.team_a_score || 0) + 1 };
         } else {
-          newScore = team === 'a' ? { team_a_score: match.team_a_score + 1 } : { team_b_score: match.team_b_score + 1 };
+          newScore = team === 'a' ? { team_a_score: (match.team_a_score || 0) + 1 } : { team_b_score: (match.team_b_score || 0) + 1 };
         }
         await supabase.from('matches').update(newScore).eq('id', match.id);
       }
@@ -472,6 +565,7 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
       }
 
       setAssistantId('');
+      setPlayerOutId('');
       setCommentaryText('');
       refreshEvents();
       
@@ -528,7 +622,7 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
   };
 
   return (
-    <>
+    <div className="live-event-panel-wrapper">
       <div className="live-match-header-info">
         <div className="live-score-display">
           <div className="team-score">
@@ -541,26 +635,47 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
             <span className="team-name">{match.teams_b.name}</span>
           </div>
         </div>
-        <div className="live-time-badge ao_vivo">ALV</div>
-      </div>
-      <div className="live-control-grid">
-        <div className="event-selector">
-          <button className={eventType === 'gol' ? 'active' : ''} onClick={() => setEventType('gol')}>⚽ Gol</button>
-          <button className={eventType === 'amarelo' ? 'active yellow' : 'yellow'} onClick={() => setEventType('amarelo')}>🟨 Cartão</button>
-          <button className={eventType === 'vermelho' ? 'active red' : 'red'} onClick={() => setEventType('vermelho')}>🟥 Vermelho</button>
-          <button className={eventType === 'comentario' ? 'active commentary' : 'commentary'} onClick={() => setEventType('comentario')}>📝 Texto</button>
+        
+        <div className="live-time-badge">
+          {match.status === 'ao_vivo' ? 'AO VIVO' : 'PAINEL'}
         </div>
+      </div>
 
-        {eventType === 'gol' && (
-          <div className="goal-type-selector">
-             <label>Tipo de Gol:</label>
-             <div className="goal-type-btns">
-                <button className={goalType === 'normal' ? 'active' : ''} onClick={() => setGoalType('normal')}>Normal</button>
-                <button className={goalType === 'penalti' ? 'active' : ''} onClick={() => setGoalType('penalti')}>Pênalti</button>
-                <button className={goalType === 'contra' ? 'active red' : ''} onClick={() => setGoalType('contra')}>Contra</button>
-             </div>
+      <div className="event-selector">
+        <button className={eventType === 'gol' ? 'active' : ''} onClick={() => setEventType('gol')}>
+          <Target size={16} /> GOL
+        </button>
+        <button className={eventType === 'amarelo' ? 'active yellow' : ''} onClick={() => setEventType('amarelo')}>
+          <Square size={16} fill={eventType === 'amarelo' ? '#fbbf24' : 'none'} /> AMARELO
+        </button>
+        <button className={eventType === 'vermelho' ? 'active red' : ''} onClick={() => setEventType('vermelho')}>
+          <Square size={16} fill={eventType === 'vermelho' ? '#ef4444' : 'none'} /> VERMELHO
+        </button>
+        <button className={eventType === 'substituicao' ? 'active' : ''} onClick={() => setEventType('substituicao')}>
+          <ArrowRightLeft size={16} /> SUBST.
+        </button>
+        <button className={eventType === 'comentario' ? 'active' : ''} onClick={() => setEventType('comentario')}>
+          <MessageSquare size={16} /> TEXTO
+        </button>
+      </div>
+
+      {eventType === 'gol' && (
+        <div className="goal-type-selector animate-slide-down">
+          <label>Tipo de Gol: </label>
+          <div className="goal-type-btns">
+            <button className={goalType === 'normal' ? 'active' : ''} onClick={() => setGoalType('normal')}>Normal</button>
+            <button className={goalType === 'penalti' ? 'active' : ''} onClick={() => setGoalType('penalti')}>Pênalti</button>
+            <button className={goalType === 'contra' ? 'active red' : ''} onClick={() => setGoalType('contra')}>Contra</button>
           </div>
-        )}
+        </div>
+      )}
+
+      {/* Instrução dinâmica para o Admin */}
+      <div className="admin-instruction animate-pulse">
+        {eventType === 'comentario' 
+          ? 'Escreva a mensagem abaixo e clique em ENVIAR:' 
+          : `Para registrar ${eventType === 'gol' ? 'o GOL' : 'o lance'}, clique no atleta abaixo:`}
+      </div>
 
         <div className="event-controls-row">
           <div className="form-group-mini">
@@ -589,41 +704,86 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
               <button className="btn-send-msg" onClick={() => addEvent('', 'a')}>Enviar</button>
             </div>
           )}
+
+          {eventType === 'substituicao' && (
+            <div className="form-group-full" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+              <div className="form-group-mini" style={{flex: 1}}>
+                <label>Sai do Jogo (OUT):</label>
+                <select value={playerOutId} onChange={e => setPlayerOutId(e.target.value)}>
+                  <option value="">Selecione quem sai...</option>
+                  {[...playersA, ...playersB].map(p => <option key={`out-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
+                </select>
+              </div>
+              <div className="form-group-mini" style={{flex: 1}}>
+                <label>Entra no Jogo (IN):</label>
+                <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
+                  <option value="">Selecione quem entra...</option>
+                  {[...playersA, ...playersB].map(p => <option key={`in-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
+                </select>
+              </div>
+              <button 
+                className="btn-send-msg" 
+                style={{ width: '100%', marginTop: '0.5rem' }}
+                onClick={() => {
+                  const team = playersA.some(p => p.id === playerOutId) ? 'a' : 'b';
+                  addEvent(playerOutId, team);
+                }}
+                disabled={!playerOutId || !assistantId}
+              >
+                Registrar Substituição
+              </button>
+            </div>
+          )}
         </div>
         
-        <div className="teams-lanes">
-          <div className="lane">
-             <h5>{match.teams_a?.name}</h5>
-             <div className="admin-player-btns">
-                {playersA.map(p => <button key={p.id} onClick={() => addEvent(p.id, 'a')}>{p.number}. {p.name}</button>)}
-             </div>
-          </div>
-          <div className="divider">VS</div>
-          <div className="lane">
-             <h5>{match.teams_b?.name}</h5>
-             <div className="admin-player-btns">
-                {playersB.map(p => <button key={p.id} onClick={() => addEvent(p.id, 'b')}>{p.number}. {p.name}</button>)}
-             </div>
+      <div className={`teams-lanes event-selector-active-${eventType}`}>
+        <div className="lane">
+          <h5>{match.teams_a.name}</h5>
+          <div className="admin-player-btns">
+            {playersA.map(p => (
+              <button key={p.id} onClick={() => addEvent(p.id, 'a')} className="p-btn">
+                <span className="p-num">{p.number}</span>
+                <span className="p-name">{p.name.split(' ')[0]}</span>
+              </button>
+            ))}
           </div>
         </div>
-
-        {/* Lista de últimos lances para DESFAZER */}
-        <div className="recent-events-undo">
-          <h6>Lances Recentes (Desfazer)</h6>
-          <div className="undo-list">
-            {events.slice(0, 5).map((ev: any) => (
-              <div key={ev.id} className="undo-item">
-                <div className="undo-info">
-                  <strong>{ev.minute}'</strong>
-                  <span>{ev.event_type.toUpperCase()} - {ev.players?.name}</span>
-                </div>
-                <button className="btn-undo" onClick={() => removeEvent(ev)} title="Excluir Lance">
-                  <Trash2 size={14} />
-                </button>
-              </div>
+        <div className="divider-vertical"></div>
+        <div className="lane">
+          <h5>{match.teams_b.name}</h5>
+          <div className="admin-player-btns">
+            {playersB.map(p => (
+              <button key={p.id} onClick={() => addEvent(p.id, 'b')} className="p-btn">
+                <span className="p-num">{p.number}</span>
+                <span className="p-name">{p.name.split(' ')[0]}</span>
+              </button>
             ))}
-            {events.length === 0 && <p className="empty-msg">Nenhum lance registrado.</p>}
           </div>
+        </div>
+      </div>
+
+      <div className="recent-events-undo">
+        <div className="recent-header">
+          <h6>Lances Recentes</h6>
+          <span className="undo-tip">Use a lixeira para excluir e reverter placar/stats</span>
+        </div>
+        <div className="undo-list">
+          {events.slice(0, 5).map(event => (
+            <div key={event.id} className="undo-item animate-slide-up">
+              <div className="undo-info">
+                <strong>{event.minute}'</strong>
+                <span className={`event-type-tag ${event.event_type}`}>
+                  {event.event_type.toUpperCase()}
+                </span>
+                <span className="p-name">{event.players?.name}</span>
+                {event.commentary && <span className="ev-comment">{event.commentary}</span>}
+              </div>
+              <button className="btn-undo" onClick={() => removeEvent(event)}>
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+          {events.length === 0 && <p className="empty-msg">Aguardando o primeiro lance...</p>}
         </div>
       </div>
 
@@ -637,9 +797,10 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
               const stats: Record<string, { points: number, goals: number, firstEvent: number }> = {};
               
               events.forEach(ev => {
-                if (ev.event_type === 'gol' || ev.event_type === 'assistencia' || (ev.event_type === 'gol' && ev.assistant_id)) {
-                  // Gols
-                  if (ev.event_type === 'gol' && ev.metadata?.goal_type !== 'contra') {
+                if (ev.event_type === 'gol') {
+                  // Gols (ignorando contra-gols que têm [CONTRA] no comentário)
+                  const isOwnGoal = ev.commentary?.includes('[CONTRA]');
+                  if (!isOwnGoal) {
                     if (!stats[ev.player_id]) stats[ev.player_id] = { points: 0, goals: 0, firstEvent: ev.minute };
                     stats[ev.player_id].points += 1;
                     stats[ev.player_id].goals += 1;
@@ -729,7 +890,7 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
           {mvpSaved ? <><CheckCircle size={18} /> Salvo!</> : <><Save size={18} /> Salvar Craque do Jogo</>}
         </button>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -972,6 +1133,7 @@ const PlayerManagement: React.FC<{ teamId: string, teamName: string }> = ({ team
 
   const handleAddPlayer = async (e: React.FormEvent) => {
     e.preventDefault();
+    const loadingToast = toast.loading('Adicionando atleta...');
     try {
       const { error } = await supabase.from('players').insert([{
         ...formData,
@@ -984,24 +1146,26 @@ const PlayerManagement: React.FC<{ teamId: string, teamName: string }> = ({ team
         goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0'
       });
       setIsAdding(false);
-      refresh();
+      toast.success('Atleta adicionado!', { id: loadingToast });
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message, { id: loadingToast });
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Excluir atleta?')) return;
+    const loadingToast = toast.loading('Excluindo...');
     try {
       const { error } = await supabase.from('players').delete().eq('id', id);
       if (error) throw error;
-      refresh();
+      toast.success('Atleta excluído!', { id: loadingToast });
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message, { id: loadingToast });
     }
   };
 
   const handleUpdatePlayer = async (playerId: string, data: any) => {
+    const loadingToast = toast.loading('Atualizando...');
     try {
       const { error } = await supabase.from('players').update({
         ...data,
@@ -1014,10 +1178,9 @@ const PlayerManagement: React.FC<{ teamId: string, teamName: string }> = ({ team
       }).eq('id', playerId);
       if (error) throw error;
       setEditingPlayerId(null);
-      refresh();
-      alert('Atleta atualizado!');
+      toast.success('Atleta atualizado!', { id: loadingToast });
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message, { id: loadingToast });
     }
   };
 
@@ -1130,7 +1293,10 @@ const PlayerManagement: React.FC<{ teamId: string, teamName: string }> = ({ team
 
       <div className="mini-player-list">
         {loading ? (
-          <span className="loading-players">Carregando...</span>
+          <div className="admin-loading-placeholder mini">
+            <div className="spinner mini"></div>
+            <span>Carregando Atletas...</span>
+          </div>
         ) : players.length === 0 ? (
           <div className="empty-players">
             <span>Nenhum atleta cadastrado.</span>
@@ -1428,7 +1594,6 @@ const TournamentManagement = () => {
   const [form, setForm] = useState({ total_rounds: 5, matches_per_round: 4, current_phase: 'grupos', current_round: 1 });
   const [saved, setSaved] = useState(false);
 
-  // Sincronizar form com config quando carregar
   React.useEffect(() => {
     if (!loading && config.id) {
       setForm({
@@ -1579,6 +1744,8 @@ const PollManagement = () => {
 
   React.useEffect(() => {
     fetchPolls();
+    const timer = setTimeout(() => setLoading(false), 8000);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleCreatePoll = async (e: React.FormEvent) => {
@@ -1826,34 +1993,70 @@ const MatchMvpVotingAdmin: React.FC<{ matchId: string, teamAName: string, teamBN
 
 const GlobalPlayerManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [allPlayers, setAllPlayers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const { teams } = useTeams();
+  const { players: allPlayers, loading } = usePlayers();
+  
+  const [formData, setFormData] = useState({ 
+    name: '', number: '', position: 'Ala', team_id: '', photo_url: '', bio: '',
+    goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0'
+  });
 
-  const fetchAllPlayers = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('players')
-        .select('*, teams(name)')
-        .order('name');
-      if (error) throw error;
-      setAllPlayers(data || []);
-    } catch (err: any) { alert(err.message); }
-    finally { setLoading(false); }
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const url = await uploadToStorage(file, 'images', 'player-photos');
+    if (url) {
+      setFormData(prev => ({ ...prev, photo_url: url }));
+      toast.success('Foto carregada!');
+    }
+    setUploading(false);
   };
 
-  React.useEffect(() => { fetchAllPlayers(); }, []);
+  const handleAddPlayer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.team_id) return toast.error('Selecione uma equipe!');
+    const loadingToast = toast.loading('Salvando atleta...');
+    try {
+      const { error } = await supabase.from('players').insert([{
+        ...formData,
+        number: parseInt(formData.number) || 0,
+        goals_count: parseInt(formData.goals_count) || 0,
+        assists: parseInt(formData.assists) || 0,
+        yellow_cards: parseInt(formData.yellow_cards) || 0,
+        red_cards: parseInt(formData.red_cards) || 0,
+        clean_sheets: parseInt(formData.clean_sheets) || 0
+      }]);
+      if (error) throw error;
+      setFormData({ 
+        name: '', number: '', position: 'Ala', team_id: '', photo_url: '', bio: '',
+        goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0'
+      });
+      setIsAdding(false);
+      toast.success('Atleta cadastrado com sucesso!', { id: loadingToast });
+    } catch (err: any) {
+      toast.error(err.message, { id: loadingToast });
+    }
+  };
 
-  const filteredPlayers = allPlayers.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (p.teams?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredPlayers = React.useMemo(() => {
+    return allPlayers.filter(p => 
+      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (p.teams?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [allPlayers, searchTerm]);
 
   return (
     <div className="admin-section glass">
       <div className="section-header">
-        <h2>Gestão Global de Atletas</h2>
+        <div className="header-title-box">
+          <h2>Gestão Global de Atletas</h2>
+          <button className="btn-add" onClick={() => setIsAdding(!isAdding)}>
+            {isAdding ? 'Cancelar' : <><Plus size={18} /> Novo Atleta</>}
+          </button>
+        </div>
         <div className="search-bar glass">
           <Search size={18} />
           <input 
@@ -1865,8 +2068,89 @@ const GlobalPlayerManagement = () => {
         </div>
       </div>
 
+      {isAdding && (
+        <form className="admin-form glass mt-2 mb-2" onSubmit={handleAddPlayer}>
+          <div className="form-grid">
+            <div className="form-group">
+              <label>Nome do Atleta</label>
+              <input type="text" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ex: Lucas Silva" />
+            </div>
+            <div className="form-group">
+              <label>Equipe</label>
+              <select required value={formData.team_id} onChange={e => setFormData({...formData, team_id: e.target.value})}>
+                <option value="">Selecione a equipe...</option>
+                {teams.sort((a,b) => a.name.localeCompare(b.name)).map(t => (
+                  <option key={t.id} value={t.id}>{t.name} ({t.group || 'S/G'})</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Nº Camisa</label>
+              <input type="number" required value={formData.number} onChange={e => setFormData({...formData, number: e.target.value})} placeholder="10" />
+            </div>
+            <div className="form-group">
+              <label>Posição</label>
+              <select value={formData.position} onChange={e => setFormData({...formData, position: e.target.value})}>
+                <option value="Goleiro">Goleiro</option>
+                <option value="Fixo">Fixo</option>
+                <option value="Ala">Ala</option>
+                <option value="Pivô">Pivô</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="form-grid mt-2">
+            <div className="form-group">
+              <label>Foto do Atleta</label>
+              <div className="image-upload-wrapper">
+                <label className={`image-upload-container ${uploading ? 'uploading' : ''}`} style={{ width: '80px', height: '80px' }}>
+                  {uploading ? <div className="spinner"></div> : formData.photo_url ? (
+                    <img src={formData.photo_url} alt="Preview" className="image-preview-badge" />
+                  ) : (
+                    <div className="upload-icon-box">
+                      <Camera size={20} />
+                      <span style={{ fontSize: '0.6rem' }}>Adicionar</span>
+                    </div>
+                  )}
+                  <input type="file" accept="image/*" className="hidden-file-input" onChange={handlePhotoUpload} />
+                </label>
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Bio / Observações</label>
+              <textarea rows={2} value={formData.bio} onChange={e => setFormData({...formData, bio: e.target.value})} placeholder="Breve descrição..." />
+            </div>
+          </div>
+
+          <div className="player-stats-editor-grid mt-2">
+             <div className="stat-input">
+                <label><Trophy size={14} /> Gols</label>
+                <input type="number" value={formData.goals_count} onChange={e => setFormData({...formData, goals_count: e.target.value})} />
+             </div>
+             <div className="stat-input">
+                <label><Star size={14} /> Assist.</label>
+                <input type="number" value={formData.assists} onChange={e => setFormData({...formData, assists: e.target.value})} />
+             </div>
+             <div className="stat-input">
+                <label><CreditCard size={14} style={{ color: '#fbbf24' }} /> CA</label>
+                <input type="number" value={formData.yellow_cards} onChange={e => setFormData({...formData, yellow_cards: e.target.value})} />
+             </div>
+             <div className="stat-input">
+                <label><CreditCard size={14} style={{ color: '#ef4444' }} /> CV</label>
+                <input type="number" value={formData.red_cards} onChange={e => setFormData({...formData, red_cards: e.target.value})} />
+             </div>
+          </div>
+          <button type="submit" className="btn-save mt-3"><Save size={18} /> Salvar Atleta no Sistema</button>
+        </form>
+      )}
+
       <div className="admin-list">
-        {loading ? <p>Carregando...</p> : (
+        {loading ? (
+          <div className="admin-loading-placeholder">
+            <div className="spinner"></div>
+            <p>Buscando Atletas no Banco de Dados...</p>
+          </div>
+        ) : (
           filteredPlayers.map(p => (
             <div key={p.id} className="admin-list-item player-search-row">
               <div className="item-main">

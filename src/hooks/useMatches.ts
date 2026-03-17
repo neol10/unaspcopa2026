@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 
 export interface Match {
@@ -16,14 +17,12 @@ export interface Match {
 }
 
 export const useMatches = (limit?: number) => {
-  const [matches, setMatches] = useState<Match[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  const fetchMatches = async () => {
-    try {
-      setLoading(true);
-      let query = supabase
+  const query = useQuery({
+    queryKey: ['matches', limit || 'all'],
+    queryFn: async () => {
+      let q = supabase
         .from('matches')
         .select(`
           *,
@@ -32,36 +31,34 @@ export const useMatches = (limit?: number) => {
         `)
         .order('match_date', { ascending: true });
 
-      if (limit) {
-        query = query.limit(limit);
-      }
+      if (limit) q = q.limit(limit);
 
-      const { data, error } = await query;
-
+      const { data, error } = await q;
       if (error) throw error;
-      setMatches(data || []);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+      return (data as Match[]) || [];
+    },
+    staleTime: 1000 * 60 * 5, // 5 min
+    gcTime: 1000 * 60 * 15,    // 15 min
+  });
 
   useEffect(() => {
-    fetchMatches();
-
     // Subscribe to changes
     const channel = supabase
       .channel('public:matches')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => {
-        fetchMatches();
+        queryClient.invalidateQueries({ queryKey: ['matches'] });
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [queryClient]);
 
-  return { matches, loading, error, refresh: fetchMatches };
+  return { 
+    matches: query.data || [], 
+    loading: query.isLoading, 
+    error: query.error?.message || null, 
+    refresh: query.refetch 
+  };
 };

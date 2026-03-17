@@ -1,46 +1,57 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import type { User } from '@supabase/supabase-js';
+import toast from 'react-hot-toast';
 
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<'admin' | 'user' | null>(null);
   const [loading, setLoading] = useState(true);
+  const fetchingProfile = useRef(false);
 
   const fetchProfile = async (uid: string) => {
-    const { data } = await supabase.from('profiles').select('role').eq('id', uid).single();
-    setRole(data?.role || 'user');
+    // Evitar chamadas simultâneas ao perfil
+    if (fetchingProfile.current) return;
+    fetchingProfile.current = true;
+    try {
+      const { data, error } = await supabase.from('profiles').select('role').eq('id', uid).single();
+      if (error) throw error;
+      setRole(data?.role || 'user');
+    } catch (err) {
+      console.error('Error fetching profile:', err);
+      setRole(prev => prev || 'user');
+    } finally {
+      fetchingProfile.current = false;
+    }
   };
 
   useEffect(() => {
-    // Pegar sessão atual
-    const initSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setUser(session.user);
-        await fetchProfile(session.user.id);
-      } else {
+    // Usamos APENAS o onAuthStateChange para gerenciar estado.
+    // O evento INITIAL_SESSION dispara automaticamente na montagem,
+    // sem precisar chamar getSession() separadamente (que causava lock contention).
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
+        if (session?.user) {
+          setUser(session.user);
+          await fetchProfile(session.user.id);
+        } else {
+          setUser(null);
+          setRole(null);
+        }
+        setLoading(false);
+      } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setRole(null);
+        setLoading(false);
+      } else if (event === 'TOKEN_REFRESHED') {
+        // Apenas atualiza o objeto user sem rebuscar profile
+        if (session?.user) setUser(session.user);
       }
-      setLoading(false);
-    };
-
-    initSession();
-
-    // Escutar mudanças de autenticação
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user) {
-        setUser(session.user);
-        await fetchProfile(session.user.id);
-      } else {
-        setUser(null);
-        setRole(null);
-      }
-      setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
@@ -56,8 +67,14 @@ export const useAuth = () => {
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      toast.success('Sessão encerrada com sucesso');
+    } catch (err: any) {
+      console.error('SignOut error:', err);
+      toast.error('Erro ao sair: ' + (err.message || 'Erro de rede'));
+    }
   };
 
   return { user, role, loading, signIn, signUp, signOut };

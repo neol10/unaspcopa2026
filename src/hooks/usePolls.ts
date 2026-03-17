@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 
 export interface PollOption {
@@ -15,13 +16,12 @@ export interface Poll {
 }
 
 export const usePolls = () => {
-  const [activePoll, setActivePoll] = useState<Poll | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [hasVoted, setHasVoted] = useState(false);
 
-  const fetchActivePoll = async () => {
-    try {
-      setLoading(true);
+  const query = useQuery({
+    queryKey: ['activePoll'],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('polls')
         .select('*')
@@ -29,52 +29,47 @@ export const usePolls = () => {
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
-        
-      if (error) throw error; // maybeSingle() retorna null sem erro quando não encontra registro
-      
-      if (data) {
-        setActivePoll(data);
-        // Verifica no localStorage se ja votou nesta
-        const voted = localStorage.getItem(`poll_voted_${data.id}`);
-        setHasVoted(!!voted);
-      }
-    } catch (err: any) {
-      console.error("Erro ao buscar enquete", err);
-    } finally {
-      setLoading(false);
+      if (error) throw error;
+      return (data as Poll) || null;
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutos
+    gcTime: 1000 * 60 * 30,  // 30 minutos em memória
+  });
+
+  useEffect(() => {
+    if (query.data) {
+      const voted = localStorage.getItem(`poll_voted_${query.data.id}`);
+      setHasVoted(!!voted);
     }
-  };
+  }, [query.data]);
 
-  const submitVote = async (optionId: string) => {
-    if (!activePoll || hasVoted) return;
-    
-    // Calcula as novas opcoes somando voto
-    const updatedOptions = activePoll.options.map(opt => 
-      opt.id === optionId ? { ...opt, votes: opt.votes + 1 } : opt
-    );
-
-    try {
+  const voteMutation = useMutation({
+    mutationFn: async (optionId: string) => {
+      if (!query.data || hasVoted) return null;
+      
       const { error } = await supabase.rpc('increment_poll_vote', {
-        poll_id_param: activePoll.id,
+        poll_id_param: query.data.id,
         option_id_param: optionId
       });
-        
       if (error) throw error;
-      
-      // Atualiza estado local
-      setActivePoll({ ...activePoll, options: updatedOptions });
+      return optionId;
+    },
+    onSuccess: (optionId) => {
+      if (!optionId || !query.data) return;
+      localStorage.setItem(`poll_voted_${query.data.id}`, 'true');
       setHasVoted(true);
-      localStorage.setItem(`poll_voted_${activePoll.id}`, 'true');
-      
-    } catch (err: any) {
+      queryClient.invalidateQueries({ queryKey: ['activePoll'] });
+    },
+    onError: (err: any) => {
       console.error("Erro ao registrar voto", err);
       alert("Falha ao registrar voto. Tente novamente.");
     }
+  });
+
+  return { 
+    activePoll: query.data, 
+    loading: query.isLoading, 
+    hasVoted, 
+    submitVote: voteMutation.mutateAsync 
   };
-
-  useEffect(() => {
-    fetchActivePoll();
-  }, []);
-
-  return { activePoll, loading, hasVoted, submitVote };
 };

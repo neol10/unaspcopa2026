@@ -8,20 +8,39 @@ export const usePushNotifications = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+
+    const checkSubscription = async () => {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        // Timeout de 1s p/ checagem - falha rápida é melhor que travamento
+        const swTimeout = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('SW Timeout')), 1000)
+        );
+        
+        const registration = await (Promise.race([
+          navigator.serviceWorker.ready,
+          swTimeout
+        ]) as Promise<ServiceWorkerRegistration>).catch(() => null);
+
+        if (registration && mounted) {
+          const subscription = await registration.pushManager.getSubscription();
+          setIsSubscribed(!!subscription);
+        }
+      } catch (err) {
+        console.debug('Push check skipped:', err);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
     checkSubscription();
+    return () => { mounted = false; };
   }, [user]);
-
-  const checkSubscription = async () => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-      setLoading(false);
-      return;
-    }
-
-    const registration = await navigator.serviceWorker.ready;
-    const subscription = await registration.pushManager.getSubscription();
-    setIsSubscribed(!!subscription);
-    setLoading(false);
-  };
 
   const subscribe = async () => {
     try {

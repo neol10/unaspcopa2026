@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 
 export interface TournamentConfig {
@@ -18,39 +18,55 @@ const DEFAULT: TournamentConfig = {
 };
 
 export const useTournamentConfig = () => {
-  const [config, setConfig] = useState<TournamentConfig>(DEFAULT);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  const fetchConfig = async () => {
-    const { data } = await supabase
-      .from('tournament_config')
-      .select('*')
-      .single();
-    if (data) setConfig(data as TournamentConfig);
-    setLoading(false);
-  };
-
-  const saveConfig = async (updated: Partial<TournamentConfig>) => {
-    const merged = { ...config, ...updated };
-    if (config.id) {
-      const { error } = await supabase
-        .from('tournament_config')
-        .update({ ...merged, updated_at: new Date().toISOString() })
-        .eq('id', config.id);
-      if (error) throw error;
-    } else {
+  const query = useQuery({
+    queryKey: ['tournament_config'],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('tournament_config')
-        .insert([merged])
-        .select()
+        .select('*')
         .single();
-      if (error) throw error;
-      if (data) setConfig(data as TournamentConfig);
+      if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows found
+      return (data as TournamentConfig) || DEFAULT;
+    },
+    staleTime: 1000 * 60 * 30, // 30 minutos de cache
+    gcTime: 1000 * 60 * 60, // Mantém no cache por 1 hora
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (updated: Partial<TournamentConfig>) => {
+      const currentConfig = query.data || DEFAULT;
+      const merged = { ...currentConfig, ...updated };
+      
+      if (currentConfig.id) {
+        const { data, error } = await supabase
+          .from('tournament_config')
+          .update({ ...merged, updated_at: new Date().toISOString() })
+          .eq('id', currentConfig.id)
+          .select()
+          .single();
+        if (error) throw error;
+        return data as TournamentConfig;
+      } else {
+        const { data, error } = await supabase
+          .from('tournament_config')
+          .insert([merged])
+          .select()
+          .single();
+        if (error) throw error;
+        return data as TournamentConfig;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tournament_config'] });
     }
-    setConfig(merged);
+  });
+
+  return { 
+    config: query.data || DEFAULT, 
+    loading: query.isLoading, 
+    saveConfig: saveMutation.mutateAsync, 
+    refresh: query.refetch 
   };
-
-  useEffect(() => { fetchConfig(); }, []);
-
-  return { config, loading, saveConfig, refresh: fetchConfig };
 };

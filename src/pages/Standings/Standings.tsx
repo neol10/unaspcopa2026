@@ -2,15 +2,26 @@ import React, { useState } from 'react';
 import './Standings.css';
 import { Shield, Info, LayoutGrid, List, Trophy } from 'lucide-react';
 import { useStandings } from '../../hooks/useStandings';
+import Skeleton from '../../components/Skeleton/Skeleton';
 
 const Standings: React.FC = () => {
   const { standings, loading, error } = useStandings();
   const [showByGroup, setShowByGroup] = useState(true);
 
-  if (loading) return (
-    <div className="standings-loading animate-fade-in">
-      <div className="spinner"></div>
-      <p>Processando estatísticas...</p>
+  if (loading && standings.length === 0) return (
+    <div className="standings-container animate-fade-in">
+      <header className="standings-header">
+        <div className="header-info">
+          <Skeleton width="200px" height="40px" className="mb-2" />
+          <Skeleton width="300px" height="20px" />
+        </div>
+      </header>
+      <div className="group-section">
+        <Skeleton width="150px" height="24px" className="mb-4" />
+        <div className="table-container glass">
+          <Skeleton width="100%" height="300px" />
+        </div>
+      </div>
     </div>
   );
   
@@ -90,7 +101,18 @@ const Standings: React.FC = () => {
                       <td className="col-name">
                         <div className="team-cell">
                           <div className="team-shield">
-                            <Shield size={18} color={index === 0 ? 'var(--secondary)' : 'var(--text-dim)'} />
+                            {team.badge_url ? (
+                              <img 
+                                src={team.badge_url} 
+                                alt={team.team_name} 
+                                width="24" 
+                                height="24" 
+                                loading="lazy"
+                                style={{ objectFit: 'contain', padding: '2px' }} 
+                              />
+                            ) : (
+                              <Shield size={24} color={index === 0 ? 'var(--secondary)' : 'var(--text-dim)'} />
+                            )}
                           </div>
                           <strong>{team.team_name}</strong>
                         </div>
@@ -145,11 +167,24 @@ const Standings: React.FC = () => {
                     <td className="col-name">
                       <div className="team-cell">
                         <div className="team-shield">
-                          <Shield size={18} color={index === 0 ? 'var(--secondary)' : 'var(--text-dim)'} />
+                          {team.badge_url ? (
+                            <img 
+                              src={team.badge_url} 
+                              alt={team.team_name} 
+                              width="24" 
+                              height="24" 
+                              loading="lazy"
+                              style={{ objectFit: 'contain', padding: '2px' }} 
+                            />
+                          ) : (
+                            <Shield size={24} color={index === 0 ? 'var(--secondary)' : 'var(--text-dim)'} />
+                          )}
                         </div>
-                        <div className="team-info-v2">
+                        <div className="team-info-v2" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <strong>{team.team_name}</strong>
-                          <span className="team-group-tag">{team.group}</span>
+                          <span className="team-group-tag" style={{ fontSize: '0.75rem', background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', letterSpacing: '1px' }}>
+                            {team.group}
+                          </span>
                         </div>
                       </div>
                     </td>

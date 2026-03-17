@@ -7,7 +7,10 @@ import { useNews, News } from '../../hooks/useNews';
 import { useStandings } from '../../hooks/useStandings';
 import { usePolls } from '../../hooks/usePolls';
 import { useMatches } from '../../hooks/useMatches';
+import { useTournamentConfig } from '../../hooks/useTournamentConfig';
+
 const Home: React.FC = () => {
+  const { config } = useTournamentConfig();
   const { news, loading: newsLoading } = useNews(3);
   const { standings, loading: standingsLoading } = useStandings();
   const { matches } = useMatches();
@@ -24,7 +27,7 @@ const Home: React.FC = () => {
 
   useEffect(() => {
     const scheduled = matches
-      .filter(m => m.status === 'agendado')
+      .filter(m => m.status === 'agendado' && new Date(m.match_date).getTime() > new Date().getTime())
       .sort((a, b) => new Date(a.match_date).getTime() - new Date(b.match_date).getTime());
     
     if (scheduled.length > 0) {
@@ -102,12 +105,34 @@ const Home: React.FC = () => {
               </div>
               <div className="next-match-teams">
                 <div className="mini-team">
-                   <Shield size={24} color="var(--secondary)" />
+                   {nextMatch.teams_a?.badge_url ? (
+                     <img 
+                       src={nextMatch.teams_a.badge_url} 
+                       alt={nextMatch.teams_a.name} 
+                       width="24" 
+                       height="24" 
+                       loading="lazy"
+                       style={{ objectFit: 'contain' }} 
+                     />
+                   ) : (
+                     <Shield size={24} color="var(--secondary)" />
+                   )}
                    <span>{nextMatch.teams_a?.name}</span>
                 </div>
                 <span className="vs-text">VS</span>
                 <div className="mini-team">
-                   <Shield size={24} color="var(--primary)" />
+                   {nextMatch.teams_b?.badge_url ? (
+                     <img 
+                       src={nextMatch.teams_b.badge_url} 
+                       alt={nextMatch.teams_b.name} 
+                       width="24" 
+                       height="24" 
+                       loading="lazy"
+                       style={{ objectFit: 'contain' }} 
+                     />
+                   ) : (
+                     <Shield size={24} color="var(--primary)" />
+                   )}
                    <span>{nextMatch.teams_b?.name}</span>
                 </div>
               </div>
@@ -149,8 +174,9 @@ const Home: React.FC = () => {
       )}
 
       <main className="home-content-v2">
-        {/* Podium Preview */}
-        <section className="podium-section">
+        {/* Podium Preview - Só mostrar se for Final */}
+        {config.current_phase === 'final' && (
+          <section className="podium-section">
           <div className="section-head-v2">
              <Trophy size={24} color="var(--secondary)" />
              <h2>Líderes do Campeonato</h2>
@@ -167,7 +193,18 @@ const Home: React.FC = () => {
               <div key={team.team_id} className={`podium-card glass ${i === 0 ? 'gold' : ''}`} onClick={() => navigate('/classificacao')}>
                 <div className="podium-rank">#{i + 1}</div>
                 <div className="podium-badge-box">
-                   <Shield size={48} color={i === 0 ? 'var(--secondary)' : 'var(--text-dim)'} />
+                   {team.badge_url ? (
+                     <img 
+                       src={team.badge_url} 
+                       alt={team.team_name} 
+                       width="48" 
+                       height="48" 
+                       loading="lazy"
+                       style={{ objectFit: 'contain', zIndex: 1 }} 
+                     />
+                   ) : (
+                     <Shield size={48} color={i === 0 ? 'var(--secondary)' : 'var(--text-dim)'} style={{ zIndex: 1 }} />
+                   )}
                    <div className="podium-badge-glow"></div>
                 </div>
                 <div className="podium-info">
@@ -182,6 +219,7 @@ const Home: React.FC = () => {
             ))}
           </div>
         </section>
+        )}
 
         <div className="home-dual-layout">
           {/* News Stream */}
@@ -211,7 +249,16 @@ const Home: React.FC = () => {
                 >
                   <div className="news-card-img">
                     {item.image_url ? (
-                      <img src={item.image_url} alt="" loading="lazy" decoding="async" />
+                      <img 
+                        src={item.image_url} 
+                        alt="" 
+                        width="320" 
+                        height="180" 
+                        loading="lazy" 
+                        decoding="async" 
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }} 
+                      />
                     ) : (
                       <Zap size={index === 0 ? 64 : 32} color="var(--text-muted)" />
                     )}
@@ -240,7 +287,7 @@ const Home: React.FC = () => {
                 <button className="news-modal-close" onClick={() => setSelectedNews(null)}><X size={24} /></button>
                 <div className="news-modal-hero">
                   {selectedNews.image_url ? (
-                    <img src={selectedNews.image_url} alt={selectedNews.title} className="news-modal-img" />
+                    <img src={selectedNews.image_url} alt={selectedNews.title} className="news-modal-img" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                   ) : (
                     <div className="news-modal-img-placeholder"><Zap size={64} /></div>
                   )}

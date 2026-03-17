@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 
 export interface GalleryItem {
@@ -11,29 +11,21 @@ export interface GalleryItem {
 }
 
 export const useGallery = () => {
-  const [items, setItems] = useState<GalleryItem[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchGallery = async () => {
-    try {
-      setLoading(true);
+  const query = useQuery({
+    queryKey: ['gallery'],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('gallery')
         .select('*')
         .order('created_at', { ascending: false });
-
       if (error) throw error;
-      setItems(data || []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
+      return (data as GalleryItem[]) || [];
     }
+  });
+
+  return { 
+    items: query.data || [], 
+    loading: query.isLoading, 
+    refresh: query.refetch 
   };
-
-  useEffect(() => {
-    fetchGallery();
-  }, []);
-
-  return { items, loading, refresh: fetchGallery };
 };

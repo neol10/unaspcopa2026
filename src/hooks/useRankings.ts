@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { Player } from './usePlayers';
 
@@ -9,46 +10,24 @@ export interface RankingPlayer extends Player {
 }
 
 export const useRankings = () => {
-  const [scorers, setScorers] = useState<RankingPlayer[]>([]);
-  const [assistants, setAssistants] = useState<RankingPlayer[]>([]);
-  const [goalkeepers, setGoalkeepers] = useState<RankingPlayer[]>([]);
-  const [galeraRank, setGaleraRank] = useState<RankingPlayer[]>([]);
-  const [disciplined, setDisciplined] = useState<RankingPlayer[]>([]);
-  const [roundMvps, setRoundMvps] = useState<Record<string, RankingPlayer>>({});
-  const [availableRounds, setAvailableRounds] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  const fetchRankings = async () => {
-    try {
-      setLoading(true);
+  const query = useQuery({
+    queryKey: ['rankings'],
+    queryFn: async () => {
       
-      // 1. Buscar Jogadores
-      const { data: playersData, error: playersError } = await supabase
-        .from('players')
-        .select(`
-          *,
-          teams:team_id(name, badge_url)
-        `);
+      // 1-3. Buscar dados em paralelo
+      const [playersRes, votesRes, eventsRes] = await Promise.all([
+        supabase.from('players').select('*, teams:team_id(name, badge_url)'),
+        supabase.from('match_mvp_votes').select('player_id'),
+        supabase.from('match_events').select('*, matches:match_id(round)').in('event_type', ['gol', 'assistencia'])
+      ]);
 
-      if (playersError) throw playersError;
-
-      // 2. Buscar Votos de MVP (Craque da Galera)
-      const { data: votesData, error: votesError } = await supabase
-        .from('match_mvp_votes')
-        .select('player_id');
-
-      if (votesError) throw votesError;
-
-      // 3. Buscar Eventos para Craque da Rodada
-      const { data: eventsData, error: eventsError } = await supabase
-        .from('match_events')
-        .select(`
-          *,
-          matches:match_id(round)
-        `)
-        .in('event_type', ['gol', 'assistencia']);
-
-      if (eventsError) throw eventsError;
+      if (playersRes.error) throw playersRes.error;
+      
+      const playersData = playersRes.data || [];
+      const votesData = votesRes.data || [];
+      const eventsData = eventsRes.data || [];
 
       // Contabilizar votos por jogador
       const voteCounts: Record<string, number> = {};
@@ -108,59 +87,43 @@ export const useRankings = () => {
         }
       });
 
-      setRoundMvps(calculatedRoundMvps);
       const sortedRounds = Array.from(roundsFound).sort((a, b) => {
         const numA = parseInt(a);
         const numB = parseInt(b);
         if (isNaN(numA) || isNaN(numB)) return a.localeCompare(b);
         return numA - numB;
       });
-      setAvailableRounds(sortedRounds);
 
-      // Top Artilheiros
-      setScorers([...playersWithTeam].sort((a, b) => b.goals_count - a.goals_count).filter(p => p.goals_count > 0).slice(0, 10));
-      
-      // Top Assistentes
-      setAssistants([...playersWithTeam].sort((a, b) => b.assists - a.assists).filter(p => p.assists > 0).slice(0, 10));
-
-      // Luva de Ouro (Goleiros)
-      setGoalkeepers([...playersWithTeam]
-        .filter(p => p.position === 'Goleiro')
-        .sort((a, b) => (b.clean_sheets || 0) - (a.clean_sheets || 0))
-        .slice(0, 10));
-
-      // Craque da Galera (Global)
-      setGaleraRank([...playersWithTeam]
-        .filter(p => p.mvp_votes > 0)
-        .sort((a, b) => b.mvp_votes - a.mvp_votes)
-        .slice(0, 10));
-
-      // Disciplina (Menos cartões, peso maior para vermelho)
-      setDisciplined([...playersWithTeam]
-        .sort((a, b) => (a.red_cards * 3 + a.yellow_cards) - (b.red_cards * 3 + b.yellow_cards))
-        .slice(0, 10));
-
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+      return {
+        scorers: [...playersWithTeam].sort((a, b) => b.goals_count - a.goals_count).filter(p => p.goals_count > 0).slice(0, 10),
+        assistants: [...playersWithTeam].sort((a, b) => b.assists - a.assists).filter(p => p.assists > 0).slice(0, 10),
+        goalkeepers: [...playersWithTeam].filter(p => p.position === 'Goleiro').sort((a, b) => (b.clean_sheets || 0) - (a.clean_sheets || 0)).slice(0, 10),
+        galeraRank: [...playersWithTeam].filter(p => p.mvp_votes > 0).sort((a, b) => b.mvp_votes - a.mvp_votes).slice(0, 10),
+        disciplined: [...playersWithTeam].sort((a, b) => (a.red_cards * 3 + a.yellow_cards) - (b.red_cards * 3 + b.yellow_cards)).slice(0, 10),
+        roundMvps: calculatedRoundMvps,
+        availableRounds: sortedRounds
+      };
+    },
+    staleTime: 1000 * 60 * 5, // 5 min
+    gcTime: 1000 * 60 * 15,   // 15 min
+  });
 
   useEffect(() => {
-    fetchRankings();
-
     const channel = supabase
       .channel('public:rankings_sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, () => fetchRankings())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'match_events' }, () => fetchRankings())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'match_mvp_votes' }, () => fetchRankings())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, () => queryClient.invalidateQueries({ queryKey: ['rankings'] }))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'match_events' }, () => queryClient.invalidateQueries({ queryKey: ['rankings'] }))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'match_mvp_votes' }, () => queryClient.invalidateQueries({ queryKey: ['rankings'] }))
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [queryClient]);
 
-  return { scorers, assistants, goalkeepers, galeraRank, disciplined, roundMvps, availableRounds, loading };
+  const data = query.data || {
+    scorers: [], assistants: [], goalkeepers: [], galeraRank: [], disciplined: [], roundMvps: {}, availableRounds: []
+  };
+
+  return { ...data, loading: query.isLoading };
 };

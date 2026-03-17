@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../contexts/AuthContext';
 
@@ -11,70 +12,62 @@ export interface MatchMvpVoteCount {
 
 export const useMatchMvpVoting = (matchId: string) => {
   const { user } = useAuthContext();
-  const [voteCounts, setVoteCounts] = useState<MatchMvpVoteCount[]>([]);
-  const [userVote, setUserVote] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  const fetchVotes = async () => {
-    if (!matchId) return;
-    try {
-      setLoading(true);
+  const query = useQuery({
+    queryKey: ['matchMvpVotes', matchId, user?.id],
+    queryFn: async () => {
+      if (!matchId) return { voteCounts: [], userVote: null };
       
-      // Buscar votos da partida
-      const { data: votes, error } = await supabase
-        .from('match_mvp_votes')
-        .select(`
-          player_id,
-          players (
-            name,
-            teams (name)
-          )
-        `)
-        .eq('match_id', matchId);
-
-      if (error) throw error;
-
-      if (votes) {
-        const counts: Record<string, MatchMvpVoteCount> = {};
-        votes.forEach((v: any) => {
-          const pid = v.player_id;
-          if (!counts[pid]) {
-            counts[pid] = {
-              player_id: pid,
-              player_name: v.players?.name || 'Desconhecido',
-              team_name: v.players?.teams?.name || '',
-              vote_count: 0,
-            };
-          }
-          counts[pid].vote_count++;
-        });
-        
-        const sorted = Object.values(counts).sort((a, b) => b.vote_count - a.vote_count);
-        setVoteCounts(sorted);
-      }
-
-      // Verificar voto do usuário
-      if (user) {
-        const { data: myVote } = await supabase
+      const [votesRes, myVoteRes] = await Promise.all([
+        supabase
+          .from('match_mvp_votes')
+          .select(`
+            player_id,
+            players (
+              name,
+              teams (name)
+            )
+          `)
+          .eq('match_id', matchId),
+        user ? supabase
           .from('match_mvp_votes')
           .select('player_id')
           .eq('match_id', matchId)
           .eq('user_id', user.id)
-          .maybeSingle();
-        setUserVote(myVote?.player_id || null);
-      }
-    } catch (err: any) {
-      console.error('Error fetching match votes:', err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+          .maybeSingle() : Promise.resolve({ data: null })
+      ]);
 
-  const vote = async (playerId: string) => {
-    if (!user) throw new Error('Faça login para votar!');
-    if (!matchId) return;
+      if (votesRes.error) throw votesRes.error;
 
-    try {
+      const counts: Record<string, MatchMvpVoteCount> = {};
+      (votesRes.data || []).forEach((v: any) => {
+        const pid = v.player_id;
+        if (!counts[pid]) {
+          counts[pid] = {
+            player_id: pid,
+            player_name: v.players?.name || 'Desconhecido',
+            team_name: v.players?.teams?.name || '',
+            vote_count: 0,
+          };
+        }
+        counts[pid].vote_count++;
+      });
+      
+      const sorted = Object.values(counts).sort((a, b) => b.vote_count - a.vote_count);
+      return {
+        voteCounts: sorted,
+        userVote: myVoteRes.data?.player_id || null
+      };
+    },
+    enabled: !!matchId
+  });
+
+  const voteMutation = useMutation({
+    mutationFn: async (playerId: string) => {
+      if (!user) throw new Error('Faça login para votar!');
+      if (!matchId) return;
+
       const { error } = await supabase.from('match_mvp_votes').insert({
         match_id: matchId,
         player_id: playerId,
@@ -82,17 +75,15 @@ export const useMatchMvpVoting = (matchId: string) => {
       });
 
       if (error) throw error;
-      
-      setUserVote(playerId);
-      fetchVotes();
-    } catch (err: any) {
-      console.error('Error voting:', err.message);
-      throw err;
+      return playerId;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['matchMvpVotes', matchId] });
     }
-  };
+  });
 
   useEffect(() => {
-    fetchVotes();
+    if (!matchId) return;
 
     const channel = supabase
       .channel(`public:match_mvp_votes:${matchId}`)
@@ -102,14 +93,16 @@ export const useMatchMvpVoting = (matchId: string) => {
         table: 'match_mvp_votes',
         filter: `match_id=eq.${matchId}`
       }, () => {
-        fetchVotes();
+        queryClient.invalidateQueries({ queryKey: ['matchMvpVotes', matchId] });
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [matchId, user]);
+  }, [matchId, queryClient]);
 
-  return { voteCounts, userVote, loading, vote, refresh: fetchVotes };
+  const { voteCounts = [], userVote = null } = query.data || {};
+
+  return { voteCounts, userVote, loading: query.isLoading, vote: voteMutation.mutateAsync, refresh: query.refetch };
 };

@@ -32,7 +32,14 @@ const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose
             <div className="player-id-section">
               <div className="player-photo-wrapper">
                 {player.photo_url ? (
-                  <img src={player.photo_url} alt={player.name} className="player-large-photo" />
+                  <img 
+                    src={player.photo_url} 
+                    alt={player.name} 
+                    className="player-large-photo" 
+                    width="160" 
+                    height="160" 
+                    loading="lazy" 
+                  />
                 ) : (
                   <div className="player-photo-dummy">
                     <User size={64} />
@@ -71,7 +78,7 @@ const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose
               </div>
               <div className="stat-content">
                 <strong>{player.assists}</strong>
-                <span>Assistências</span>
+                <span>ASS</span>
               </div>
             </div>
 

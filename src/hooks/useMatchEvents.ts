@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 
 export interface MatchEvent {
@@ -12,17 +13,13 @@ export interface MatchEvent {
   players?: { name: string };
 }
 
-export const useMatchEvents = (matchId: string) => {
-  const [events, setEvents] = useState<MatchEvent[]>([]);
-  const [loading, setLoading] = useState(true);
+export const useMatchEvents = (matchId: string, onNewEvent?: (event: MatchEvent) => void) => {
+  const queryClient = useQueryClient();
 
-  const fetchEvents = async () => {
-    if (!matchId) {
-      setLoading(false);
-      return;
-    }
-    try {
-      setLoading(true);
+  const query = useQuery({
+    queryKey: ['match_events', matchId],
+    queryFn: async () => {
+      if (!matchId) return [];
       const { data, error } = await supabase
         .from('match_events')
         .select(`
@@ -32,18 +29,14 @@ export const useMatchEvents = (matchId: string) => {
         .eq('match_id', matchId)
         .order('minute', { ascending: false })
         .order('created_at', { ascending: false });
-
       if (error) throw error;
-      setEvents(data || []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+      return (data as MatchEvent[]) || [];
+    },
+    enabled: !!matchId
+  });
 
   useEffect(() => {
-    fetchEvents();
+    if (!matchId) return;
 
     const channel = supabase
       .channel(`public:match_events:${matchId}`)
@@ -52,15 +45,24 @@ export const useMatchEvents = (matchId: string) => {
         schema: 'public', 
         table: 'match_events', 
         filter: `match_id=eq.${matchId}` 
-      }, () => {
-        fetchEvents();
+      }, (payload) => {
+        if (payload.eventType === 'INSERT' && onNewEvent) {
+          supabase.from('match_events').select('*, players:player_id(*)').eq('id', payload.new.id).single().then(({data}) => {
+            if (data) onNewEvent(data as MatchEvent);
+          });
+        }
+        queryClient.invalidateQueries({ queryKey: ['match_events', matchId] });
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [matchId]);
+  }, [matchId, queryClient, onNewEvent]);
 
-  return { events, loading, refresh: fetchEvents };
+  return { 
+    events: query.data || [], 
+    loading: query.isLoading, 
+    refresh: query.refetch 
+  };
 };

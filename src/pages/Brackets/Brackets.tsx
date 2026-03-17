@@ -88,14 +88,32 @@ const Brackets: React.FC = () => {
           </div>
           <div className={`match-team ${isTeamAWinner ? 'winner' : ''}`}>
             <div className="team-info">
-              {match.teams_a?.badge_url && <img src={match.teams_a.badge_url} alt="" className="team-badge-mini" />}
+              {match.teams_a?.badge_url && (
+                <img 
+                  src={match.teams_a.badge_url} 
+                  alt="" 
+                  className="team-badge-mini" 
+                  width="16" 
+                  height="16" 
+                  loading="lazy" 
+                />
+              )}
               <span>{match.teams_a?.name || 'A definir'}</span>
             </div>
             <div className="team-score">{match.status !== 'agendado' ? match.team_a_score : '-'}</div>
           </div>
           <div className={`match-team ${isTeamBWinner ? 'winner' : ''}`}>
             <div className="team-info">
-              {match.teams_b?.badge_url && <img src={match.teams_b.badge_url} alt="" className="team-badge-mini" />}
+              {match.teams_b?.badge_url && (
+                <img 
+                  src={match.teams_b.badge_url} 
+                  alt="" 
+                  className="team-badge-mini" 
+                  width="16" 
+                  height="16" 
+                  loading="lazy" 
+                />
+              )}
               <span>{match.teams_b?.name || 'A definir'}</span>
             </div>
             <div className="team-score">{match.status !== 'agendado' ? match.team_b_score : '-'}</div>

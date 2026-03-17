@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 
 export interface Player {
@@ -17,32 +18,23 @@ export interface Player {
 }
 
 export const usePlayers = (teamId?: string) => {
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  const fetchPlayers = async () => {
-    try {
-      setLoading(true);
-      let query = supabase.from('players').select('*');
-      
-      if (teamId) {
-        query = query.eq('team_id', teamId);
-      }
-
-      const { data, error } = await query.order('name');
-
+  const query = useQuery({
+    queryKey: ['players', teamId || 'all'],
+    queryFn: async () => {
+      let q = supabase.from('players').select('*, teams(name)');
+      if (teamId) q = q.eq('team_id', teamId);
+      const { data, error } = await q.order('name');
       if (error) throw error;
-      setPlayers(data || []);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+      return (data as any[]) || [];
+    },
+    staleTime: 1000 * 60 * 5, // 5 min
+    gcTime: 1000 * 60 * 15,    // 15 min
+  });
 
   useEffect(() => {
-    fetchPlayers();
+    // Optionally subscribe to players changes
 
     const channel = supabase
       .channel(`public:players:${teamId || 'all'}`)
@@ -52,14 +44,19 @@ export const usePlayers = (teamId?: string) => {
         table: 'players',
         filter: teamId ? `team_id=eq.${teamId}` : undefined
       }, () => {
-        fetchPlayers();
+        queryClient.invalidateQueries({ queryKey: ['players', teamId || 'all'] });
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [teamId]);
+  }, [teamId, queryClient]);
 
-  return { players, loading, error, refresh: fetchPlayers };
+  return { 
+    players: query.data || [], 
+    loading: query.isLoading, 
+    error: query.error?.message || null, 
+    refresh: query.refetch 
+  };
 };

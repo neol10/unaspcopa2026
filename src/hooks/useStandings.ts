@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 
 export interface Standing {
@@ -14,31 +15,27 @@ export interface Standing {
   goals_against: number;
   goals_diff: number;
   percentage: number;
+  badge_url?: string;
 }
 
 export const useStandings = () => {
-  const [standings, setStandings] = useState<Standing[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  const calculateStandings = async () => {
-    try {
-      setLoading(true);
+  const query = useQuery({
+    queryKey: ['standings'],
+    queryFn: async () => {
       
-      // 1. Buscar todas as equipes com seus grupos
-      const { data: teams, error: teamsError } = await supabase
-        .from('teams')
-        .select('id, name, group');
+      // 1-2. Buscar dados em paralelo
+      const [teamsRes, matchesRes] = await Promise.all([
+        supabase.from('teams').select('id, name, group, badge_url'),
+        supabase.from('matches').select('*').in('status', ['finalizado', 'ao_vivo'])
+      ]);
 
-      if (teamsError) throw teamsError;
+      if (teamsRes.error) throw teamsRes.error;
+      if (matchesRes.error) throw matchesRes.error;
 
-      // 2. Buscar todas as partidas finalizadas
-      const { data: matches, error: matchesError } = await supabase
-        .from('matches')
-        .select('*')
-        .in('status', ['finalizado', 'ao_vivo']);
-
-      if (matchesError) throw matchesError;
+      const teams = teamsRes.data || [];
+      const matches = matchesRes.data || [];
 
       // 3. Processar classificação
       const statsMap: Record<string, Standing> = {};
@@ -48,6 +45,7 @@ export const useStandings = () => {
           team_id: team.id,
           team_name: team.name,
           group: team.group || 'Geral',
+          badge_url: team.badge_url,
           points: 0,
           played: 0,
           wins: 0,
@@ -103,32 +101,33 @@ export const useStandings = () => {
         return b.goals_for - a.goals_for;
       });
 
-      setStandings(result);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+      return (result as Standing[]) || [];
+    },
+    staleTime: 1000 * 60 * 2, // 2 min
+    gcTime: 1000 * 60 * 10,  // 10 min
+  });
 
   useEffect(() => {
-    calculateStandings();
-
-    // Atualizar quando houver mudanças em matches
+    // Atualizar quando houver mudanças em matches ou teams
     const channel = supabase
       .channel('public:standings_calc')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => {
-        calculateStandings();
+        queryClient.invalidateQueries({ queryKey: ['standings'] });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, () => {
-        calculateStandings();
+        queryClient.invalidateQueries({ queryKey: ['standings'] });
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [queryClient]);
 
-  return { standings, loading, error, refresh: calculateStandings };
+  return { 
+    standings: query.data || [], 
+    loading: query.isLoading, 
+    error: query.error?.message || null, 
+    refresh: query.refetch 
+  };
 };

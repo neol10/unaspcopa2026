@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 
 export interface Team {
@@ -10,30 +11,40 @@ export interface Team {
 }
 
 export const useTeams = () => {
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  const fetchTeams = async () => {
-    try {
-      setLoading(true);
+  const query = useQuery({
+    queryKey: ['teams'],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('teams')
         .select('*')
         .order('name');
-
       if (error) throw error;
-      setTeams(data || []);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+      return (data as Team[]) || [];
+    },
+    staleTime: 1000 * 60 * 15, // 15 min (times mudam pouco)
+    gcTime: 1000 * 60 * 30,    // 30 min
+  });
 
   useEffect(() => {
-    fetchTeams();
-  }, []);
+    // Optionally subscribe to teams changes
+    const channel = supabase
+      .channel('public:teams_cache')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['teams'] });
+      })
+      .subscribe();
 
-  return { teams, loading, error, refresh: fetchTeams };
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
+  return { 
+    teams: query.data || [], 
+    loading: query.isLoading, 
+    error: query.error?.message || null, 
+    refresh: query.refetch 
+  };
 };

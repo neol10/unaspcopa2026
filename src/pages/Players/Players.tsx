@@ -46,7 +46,15 @@ const Players: React.FC = () => {
             {isGlobalView ? (
               <Users size={64} color="var(--secondary)" />
             ) : team?.badge_url ? (
-              <img src={team.badge_url} alt={team.name} className="profile-badge-img" loading="lazy" decoding="async" />
+              <img 
+                src={team.badge_url} 
+                alt={team.name} 
+                className="profile-badge-img" 
+                width="64" 
+                height="64" 
+                loading="lazy" 
+                decoding="async" 
+              />
             ) : (
               <Shield size={64} color="var(--secondary)" />
             )}
@@ -111,7 +119,16 @@ const Players: React.FC = () => {
                   
                   <div className="p-photo-wrapper">
                     {player.photo_url ? (
-                      <img src={player.photo_url} alt={player.name} className="p-photo" loading="lazy" decoding="async" />
+                      <img 
+                        src={player.photo_url} 
+                        alt={player.name} 
+                        className="p-photo" 
+                        width="120" 
+                        height="120" 
+                        loading="lazy" 
+                        decoding="async" 
+                        style={{ objectFit: 'cover' }}
+                      />
                     ) : (
                       <div className="p-photo-placeholder">
                         <User size={32} color="rgba(255,255,255,0.15)" />
@@ -136,11 +153,19 @@ const Players: React.FC = () => {
                     </div>
                     <div className="p-stat-box">
                        <strong>{player.assists}</strong>
-                       <span>Ast</span>
+                       <span>ASS</span>
+                    </div>
+                    <div className="p-stat-box">
+                       <div style={{ width: 12, height: 16, background: '#fbbf24', borderRadius: 2 }} />
+                       <strong>{player.yellow_cards}</strong>
+                       <span>Amar</span>
+                    </div>
+                    <div className="p-stat-box">
+                       <div style={{ width: 12, height: 16, background: '#ef4444', borderRadius: 2 }} />
+                       <strong>{player.red_cards}</strong>
+                       <span>Verm</span>
                     </div>
                     <div className="p-cards">
-                      {player.yellow_cards > 0 && <span className="p-card-mini yellow">{player.yellow_cards}</span>}
-                      {player.red_cards > 0 && <span className="p-card-mini red">{player.red_cards}</span>}
                       {(player.red_cards > 0 || player.yellow_cards >= 3) && (
                         <span className="p-suspension-badge">SUSPENSO</span>
                       )}

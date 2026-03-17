@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 
 export interface News {
@@ -11,27 +11,22 @@ export interface News {
 }
 
 export const useNews = (limit?: number) => {
-  const [news, setNews] = useState<News[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchNews = async () => {
-    try {
-      setLoading(true);
-      let query = supabase.from('news').select('*').order('published_at', { ascending: false });
-      if (limit) query = query.limit(limit);
-      const { data, error } = await query;
+  const query = useQuery({
+    queryKey: ['news', limit || 'all'],
+    queryFn: async () => {
+      let q = supabase.from('news').select('*').order('published_at', { ascending: false });
+      if (limit) q = q.limit(limit);
+      const { data, error } = await q;
       if (error) throw error;
-      setNews(data || []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+      return (data as News[]) || [];
+    },
+    staleTime: 1000 * 60 * 10, // 10 min
+    gcTime: 1000 * 60 * 30,    // 30 min
+  });
+
+  return { 
+    news: query.data || [], 
+    loading: query.isLoading, 
+    refresh: query.refetch 
   };
-
-  useEffect(() => {
-    fetchNews();
-  }, []);
-
-  return { news, loading, refresh: fetchNews };
 };
