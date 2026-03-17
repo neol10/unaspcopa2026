@@ -11,7 +11,7 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 5px;
+  height: 4px;
   background: linear-gradient(90deg, 
     #34A853, #00A9E0, #E4002B, #FFD700,
     #34A853, #00A9E0, #E4002B, #FFD700
@@ -286,7 +286,8 @@
   align-items: center;
   background: var(--bg-card);
   backdrop-filter: blur(20px);
-  position: relative;
+  position: sticky;
+  top: 0;
 }
 
 .mobile-navbar::after {

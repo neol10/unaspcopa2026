@@ -12,6 +12,7 @@ const Brackets: React.FC = () => {
 
   const formatRoundName = (name: string) => {
     if (/^\d+$/.test(name)) return `${name}ª Rodada`;
+    if (name.toLowerCase().includes('rodada')) return name;
     return name.charAt(0).toUpperCase() + name.slice(1);
   };
 

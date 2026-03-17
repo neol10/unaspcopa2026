@@ -8,6 +8,8 @@ import { useStandings } from '../../hooks/useStandings';
 import { usePolls } from '../../hooks/usePolls';
 import { useMatches } from '../../hooks/useMatches';
 import { useTournamentConfig } from '../../hooks/useTournamentConfig';
+import { useRankings } from '../../hooks/useRankings';
+import { Star, Goal, Handshake } from 'lucide-react';
 
 const Home: React.FC = () => {
   const { config } = useTournamentConfig();
@@ -16,6 +18,7 @@ const Home: React.FC = () => {
   const { matches } = useMatches();
   const navigate = useNavigate();
   const { activePoll, loading: pollLoading, hasVoted, submitVote } = usePolls();
+  const { scorers, assistants, galeraRank, loading: rankingsLoading } = useRankings();
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [selectedNews, setSelectedNews] = useState<News | null>(null);
   
@@ -93,6 +96,63 @@ const Home: React.FC = () => {
           </div>
         </div>
       </section>
+
+      {/* Destaques do Campeonato */}
+      {!rankingsLoading && (scorers.length > 0 || assistants.length > 0 || galeraRank.length > 0) && (
+        <section className="stats-highlights-section animate-fade-in">
+          <div className="section-head-v2">
+            <Zap size={24} color="var(--secondary)" />
+            <h2>Destaques do Torneio</h2>
+            <button className="btn-view-all" onClick={() => navigate('/rankings')}>
+              Ver Rankings <ArrowRight size={14} />
+            </button>
+          </div>
+          
+          <div className="highlights-grid">
+            {scorers[0] && (
+              <div className="highlight-card glass" onClick={() => navigate('/rankings')}>
+                <div className="highlight-icon art-scorer"><Goal size={20} /></div>
+                <div className="highlight-info">
+                  <span className="highlight-label">Artilheiro</span>
+                  <div className="highlight-player">
+                    <strong>{scorers[0].name}</strong>
+                    <span>{scorers[0].team_name}</span>
+                  </div>
+                </div>
+                <div className="highlight-value">{scorers[0].goals_count} <small>gols</small></div>
+              </div>
+            )}
+            
+            {assistants[0] && (
+              <div className="highlight-card glass" onClick={() => navigate('/rankings')}>
+                <div className="highlight-icon art-assist"><Handshake size={20} /></div>
+                <div className="highlight-info">
+                  <span className="highlight-label">Garçom</span>
+                  <div className="highlight-player">
+                    <strong>{assistants[0].name}</strong>
+                    <span>{assistants[0].team_name}</span>
+                  </div>
+                </div>
+                <div className="highlight-value">{assistants[0].assists} <small>assist.</small></div>
+              </div>
+            )}
+
+            {galeraRank[0] && (
+              <div className="highlight-card glass" onClick={() => navigate('/rankings')}>
+                <div className="highlight-icon art-mvp"><Star size={20} /></div>
+                <div className="highlight-info">
+                  <span className="highlight-label">Craque da Galera</span>
+                  <div className="highlight-player">
+                    <strong>{galeraRank[0].name}</strong>
+                    <span>{galeraRank[0].team_name}</span>
+                  </div>
+                </div>
+                <div className="highlight-value">{galeraRank[0].mvp_votes} <small>votos</small></div>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Match Countdown Banner */}
       {nextMatch && (
