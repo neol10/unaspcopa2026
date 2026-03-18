@@ -42,15 +42,23 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
 
+  const urlToOpen = new URL(event.notification.data.url || '/', self.location.origin).href;
+
   event.waitUntil(
-    self.clients.matchAll({ type: 'window' }).then((clientList) => {
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // Tenta focar em uma janela que já está na URL correta
       for (const client of clientList) {
-        if (client.url === event.notification.data.url && 'focus' in client) {
-          return client.focus()
+        if (client.url === urlToOpen && 'focus' in client) {
+          return client.focus();
         }
       }
+      // Se não achar na URL exata, foca na primeira janela disponível e navega
+      if (clientList.length > 0 && 'navigate' in clientList[0]) {
+        return clientList[0].navigate(urlToOpen).then(client => client.focus());
+      }
+      // Se não houver janela aberta, abre uma nova
       if (self.clients.openWindow) {
-        return self.clients.openWindow(event.notification.data.url)
+        return self.clients.openWindow(urlToOpen);
       }
     }),
   )

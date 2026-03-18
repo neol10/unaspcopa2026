@@ -16,6 +16,7 @@ export interface Standing {
   goals_diff: number;
   percentage: number;
   badge_url?: string;
+  form: string[];
 }
 
 export const useStandings = () => {
@@ -28,7 +29,7 @@ export const useStandings = () => {
       // 1-2. Buscar dados em paralelo
       const [teamsRes, matchesRes] = await Promise.all([
         supabase.from('teams').select('id, name, group, badge_url'),
-        supabase.from('matches').select('*').in('status', ['finalizado', 'ao_vivo'])
+        supabase.from('matches').select('*').in('status', ['finalizado', 'ao_vivo']).order('match_date', { ascending: true })
       ]);
 
       if (teamsRes.error) throw teamsRes.error;
@@ -54,7 +55,8 @@ export const useStandings = () => {
           goals_for: 0,
           goals_against: 0,
           goals_diff: 0,
-          percentage: 0
+          percentage: 0,
+          form: []
         };
       });
 
@@ -74,22 +76,34 @@ export const useStandings = () => {
             teamA.wins++;
             teamA.points += 3;
             teamB.losses++;
+            teamA.form.push('V');
+            teamB.form.push('D');
           } else if (match.team_a_score < match.team_b_score) {
             teamB.wins++;
             teamB.points += 3;
             teamA.losses++;
+            teamA.form.push('D');
+            teamB.form.push('V');
           } else {
             teamA.draws++;
             teamB.draws++;
             teamA.points += 1;
             teamB.points += 1;
+            teamA.form.push('E');
+            teamB.form.push('E');
           }
+
+          // Manter apenas os últimos 5
+          if (teamA.form.length > 5) teamA.form.shift();
+          if (teamB.form.length > 5) teamB.form.shift();
         }
       });
 
       const result = Object.values(statsMap).map(s => {
         s.goals_diff = s.goals_for - s.goals_against;
         s.percentage = s.played > 0 ? (s.points / (s.played * 3)) * 100 : 0;
+        // Inverter para mostrar o mais recente primeiro no UI se preferir, 
+        // mas aqui vamos manter a ordem cronológica e o UI inverte se precisar.
         return s;
       });
 

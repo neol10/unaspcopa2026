@@ -77,7 +77,14 @@ const PageTransition: React.FC<{ children: React.ReactNode }> = ({ children }) =
   );
 };
 
-function App() {
+import InstallPWAPrompt from './components/InstallPrompt/InstallPWAPrompt';
+import ErrorBoundary from './components/ErrorBoundary/ErrorBoundary';
+import SplashScreen from './components/SplashScreen/SplashScreen';
+import { useAuthContext } from './contexts/AuthContext';
+
+function AppContent() {
+  const { loading: authLoading } = useAuthContext();
+
   useEffect(() => {
     // Escuta mudanças na conectividade para feedback offline
     const handleOnline = () => toast.success('Você está online! ✨', { id: 'connectivity' });
@@ -86,47 +93,88 @@ function App() {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // Prefetch de dados críticos para navegação instantânea
-    queryClient.prefetchQuery({
-      queryKey: ['teams'],
-      queryFn: async () => {
-        const { data, error } = await (await import('./lib/supabase')).supabase
-          .from('teams')
-          .select('*')
-          .order('name');
-        if (error) throw error;
-        return data;
-      },
-    });
+    // Tratamento global de erros para evitar tela branca (ex: erro de chunk no PWA)
+    const handleError = (e: any) => {
+      console.error('Global Error Caught:', e);
+      const msg = e.message || (e.reason && e.reason.message) || '';
+      if (msg.includes('Loading chunk') || msg.includes('Failed to fetch dynamically imported module')) {
+        toast.error('Nova versão disponível! Atualizando...', { duration: 3000 });
+        setTimeout(() => window.location.reload(), 2000);
+      }
+    };
+
+    window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleError);
+
+    // Prefetch de dados críticos para navegação instantânea - COM SEGURANÇA
+    const performPrefetch = async () => {
+      try {
+        await queryClient.prefetchQuery({
+          queryKey: ['teams'],
+          queryFn: async () => {
+            const { data, error } = await (await import('./lib/supabase')).supabase
+              .from('teams')
+              .select('*')
+              .order('name');
+            if (error) throw error;
+            return data;
+          },
+        });
+      } catch (err) {
+        console.warn('Prefetch failed (expected behavior for some networks):', err);
+      }
+    };
+
+    performPrefetch();
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleError);
+    };
   }, []);
 
+  if (authLoading) return <SplashScreen />;
+
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <Router>
-          <Toaster position="top-center" toastOptions={{ style: { background: '#1e293b', color: '#fff', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' } }} />
-        <ForceRefresh />
-        <Layout>
-          <Suspense fallback={<PageLoader />}>
-            <PageTransition>
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/classificacao" element={<Standings />} />
-                <Route path="/rankings" element={<Rankings />} />
-                <Route path="/equipes" element={<Teams />} />
-                <Route path="/jogadores" element={<Players />} />
-                <Route path="/equipes/:teamId" element={<Players />} />
-                <Route path="/central-da-partida" element={<MatchCenter />} />
-                <Route path="/jogos" element={<Brackets />} />
-                <Route path="/admin" element={<Admin />} />
-                <Route path="*" element={<Navigate to="/" />} />
-              </Routes>
-            </PageTransition>
-          </Suspense>
-        </Layout>
-      </Router>
-    </AuthProvider>
-    </QueryClientProvider>
+    <>
+      <Toaster position="top-center" toastOptions={{ style: { background: '#1e293b', color: '#fff', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' } }} />
+      <ForceRefresh />
+      <InstallPWAPrompt />
+      <Layout>
+        <Suspense fallback={<PageLoader />}>
+          <PageTransition>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/classificacao" element={<Standings />} />
+              <Route path="/rankings" element={<Rankings />} />
+              <Route path="/equipes" element={<Teams />} />
+              <Route path="/jogadores" element={<Players />} />
+              <Route path="/equipes/:teamId" element={<Players />} />
+              <Route path="/central-da-partida" element={<MatchCenter />} />
+              <Route path="/jogos" element={<Brackets />} />
+              <Route path="/admin" element={<Admin />} />
+              <Route path="*" element={<Navigate to="/" />} />
+            </Routes>
+          </PageTransition>
+        </Suspense>
+      </Layout>
+    </>
+  );
+}
+
+function App() {
+  return (
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <Router>
+            <AppContent />
+          </Router>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

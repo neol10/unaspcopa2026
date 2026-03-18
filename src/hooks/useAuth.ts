@@ -44,13 +44,24 @@ export const useAuth = () => {
         setRole(null);
         setLoading(false);
       } else if (event === 'TOKEN_REFRESHED') {
-        // Apenas atualiza o objeto user sem rebuscar profile
         if (session?.user) setUser(session.user);
       }
     });
 
+    // Safety timeout: se em 6 segundos não houver resposta, libera o app como visitante
+    const timeout = setTimeout(() => {
+      setLoading(current => {
+        if (current) {
+          console.warn('Auth initialization timeout - proceeding as guest');
+          return false;
+        }
+        return current;
+      });
+    }, 6000);
+
     return () => {
       subscription.unsubscribe();
+      clearTimeout(timeout);
     };
   }, []);
 

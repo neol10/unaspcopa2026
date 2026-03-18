@@ -110,6 +110,15 @@ button {
   border-radius: 2px;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
+::selection {
+  background: var(--secondary);
+  color: #000;
+}
+
 /* Glassmorphism Classes */
 .glass {
   background: var(--bg-card);
@@ -117,12 +126,43 @@ button {
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--border-light);
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  transition: var(--transition-smooth);
 }
 
 .glass-hover:hover {
-  background: var(--bg-glass);
-  border-color: var(--border-glow);
-  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--secondary);
+  box-shadow: 0 0 25px rgba(251, 191, 36, 0.15);
+  transform: translateY(-4px) scale(1.01);
+}
+
+.premium-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.premium-card::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    45deg,
+    transparent 0%,
+    rgba(255, 215, 0, 0.03) 45%,
+    rgba(255, 215, 0, 0.05) 50%,
+    rgba(255, 215, 0, 0.03) 55%,
+    transparent 100%
+  );
+  transform: rotate(45deg);
+  transition: 0.6s;
+  pointer-events: none;
+}
+
+.premium-card:hover::after {
+  transform: rotate(45deg) translate(20%, 20%);
 }
 
 .text-gradient {

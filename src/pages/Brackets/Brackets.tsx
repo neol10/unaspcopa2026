@@ -75,6 +75,15 @@ const Brackets: React.FC = () => {
     }
   };
 
+  const scrollToPhase = (phase: string) => {
+    const element = document.getElementById(`phase-${phase.toLowerCase().replace(/\s+/g, '-')}`);
+    if (element && scrollRef.current) {
+      const container = scrollRef.current;
+      const offset = element.offsetLeft - 64; // Adjust for padding
+      container.scrollTo({ left: offset, behavior: 'smooth' });
+    }
+  };
+
   if (loading) return <div className="loading-state">Carregando Jogos...</div>;
 
   const MatchBox: React.FC<{ match: Match; isKnockout?: boolean }> = ({ match, isKnockout }) => {
@@ -136,6 +145,23 @@ const Brackets: React.FC = () => {
         <p className="text-muted">Acompanhe o caminho rumo ao título</p>
       </header>
 
+      {knockoutRounds.length > 0 && (
+        <div className="phase-jump-nav glass">
+          {knockoutRounds.map(r => (
+            <button key={r} onClick={() => scrollToPhase(r)} className="jump-btn">
+              {r}
+            </button>
+          ))}
+          {groupRounds.length > 0 && (
+             <button onClick={() => {
+                if (scrollRef.current) scrollRef.current.scrollTo({ left: 3000, behavior: 'smooth' });
+             }} className="jump-btn">
+                Geral
+             </button>
+          )}
+        </div>
+      )}
+
       {sortedRounds.length > 0 && (
         <div className="scroll-hint">
           <ChevronLeft size={16} /> Arraste para navegar <ChevronRight size={16} />
@@ -159,7 +185,11 @@ const Brackets: React.FC = () => {
             <div className="knockout-tree-container">
               <div className="knockout-columns">
                 {knockoutRounds.map((roundName) => (
-                  <div key={roundName} className={`knockout-column phase-${roundName.toLowerCase().replace(/\s+/g, '-')}`}>
+                  <div 
+                    key={roundName} 
+                    id={`phase-${roundName.toLowerCase().replace(/\s+/g, '-')}`}
+                    className={`knockout-column phase-${roundName.toLowerCase().replace(/\s+/g, '-')}`}
+                  >
                     <h3 className="round-title knockout-title">
                       <span className="round-dot"></span>
                       {roundName}

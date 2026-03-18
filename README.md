@@ -37,6 +37,7 @@ Siga estes passos para colocar o sistema no ar:
    No campo "Environment Variables", adicione as seguintes chaves (copie do seu arquivo `.env` local):
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
+   - `VITE_VAPID_PUBLIC_KEY` *(chave pública do Web Push; deve bater com a chave privada usada na função que envia o push)*
 5. Clique em **Deploy**.
 
 ---

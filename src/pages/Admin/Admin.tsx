@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Trophy, Users, Calendar, Plus, Save, Trash2, Shield, ChevronDown, ChevronUp, Newspaper, Image as ImageIcon, CheckCircle, Play, Camera, Search, Settings2, Vote, ShieldAlert, Bell, Star, CreditCard, Target, Square, ArrowRightLeft, MessageSquare, Zap, Clock, ArrowRight } from 'lucide-react';
+import { Trophy, Users, Calendar, Plus, Save, Trash2, Shield, ChevronDown, ChevronUp, Newspaper, Image as ImageIcon, CheckCircle, Play, Camera, Search, Settings2, Vote, ShieldAlert, Bell, Star, CreditCard, Target, Square, ArrowRightLeft, MessageSquare, Zap, Clock, ArrowRight, Pause, RotateCcw } from 'lucide-react';
 import { useMatchMvpVoting } from '../../hooks/useMatchMvpVoting';
 import { useTeams } from '../../hooks/useTeams';
 import { usePlayers } from '../../hooks/usePlayers';
@@ -10,6 +10,7 @@ import { useMatchEvents } from '../../hooks/useMatchEvents';
 import { useGallery } from '../../hooks/useGallery';
 import { useTournamentConfig } from '../../hooks/useTournamentConfig';
 import { useAuthContext } from '../../contexts/AuthContext';
+import { toast } from 'react-hot-toast';
 import './Admin.css';
 
 const uploadToStorage = async (file: File, bucket: string = 'images', folder: string = 'team-badges'): Promise<string | null> => {
@@ -38,7 +39,7 @@ const uploadToStorage = async (file: File, bucket: string = 'images', folder: st
     return data.publicUrl;
   } catch (err: any) {
     console.error('Upload error:', err);
-    alert('Erro no upload: ' + err.message);
+    toast.error('Erro no upload: ' + err.message);
     return null;
   }
 };
@@ -52,7 +53,7 @@ const formatDatetimeLocal = (dateStr: string | null) => {
 
 const Admin: React.FC = () => {
   const { user, role, loading: authLoading } = useAuthContext();
-  const [activeTab, setActiveTab] = useState<'matches' | 'teams' | 'players' | 'news' | 'tournament' | 'polls'>('matches');
+  const [activeTab, setActiveTab] = useState<'matches' | 'teams' | 'players' | 'news' | 'tournament' | 'polls' | 'notifications'>('matches');
   
   if (authLoading) return <div className="admin-loading-state glass"><div className="spinner"></div><p>Verificando credenciais...</p></div>;
 
@@ -123,8 +124,15 @@ const Admin: React.FC = () => {
                 className={`tab-btn ${activeTab === 'polls' ? 'active' : ''}`} 
                 onClick={() => setActiveTab('polls')}
               >
-                <Shield size={18} />
+                <Vote size={18} />
                 <span>Enquetes</span>
+              </button>
+              <button 
+                className={`tab-btn ${activeTab === 'notifications' ? 'active' : ''}`} 
+                onClick={() => setActiveTab('notifications')}
+              >
+                <Bell size={18} />
+                <span>Alertas Push</span>
               </button>
             </nav>
           </header>
@@ -136,6 +144,7 @@ const Admin: React.FC = () => {
             {activeTab === 'news' && <NewsManagement />}
             {activeTab === 'tournament' && <TournamentManagement />}
             {activeTab === 'polls' && <PollManagement />}
+            {activeTab === 'notifications' && <NotificationBroadcast />}
           </main>
         </>
       )}
@@ -152,6 +161,87 @@ const sendPushNotification = async (title: string, body: string, url: string = '
   } catch (err) {
     console.error('Push notification error:', err);
   }
+};
+
+// --- Alertas Push em Massa ---
+const NotificationBroadcast = () => {
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [url, setUrl] = useState('/');
+  const [sending, setSending] = useState(false);
+
+  const handleBroadcast = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title || !body) return toast.error('Preencha título e corpo!');
+    
+    setSending(true);
+    try {
+      await sendPushNotification(title, body, url);
+      toast.success('Alerta push enviado para todos os inscritos! 📢');
+      setTitle('');
+      setBody('');
+      setUrl('/');
+    } catch (err: any) {
+      toast.error('Erro ao enviar broadcast: ' + err.message);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="admin-section glass animate-fade-in">
+      <div className="section-header">
+        <h2>Transmissão de Alertas (Push)</h2>
+        <p className="section-subtitle">Envie notificações em tempo real para todos os usuários que aceitaram alertas.</p>
+      </div>
+
+      <form className="admin-form glass" onSubmit={handleBroadcast}>
+        <div className="form-group">
+          <label>Título do Alerta</label>
+          <input 
+            type="text" 
+            placeholder="Ex: ⚽ GOLAÇO NA ARENA!" 
+            value={title} 
+            onChange={e => setTitle(e.target.value)} 
+            required 
+          />
+        </div>
+        <div className="form-group">
+          <label>Mensagem</label>
+          <textarea 
+            placeholder="Ex: O clássico está pegando fogo! Venha conferir o resultado ao vivo." 
+            value={body} 
+            onChange={e => setBody(e.target.value)} 
+            rows={3}
+            required
+          />
+        </div>
+        <div className="form-group">
+          <label>URL de Destino (Opcional)</label>
+          <input 
+            type="text" 
+            placeholder="Ex: /central-da-partida" 
+            value={url} 
+            onChange={e => setUrl(e.target.value)} 
+          />
+          <small>Caminho para onde o usuário será levado ao clicar.</small>
+        </div>
+        
+        <button type="submit" className="btn-save" disabled={sending}>
+          <Bell size={18} /> {sending ? 'Enviando...' : 'Disparar Alerta Agora'}
+        </button>
+      </form>
+
+      <div className="broadcast-tips glass">
+        <h4>💡 Dicas de Engajamento</h4>
+        <ul>
+          <li>Use emojis para aumentar a taxa de clique.</li>
+          <li>Seja breve e direto ao ponto.</li>
+          <li>Evite enviar muitos alertas em curto espaço de tempo.</li>
+        </ul>
+      </div>
+    </div>
+  );
 };
 
 // --- Sub-componentes Admin ---
@@ -181,7 +271,7 @@ const MatchManagement = () => {
 
   const handleCreateMatch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.team_a_id === formData.team_b_id) return alert('Selecione times diferentes!');
+    if (formData.team_a_id === formData.team_b_id) return toast.error('Selecione times diferentes!');
     
     // Validação: Impedir que o mesmo time jogue duas vezes na mesma rodada
     const currentRound = parseInt(formData.round) || 1;
@@ -190,11 +280,11 @@ const MatchManagement = () => {
 
     if (teamACollision) {
       const teamName = teams.find(t => t.id === formData.team_a_id)?.name;
-      return alert(`Erro: O time ${teamName} já possui uma partida na rodada ${currentRound}!`);
+      return toast.error(`Erro: O time ${teamName} já possui uma partida na rodada ${currentRound}!`);
     }
     if (teamBCollision) {
       const teamName = teams.find(t => t.id === formData.team_b_id)?.name;
-      return alert(`Erro: O time ${teamName} já possui uma partida na rodada ${currentRound}!`);
+      return toast.error(`Erro: O time ${teamName} já possui uma partida na rodada ${currentRound}!`);
     }
 
     try {
@@ -207,7 +297,7 @@ const MatchManagement = () => {
       setFormData({ team_a_id: '', team_b_id: '', match_date: '', location: 'Ginásio Principal', status: 'agendado', round: '1' });
       setIsAdding(false);
       refresh();
-    } catch (err: any) { alert(err.message); }
+    } catch (err: any) { toast.error(err.message); }
   };
 
   const updateStatus = async (id: string, status: string, match?: any) => {
@@ -232,7 +322,7 @@ const MatchManagement = () => {
       }
       
       refresh();
-    } catch (err: any) { alert(err.message); }
+    } catch (err: any) { toast.error(err.message); }
   };
 
   const [editingMatchId, setEditingMatchId] = useState<string | null>(null);
@@ -245,11 +335,11 @@ const MatchManagement = () => {
 
     if (teamACollision) {
       const teamName = teams.find(t => t.id === data.team_a_id)?.name;
-      return alert(`Erro: O time ${teamName} já possui outra partida na rodada ${currentRound}!`);
+      return toast.error(`Erro: O time ${teamName} já possui outra partida na rodada ${currentRound}!`);
     }
     if (teamBCollision) {
       const teamName = teams.find(t => t.id === data.team_b_id)?.name;
-      return alert(`Erro: O time ${teamName} já possui outra partida na rodada ${currentRound}!`);
+      return toast.error(`Erro: O time ${teamName} já possui outra partida na rodada ${currentRound}!`);
     }
 
     try {
@@ -264,8 +354,8 @@ const MatchManagement = () => {
       if (error) throw error;
       setEditingMatchId(null);
       refresh();
-      alert('Partida atualizada!');
-    } catch (err: any) { alert(err.message); }
+      toast.success('Partida atualizada!');
+    } catch (err: any) { toast.error(err.message); }
   };
 
   const filteredMatches = matches.filter(m => 
@@ -508,24 +598,77 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
     description: match.match_mvp_description || '' 
   });
   const [mvpSaved, setMvpSaved] = useState(false);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [editEventMinute, setEditEventMinute] = useState<number>(0);
+
+  // --- Cronômetro ---
+  const [seconds, setSeconds] = useState(0);
+  const [isActive, setIsActive] = useState(false);
+
+  useEffect(() => {
+    let interval: any = null;
+    if (isActive) {
+      interval = setInterval(() => {
+        setSeconds(s => s + 1);
+      }, 1000);
+    } else {
+      clearInterval(interval);
+    }
+    return () => clearInterval(interval);
+  }, [isActive]);
+
+  const formatTime = (s: number) => {
+    const mins = Math.floor(s / 60);
+    const secs = s % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // --- Escalação / Roster ---
+  const [onFieldA, setOnFieldA] = useState<string[]>([]);
+  const [onFieldB, setOnFieldB] = useState<string[]>([]);
+
+  // Inicializar quem está em campo (pode ser baseado em quem já tem eventos ou um padrão)
+  useEffect(() => {
+    if (playersA.length > 0 && onFieldA.length === 0) {
+      setOnFieldA(playersA.slice(0, 5).map(p => p.id)); // Sugestão inicial: primeiros 5
+    }
+    if (playersB.length > 0 && onFieldB.length === 0) {
+      setOnFieldB(playersB.slice(0, 5).map(p => p.id));
+    }
+  }, [playersA, playersB]);
+
+  const togglePlayerStatus = (playerId: string, team: 'a' | 'b') => {
+    if (team === 'a') {
+      setOnFieldA(prev => prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId]);
+    } else {
+      setOnFieldB(prev => prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId]);
+    }
+  };
 
   const addEvent = async (playerId: string, team: 'a' | 'b') => {
     try {
+      const eventMinute = selectedMinute > 0 ? selectedMinute : Math.floor(seconds / 60) || 1;
+
       const eventData: any = {
         match_id: match.id,
         player_id: playerId,
         event_type: eventType,
-        minute: selectedMinute || 0
+        minute: eventMinute
       };
 
-      // Como a coluna metadata não existe no banco, usamos o comentário para o tipo de gol
       if (eventType === 'gol') {
         eventData.commentary = goalType === 'normal' ? '' : `[${goalType.toUpperCase()}]`;
         if (assistantId) eventData.assistant_id = assistantId;
       }
       
       if (eventType === 'substituicao' && assistantId) {
-        eventData.assistant_id = assistantId;
+        eventData.assistant_id = assistantId; // IN
+        // Lógica de troca automática de status
+        if (team === 'a') {
+          setOnFieldA(prev => prev.filter(id => id !== playerId).concat(assistantId));
+        } else {
+          setOnFieldB(prev => prev.filter(id => id !== playerId).concat(assistantId));
+        }
       }
 
       if (eventType === 'comentario') {
@@ -535,11 +678,9 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
       const { error } = await supabase.from('match_events').insert([eventData]);
       if (error) throw error;
       
-      // Se for gol, atualiza o placar da partida
       if (eventType === 'gol') {
         let newScore = {};
         if (goalType === 'contra') {
-          // Gol contra: oponente ganha o ponto
           newScore = team === 'a' ? { team_b_score: match.team_b_score + 1 } : { team_a_score: (match.team_a_score || 0) + 1 };
         } else {
           newScore = team === 'a' ? { team_a_score: (match.team_a_score || 0) + 1 } : { team_b_score: (match.team_b_score || 0) + 1 };
@@ -547,7 +688,6 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
         await supabase.from('matches').update(newScore).eq('id', match.id);
       }
       
-      // Atualiza estatísticas do jogador
       if (eventType === 'gol' && goalType !== 'contra') {
         const { data: p } = await supabase.from('players').select('goals_count').eq('id', playerId).single();
         await supabase.from('players').update({ goals_count: (p?.goals_count || 0) + 1 }).eq('id', playerId);
@@ -562,6 +702,9 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
       } else if (eventType === 'vermelho') {
         const { data: p } = await supabase.from('players').select('red_cards').eq('id', playerId).single();
         await supabase.from('players').update({ red_cards: (p?.red_cards || 0) + 1 }).eq('id', playerId);
+        // Expulso sai de campo automaticamente
+        if (team === 'a') setOnFieldA(prev => prev.filter(id => id !== playerId));
+        else setOnFieldB(prev => prev.filter(id => id !== playerId));
       }
 
       setAssistantId('');
@@ -572,22 +715,46 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
       if (eventType === 'gol') {
         const player = [...playersA, ...playersB].find(p => p.id === playerId);
         const teamName = team === 'a' ? match.teams_a.name : match.teams_b.name;
+        let title = '⚽ GOOOOOOL!';
+        let body = `Gol de ${player?.name || 'alguém'} para o ${teamName}!`;
+        
+        if (goalType === 'penalti') body = `[PÊNALTI] ${body}`;
+        if (goalType === 'contra') {
+          title = '⚽ GOL CONTRA!';
+          body = `Gol contra de ${player?.name}!`;
+        }
+
+        sendPushNotification(title, body, '/central-da-partida');
+      } else if (eventType === 'amarelo' || eventType === 'vermelho') {
+        const player = [...playersA, ...playersB].find(p => p.id === playerId);
+        const teamName = team === 'a' ? match.teams_a.name : match.teams_b.name;
         sendPushNotification(
-          '⚽ GOOOOOOL!', 
-          `Gol de ${player?.name || 'alguém'} para o ${teamName}!`,
+          eventType === 'amarelo' ? '🟨 Cartão Amarelo' : '🟥 Cartão Vermelho',
+          `${player?.name} (${teamName}) ${eventMinute}'`,
           '/central-da-partida'
         );
+      } else if (eventType === 'substituicao') {
+        const pOut = [...playersA, ...playersB].find(p => p.id === playerId);
+        const pIn = [...playersA, ...playersB].find(p => p.id === assistantId);
+        const teamName = team === 'a' ? match.teams_a.name : match.teams_b.name;
+        sendPushNotification(
+          '🔄 Substituição',
+          `${teamName}: Sai ${pOut?.name}, Entra ${pIn?.name}`,
+          '/central-da-partida'
+        );
+      } else if (eventType === 'comentario') {
+        sendPushNotification('📝 Atualização', commentaryText, '/central-da-partida');
       }
       
-      alert('Evento registrado!');
-    } catch (err: any) { alert(err.message); }
+      // Feedback visual rápido
+      toast.success('Evento registrado!');
+    } catch (err: any) { toast.error(err.message); }
   };
 
   const removeEvent = async (event: any) => {
     if (!confirm('Deseja realmente excluir este lance? Isso reverterá placares e estatísticas.')) return;
     
     try {
-      // 1. Reverter placar se foi gol
       if (event.event_type === 'gol') {
         const isTeamA = playersA.some(p => p.id === event.player_id);
         const newScore = isTeamA 
@@ -595,18 +762,15 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
           : { team_b_score: Math.max(0, match.team_b_score - 1) };
         await supabase.from('matches').update(newScore).eq('id', match.id);
         
-        // Decrementar gols do jogador
         const { data: p } = await supabase.from('players').select('goals_count').eq('id', event.player_id).single();
         await supabase.from('players').update({ goals_count: Math.max(0, (p?.goals_count || 0) - 1) }).eq('id', event.player_id);
 
-        // Decrementar assistência se houver
         if (event.assistant_id) {
           const { data: ast } = await supabase.from('players').select('assists').eq('id', event.assistant_id).single();
           await supabase.from('players').update({ assists: Math.max(0, (ast?.assists || 0) - 1) }).eq('id', event.assistant_id);
         }
       }
 
-      // 2. Reverter cartões
       if (event.event_type === 'amarelo') {
         const { data: p } = await supabase.from('players').select('yellow_cards').eq('id', event.player_id).single();
         await supabase.from('players').update({ yellow_cards: Math.max(0, (p?.yellow_cards || 0) - 1) }).eq('id', event.player_id);
@@ -615,31 +779,72 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
         await supabase.from('players').update({ red_cards: Math.max(0, (p?.red_cards || 0) - 1) }).eq('id', event.player_id);
       }
 
-      // 3. Deletar o evento
       await supabase.from('match_events').delete().eq('id', event.id);
       refreshEvents();
-    } catch (err: any) { alert(err.message); }
+      toast.success('Evento removido e revertido.');
+    } catch (err: any) { toast.error(err.message); }
   };
+
+  const undoLastEvent = () => {
+    if (events.length === 0) return;
+    const lastEvent = events[0];
+    removeEvent(lastEvent);
+  };
+
+  const handleManualScore = async (team: 'a' | 'b', increment: number) => {
+    try {
+      const currentScore = team === 'a' ? (match.team_a_score || 0) : (match.team_b_score || 0);
+      const newScoreValue = Math.max(0, currentScore + increment);
+      const updateData = team === 'a' ? { team_a_score: newScoreValue } : { team_b_score: newScoreValue };
+      
+      const { error } = await supabase.from('matches').update(updateData).eq('id', match.id);
+      if (error) throw error;
+      toast.success(`Placar ${team === 'a' ? 'A' : 'B'} ajustado!`);
+    } catch (err: any) { toast.error(err.message); }
+  };
+
 
   return (
     <div className="live-event-panel-wrapper">
-      <div className="live-match-header-info">
+      <div className="live-match-controls-top">
         <div className="live-score-display">
           <div className="team-score">
             <span className="team-name">{match.teams_a.name}</span>
-            <span className="score">{match.team_a_score}</span>
+            <div className="score-control">
+              <button className="btn-score-adjust" onClick={() => handleManualScore('a', -1)}>-</button>
+              <span className="score">{match.team_a_score}</span>
+              <button className="btn-score-adjust" onClick={() => handleManualScore('a', 1)}>+</button>
+            </div>
           </div>
           <span className="divider">×</span>
           <div className="team-score">
-            <span className="score">{match.team_b_score}</span>
+            <div className="score-control">
+              <button className="btn-score-adjust" onClick={() => handleManualScore('b', -1)}>-</button>
+              <span className="score">{match.team_b_score}</span>
+              <button className="btn-score-adjust" onClick={() => handleManualScore('b', 1)}>+</button>
+            </div>
             <span className="team-name">{match.teams_b.name}</span>
           </div>
         </div>
-        
-        <div className="live-time-badge">
-          {match.status === 'ao_vivo' ? 'AO VIVO' : 'PAINEL'}
+
+
+        <div className="stopwatch-container">
+          <div className="stopwatch-display">{formatTime(seconds)}</div>
+          <div className="stopwatch-actions">
+            <button className={`btn-stopwatch ${isActive ? 'pause' : 'start'}`} onClick={() => setIsActive(!isActive)}>
+              {isActive ? <><Pause size={14} /> Pausar</> : <><Play size={14} /> Iniciar</>}
+            </button>
+            <button className="btn-stopwatch reset" onClick={() => { setIsActive(false); setSeconds(0); }}>
+              <RotateCcw size={14} /> Zerar
+            </button>
+          </div>
         </div>
+        
+        <button className="btn-undo-last" onClick={undoLastEvent} disabled={events.length === 0}>
+          <RotateCcw size={14} /> DESFAZER ÚLTIMO
+        </button>
       </div>
+
 
       <div className="event-selector">
         <button className={eventType === 'gol' ? 'active' : ''} onClick={() => setEventType('gol')}>
@@ -670,94 +875,123 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
         </div>
       )}
 
-      {/* Instrução dinâmica para o Admin */}
-      <div className="admin-instruction animate-pulse">
-        {eventType === 'comentario' 
-          ? 'Escreva a mensagem abaixo e clique em ENVIAR:' 
-          : `Para registrar ${eventType === 'gol' ? 'o GOL' : 'o lance'}, clique no atleta abaixo:`}
-      </div>
-
-        <div className="event-controls-row">
+      <div className="event-controls-row">
+        <div className="form-group-mini">
+          <label>Minuto (Auto)</label>
+          <input type="number" value={selectedMinute > 0 ? selectedMinute : Math.floor(seconds / 60) || 1} onChange={e => setSelectedMinute(parseInt(e.target.value))} />
+        </div>
+        
+        {eventType === 'gol' && (
           <div className="form-group-mini">
-            <label>Minuto</label>
-            <input type="number" value={selectedMinute} onChange={e => setSelectedMinute(parseInt(e.target.value))} />
+            <label>Assistência</label>
+            <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
+              <option value="">Ninguém</option>
+              {[...playersA, ...playersB].map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
           </div>
-          
-          {eventType === 'gol' && (
-            <div className="form-group-mini">
-              <label>Assistência</label>
-              <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
-                <option value="">Ninguém</option>
-                {[...playersA, ...playersB].map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        )}
+
+        {eventType === 'comentario' && (
+          <div className="form-group-full">
+            <input 
+              type="text" 
+              placeholder="Digite o comentário do jogo..." 
+              value={commentaryText} 
+              onChange={e => setCommentaryText(e.target.value)} 
+            />
+            <button className="btn-send-msg" onClick={() => addEvent('', 'a')}>Enviar</button>
+          </div>
+        )}
+
+        {eventType === 'substituicao' && (
+          <div className="form-group-full" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+            <div className="form-group-mini" style={{flex: 1}}>
+              <label>Sai do Jogo (OUT):</label>
+              <select value={playerOutId} onChange={e => setPlayerOutId(e.target.value)}>
+                <option value="">Selecione quem sai...</option>
+                {[...playersA, ...playersB].map(p => <option key={`out-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
               </select>
             </div>
-          )}
-
-          {eventType === 'comentario' && (
-            <div className="form-group-full">
-              <input 
-                type="text" 
-                placeholder="Digite o comentário do jogo..." 
-                value={commentaryText} 
-                onChange={e => setCommentaryText(e.target.value)} 
-              />
-              <button className="btn-send-msg" onClick={() => addEvent('', 'a')}>Enviar</button>
+            <div className="form-group-mini" style={{flex: 1}}>
+              <label>Entra no Jogo (IN):</label>
+              <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
+                <option value="">Selecione quem entra...</option>
+                {[...playersA, ...playersB].map(p => <option key={`in-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
+              </select>
             </div>
-          )}
-
-          {eventType === 'substituicao' && (
-            <div className="form-group-full" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-              <div className="form-group-mini" style={{flex: 1}}>
-                <label>Sai do Jogo (OUT):</label>
-                <select value={playerOutId} onChange={e => setPlayerOutId(e.target.value)}>
-                  <option value="">Selecione quem sai...</option>
-                  {[...playersA, ...playersB].map(p => <option key={`out-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
-                </select>
-              </div>
-              <div className="form-group-mini" style={{flex: 1}}>
-                <label>Entra no Jogo (IN):</label>
-                <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
-                  <option value="">Selecione quem entra...</option>
-                  {[...playersA, ...playersB].map(p => <option key={`in-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
-                </select>
-              </div>
-              <button 
-                className="btn-send-msg" 
-                style={{ width: '100%', marginTop: '0.5rem' }}
-                onClick={() => {
-                  const team = playersA.some(p => p.id === playerOutId) ? 'a' : 'b';
-                  addEvent(playerOutId, team);
-                }}
-                disabled={!playerOutId || !assistantId}
-              >
-                Registrar Substituição
-              </button>
-            </div>
-          )}
-        </div>
+            <button 
+              className="btn-send-msg" 
+              style={{ width: '100%', marginTop: '0.5rem' }}
+              onClick={() => {
+                const team = playersA.some(p => p.id === playerOutId) ? 'a' : 'b';
+                addEvent(playerOutId, team);
+              }}
+              disabled={!playerOutId || !assistantId}
+            >
+              Registrar Substituição
+            </button>
+          </div>
+        )}
+      </div>
         
       <div className={`teams-lanes event-selector-active-${eventType}`}>
         <div className="lane">
           <h5>{match.teams_a.name}</h5>
-          <div className="admin-player-btns">
-            {playersA.map(p => (
-              <button key={p.id} onClick={() => addEvent(p.id, 'a')} className="p-btn">
-                <span className="p-num">{p.number}</span>
-                <span className="p-name">{p.name.split(' ')[0]}</span>
-              </button>
-            ))}
+          
+          <div className="roster-section">
+            <span className="roster-label"><Zap size={12} /> Em Campo</span>
+            <div className="admin-player-btns">
+              {playersA.filter(p => onFieldA.includes(p.id)).map(p => (
+                <button key={p.id} onClick={() => addEvent(p.id, 'a')} className="p-btn active-field">
+                  <span className="p-num">{p.number}</span>
+                  <span className="p-name">{p.name.split(' ')[0]}</span>
+                  <ChevronDown size={10} className="btn-status-toggle" onClick={(e) => { e.stopPropagation(); togglePlayerStatus(p.id, 'a'); }} />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="roster-section">
+            <span className="roster-label"><Users size={12} /> Banco</span>
+            <div className="admin-player-btns">
+              {playersA.filter(p => !onFieldA.includes(p.id)).map(p => (
+                <button key={p.id} onClick={() => togglePlayerStatus(p.id, 'a')} className="p-btn bench">
+                  <span className="p-num">{p.number}</span>
+                  <span className="p-name">{p.name.split(' ')[0]}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
+
         <div className="divider-vertical"></div>
+
         <div className="lane">
           <h5>{match.teams_b.name}</h5>
-          <div className="admin-player-btns">
-            {playersB.map(p => (
-              <button key={p.id} onClick={() => addEvent(p.id, 'b')} className="p-btn">
-                <span className="p-num">{p.number}</span>
-                <span className="p-name">{p.name.split(' ')[0]}</span>
-              </button>
-            ))}
+          
+          <div className="roster-section">
+            <span className="roster-label"><Zap size={12} /> Em Campo</span>
+            <div className="admin-player-btns">
+              {playersB.filter(p => onFieldB.includes(p.id)).map(p => (
+                <button key={p.id} onClick={() => addEvent(p.id, 'b')} className="p-btn active-field">
+                  <span className="p-num">{p.number}</span>
+                  <span className="p-name">{p.name.split(' ')[0]}</span>
+                  <ChevronDown size={10} className="btn-status-toggle" onClick={(e) => { e.stopPropagation(); togglePlayerStatus(p.id, 'b'); }} />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="roster-section">
+            <span className="roster-label"><Users size={12} /> Banco</span>
+            <div className="admin-player-btns">
+              {playersB.filter(p => !onFieldB.includes(p.id)).map(p => (
+                <button key={p.id} onClick={() => togglePlayerStatus(p.id, 'b')} className="p-btn bench">
+                  <span className="p-num">{p.number}</span>
+                  <span className="p-name">{p.name.split(' ')[0]}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -765,22 +999,52 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
       <div className="recent-events-undo">
         <div className="recent-header">
           <h6>Lances Recentes</h6>
-          <span className="undo-tip">Use a lixeira para excluir e reverter placar/stats</span>
+          <span className="undo-tip">Clique no minuto para editar o tempo</span>
         </div>
         <div className="undo-list">
-          {events.slice(0, 5).map(event => (
-            <div key={event.id} className="undo-item animate-slide-up">
-              <div className="undo-info">
-                <strong>{event.minute}'</strong>
-                <span className={`event-type-tag ${event.event_type}`}>
-                  {event.event_type.toUpperCase()}
-                </span>
-                <span className="p-name">{event.players?.name}</span>
-                {event.commentary && <span className="ev-comment">{event.commentary}</span>}
+          {events.slice(0, 8).map(event => (
+            <div key={event.id} className="undo-item-container">
+              <div className={`undo-item animate-slide-up ${editingEventId === event.id ? 'editing' : ''}`}>
+                <div className="undo-info">
+                  {editingEventId === event.id ? (
+                    <div className="edit-event-inline">
+                      <input 
+                        type="number" 
+                        value={editEventMinute} 
+                        onChange={e => setEditEventMinute(parseInt(e.target.value))}
+                        className="edit-min-input"
+                        autoFocus
+                      />
+                      <button className="btn-save-edit" onClick={async () => {
+                        try {
+                          await supabase.from('match_events').update({ minute: editEventMinute }).eq('id', event.id);
+                          setEditingEventId(null);
+                          refreshEvents();
+                          toast.success('Tempo atualizado!');
+                        } catch (err: any) { toast.error(err.message); }
+                      }}><Save size={12} /></button>
+                      <button className="btn-cancel-edit" onClick={() => setEditingEventId(null)}>✕</button>
+                    </div>
+                  ) : (
+                    <>
+                      <strong className="clickable-min" onClick={() => {
+                        setEditingEventId(event.id);
+                        setEditEventMinute(event.minute);
+                      }}>{event.minute}'</strong>
+                      <span className={`event-type-tag ${event.event_type}`}>
+                        {event.event_type.toUpperCase()}
+                      </span>
+                      <span className="p-name">{event.players?.name}</span>
+                      {event.commentary && <span className="ev-comment">{event.commentary}</span>}
+                    </>
+                  )}
+                </div>
+                <div className="undo-actions">
+                  <button className="btn-undo" onClick={() => removeEvent(event)} title="Remover e reverter">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
-              <button className="btn-undo" onClick={() => removeEvent(event)}>
-                <Trash2 size={14} />
-              </button>
             </div>
           ))}
           {events.length === 0 && <p className="empty-msg">Aguardando o primeiro lance...</p>}
@@ -832,7 +1096,7 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
                   });
                 }
               } else {
-                alert('Nenhum gol ou assistência registrado nesta partida para sugerir.');
+                toast.error('Nenhum gol ou assistência registrado nesta partida para sugerir.');
               }
             }}
           >
@@ -884,8 +1148,9 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
               if (error) throw error;
               setMvpSaved(true);
               setTimeout(() => setMvpSaved(false), 2000);
-            } catch (err: any) { alert(err.message); }
+            } catch (err: any) { toast.error(err.message); }
           }}
+
         >
           {mvpSaved ? <><CheckCircle size={18} /> Salvo!</> : <><Save size={18} /> Salvar Craque do Jogo</>}
         </button>
@@ -919,7 +1184,7 @@ const TeamManagement = () => {
       setEditingGroupId(null);
       refresh();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -932,7 +1197,7 @@ const TeamManagement = () => {
       setIsAdding(false);
       refresh();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -943,7 +1208,7 @@ const TeamManagement = () => {
       if (error) throw error;
       refresh();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -952,9 +1217,9 @@ const TeamManagement = () => {
       const { error } = await supabase.from('teams').update(data).eq('id', teamId);
       if (error) throw error;
       refresh();
-      alert('Equipe atualizada!');
+      toast.success('Equipe atualizada!');
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -1437,7 +1702,7 @@ const NewsManagement = () => {
       
       refresh();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -1448,7 +1713,7 @@ const NewsManagement = () => {
       if (error) throw error;
       refresh();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -1458,8 +1723,8 @@ const NewsManagement = () => {
       if (error) throw error;
       setEditingNewsId(null);
       refresh();
-      alert('Notícia atualizada!');
-    } catch (err: any) { alert(err.message); }
+      toast.success('Notícia atualizada!');
+    } catch (err: any) { toast.error(err.message); }
   };
 
   return (
@@ -1611,7 +1876,7 @@ const TournamentManagement = () => {
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -1736,7 +2001,7 @@ const PollManagement = () => {
       if (error) throw error;
       setPolls(data || []);
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     } finally {
       setLoading(false);
     }
@@ -1753,7 +2018,7 @@ const PollManagement = () => {
     try {
       // Valida opções
       const validOptions = formData.options.filter(o => o.trim() !== '');
-      if (validOptions.length < 2) return alert('Adicione pelo menos 2 opções válidas!');
+      if (validOptions.length < 2) return toast.error('Adicione pelo menos 2 opções válidas!');
 
       const newPoll = {
         question: formData.question,
@@ -1771,7 +2036,7 @@ const PollManagement = () => {
       setFormData({ question: '', options: ['', ''] });
       setIsAdding(false);
       fetchPolls();
-    } catch (err: any) { alert(err.message); }
+    } catch (err: any) { toast.error(err.message); }
   };
 
   const handleUpdatePoll = async (id: string, data: any) => {
@@ -1788,8 +2053,8 @@ const PollManagement = () => {
       if (error) throw error;
       setEditingPollId(null);
       fetchPolls();
-      alert('Enquete atualizada!');
-    } catch (err: any) { alert(err.message); }
+      toast.success('Enquete atualizada!');
+    } catch (err: any) { toast.error(err.message); }
   };
 
   const toggleActive = async (id: string, currentActive: boolean) => {
@@ -1813,7 +2078,7 @@ const PollManagement = () => {
       }
       
       fetchPolls();
-    } catch (err: any) { alert(err.message); }
+    } catch (err: any) { toast.error(err.message); }
   };
 
   const handleDelete = async (id: string) => {
@@ -1822,7 +2087,7 @@ const PollManagement = () => {
       const { error } = await supabase.from('polls').delete().eq('id', id);
       if (error) throw error;
       fetchPolls();
-    } catch (err: any) { alert(err.message); }
+    } catch (err: any) { toast.error(err.message); }
   };
 
   return (

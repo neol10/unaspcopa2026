@@ -11,6 +11,8 @@ import { useTournamentConfig } from '../../hooks/useTournamentConfig';
 import { useRankings } from '../../hooks/useRankings';
 import { Star, Goal, Handshake } from 'lucide-react';
 
+import { motion, AnimatePresence } from 'framer-motion';
+
 const Home: React.FC = () => {
   const { config } = useTournamentConfig();
   const { news, loading: newsLoading } = useNews(3);
@@ -24,6 +26,7 @@ const Home: React.FC = () => {
   
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [nextMatch, setNextMatch] = useState<any>(null);
+  const [liveMatch, setLiveMatch] = useState<any>(null);
 
   const topTeams = standings.slice(0, 3);
   const totalVotes = activePoll?.options.reduce((acc, opt) => acc + opt.votes, 0) || 0;
@@ -36,6 +39,9 @@ const Home: React.FC = () => {
     if (scheduled.length > 0) {
       setNextMatch(scheduled[0]);
     }
+
+    const currentLive = matches.find(m => m.status === 'ao_vivo');
+    setLiveMatch(currentLive);
   }, [matches]);
 
   useEffect(() => {
@@ -61,6 +67,95 @@ const Home: React.FC = () => {
 
   return (
     <div className="home-page-v2 animate-fade-in">
+      {/* Widget Ao Vivo Flutuante - Premium */}
+      <AnimatePresence>
+        {liveMatch && (
+          <motion.div 
+            className="live-floating-widget glass"
+            initial={{ x: 100, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: 100, opacity: 0 }}
+            onClick={() => navigate('/central-da-partida')}
+          >
+            <div className="live-badge-mini">
+              <div className="pulse-dot"></div>
+              AO VIVO
+            </div>
+            <div className="live-widget-teams">
+              <span>{liveMatch.teams_a?.name.substring(0,3)}</span>
+              <span className="live-widget-score">{liveMatch.team_a_score} - {liveMatch.team_b_score}</span>
+              <span>{liveMatch.teams_b?.name.substring(0,3)}</span>
+            </div>
+            <ArrowRight size={14} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Breaking News Ticker - Premium Phase 2 */}
+      <div className="breaking-news-ticker glass">
+        <div className="ticker-label">
+          <Zap size={14} fill="currentColor" />
+          <span>BREAKING</span>
+        </div>
+        <div className="ticker-content">
+          <div className="ticker-track">
+            <span>• Nova rodada confirmada para este domingo!</span>
+            <span>• Inscrições para o torneio de 3 pontos abertas.</span>
+            <span>• Recorde de público na última partida do Central.</span>
+            <span>• Entrevista exclusiva com o artilheiro da rodada disponível agora.</span>
+            <span>• Veja os lances do último clássico na Central da Partida.</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Acontecendo Agora - Seção de Jogo ao Vivo Prioritária */}
+      <AnimatePresence>
+        {liveMatch && (
+          <motion.section 
+            className="live-now-banner glass animate-pulse-border"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+          >
+            <div className="live-now-content">
+              <div className="live-now-header">
+                <div className="live-indicator-v2">
+                  <div className="pulse-dot"></div>
+                  <span>EM ANDAMENTO</span>
+                </div>
+                <span className="live-now-location">{liveMatch.location}</span>
+              </div>
+              
+              <div className="live-now-main-score" onClick={() => navigate('/central-da-partida')}>
+                <div className="live-team-a">
+                   <span className="team-name-abbr">{liveMatch.teams_a?.name}</span>
+                   <div className="team-shield-mini">
+                     {liveMatch.teams_a?.badge_url ? <img src={liveMatch.teams_a.badge_url} alt="" /> : <Shield size={24} />}
+                   </div>
+                </div>
+                
+                <div className="live-score-display">
+                  <span className="live-score-val">{liveMatch.team_a_score}</span>
+                  <span className="live-score-sep">:</span>
+                  <span className="live-score-val">{liveMatch.team_b_score}</span>
+                </div>
+
+                <div className="live-team-b">
+                   <div className="team-shield-mini">
+                     {liveMatch.teams_b?.badge_url ? <img src={liveMatch.teams_b.badge_url} alt="" /> : <Shield size={24} />}
+                   </div>
+                   <span className="team-name-abbr">{liveMatch.teams_b?.name}</span>
+                </div>
+              </div>
+
+              <button className="btn-go-live" onClick={() => navigate('/central-da-partida')}>
+                ENTRAR NA CENTRAL <ArrowRight size={16} />
+              </button>
+            </div>
+          </motion.section>
+        )}
+      </AnimatePresence>
+
       {/* Cinematic Hero */}
       <section className="hero-cinematic">
         <div className="hero-glows">
@@ -70,7 +165,12 @@ const Home: React.FC = () => {
           <div className="glow-amber"></div>
         </div>
         
-        <div className="hero-content">
+        <motion.div 
+          className="hero-content"
+          initial={{ y: 30, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+        >
           <div className="hero-badge-v2">
             <div className="badge-pulse"></div>
             <span>Temporada 2026 • Copa Unasp</span>
@@ -94,12 +194,18 @@ const Home: React.FC = () => {
               Classificação
             </button>
           </div>
-        </div>
+        </motion.div>
       </section>
 
       {/* Destaques do Campeonato */}
       {!rankingsLoading && (scorers.length > 0 || assistants.length > 0 || galeraRank.length > 0) && (
-        <section className="stats-highlights-section animate-fade-in">
+        <motion.section 
+          className="stats-highlights-section"
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+        >
           <div className="section-head-v2">
             <Zap size={24} color="var(--secondary)" />
             <h2>Destaques do Torneio</h2>
@@ -151,12 +257,30 @@ const Home: React.FC = () => {
               </div>
             )}
           </div>
-        </section>
+        </motion.section>
       )}
+
+      {/* Sponsors Row - Professional Touch */}
+      <section className="sponsors-row glass animate-fade-in">
+        <span className="sponsors-title">PARCEIROS OFICIAIS</span>
+        <div className="sponsors-grid">
+          <div className="sponsor-logo">UNASP</div>
+          <div className="sponsor-logo">NIKE</div>
+          <div className="sponsor-logo">GAZE</div>
+          <div className="sponsor-logo">ULTRA</div>
+          <div className="sponsor-logo">APEX</div>
+        </div>
+      </section>
 
       {/* Match Countdown Banner */}
       {nextMatch && (
-        <section className="match-countdown-banner glass animate-slide-up">
+        <motion.section 
+          className="match-countdown-banner glass"
+          initial={{ opacity: 0, scale: 0.95 }}
+          whileInView={{ opacity: 1, scale: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+        >
           <div className="countdown-content">
             <div className="next-match-info">
               <div className="countdown-label">
@@ -230,13 +354,19 @@ const Home: React.FC = () => {
               Ver Detalhes
             </button>
           </div>
-        </section>
+        </motion.section>
       )}
 
       <main className="home-content-v2">
         {/* Podium Preview - Só mostrar se for Final */}
         {config.current_phase === 'final' && (
-          <section className="podium-section">
+          <motion.section 
+            className="podium-section"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
           <div className="section-head-v2">
              <Trophy size={24} color="var(--secondary)" />
              <h2>Líderes do Campeonato</h2>
@@ -277,13 +407,19 @@ const Home: React.FC = () => {
                 </div>
               </div>
             ))}
-          </div>
-        </section>
+            </div>
+          </motion.section>
         )}
 
         <div className="home-dual-layout">
           {/* News Stream */}
-           <section className="news-stream">
+           <motion.section 
+             className="news-stream"
+             initial={{ opacity: 0, x: -30 }}
+             whileInView={{ opacity: 1, x: 0 }}
+             viewport={{ once: true }}
+             transition={{ duration: 0.6 }}
+           >
             <div className="section-head-v2">
                <Bell size={24} color="var(--primary)" />
                <h2>Últimos Comunicados</h2>
@@ -338,39 +474,59 @@ const Home: React.FC = () => {
                 </article>
               ))}
              </div>
-          </section>
+          </motion.section>
 
           {/* News Modal */}
-          {selectedNews && (
-            <div className="news-modal-overlay animate-fade-in" onClick={() => setSelectedNews(null)}>
-              <div className="news-modal-content glass animate-slide-up" onClick={e => e.stopPropagation()}>
-                <button className="news-modal-close" onClick={() => setSelectedNews(null)}><X size={24} /></button>
-                <div className="news-modal-hero">
-                  {selectedNews.image_url ? (
-                    <img src={selectedNews.image_url} alt={selectedNews.title} className="news-modal-img" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-                  ) : (
-                    <div className="news-modal-img-placeholder"><Zap size={64} /></div>
-                  )}
-                  <span className="news-badge">Oficial</span>
-                </div>
-                <div className="news-modal-body">
-                  <div className="news-meta">
-                    <span className="news-tag">COBERTURA</span>
-                    <span className="news-date">{new Date(selectedNews.published_at).toLocaleDateString('pt-BR')}</span>
+          <AnimatePresence>
+            {selectedNews && (
+              <motion.div 
+                className="news-modal-overlay"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setSelectedNews(null)}
+              >
+                <motion.div 
+                  className="news-modal-content glass"
+                  initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                  onClick={e => e.stopPropagation()}
+                >
+                  <button className="news-modal-close" onClick={() => setSelectedNews(null)}><X size={24} /></button>
+                  <div className="news-modal-hero">
+                    {selectedNews.image_url ? (
+                      <img src={selectedNews.image_url} alt={selectedNews.title} className="news-modal-img" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                    ) : (
+                      <div className="news-modal-img-placeholder"><Zap size={64} /></div>
+                    )}
+                    <span className="news-badge">Oficial</span>
                   </div>
-                  <h2>{selectedNews.title}</h2>
-                  <div className="news-modal-text">
-                    {selectedNews.content.split('\n').map((para, i) => (
-                      <p key={i}>{para}</p>
-                    ))}
+                  <div className="news-modal-body">
+                    <div className="news-meta">
+                      <span className="news-tag">COBERTURA</span>
+                      <span className="news-date">{new Date(selectedNews.published_at).toLocaleDateString('pt-BR')}</span>
+                    </div>
+                    <h2>{selectedNews.title}</h2>
+                    <div className="news-modal-text">
+                      {selectedNews.content.split('\n').map((para, i) => (
+                        <p key={i}>{para}</p>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              </div>
-            </div>
-          )}
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Engagement Hub */}
-          <aside className="engagement-hub">
+          <motion.aside 
+            className="engagement-hub"
+            initial={{ opacity: 0, x: 30 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
             <div className="widget-premium glass">
               <div className="widget-header">
                 <Vote size={22} color="var(--accent-blue)" />
@@ -424,7 +580,7 @@ const Home: React.FC = () => {
                 )}
               </div>
             </div>
-          </aside>
+          </motion.aside>
         </div>
       </main>
     </div>

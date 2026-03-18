@@ -90,6 +90,7 @@ const Standings: React.FC = () => {
                     <th className="hide-mobile">GC</th>
                     <th>SG</th>
                     <th className="hide-mobile">%</th>
+                    <th className="col-form hide-mobile">Forma</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -128,6 +129,15 @@ const Standings: React.FC = () => {
                         {team.goals_diff > 0 ? `+${team.goals_diff}` : team.goals_diff}
                       </td>
                       <td className="hide-mobile">{team.percentage.toFixed(0)}%</td>
+                      <td className="hide-mobile">
+                        <div className="form-dots">
+                          {[...team.form].reverse().map((res, i) => (
+                            <span key={i} className={`form-dot ${res.toLowerCase()}`} title={res === 'V' ? 'Vitória' : res === 'E' ? 'Empate' : 'Derrota'}>
+                              {res}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -156,6 +166,7 @@ const Standings: React.FC = () => {
                   <th className="hide-mobile">GC</th>
                   <th>SG</th>
                   <th className="hide-mobile">%</th>
+                  <th className="col-form hide-mobile">Forma</th>
                 </tr>
               </thead>
               <tbody>
@@ -199,6 +210,15 @@ const Standings: React.FC = () => {
                       {team.goals_diff > 0 ? `+${team.goals_diff}` : team.goals_diff}
                     </td>
                     <td className="hide-mobile">{team.percentage.toFixed(0)}%</td>
+                    <td className="hide-mobile">
+                      <div className="form-dots">
+                        {[...team.form].reverse().map((res, i) => (
+                          <span key={i} className={`form-dot ${res.toLowerCase()}`} title={res === 'V' ? 'Vitória' : res === 'E' ? 'Empate' : 'Derrota'}>
+                            {res}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

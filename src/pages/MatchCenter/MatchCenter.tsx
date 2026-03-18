@@ -7,14 +7,19 @@ import { useMatchMvpVoting } from '../../hooks/useMatchMvpVoting';
 import Skeleton from '../../components/Skeleton/Skeleton';
 import { useTournamentConfig } from '../../hooks/useTournamentConfig';
 import { useAuthContext } from '../../contexts/AuthContext';
-import { Shield, Timer, Award, Zap, History, Target, Square, Vote, Download, Trophy, ArrowRightLeft } from 'lucide-react';
+import { useStandings } from '../../hooks/useStandings';
+import { supabase } from '../../lib/supabase';
+import { Shield, Timer, Award, Zap, History, Vote, Download, Trophy, ArrowRightLeft, TrendingUp, HelpCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import ShareCard, { useShareCard } from '../../components/ShareCard/ShareCard';
+import { useMatchWinnerVoting } from '../../hooks/useMatchWinnerVoting';
 import './MatchCenter.css';
 
 const MatchCenter: React.FC = () => {
   const { matches, loading: matchesLoading } = useMatches();
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
+  const [showGoalOverlay, setShowGoalOverlay] = useState<{ team: string, player: string } | null>(null);
   
   const activeMatch = selectedMatchId 
     ? matches.find(m => m.id === selectedMatchId) 
@@ -23,13 +28,24 @@ const MatchCenter: React.FC = () => {
   const [elapsedTime, setElapsedTime] = useState('00:00');
 
   const { players } = usePlayers();
+  const { standings } = useStandings();
 
   const handleNewEvent = (event: any) => {
     // Only show toasts if the event is from the active match
     if (event.match_id !== activeMatch?.id) return;
 
     if (event.event_type === 'gol') {
-      toast.success(`⚽ GOOOOL! ${event.players?.name || ''}`);
+      const playerName = event.players?.name || 'Desconhecido';
+      const teamName = event.player_id && players.find(p => p.id === event.player_id)?.team_id === activeMatch?.team_a_id 
+        ? activeMatch?.teams_a?.name 
+        : activeMatch?.teams_b?.name;
+        
+      toast.success(`⚽ GOOOOL! ${playerName}`);
+      
+      // Trigger Premium Overlay
+      setShowGoalOverlay({ team: teamName || 'GOL!', player: playerName });
+      setTimeout(() => setShowGoalOverlay(null), 5000);
+
     } else if (event.event_type === 'amarelo') {
       toast(`🟨 Cartão Amarelo para ${event.players?.name || ''}`, { icon: '🟨' });
     } else if (event.event_type === 'vermelho') {
@@ -45,6 +61,16 @@ const MatchCenter: React.FC = () => {
   const { config } = useTournamentConfig();
   const { voteCounts: roundVotes, userVote: roundUserVote, vote: castRoundVote, loading: roundMvpLoading } = useMvpVoting(String(config.current_round));
   const { voteCounts: matchVotes, userVote: matchUserVote, vote: castMatchVote, loading: matchMvpLoading } = useMatchMvpVoting(activeMatch?.id || '');
+  
+  const { votes: winnerVotes, userVote: winnerUserVote, vote: castWinnerVote } = useMatchWinnerVoting(activeMatch?.id || '');
+
+  const getPollQuestion = () => {
+    if (!activeMatch) return 'Quem vence?';
+    const roundStr = String(activeMatch.round).toLowerCase();
+    if (roundStr.includes('final')) return 'Quem levará a taça? 🏆';
+    if (roundStr.includes('semi') || roundStr.includes('quarta') || roundStr.includes('oitava')) return 'Quem passará de fase? 🚀';
+    return 'Quem vence este duelo? ⚽';
+  };
   
   const { cardRef, downloadCard } = useShareCard();
   const [isExporting, setIsExporting] = useState(false);
@@ -131,6 +157,47 @@ const MatchCenter: React.FC = () => {
 
   return (
     <div className="match-center animate-fade-in">
+      {/* Premium Goal Overlay */}
+      <AnimatePresence>
+        {showGoalOverlay && (
+          <motion.div 
+            className="goal-overlay-premium"
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.5 }}
+            transition={{ type: "spring", damping: 12 }}
+          >
+            <motion.div 
+              className="goal-announcement"
+              animate={{ y: [0, -20, 0] }}
+              transition={{ repeat: Infinity, duration: 2 }}
+            >
+              <Trophy size={80} color="var(--secondary)" />
+              <h1 className="goal-text">GOOOOOOOL!</h1>
+              <div className="goal-details">
+                <span className="goal-team">{showGoalOverlay.team}</span>
+                <span className="goal-player">{showGoalOverlay.player}</span>
+              </div>
+            </motion.div>
+            <div className="confetti-container">
+              {[...Array(20)].map((_, i) => (
+                <motion.div 
+                  key={i}
+                  className="confetti-piece"
+                  initial={{ y: -100, x: Math.random() * 400 - 200, opacity: 1 }}
+                  animate={{ y: 800, rotate: 360 }}
+                  transition={{ duration: Math.random() * 2 + 1, repeat: Infinity }}
+                  style={{ 
+                    backgroundColor: i % 2 === 0 ? 'var(--secondary)' : 'var(--primary)',
+                    left: `${Math.random() * 100}%`
+                  }}
+                />
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Seletor de Partidas */}
       <div className="match-selector-bar glass">
         <div className="selector-header-row">
@@ -220,7 +287,7 @@ const MatchCenter: React.FC = () => {
               </div>
             </div>
 
-            {/* Craque do Jogo */}
+            {/* Craque do Jogo (Opcional) */}
             {(activeMatch as any).match_mvp_player_id && (
               <div className="match-mvp-badge glass animate-slide-up">
                 <Award size={20} className="glow-icon" />
@@ -246,19 +313,118 @@ const MatchCenter: React.FC = () => {
                 Baixar Card de Resultado
               </button>
             </div>
-
-            {/* Craque da Galera (Votação Pública) - Quando Finalizado */}
-            {activeMatch.status === 'finalizado' && matchVotes.length > 0 && (
-              <div className="match-public-mvp glass animate-slide-up">
-                <Vote size={20} color="var(--accent-blue)" />
-                <div className="mvp-details">
-                  <span className="mvp-label">CRAQUE DA GALERA (VOTADO)</span>
-                  <span className="mvp-name">{matchVotes[0].player_name}</span>
-                  <span className="mvp-vote-info">{matchVotes[0].vote_count} votos da torcida</span>
-                </div>
-              </div>
-            )}
           </section>
+
+          {/* Enquete Dinâmica: Quem Vence? */}
+          <div className="match-winner-poll glass animate-slide-up">
+            <div className="poll-header-v2">
+              <HelpCircle size={20} color="var(--secondary)" />
+              <div className="poll-titles">
+                <h3>{getPollQuestion()}</h3>
+                <span className="poll-subtitle">{winnerVotes.total} votos registrados</span>
+              </div>
+            </div>
+            
+            <div className="winner-options-v2">
+              <button 
+                className={`w-opt-v2 ${winnerUserVote === 'team_a' ? 'selected' : ''}`}
+                onClick={() => {
+                  if (navigator.vibrate) navigator.vibrate(50);
+                  castWinnerVote('team_a');
+                }}
+                disabled={!!winnerUserVote}
+              >
+                <div className="w-label-group">
+                  <span className="w-name">{activeMatch.teams_a?.name}</span>
+                  {winnerUserVote && (
+                    <span className="w-perc">
+                      {winnerVotes.total > 0 ? Math.round((winnerVotes.team_a / winnerVotes.total) * 100) : 0}%
+                    </span>
+                  )}
+                </div>
+                {winnerUserVote && (
+                  <div className="w-bar-container">
+                    <motion.div 
+                      className="w-bar" 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${winnerVotes.total > 0 ? (winnerVotes.team_a / winnerVotes.total) * 100 : 0}%` }}
+                    />
+                  </div>
+                )}
+              </button>
+
+              {/* Só mostra Empate se NÃO for Final/Mata-Mata (opcional, ajustável ao torneio) */}
+              {!activeMatch.round.toLowerCase().includes('final') && 
+               !activeMatch.round.toLowerCase().includes('semi') && 
+               !activeMatch.round.toLowerCase().includes('quarta') && (
+                <button 
+                  className={`w-opt-v2 draw ${winnerUserVote === 'draw' ? 'selected' : ''}`}
+                  onClick={() => {
+                    if (navigator.vibrate) navigator.vibrate(50);
+                    castWinnerVote('draw');
+                  }}
+                  disabled={!!winnerUserVote}
+                >
+                  <div className="w-label-group">
+                    <span className="w-name">Empate</span>
+                    {winnerUserVote && (
+                      <span className="w-perc">
+                        {winnerVotes.total > 0 ? Math.round((winnerVotes.draw / winnerVotes.total) * 100) : 0}%
+                      </span>
+                    )}
+                  </div>
+                  {winnerUserVote && (
+                    <div className="w-bar-container">
+                      <motion.div 
+                        className="w-bar" 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${winnerVotes.total > 0 ? (winnerVotes.draw / winnerVotes.total) * 100 : 0}%` }}
+                      />
+                    </div>
+                  )}
+                </button>
+              )}
+
+              <button 
+                className={`w-opt-v2 ${winnerUserVote === 'team_b' ? 'selected' : ''}`}
+                onClick={() => {
+                  if (navigator.vibrate) navigator.vibrate(50);
+                  castWinnerVote('team_b');
+                }}
+                disabled={!!winnerUserVote}
+              >
+                <div className="w-label-group">
+                  <span className="w-name">{activeMatch.teams_b?.name}</span>
+                  {winnerUserVote && (
+                    <span className="w-perc">
+                      {winnerVotes.total > 0 ? Math.round((winnerVotes.team_b / winnerVotes.total) * 100) : 0}%
+                    </span>
+                  )}
+                </div>
+                {winnerUserVote && (
+                  <div className="w-bar-container">
+                    <motion.div 
+                      className="w-bar" 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${winnerVotes.total > 0 ? (winnerVotes.team_b / winnerVotes.total) * 100 : 0}%` }}
+                    />
+                  </div>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Craque da Galera (Votado) */}
+          {activeMatch.status === 'finalizado' && matchVotes.length > 0 && (
+            <div className="match-public-mvp glass animate-slide-up">
+              <Vote size={20} color="var(--accent-blue)" />
+              <div className="mvp-details">
+                <span className="mvp-label">CRAQUE DA GALERA</span>
+                <span className="mvp-name">{matchVotes[0].player_name}</span>
+                <span className="mvp-vote-info">{matchVotes[0].vote_count} votos da torcida</span>
+              </div>
+            </div>
+          )}
 
           {/* ShareCard Template */}
           <ShareCard 
@@ -362,73 +528,42 @@ const MatchCenter: React.FC = () => {
         </div>
 
         <aside className="match-side">
-          {/* Estatísticas */}
-          <div className="match-stats-preview glass">
+          {/* Impacto na Tabela (Real-time Standings) */}
+          {activeMatch?.status === 'ao_vivo' && (
+            <div className="standings-impact-widget glass">
               <div className="side-header">
-                <Award size={18} color="var(--secondary)" />
-                <h3>Estatísticas da Partida</h3>
+                <TrendingUp size={18} color="var(--secondary)" />
+                <h3>Impacto na Tabela</h3>
               </div>
-              <div className="mini-stats">
-                <div className="m-stat-card duel-mode">
-                  <div className="stat-duel-header">
-                    <span className="val-a">{activeMatch.team_a_score}</span>
-                    <div className="stat-label-centered">
-                      <Target size={14} className="stat-icon-goal" />
-                      <span>GOLS</span>
-                    </div>
-                    <span className="val-b">{activeMatch.team_b_score}</span>
-                  </div>
-                  <div className="m-stat-bar-wrapper">
-                    <div className="m-stat-bar team-a" style={{ width: `${(activeMatch.team_a_score / (activeMatch.team_a_score + activeMatch.team_b_score || 1)) * 100}%` }}></div>
-                    <div className="m-stat-bar team-b" style={{ width: `${(activeMatch.team_b_score / (activeMatch.team_a_score + activeMatch.team_b_score || 1)) * 100}%` }}></div>
-                  </div>
-                </div>
+              <div className="impact-container">
+                {[activeMatch.team_a_id, activeMatch.team_b_id].map(teamId => {
+                  const teamStanding = (standings as any[]).find(s => s.team_id === teamId);
+                  if (!teamStanding) return null;
+                  
+                  // Calcular pontos virtuais
+                  let virtualPoints = teamStanding.points;
+                  const isTeamA = teamId === activeMatch.team_a_id;
+                  const teamScore = isTeamA ? activeMatch.team_a_score : activeMatch.team_b_score;
+                  const oppScore = isTeamA ? activeMatch.team_b_score : activeMatch.team_a_score;
+                  
+                  if (teamScore > oppScore) virtualPoints += 3;
+                  else if (teamScore === oppScore) virtualPoints += 1;
 
-                {(() => {
-                  const yellowA = events.filter(e => e.event_type === 'amarelo' && players.find(p => p.id === e.player_id)?.team_id === activeMatch.team_a_id).length;
-                  const yellowB = events.filter(e => e.event_type === 'amarelo' && players.find(p => p.id === e.player_id)?.team_id === activeMatch.team_b_id).length;
-                  const totalYellow = yellowA + yellowB || 1;
                   return (
-                    <div className="m-stat-card duel-mode">
-                      <div className="stat-duel-header">
-                        <span className="val-a">{yellowA}</span>
-                        <div className="stat-label-centered">
-                          <Square size={14} fill="#fbbf24" stroke="#fbbf24" style={{ borderRadius: '2px' }} />
-                          <span>AMARELOS</span>
-                        </div>
-                        <span className="val-b">{yellowB}</span>
-                      </div>
-                      <div className="m-stat-bar-wrapper">
-                        <div className="m-stat-bar yellow-a" style={{ width: `${(yellowA / totalYellow) * 100}%` }}></div>
-                        <div className="m-stat-bar yellow-b" style={{ width: `${(yellowB / totalYellow) * 100}%` }}></div>
+                    <div key={teamId} className="impact-row">
+                      <span className="impact-team-name">{teamStanding.team_name}</span>
+                      <div className="impact-points">
+                        <span className="current-pts">{teamStanding.points}</span>
+                        <ArrowRightLeft size={12} />
+                        <span className="virtual-pts">{virtualPoints} pts</span>
                       </div>
                     </div>
                   );
-                })()}
-
-                {(() => {
-                  const redA = events.filter(e => e.event_type === 'vermelho' && players.find(p => p.id === e.player_id)?.team_id === activeMatch.team_a_id).length;
-                  const redB = events.filter(e => e.event_type === 'vermelho' && players.find(p => p.id === e.player_id)?.team_id === activeMatch.team_b_id).length;
-                  const totalRed = redA + redB || 1;
-                  return (
-                    <div className="m-stat-card duel-mode">
-                      <div className="stat-duel-header">
-                        <span className="val-a">{redA}</span>
-                        <div className="stat-label-centered">
-                          <Square size={14} fill="#ef4444" stroke="#ef4444" style={{ borderRadius: '2px' }} />
-                          <span>VERMELHOS</span>
-                        </div>
-                        <span className="val-b">{redB}</span>
-                      </div>
-                      <div className="m-stat-bar-wrapper">
-                        <div className="m-stat-bar red-a" style={{ width: `${(redA / totalRed) * 100}%` }}></div>
-                        <div className="m-stat-bar red-b" style={{ width: `${(redB / totalRed) * 100}%` }}></div>
-                      </div>
-                    </div>
-                  );
-                })()}
+                })}
               </div>
-          </div>
+              <p className="impact-note">* Pontuação baseada no placar atual.</p>
+            </div>
+          )}
 
           {/* Votação MVP: Craque da Galera */}
           <div className="vote-widget glass">
@@ -437,7 +572,7 @@ const MatchCenter: React.FC = () => {
               <h3>Votação: Craque da Galera</h3>
             </div>
             <div className="poll-minimal">
-              {activeMatch.status === 'ao_vivo' ? (
+              {activeMatch?.status === 'ao_vivo' ? (
                 matchMvpLoading ? (
                   <p className="loading-msg">Carregando votação...</p>
                 ) : (
@@ -474,7 +609,7 @@ const MatchCenter: React.FC = () => {
                 )
               ) : (
                 <p className="empty-msg">
-                  {activeMatch.status === 'finalizado' 
+                  {activeMatch?.status === 'finalizado' 
                     ? 'Votação encerrada. Confira o vencedor acima!' 
                     : 'Aguarde o início do jogo para votar!'}
                 </p>
