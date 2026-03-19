@@ -21,6 +21,22 @@ type PlayerRow = Player & { teams?: { name: string } };
 
 export const usePlayers = (teamId?: string) => {
   const queryClient = useQueryClient();
+  const cacheKey = `players_cache_v1_${teamId || 'all'}`;
+
+  const loadCachedPlayers = () => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem(cacheKey);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { ts: number; data: PlayerRow[] };
+      if (!parsed?.ts || !Array.isArray(parsed.data)) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  };
+
+  const cached = loadCachedPlayers();
 
   const friendlyError = (raw: string | undefined) => {
     if (!raw) return null;
@@ -42,7 +58,21 @@ export const usePlayers = (teamId?: string) => {
     gcTime: 1000 * 60 * 30,    // 30 min
     refetchOnReconnect: true,
     networkMode: 'online',
+    initialData: cached?.data ?? [],
+    initialDataUpdatedAt: cached?.ts,
+    placeholderData: (prev) => prev,
   });
+
+  useEffect(() => {
+    if (query.status === 'success' && Array.isArray(query.data) && query.data.length > 0) {
+      if (typeof window === 'undefined') return;
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data: query.data }));
+      } catch {
+        // noop
+      }
+    }
+  }, [cacheKey, query.status, query.data]);
 
   useEffect(() => {
     // Optionally subscribe to players changes

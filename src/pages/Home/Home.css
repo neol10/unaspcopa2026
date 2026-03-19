@@ -2,6 +2,7 @@
   display: flex;
   flex-direction: column;
   gap: 5rem;
+  touch-action: pan-y;
 }
 
 .hero-cinematic {
@@ -22,6 +23,7 @@
   position: absolute;
   inset: 0;
   z-index: -1;
+  pointer-events: none;
 }
 
 .glow-red {
@@ -1049,6 +1051,7 @@
   position: relative;
   overflow: hidden;
   border: 1px solid rgba(255, 215, 0, 0.2);
+  pointer-events: none;
 }
 
 .ticker-label {

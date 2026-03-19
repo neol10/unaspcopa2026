@@ -1532,6 +1532,55 @@
   color: var(--secondary);
 }
 
+.global-player-edit-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.global-player-edit-modal {
+  width: min(960px, 100%);
+  max-height: 92vh;
+  overflow-y: auto;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(10, 16, 30, 0.98);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  padding: 1rem;
+}
+
+.global-player-edit-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.5rem 0.75rem;
+}
+
+.global-player-edit-modal-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 850;
+}
+
+@media (max-width: 768px) {
+  .global-player-edit-modal {
+    max-height: 94vh;
+    border-radius: 14px;
+    padding: 0.6rem;
+  }
+
+  .global-player-edit-modal-header h3 {
+    font-size: 1rem;
+  }
+}
+
 /* MVP Voting Review */
 .admin-mvp-review {
   padding: 1rem;

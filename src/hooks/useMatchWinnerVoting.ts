@@ -15,6 +15,37 @@ export interface MatchWinnerVotes {
 export const useMatchWinnerVoting = (matchId: string) => {
   const { user } = useAuthContext();
   const queryClient = useQueryClient();
+  const cacheKey = `match_winner_votes_cache_v1_${matchId || 'none'}_${user?.id || 'anon'}`;
+
+  const loadCachedVotes = () => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem(cacheKey);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as {
+        ts: number;
+        data: { votes: MatchWinnerVotes; userVote: WinnerVoteOption | null };
+      };
+      if (!parsed?.ts || !parsed?.data) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  };
+
+  const saveCachedVotes = (data: { votes: MatchWinnerVotes; userVote: WinnerVoteOption | null }) => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data }));
+    } catch {
+      // noop
+    }
+  };
+
+  const cached = loadCachedVotes();
+  const cachedData = cached?.data
+    ? { ...cached.data, userVote: user ? cached.data.userVote : null }
+    : null;
 
   const query = useQuery({
     queryKey: ['matchWinnerVotes', matchId, user?.id],
@@ -44,12 +75,17 @@ export const useMatchWinnerVoting = (matchId: string) => {
         }
       });
 
-      return {
+      const result = {
         votes: counts,
         userVote: myVoteRes.data?.vote || null
       };
+      saveCachedVotes(result);
+      return result;
     },
-    enabled: !!matchId
+    enabled: !!matchId,
+    initialData: cachedData || { votes: { team_a: 0, draw: 0, team_b: 0, total: 0 }, userVote: null },
+    initialDataUpdatedAt: cached?.ts,
+    placeholderData: (prev) => prev,
   });
 
   const voteMutation = useMutation({

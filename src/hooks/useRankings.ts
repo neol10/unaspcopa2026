@@ -11,28 +11,106 @@ export interface RankingPlayer extends Player {
 
 export const useRankings = () => {
   const queryClient = useQueryClient();
+  const CACHE_KEY = 'rankings_cache_v1';
+
+  const loadCachedRankings = () => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as {
+        ts: number;
+        data: {
+          scorers: RankingPlayer[];
+          assistants: RankingPlayer[];
+          goalkeepers: RankingPlayer[];
+          galeraRank: RankingPlayer[];
+          disciplined: RankingPlayer[];
+          roundMvps: Record<string, RankingPlayer>;
+          availableRounds: string[];
+        };
+      };
+      if (!parsed?.ts || !parsed?.data) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  };
+
+  const saveCachedRankings = (data: {
+    scorers: RankingPlayer[];
+    assistants: RankingPlayer[];
+    goalkeepers: RankingPlayer[];
+    galeraRank: RankingPlayer[];
+    disciplined: RankingPlayer[];
+    roundMvps: Record<string, RankingPlayer>;
+    availableRounds: string[];
+  }) => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
+    } catch {
+      // noop
+    }
+  };
+
+  const cached = loadCachedRankings();
+  const emptyRankings = {
+    scorers: [],
+    assistants: [],
+    goalkeepers: [],
+    galeraRank: [],
+    disciplined: [],
+    roundMvps: {},
+    availableRounds: []
+  } as {
+    scorers: RankingPlayer[];
+    assistants: RankingPlayer[];
+    goalkeepers: RankingPlayer[];
+    galeraRank: RankingPlayer[];
+    disciplined: RankingPlayer[];
+    roundMvps: Record<string, RankingPlayer>;
+    availableRounds: string[];
+  };
 
   const query = useQuery({
     queryKey: ['rankings'],
     queryFn: async () => {
-      
-      // 1-4. Buscar dados em paralelo
-      const [playersRes, votesRes, eventsRes, matchesRes] = await Promise.all([
-        supabase.from('players').select('*, teams:team_id(name, badge_url)'),
-        supabase.from('match_mvp_votes').select('player_id'),
-        supabase.from('match_events').select('*, matches:match_id(round)').in('event_type', ['gol', 'assistencia']),
-        supabase.from('matches').select('round, status'),
-      ]);
+      const playersRes = await supabase
+        .from('players')
+        .select('id, name, number, position, photo_url, goals_count, assists, yellow_cards, red_cards, clean_sheets, team_id, teams:team_id(name, badge_url)');
 
       if (playersRes.error) throw playersRes.error;
-      if (votesRes.error) throw votesRes.error;
-      if (eventsRes.error) throw eventsRes.error;
-      if (matchesRes.error) throw matchesRes.error;
-      
+
+      const safeList = async <T>(fn: () => Promise<{ data: T[] | null; error: unknown }>) => {
+        try {
+          const { data, error } = await fn();
+          if (error) throw error;
+          return (data as T[]) || [];
+        } catch {
+          return [] as T[];
+        }
+      };
+
+      const [votesData, eventsData, matchesData] = await Promise.all([
+        safeList<{ player_id: string }>(() => supabase.from('match_mvp_votes').select('player_id')),
+        safeList<{
+          player_id: string | null;
+          assistant_id?: string | null;
+          event_type: 'gol' | 'assistencia' | string;
+          minute: number;
+          metadata?: { goal_type?: string | null } | null;
+          matches?: { round?: unknown } | null;
+        }>(() =>
+          supabase
+            .from('match_events')
+            .select('player_id, assistant_id, event_type, minute, metadata, matches:match_id(round)')
+            .in('event_type', ['gol', 'assistencia']),
+        ),
+        safeList<{ round: unknown; status: unknown }>(() => supabase.from('matches').select('round, status')),
+      ]);
+
       const playersData = playersRes.data || [];
-      const votesData = votesRes.data || [];
-      const eventsData = eventsRes.data || [];
-      const matchesData = (matchesRes.data || []) as Array<{ round: unknown; status: unknown }>;
 
       // --- RODADAS FINALIZADAS ---
       // A rodada só é considerada finalizada quando TODAS as partidas daquela rodada estão com status 'finalizado'
@@ -79,7 +157,7 @@ export const useRankings = () => {
         if (!roundStats[round]) roundStats[round] = {};
 
         // Gols
-        if (ev.event_type === 'gol' && ev.metadata?.goal_type !== 'contra') {
+        if (ev.event_type === 'gol' && ev.metadata?.goal_type !== 'contra' && ev.player_id) {
           if (!roundStats[round][ev.player_id]) roundStats[round][ev.player_id] = { points: 0, goals: 0, firstEvent: ev.minute };
           roundStats[round][ev.player_id].points += 1;
           roundStats[round][ev.player_id].goals += 1;
@@ -117,7 +195,7 @@ export const useRankings = () => {
         return numA - numB;
       });
 
-      return {
+      const result = {
         scorers: [...playersWithTeam].sort((a, b) => b.goals_count - a.goals_count).filter(p => p.goals_count > 0).slice(0, 10),
         assistants: [...playersWithTeam].sort((a, b) => b.assists - a.assists).filter(p => p.assists > 0).slice(0, 10),
         goalkeepers: [...playersWithTeam].filter(p => p.position === 'Goleiro').sort((a, b) => (b.clean_sheets || 0) - (a.clean_sheets || 0)).slice(0, 10),
@@ -126,7 +204,12 @@ export const useRankings = () => {
         roundMvps: calculatedRoundMvps,
         availableRounds: sortedRounds
       };
+      saveCachedRankings(result);
+      return result;
     },
+    initialData: cached?.data ?? emptyRankings,
+    initialDataUpdatedAt: cached?.ts,
+    placeholderData: (prev) => prev,
     staleTime: 1000 * 60 * 15, // 15 min
     gcTime: 1000 * 60 * 30,   // 30 min
   });

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import React, { useEffect, useState } from 'react';
+import { supabase, supabaseStorage } from '../../lib/supabase';
 import { Trophy, Users, Calendar, Plus, Save, Trash2, Shield, ChevronDown, ChevronUp, Newspaper, CheckCircle, Play, Camera, Search, Settings2, Vote, ShieldAlert, Bell, Star, CreditCard, Target, Square, ArrowRightLeft, MessageSquare, Zap, Clock, Pause, RotateCcw } from 'lucide-react';
 import { useTeams, type Team } from '../../hooks/useTeams';
 import { usePlayers } from '../../hooks/usePlayers';
@@ -29,28 +29,107 @@ async function withRetry<T>(operation: () => Promise<T>, attempts: number = 2): 
   throw lastError;
 }
 
+const MAX_IMAGE_SIZE_MB = 5;
+const COMPRESS_MIN_BYTES = 1024 * 1024; // 1MB
+const COMPRESS_MAX_DIM = 1024;
+const COMPRESS_QUALITY = 0.82;
+
+const validateImageFile = (file: File): string | null => {
+  if (!file.type.startsWith('image/')) return 'Arquivo invalido. Envie uma imagem.';
+  const maxBytes = MAX_IMAGE_SIZE_MB * 1024 * 1024;
+  if (file.size > maxBytes) return `Imagem muito grande. Maximo: ${MAX_IMAGE_SIZE_MB}MB.`;
+  return null;
+};
+
+const prepareImageForUpload = async (file: File): Promise<File> => {
+  if (!file.type.startsWith('image/')) return file;
+  if (file.size < COMPRESS_MIN_BYTES) return file;
+
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = (err) => {
+      URL.revokeObjectURL(url);
+      reject(err);
+    };
+    img.src = url;
+  });
+
+  const maxDim = Math.max(image.width, image.height);
+  const scale = Math.min(1, COMPRESS_MAX_DIM / maxDim);
+  if (scale === 1) return file;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(image.width * scale);
+  canvas.height = Math.round(image.height * scale);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return file;
+  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  const outputType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, outputType, COMPRESS_QUALITY);
+  });
+  if (!blob) return file;
+
+  const ext = outputType === 'image/png' ? 'png' : 'jpg';
+  const baseName = file.name.replace(/\.[^.]+$/, '');
+  const fileName = `${baseName}_compressed.${ext}`;
+  return new File([blob], fileName, { type: outputType });
+};
+
+const sanitizeFileBaseName = (name: string) => {
+  const normalized = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return normalized
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase();
+};
+
+const fileToDataUrl = async (file: File): Promise<string | null> => {
+  try {
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  } catch {
+    return null;
+  }
+};
+
 const uploadToStorage = async (file: File, bucket: string = 'images', folder: string = 'team-badges'): Promise<string | null> => {
   try {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      toast.error(validationError);
+      return null;
+    }
+
+    const fileToUpload = await prepareImageForUpload(file);
+    const fileExt = fileToUpload.name.split('.').pop() || 'jpg';
+    const baseName = sanitizeFileBaseName(fileToUpload.name.replace(/\.[^.]+$/, '')) || 'imagem';
+    const fileName = `${baseName}_${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
     const filePath = `${folder}/${fileName}`;
 
     // Retry curto para reduzir falhas intermitentes em rede móvel.
     const { error: uploadError } = await withRetry(async () => {
-      const uploadPromise = supabase.storage
+      return await supabaseStorage.storage
         .from(bucket)
-        .upload(filePath, file);
-
-      const timeoutPromise = new Promise<Awaited<typeof uploadPromise>>((_, reject) =>
-        setTimeout(() => reject(new Error('Tempo limite de upload excedido (45s)')), 45000)
-      );
-
-      return (await Promise.race([uploadPromise, timeoutPromise])) as Awaited<typeof uploadPromise>;
+        .upload(filePath, fileToUpload, {
+          cacheControl: '3600',
+          upsert: false,
+        });
     }, 2);
 
     if (uploadError) throw uploadError;
 
-    const { data } = supabase.storage
+    const { data } = supabaseStorage.storage
       .from(bucket)
       .getPublicUrl(filePath);
 
@@ -61,6 +140,13 @@ const uploadToStorage = async (file: File, bucket: string = 'images', folder: st
       typeof (err as { message?: unknown })?.message === 'string'
         ? String((err as { message: string }).message)
         : null;
+
+    const fallbackDataUrl = await fileToDataUrl(file);
+    if (fallbackDataUrl) {
+      toast.success('Upload externo indisponivel. Imagem aplicada localmente.');
+      return fallbackDataUrl;
+    }
+
     toast.error(message ? `Erro no upload: ${message}` : 'Erro no upload');
     return null;
   }
@@ -317,6 +403,24 @@ const formatDateTime = (value: string) => {
   }
 };
 
+const isClientErrorsUnavailable = (err: unknown) => {
+  const raw = err as { code?: unknown; message?: unknown; details?: unknown; status?: unknown };
+  const code = typeof raw?.code === 'string' ? raw.code : '';
+  const status = typeof raw?.status === 'number' ? raw.status : 0;
+  const message = typeof raw?.message === 'string' ? raw.message.toLowerCase() : '';
+  const details = typeof raw?.details === 'string' ? raw.details.toLowerCase() : '';
+
+  if (status === 400 || status === 401 || status === 403 || status === 404) return true;
+  if (code === '42501' || code === '42P01' || code.startsWith('PGRST')) return true;
+
+  return (
+    message.includes('permission denied') ||
+    message.includes('row-level security') ||
+    message.includes('does not exist') ||
+    details.includes('row-level security')
+  );
+};
+
 const ClientErrorsPanel = () => {
   const [items, setItems] = useState<ClientErrorRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -335,13 +439,17 @@ const ClientErrorsPanel = () => {
       if (error) throw error;
       setItems((data || []) as ClientErrorRow[]);
     } catch (err: unknown) {
-      console.error('Error loading client_errors:', err);
+      if (!isClientErrorsUnavailable(err)) {
+        console.error('Error loading client_errors:', err);
+      }
       const msg =
         typeof (err as { message?: unknown })?.message === 'string'
           ? String((err as { message: string }).message)
           : 'Falha ao carregar erros';
       setLoadError(msg);
-      toast.error(msg);
+      if (!isClientErrorsUnavailable(err)) {
+        toast.error(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -1452,31 +1560,53 @@ const TeamManagement = () => {
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editGroupValue, setEditGroupValue] = useState('');
-  const [formData, setFormData] = useState({ name: '', group: '', leader: '', badge_url: '' });
+  type TeamFormData = { name: string; group: string; leader: string; badge_url: string };
+  const [newTeamData, setNewTeamData] = useState<TeamFormData>({ name: '', group: '', leader: '', badge_url: '' });
+  const [editTeamData, setEditTeamData] = useState<TeamFormData>({ name: '', group: '', leader: '', badge_url: '' });
   const [uploading, setUploading] = useState(false);
 
-  const handleBadgeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBadgeUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    setData: React.Dispatch<React.SetStateAction<TeamFormData>>,
+  ) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
-    const url = await uploadToStorage(file, 'images', 'team-badges');
-    if (url) setFormData(prev => ({ ...prev, badge_url: url }));
-    setUploading(false);
+    try {
+      const url = await uploadToStorage(file, 'images', 'team-badges');
+      if (url) setData(prev => ({ ...prev, badge_url: url }));
+    } finally {
+      setUploading(false);
+      if (e.target) e.target.value = '';
+    }
   };
 
   const handleAddTeam = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmittingTeam) return;
+    if (uploading) {
+      toast.error('Aguarde o upload terminar antes de salvar.');
+      return;
+    }
     setIsSubmittingTeam(true);
     const loadingToast = toast.loading('Criando equipe...');
     try {
-      const { error } = await withTimeout(
-        supabase.from('teams').insert([formData]),
-        30000,
-        'Tempo limite ao criar equipe'
-      );
+      const payload = {
+        name: newTeamData.name.trim(),
+        group: newTeamData.group.trim(),
+        leader: newTeamData.leader.trim(),
+        badge_url: newTeamData.badge_url?.trim() || null,
+      };
+
+      const { error } = await withRetry(async () => {
+        return await withTimeout(
+          supabase.from('teams').insert([payload]),
+          15000,
+          'Tempo limite ao criar equipe'
+        );
+      }, 2);
       if (error) throw error;
-      setFormData({ name: '', group: '', leader: '', badge_url: '' });
+      setNewTeamData({ name: '', group: '', leader: '', badge_url: '' });
       setIsAdding(false);
       void queryClient.invalidateQueries({ queryKey: ['teams'] });
       void refresh();
@@ -1541,8 +1671,8 @@ const TeamManagement = () => {
               <input 
                 type="text" 
                 required 
-                value={formData.name}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                value={newTeamData.name}
+                onChange={(e) => setNewTeamData({ ...newTeamData, name: e.target.value })}
                 placeholder="Ex: Fisioterapia FC"
               />
             </div>
@@ -1550,8 +1680,8 @@ const TeamManagement = () => {
               <label>Grupo / Categoria</label>
               <input 
                 type="text"
-                value={formData.group}
-                onChange={(e) => setFormData({...formData, group: e.target.value})}
+                value={newTeamData.group}
+                onChange={(e) => setNewTeamData({ ...newTeamData, group: e.target.value })}
                 required
                 placeholder="Ex: Grupo A, Feminino, etc."
               />
@@ -1561,8 +1691,8 @@ const TeamManagement = () => {
               <input 
                 type="text" 
                 required 
-                value={formData.leader}
-                onChange={(e) => setFormData({...formData, leader: e.target.value})}
+                value={newTeamData.leader}
+                onChange={(e) => setNewTeamData({ ...newTeamData, leader: e.target.value })}
               />
             </div>
             <div className="form-group">
@@ -1573,8 +1703,8 @@ const TeamManagement = () => {
                     <div className="upload-loading-overlay">
                       <div className="spinner"></div>
                     </div>
-                  ) : formData.badge_url ? (
-                    <img src={formData.badge_url} alt="Preview" className="image-preview-badge" />
+                  ) : newTeamData.badge_url ? (
+                    <img src={newTeamData.badge_url} alt="Preview" className="image-preview-badge" />
                   ) : (
                     <div className="upload-icon-box">
                       <Camera size={24} />
@@ -1585,16 +1715,22 @@ const TeamManagement = () => {
                     type="file" 
                     accept="image/*" 
                     className="hidden-file-input" 
-                    onChange={handleBadgeUpload} 
+                    onChange={(e) => handleBadgeUpload(e, setNewTeamData)} 
                   />
                 </label>
-                {formData.badge_url && (
-                  <button type="button" className="btn-remove-photo" onClick={() => setFormData({...formData, badge_url: ''})}>Remover</button>
+                {newTeamData.badge_url && (
+                  <button type="button" className="btn-remove-photo" onClick={() => setNewTeamData({ ...newTeamData, badge_url: '' })}>Remover</button>
                 )}
               </div>
+              <input
+                type="url"
+                placeholder="ou cole a URL do escudo"
+                value={newTeamData.badge_url}
+                onChange={(e) => setNewTeamData({ ...newTeamData, badge_url: e.target.value })}
+              />
             </div>
           </div>
-          <button type="submit" className="btn-save" disabled={isSubmittingTeam}>
+          <button type="submit" className="btn-save" disabled={isSubmittingTeam || uploading}>
             <Save size={18} /> {isSubmittingTeam ? 'Salvando...' : 'Salvar Equipe'}
           </button>
         </form>
@@ -1615,15 +1751,20 @@ const TeamManagement = () => {
                           <div className="image-edit-mini">
                             <label className={`image-upload-container mini ${uploading ? 'uploading' : ''}`} style={{ width: '60px', height: '60px' }}>
                               {uploading ? <div className="spinner mini"></div> : (
-                                <img src={formData.badge_url || team.badge_url} alt="Badge" className="image-preview-badge" />
+                                <img src={editTeamData.badge_url || team.badge_url} alt="Badge" className="image-preview-badge" />
                               )}
-                              <input type="file" accept="image/*" className="hidden-file-input" onChange={handleBadgeUpload} />
+                              <input type="file" accept="image/*" className="hidden-file-input" onChange={(e) => handleBadgeUpload(e, setEditTeamData)} />
                             </label>
                           </div>
                           <input 
                             placeholder="Nome da Equipe"
-                            value={formData.name}
-                            onChange={e => setFormData({...formData, name: e.target.value})}
+                            value={editTeamData.name}
+                            onChange={e => setEditTeamData({ ...editTeamData, name: e.target.value })}
+                          />
+                          <input
+                            placeholder="URL do escudo"
+                            value={editTeamData.badge_url}
+                            onChange={e => setEditTeamData({ ...editTeamData, badge_url: e.target.value })}
                           />
                           <input 
                             placeholder="Grupo"
@@ -1632,16 +1773,16 @@ const TeamManagement = () => {
                           />
                         </div>
                         <div className="form-actions-mini">
-                          <button className="btn-save-mini" onClick={() => {
+                          <button type="button" className="btn-save-mini" onClick={() => {
                             handleUpdateTeam(team.id, { 
-                              name: formData.name || team.name, 
-                              leader: formData.leader || team.leader,
-                              badge_url: formData.badge_url || team.badge_url,
+                              name: editTeamData.name || team.name, 
+                              leader: editTeamData.leader || team.leader,
+                              badge_url: editTeamData.badge_url || team.badge_url,
                               group: editGroupValue 
                             });
                             setEditingGroupId(null);
                           }}><Save size={14} /> Salvar</button>
-                          <button className="btn-cancel-mini" onClick={() => setEditingGroupId(null)}>✕</button>
+                          <button type="button" className="btn-cancel-mini" onClick={() => setEditingGroupId(null)}>✕</button>
                         </div>
                       </div>
                     ) : (
@@ -1661,7 +1802,7 @@ const TeamManagement = () => {
                       e.stopPropagation(); 
                       setEditingGroupId(team.id); 
                       setEditGroupValue(team.group || '');
-                      setFormData({ name: team.name, leader: team.leader, badge_url: team.badge_url || '', group: team.group || '' });
+                      setEditTeamData({ name: team.name, leader: team.leader, badge_url: team.badge_url || '', group: team.group || '' });
                     }}><Settings2 size={18} /></button>
                   )}
                   <button className="btn-icon delete" onClick={(e) => { e.stopPropagation(); handleDelete(team.id); }}><Trash2 size={18} /></button>
@@ -1685,9 +1826,14 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
   const queryClient = useQueryClient();
   const [isAdding, setIsAdding] = useState(false);
   const [isSubmittingPlayer, setIsSubmittingPlayer] = useState(false);
+  const [isUpdatingPlayer, setIsUpdatingPlayer] = useState(false);
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [formData, setFormData] = useState({ 
+    name: '', number: '', position: 'Ala', photo_url: '', bio: '',
+    goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0'
+  });
+  const [editFormData, setEditFormData] = useState({
     name: '', number: '', position: 'Ala', photo_url: '', bio: '',
     goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0'
   });
@@ -1750,31 +1896,34 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
     }
   };
 
-  type PlayerFormData = {
-    name: string;
-    number: string;
-    position: string;
-    photo_url: string;
-    bio: string;
-    goals_count: string;
-    assists: string;
-    yellow_cards: string;
-    red_cards: string;
-    clean_sheets: string;
+  const handleEditPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const url = await uploadToStorage(file, 'images', 'player-photos');
+    if (url) setEditFormData(prev => ({ ...prev, photo_url: url }));
+    setUploading(false);
   };
 
-  const handleUpdatePlayer = async (playerId: string, data: PlayerFormData) => {
+  const handleUpdatePlayer = async (playerId: string) => {
+    if (isUpdatingPlayer) return;
+    if (uploading) {
+      toast.error('Aguarde o upload terminar antes de salvar.');
+      return;
+    }
+
+    setIsUpdatingPlayer(true);
     const loadingToast = toast.loading('Atualizando...');
     try {
       const { error } = await withTimeout(
         supabase.from('players').update({
-          ...data,
-          number: parseInt(data.number) || 0,
-          goals_count: parseInt(data.goals_count) || 0,
-          assists: parseInt(data.assists) || 0,
-          yellow_cards: parseInt(data.yellow_cards) || 0,
-          red_cards: parseInt(data.red_cards) || 0,
-          clean_sheets: parseInt(data.clean_sheets) || 0
+          ...editFormData,
+          number: parseInt(editFormData.number) || 0,
+          goals_count: parseInt(editFormData.goals_count) || 0,
+          assists: parseInt(editFormData.assists) || 0,
+          yellow_cards: parseInt(editFormData.yellow_cards) || 0,
+          red_cards: parseInt(editFormData.red_cards) || 0,
+          clean_sheets: parseInt(editFormData.clean_sheets) || 0
         }).eq('id', playerId),
         30000,
         'Tempo limite ao atualizar atleta'
@@ -1786,6 +1935,8 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
       toast.success('Atleta atualizado!', { id: loadingToast });
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Erro ao atualizar atleta'), { id: loadingToast });
+    } finally {
+      setIsUpdatingPlayer(false);
     }
   };
 
@@ -1910,101 +2061,129 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
         ) : (
           players.map(p => (
             <div key={p.id} className="player-admin-row-wrapper">
-              {editingPlayerId === p.id ? (
-                <div className="player-edit-form glass">
-                  <div className="player-form-grid">
-                    <input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Nome" />
-                    <input type="number" value={formData.number} onChange={e => setFormData({...formData, number: e.target.value})} placeholder="Nº" />
-                    <select value={formData.position} onChange={e => setFormData({...formData, position: e.target.value})}>
-                      <option value="Goleiro">Goleiro</option>
-                      <option value="Fixo">Fixo</option>
-                      <option value="Ala">Ala</option>
-                      <option value="Pivô">Pivô</option>
-                    </select>
-                  </div>
-                  <div className="player-form-grid mt-2">
-                    <div className="player-form-field">
-                      <label>Foto</label>
-                      <label className={`image-upload-container mini ${uploading ? 'uploading' : ''}`} style={{ width: '60px', height: '60px' }}>
-                        {uploading ? (
-                          <div className="upload-loading-overlay">
-                            <div className="spinner"></div>
-                          </div>
-                        ) : formData.photo_url ? (
-                          <img src={formData.photo_url} alt="Player" className="image-preview-badge" />
-                        ) : (
-                          <div className="upload-icon-box">
-                            <Camera size={16} />
-                            <span>Subir</span>
-                          </div>
-                        )}
-                        <input type="file" accept="image/*" className="hidden-file-input" onChange={handlePhotoUpload} />
-                      </label>
-                    </div>
-                    <input value={formData.bio} onChange={e => setFormData({...formData, bio: e.target.value})} placeholder="Bio" />
-                  </div>
-                  <div className="player-stats-editor-grid mt-2">
-                    <div className="stat-input">
-                       <label><Trophy size={14} /> G</label>
-                       <input type="number" value={formData.goals_count} onChange={e => setFormData({...formData, goals_count: e.target.value})} />
-                    </div>
-                    <div className="stat-input">
-                       <label><Star size={14} /> A</label>
-                       <input type="number" value={formData.assists} onChange={e => setFormData({...formData, assists: e.target.value})} />
-                    </div>
-                    <div className="stat-input">
-                       <label><CreditCard size={14} style={{ color: '#fbbf24' }} /> CA</label>
-                       <input type="number" value={formData.yellow_cards} onChange={e => setFormData({...formData, yellow_cards: e.target.value})} />
-                    </div>
-                    <div className="stat-input">
-                       <label><CreditCard size={14} style={{ color: '#ef4444' }} /> CV</label>
-                       <input type="number" value={formData.red_cards} onChange={e => setFormData({...formData, red_cards: e.target.value})} />
-                    </div>
-                    <div className="stat-input">
-                       <label><Shield size={14} /> CS</label>
-                       <input type="number" value={formData.clean_sheets} onChange={e => setFormData({...formData, clean_sheets: e.target.value})} />
-                    </div>
-                  </div>
-                  <div className="player-edit-actions">
-                    <button className="btn-save-mini" onClick={() => handleUpdatePlayer(p.id, formData)}><Save size={14} /> Salvar</button>
-                    <button className="btn-cancel-mini" onClick={() => setEditingPlayerId(null)}>✕</button>
-                  </div>
+              <div className="player-row">
+                <div className="player-number-badge">{p.number}</div>
+                <div className="player-info">
+                  <strong>{p.name}</strong>
+                  <span className="player-position-tag">{p.position}</span>
                 </div>
-              ) : (
-                <div className="player-row">
-                  <div className="player-number-badge">{p.number}</div>
-                  <div className="player-info">
-                    <strong>{p.name}</strong>
-                    <span className="player-position-tag">{p.position}</span>
-                  </div>
-                  <div className="player-actions">
-                    <button className="btn-player-edit" onClick={() => {
-                      setEditingPlayerId(p.id);
-                      setFormData({ 
-                        name: p.name, 
-                        number: String(p.number), 
-                        position: p.position, 
-                        photo_url: p.photo_url || '', 
-                        bio: p.bio || '',
-                        goals_count: String(p.goals_count),
-                        assists: String(p.assists),
-                        yellow_cards: String(p.yellow_cards),
-                        red_cards: String(p.red_cards),
-                        clean_sheets: String(p.clean_sheets || 0)
-                      });
-                    }} title="Editar atleta">
-                      <Settings2 size={13} />
-                    </button>
-                    <button className="btn-player-delete" onClick={() => handleDelete(p.id)} title="Remover atleta">
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
+                <div className="player-actions">
+                  <button className="btn-player-edit" type="button" onClick={() => {
+                    setEditingPlayerId(p.id);
+                    setEditFormData({ 
+                      name: p.name, 
+                      number: String(p.number), 
+                      position: p.position, 
+                      photo_url: p.photo_url || '', 
+                      bio: p.bio || '',
+                      goals_count: String(p.goals_count),
+                      assists: String(p.assists),
+                      yellow_cards: String(p.yellow_cards),
+                      red_cards: String(p.red_cards),
+                      clean_sheets: String(p.clean_sheets || 0)
+                    });
+                  }} title="Editar atleta">
+                    <Settings2 size={13} />
+                  </button>
+                  <button className="btn-player-delete" type="button" onClick={() => handleDelete(p.id)} title="Remover atleta">
+                    <Trash2 size={13} />
+                  </button>
                 </div>
-              )}
+              </div>
             </div>
           ))
         )}
       </div>
+
+      {editingPlayerId && (
+        <div className="global-player-edit-modal-backdrop" onClick={() => setEditingPlayerId(null)}>
+          <div className="global-player-edit-modal glass" onClick={(e) => e.stopPropagation()}>
+            <div className="global-player-edit-modal-header">
+              <h3>Editar Atleta</h3>
+              <button type="button" className="btn-cancel" onClick={() => setEditingPlayerId(null)}>
+                Fechar
+              </button>
+            </div>
+
+            <form className="admin-form glass" onSubmit={(e) => { e.preventDefault(); void handleUpdatePlayer(editingPlayerId); }}>
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Nome</label>
+                  <input type="text" required value={editFormData.name} onChange={e => setEditFormData({ ...editFormData, name: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label>Nº</label>
+                  <input type="number" required value={editFormData.number} onChange={e => setEditFormData({ ...editFormData, number: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label>Posição</label>
+                  <select value={editFormData.position} onChange={e => setEditFormData({ ...editFormData, position: e.target.value })}>
+                    <option value="Goleiro">Goleiro</option>
+                    <option value="Fixo">Fixo</option>
+                    <option value="Ala">Ala</option>
+                    <option value="Pivô">Pivô</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-grid mt-2">
+                <div className="form-group">
+                  <label>Foto do Atleta</label>
+                  <div className="image-upload-wrapper">
+                    <label className={`image-upload-container ${uploading ? 'uploading' : ''}`} style={{ width: '80px', height: '80px' }}>
+                      {uploading ? <div className="spinner"></div> : editFormData.photo_url ? (
+                        <img src={editFormData.photo_url} alt="Preview" className="image-preview-badge" />
+                      ) : (
+                        <div className="upload-icon-box">
+                          <Camera size={20} />
+                          <span style={{ fontSize: '0.6rem' }}>Adicionar</span>
+                        </div>
+                      )}
+                      <input type="file" accept="image/*" className="hidden-file-input" onChange={handleEditPhotoUpload} />
+                    </label>
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label>Bio/Histórico</label>
+                  <input type="text" value={editFormData.bio} onChange={e => setEditFormData({ ...editFormData, bio: e.target.value })} />
+                </div>
+              </div>
+
+              <div className="player-stats-editor-grid mt-2">
+                <div className="stat-input">
+                  <label><Trophy size={14} /> Gols</label>
+                  <input type="number" value={editFormData.goals_count} onChange={e => setEditFormData({ ...editFormData, goals_count: e.target.value })} />
+                </div>
+                <div className="stat-input">
+                  <label><Star size={14} /> Assist.</label>
+                  <input type="number" value={editFormData.assists} onChange={e => setEditFormData({ ...editFormData, assists: e.target.value })} />
+                </div>
+                <div className="stat-input">
+                  <label><CreditCard size={14} style={{ color: '#fbbf24' }} /> CA</label>
+                  <input type="number" value={editFormData.yellow_cards} onChange={e => setEditFormData({ ...editFormData, yellow_cards: e.target.value })} />
+                </div>
+                <div className="stat-input">
+                  <label><CreditCard size={14} style={{ color: '#ef4444' }} /> CV</label>
+                  <input type="number" value={editFormData.red_cards} onChange={e => setEditFormData({ ...editFormData, red_cards: e.target.value })} />
+                </div>
+                <div className="stat-input">
+                  <label><Shield size={14} /> Clean Sheets</label>
+                  <input type="number" value={editFormData.clean_sheets} onChange={e => setEditFormData({ ...editFormData, clean_sheets: e.target.value })} />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
+                <button type="submit" className="btn-save" disabled={isUpdatingPlayer}>
+                  <Save size={16} /> {isUpdatingPlayer ? 'Salvando...' : 'Salvar Alterações'}
+                </button>
+                <button type="button" className="btn-cancel" onClick={() => setEditingPlayerId(null)}>
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2584,6 +2763,8 @@ const GlobalPlayerManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [isSubmittingGlobalPlayer, setIsSubmittingGlobalPlayer] = useState(false);
+  const [isUpdatingGlobalPlayer, setIsUpdatingGlobalPlayer] = useState(false);
+  const [editingGlobalPlayerId, setEditingGlobalPlayerId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const queryClient = useQueryClient();
   const { teams } = useTeams();
@@ -2593,6 +2774,68 @@ const GlobalPlayerManagement = () => {
     name: '', number: '', position: 'Ala', team_id: '', photo_url: '', bio: '',
     goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0'
   });
+
+  const [editFormData, setEditFormData] = useState({
+    name: '', number: '', position: 'Ala', team_id: '', photo_url: '', bio: '',
+    goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0'
+  });
+
+  const getTeamNameById = (teamId: string) => {
+    return teams.find((t) => t.id === teamId)?.name || null;
+  };
+
+  const upsertPlayerInCache = (player: {
+    id: string;
+    team_id: string;
+    name: string;
+    number: number;
+    position: string;
+    photo_url?: string;
+    bio?: string;
+    goals_count?: number;
+    assists?: number;
+    yellow_cards?: number;
+    red_cards?: number;
+    clean_sheets?: number;
+    teams?: { name?: string } | null;
+  }, previousTeamId?: string) => {
+    const teamName = player.teams?.name || getTeamNameById(player.team_id) || undefined;
+    const normalizedPlayer = {
+      ...player,
+      teams: teamName ? { name: teamName } : undefined,
+    };
+
+    queryClient.setQueryData(['players', 'all'], (oldData: unknown) => {
+      const list = Array.isArray(oldData) ? oldData : [];
+      return [normalizedPlayer, ...list.filter((item: unknown) => (item as { id?: string })?.id !== player.id)];
+    });
+
+    queryClient.setQueryData(['players', player.team_id], (oldData: unknown) => {
+      const list = Array.isArray(oldData) ? oldData : [];
+      return [normalizedPlayer, ...list.filter((item: unknown) => (item as { id?: string })?.id !== player.id)];
+    });
+
+    if (previousTeamId && previousTeamId !== player.team_id) {
+      queryClient.setQueryData(['players', previousTeamId], (oldData: unknown) => {
+        const list = Array.isArray(oldData) ? oldData : [];
+        return list.filter((item: unknown) => (item as { id?: string })?.id !== player.id);
+      });
+    }
+  };
+
+  const removePlayerFromCache = (playerId: string, teamId?: string) => {
+    queryClient.setQueryData(['players', 'all'], (oldData: unknown) => {
+      const list = Array.isArray(oldData) ? oldData : [];
+      return list.filter((item: unknown) => (item as { id?: string })?.id !== playerId);
+    });
+
+    if (teamId) {
+      queryClient.setQueryData(['players', teamId], (oldData: unknown) => {
+        const list = Array.isArray(oldData) ? oldData : [];
+        return list.filter((item: unknown) => (item as { id?: string })?.id !== playerId);
+      });
+    }
+  };
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -2610,23 +2853,52 @@ const GlobalPlayerManagement = () => {
     e.preventDefault();
     if (!formData.team_id) return toast.error('Selecione uma equipe!');
     if (isSubmittingGlobalPlayer) return;
+    if (uploading) {
+      toast.error('Aguarde o upload terminar antes de salvar.');
+      return;
+    }
     setIsSubmittingGlobalPlayer(true);
     const loadingToast = toast.loading('Salvando atleta...');
     try {
-      const { error } = await withTimeout(
-        supabase.from('players').insert([{
-          ...formData,
-          number: parseInt(formData.number) || 0,
-          goals_count: parseInt(formData.goals_count) || 0,
-          assists: parseInt(formData.assists) || 0,
-          yellow_cards: parseInt(formData.yellow_cards) || 0,
-          red_cards: parseInt(formData.red_cards) || 0,
-          clean_sheets: parseInt(formData.clean_sheets) || 0
-        }]),
+      const payload = {
+        ...formData,
+        number: parseInt(formData.number) || 0,
+        goals_count: parseInt(formData.goals_count) || 0,
+        assists: parseInt(formData.assists) || 0,
+        yellow_cards: parseInt(formData.yellow_cards) || 0,
+        red_cards: parseInt(formData.red_cards) || 0,
+        clean_sheets: parseInt(formData.clean_sheets) || 0,
+      };
+
+      const { data, error } = await withTimeout(
+        supabase
+          .from('players')
+          .insert([payload])
+          .select('id, team_id, name, number, position, photo_url, bio, goals_count, assists, yellow_cards, red_cards, clean_sheets, teams(name)')
+          .single(),
         30000,
         'Tempo limite ao cadastrar atleta'
       );
       if (error) throw error;
+
+      if (data) {
+        upsertPlayerInCache(data as {
+          id: string;
+          team_id: string;
+          name: string;
+          number: number;
+          position: string;
+          photo_url?: string;
+          bio?: string;
+          goals_count?: number;
+          assists?: number;
+          yellow_cards?: number;
+          red_cards?: number;
+          clean_sheets?: number;
+          teams?: { name?: string } | null;
+        });
+      }
+
       setFormData({ 
         name: '', number: '', position: 'Ala', team_id: '', photo_url: '', bio: '',
         goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0'
@@ -2638,6 +2910,138 @@ const GlobalPlayerManagement = () => {
       toast.error(getErrorMessage(err, 'Erro ao cadastrar atleta'), { id: loadingToast });
     } finally {
       setIsSubmittingGlobalPlayer(false);
+    }
+  };
+
+  const startEditPlayer = (p: {
+    id: string;
+    name: string;
+    number: number;
+    position: string;
+    team_id: string;
+    photo_url?: string;
+    bio?: string;
+    goals_count?: number;
+    assists?: number;
+    yellow_cards?: number;
+    red_cards?: number;
+    clean_sheets?: number;
+  }) => {
+    setEditingGlobalPlayerId(p.id);
+    setEditFormData({
+      name: p.name,
+      number: String(p.number || 0),
+      position: p.position || 'Ala',
+      team_id: p.team_id || '',
+      photo_url: p.photo_url || '',
+      bio: p.bio || '',
+      goals_count: String(p.goals_count || 0),
+      assists: String(p.assists || 0),
+      yellow_cards: String(p.yellow_cards || 0),
+      red_cards: String(p.red_cards || 0),
+      clean_sheets: String(p.clean_sheets || 0),
+    });
+  };
+
+  const handleEditPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const url = await uploadToStorage(file, 'images', 'player-photos');
+    if (url) {
+      setEditFormData(prev => ({ ...prev, photo_url: url }));
+      toast.success('Foto carregada!');
+    }
+    setUploading(false);
+  };
+
+  const handleUpdatePlayer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingGlobalPlayerId) return;
+    if (!editFormData.team_id) return toast.error('Selecione uma equipe!');
+    if (isUpdatingGlobalPlayer) return;
+    if (uploading) {
+      toast.error('Aguarde o upload terminar antes de salvar.');
+      return;
+    }
+
+    setIsUpdatingGlobalPlayer(true);
+    const loadingToast = toast.loading('Atualizando atleta...');
+    try {
+      const previousTeamId = allPlayers.find((player) => player.id === editingGlobalPlayerId)?.team_id;
+
+      const { data, error } = await withTimeout(
+        supabase
+          .from('players')
+          .update({
+            name: editFormData.name,
+            number: parseInt(editFormData.number) || 0,
+            position: editFormData.position,
+            team_id: editFormData.team_id,
+            photo_url: editFormData.photo_url,
+            bio: editFormData.bio,
+            goals_count: parseInt(editFormData.goals_count) || 0,
+            assists: parseInt(editFormData.assists) || 0,
+            yellow_cards: parseInt(editFormData.yellow_cards) || 0,
+            red_cards: parseInt(editFormData.red_cards) || 0,
+            clean_sheets: parseInt(editFormData.clean_sheets) || 0,
+          })
+          .eq('id', editingGlobalPlayerId)
+          .select('id, team_id, name, number, position, photo_url, bio, goals_count, assists, yellow_cards, red_cards, clean_sheets, teams(name)')
+          .single(),
+        30000,
+        'Tempo limite ao atualizar atleta'
+      );
+      if (error) throw error;
+
+      if (data) {
+        upsertPlayerInCache(data as {
+          id: string;
+          team_id: string;
+          name: string;
+          number: number;
+          position: string;
+          photo_url?: string;
+          bio?: string;
+          goals_count?: number;
+          assists?: number;
+          yellow_cards?: number;
+          red_cards?: number;
+          clean_sheets?: number;
+          teams?: { name?: string } | null;
+        }, previousTeamId);
+      }
+
+      setEditingGlobalPlayerId(null);
+      void queryClient.invalidateQueries({ queryKey: ['players'] });
+      toast.success('Atleta atualizado com sucesso!', { id: loadingToast });
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao atualizar atleta'), { id: loadingToast });
+    } finally {
+      setIsUpdatingGlobalPlayer(false);
+    }
+  };
+
+  const handleDeletePlayer = async (playerId: string) => {
+    if (!confirm('Excluir atleta?')) return;
+    const loadingToast = toast.loading('Excluindo atleta...');
+    try {
+      const playerToDelete = allPlayers.find((player) => player.id === playerId);
+      const { error } = await withTimeout(
+        supabase.from('players').delete().eq('id', playerId),
+        30000,
+        'Tempo limite ao excluir atleta'
+      );
+      if (error) throw error;
+
+      if (editingGlobalPlayerId === playerId) {
+        setEditingGlobalPlayerId(null);
+      }
+      removePlayerFromCache(playerId, playerToDelete?.team_id);
+      void queryClient.invalidateQueries({ queryKey: ['players'] });
+      toast.success('Atleta excluido com sucesso!', { id: loadingToast });
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao excluir atleta'), { id: loadingToast });
     }
   };
 
@@ -2717,6 +3121,15 @@ const GlobalPlayerManagement = () => {
               </div>
             </div>
             <div className="form-group">
+              <label>URL da Foto</label>
+              <input
+                type="url"
+                placeholder="cole a URL da foto"
+                value={formData.photo_url}
+                onChange={e => setFormData({ ...formData, photo_url: e.target.value })}
+              />
+            </div>
+            <div className="form-group">
               <label>Bio / Observações</label>
               <textarea rows={2} value={formData.bio} onChange={e => setFormData({...formData, bio: e.target.value})} placeholder="Breve descrição..." />
             </div>
@@ -2754,23 +3167,136 @@ const GlobalPlayerManagement = () => {
           </div>
         ) : (
           filteredPlayers.map(p => (
-            <div key={p.id} className="admin-list-item player-search-row">
-              <div className="item-main">
-                <img src={p.photo_url || 'https://via.placeholder.com/40'} alt={p.name} className="player-mini-photo" />
-                <div className="item-info">
-                  <strong>{p.name} (#{p.number})</strong>
-                  <span>{p.teams?.name} • {p.position}</span>
+            <React.Fragment key={p.id}>
+              <div className="admin-list-item player-search-row">
+                <div className="item-main">
+                  <img src={p.photo_url || 'https://via.placeholder.com/40'} alt={p.name} className="player-mini-photo" />
+                  <div className="item-info">
+                    <strong>{p.name} (#{p.number})</strong>
+                    <span>{p.teams?.name} • {p.position}</span>
+                  </div>
+                </div>
+                <div className="item-actions">
+                  <div className="item-stats-mini">
+                    <span>⚽ {p.goals_count}</span>
+                    <span>🎯 {p.assists}</span>
+                  </div>
+                  <button className="btn-player-edit" onClick={() => startEditPlayer(p)} title="Editar atleta">
+                    <Settings2 size={14} />
+                  </button>
+                  <button className="btn-player-delete" onClick={() => handleDeletePlayer(p.id)} title="Excluir atleta">
+                    <Trash2 size={14} />
+                  </button>
                 </div>
               </div>
-              <div className="item-stats-mini">
-                <span>⚽ {p.goals_count}</span>
-                <span>🎯 {p.assists}</span>
-              </div>
-            </div>
+            </React.Fragment>
           ))
         )}
         {!loading && filteredPlayers.length === 0 && <p className="empty-msg">Nenhum atleta encontrado.</p>}
       </div>
+
+      {editingGlobalPlayerId && (
+        <div className="global-player-edit-modal-backdrop" onClick={() => setEditingGlobalPlayerId(null)}>
+          <div className="global-player-edit-modal glass" onClick={(e) => e.stopPropagation()}>
+            <div className="global-player-edit-modal-header">
+              <h3>Editar Atleta</h3>
+              <button type="button" className="btn-cancel" onClick={() => setEditingGlobalPlayerId(null)}>
+                Fechar
+              </button>
+            </div>
+
+            <form className="admin-form glass" onSubmit={handleUpdatePlayer}>
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Nome do Atleta</label>
+                  <input type="text" required value={editFormData.name} onChange={e => setEditFormData({ ...editFormData, name: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label>Equipe</label>
+                  <select required value={editFormData.team_id} onChange={e => setEditFormData({ ...editFormData, team_id: e.target.value })}>
+                    <option value="">Selecione a equipe...</option>
+                    {[...teams].sort((a, b) => a.name.localeCompare(b.name)).map(t => (
+                      <option key={t.id} value={t.id}>{t.name} ({t.group || 'S/G'})</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Nº Camisa</label>
+                  <input type="number" required value={editFormData.number} onChange={e => setEditFormData({ ...editFormData, number: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label>Posição</label>
+                  <select value={editFormData.position} onChange={e => setEditFormData({ ...editFormData, position: e.target.value })}>
+                    <option value="Goleiro">Goleiro</option>
+                    <option value="Fixo">Fixo</option>
+                    <option value="Ala">Ala</option>
+                    <option value="Pivô">Pivô</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-grid mt-2">
+                <div className="form-group">
+                  <label>Foto do Atleta</label>
+                  <div className="image-upload-wrapper">
+                    <label className={`image-upload-container ${uploading ? 'uploading' : ''}`} style={{ width: '80px', height: '80px' }}>
+                      {uploading ? <div className="spinner"></div> : editFormData.photo_url ? (
+                        <img src={editFormData.photo_url} alt="Preview" className="image-preview-badge" />
+                      ) : (
+                        <div className="upload-icon-box">
+                          <Camera size={20} />
+                          <span style={{ fontSize: '0.6rem' }}>Adicionar</span>
+                        </div>
+                      )}
+                      <input type="file" accept="image/*" className="hidden-file-input" onChange={handleEditPhotoUpload} />
+                    </label>
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label>URL da Foto</label>
+                  <input type="url" value={editFormData.photo_url} onChange={e => setEditFormData({ ...editFormData, photo_url: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label>Bio / Observações</label>
+                  <textarea rows={2} value={editFormData.bio} onChange={e => setEditFormData({ ...editFormData, bio: e.target.value })} />
+                </div>
+              </div>
+
+              <div className="player-stats-editor-grid mt-2">
+                <div className="stat-input">
+                  <label><Trophy size={14} /> Gols</label>
+                  <input type="number" value={editFormData.goals_count} onChange={e => setEditFormData({ ...editFormData, goals_count: e.target.value })} />
+                </div>
+                <div className="stat-input">
+                  <label><Star size={14} /> Assist.</label>
+                  <input type="number" value={editFormData.assists} onChange={e => setEditFormData({ ...editFormData, assists: e.target.value })} />
+                </div>
+                <div className="stat-input">
+                  <label><CreditCard size={14} style={{ color: '#fbbf24' }} /> CA</label>
+                  <input type="number" value={editFormData.yellow_cards} onChange={e => setEditFormData({ ...editFormData, yellow_cards: e.target.value })} />
+                </div>
+                <div className="stat-input">
+                  <label><CreditCard size={14} style={{ color: '#ef4444' }} /> CV</label>
+                  <input type="number" value={editFormData.red_cards} onChange={e => setEditFormData({ ...editFormData, red_cards: e.target.value })} />
+                </div>
+                <div className="stat-input">
+                  <label><Shield size={14} /> CS</label>
+                  <input type="number" value={editFormData.clean_sheets} onChange={e => setEditFormData({ ...editFormData, clean_sheets: e.target.value })} />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
+                <button type="submit" className="btn-save" disabled={isUpdatingGlobalPlayer}>
+                  <Save size={16} /> {isUpdatingGlobalPlayer ? 'Salvando...' : 'Salvar Alterações'}
+                </button>
+                <button type="button" className="btn-cancel" onClick={() => setEditingGlobalPlayerId(null)}>
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

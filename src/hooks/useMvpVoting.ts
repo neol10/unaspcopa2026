@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { useAuthContext } from '../contexts/AuthContext';
 
 export interface MvpVoteCount {
   player_id: string;
@@ -11,6 +12,33 @@ export interface MvpVoteCount {
 
 export const useMvpVoting = (round: string) => {
   const queryClient = useQueryClient();
+  const { user } = useAuthContext();
+  const cacheKey = `round_mvp_cache_v1_${round || 'none'}`;
+
+  const loadCachedVotes = () => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem(cacheKey);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { ts: number; data: { voteCounts: MvpVoteCount[]; userVote: string | null } };
+      if (!parsed?.ts || !parsed?.data) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  };
+
+  const saveCachedVotes = (data: { voteCounts: MvpVoteCount[]; userVote: string | null }) => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data }));
+    } catch {
+      // noop
+    }
+  };
+
+  const cached = loadCachedVotes();
+  const cachedData = cached?.data ? { ...cached.data, userVote: null } : null;
 
   type VoteRow = {
     player_id: string;
@@ -25,8 +53,6 @@ export const useMvpVoting = (round: string) => {
     queryKey: ['roundMvpVotes', round],
     queryFn: async () => {
       if (!round) return { voteCounts: [], userVote: null };
-      
-      const { data: { user } } = await supabase.auth.getUser();
       
       const [votesRes, myVoteRes] = await Promise.all([
         supabase
@@ -63,17 +89,21 @@ export const useMvpVoting = (round: string) => {
       });
       
       const sorted = Object.values(counts).sort((a, b) => b.vote_count - a.vote_count);
-      return {
+      const result = {
         voteCounts: sorted,
         userVote: myVoteRes.data?.player_id || null
       };
+      saveCachedVotes(result);
+      return result;
     },
-    enabled: !!round
+    enabled: !!round,
+    initialData: cachedData || { voteCounts: [], userVote: null },
+    initialDataUpdatedAt: cached?.ts,
+    placeholderData: (prev) => prev,
   });
 
   const voteMutation = useMutation({
     mutationFn: async (playerId: string) => {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Faça login para votar!');
       
       const { error } = await supabase.from('round_mvp_votes').insert({

@@ -21,6 +21,32 @@ const parseNewsTime = (row: Partial<NewsRow>) => {
 };
 
 export const useNews = (limit?: number) => {
+  const cacheKey = `news_cache_v1_${limit || 'all'}`;
+
+  const loadCachedNews = () => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem(cacheKey);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { ts: number; data: News[] };
+      if (!parsed?.ts || !Array.isArray(parsed.data)) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  };
+
+  const saveCachedNews = (data: News[]) => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data }));
+    } catch {
+      // noop
+    }
+  };
+
+  const cached = loadCachedNews();
+
   const query = useQuery({
     queryKey: ['news', limit || 'all'],
     queryFn: async () => {
@@ -33,8 +59,13 @@ export const useNews = (limit?: number) => {
 
       const items = ((data as NewsRow[]) || []).slice();
       items.sort((a, b) => parseNewsTime(b) - parseNewsTime(a));
-      return items as News[];
+      const result = items as News[];
+      saveCachedNews(result);
+      return result;
     },
+    initialData: cached?.data ?? [],
+    initialDataUpdatedAt: cached?.ts,
+    placeholderData: (prev) => prev,
     staleTime: 1000 * 60 * 10, // 10 min
     gcTime: 1000 * 60 * 30,    // 30 min
     retry: 1,

@@ -57,8 +57,9 @@ export const useTeams = () => {
     gcTime: 1000 * 60 * 60,    // 60 min (garbage collection mais longo)
     refetchOnReconnect: true,
     networkMode: 'online',
-    initialData: cached?.data,
+    initialData: cached?.data ?? [],
     initialDataUpdatedAt: cached?.ts,
+    placeholderData: (prev) => prev,
   });
 
   useEffect(() => {

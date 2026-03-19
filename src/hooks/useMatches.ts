@@ -85,8 +85,9 @@ export const useMatches = (limit?: number) => {
     gcTime: 1000 * 60 * 30,    // 30 min
     refetchOnReconnect: true,
     networkMode: 'online',
-    initialData: cached?.data,
+    initialData: cached?.data ?? [],
     initialDataUpdatedAt: cached?.ts,
+    placeholderData: (prev) => prev,
   });
 
   useEffect(() => {

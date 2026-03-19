@@ -21,6 +21,31 @@ export interface Standing {
 
 export const useStandings = () => {
   const queryClient = useQueryClient();
+  const CACHE_KEY = 'standings_cache_v1';
+
+  const loadCachedStandings = () => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { ts: number; data: Standing[] };
+      if (!parsed?.ts || !Array.isArray(parsed.data)) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  };
+
+  const saveCachedStandings = (data: Standing[]) => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
+    } catch {
+      // noop
+    }
+  };
+
+  const cached = loadCachedStandings();
 
   const query = useQuery({
     queryKey: ['standings'],
@@ -120,8 +145,13 @@ export const useStandings = () => {
         return b.goals_for - a.goals_for;
       });
 
-      return (result as Standing[]) || [];
+      const finalResult = (result as Standing[]) || [];
+      saveCachedStandings(finalResult);
+      return finalResult;
     },
+    initialData: cached?.data ?? [],
+    initialDataUpdatedAt: cached?.ts,
+    placeholderData: (prev) => prev,
     staleTime: 1000 * 60 * 2, // 2 min
     gcTime: 1000 * 60 * 10,  // 10 min
     retry: 0,

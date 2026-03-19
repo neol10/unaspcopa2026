@@ -15,6 +15,31 @@ export interface MatchEvent {
 
 export const useMatchEvents = (matchId: string, onNewEvent?: (event: MatchEvent) => void) => {
   const queryClient = useQueryClient();
+  const cacheKey = `match_events_cache_v1_${matchId || 'none'}`;
+
+  const loadCachedEvents = () => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem(cacheKey);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { ts: number; data: MatchEvent[] };
+      if (!parsed?.ts || !Array.isArray(parsed.data)) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  };
+
+  const saveCachedEvents = (data: MatchEvent[]) => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data }));
+    } catch {
+      // noop
+    }
+  };
+
+  const cached = loadCachedEvents();
 
   const query = useQuery({
     queryKey: ['match_events', matchId],
@@ -30,9 +55,14 @@ export const useMatchEvents = (matchId: string, onNewEvent?: (event: MatchEvent)
         .order('minute', { ascending: false })
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return (data as MatchEvent[]) || [];
+      const result = (data as MatchEvent[]) || [];
+      saveCachedEvents(result);
+      return result;
     },
-    enabled: !!matchId
+    enabled: !!matchId,
+    initialData: cached?.data ?? [],
+    initialDataUpdatedAt: cached?.ts,
+    placeholderData: (prev) => prev,
   });
 
   useEffect(() => {

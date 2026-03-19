@@ -10,9 +10,7 @@ export const AutoRefreshStatus: React.FC = () => {
 
   const getIntervalSeconds = (path: string) => {
     if (path.startsWith('/admin')) return 0;
-    if (path.startsWith('/central-da-partida')) return 4;
-    if (path === '/' || path.startsWith('/jogos')) return 8;
-    return 12;
+    return 10;
   };
 
   const intervalSeconds = getIntervalSeconds(location.pathname);

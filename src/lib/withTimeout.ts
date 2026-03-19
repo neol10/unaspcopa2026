@@ -1,5 +1,5 @@
 export function withTimeout<T>(
-  promise: Promise<T>,
+  promise: PromiseLike<T>,
   ms: number,
   message: string = 'Tempo limite excedido'
 ): Promise<T> {

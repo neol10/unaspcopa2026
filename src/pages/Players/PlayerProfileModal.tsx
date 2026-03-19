@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Trophy, Zap, ShieldAlert, User, Award, Hash, Timer } from 'lucide-react';
 import { Player } from '../../hooks/usePlayers';
@@ -11,6 +11,8 @@ interface PlayerProfileModalProps {
 }
 
 const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose, teamName }) => {
+  const [brokenPhotoUrl, setBrokenPhotoUrl] = useState<string | null>(null);
+
   if (!player) return null;
 
   return (
@@ -31,7 +33,7 @@ const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose
           <header className="player-profile-header">
             <div className="player-id-section">
               <div className="player-photo-wrapper">
-                {player.photo_url ? (
+                {player.photo_url && brokenPhotoUrl !== player.photo_url ? (
                   <img 
                     src={player.photo_url} 
                     alt={player.name} 
@@ -39,6 +41,7 @@ const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose
                     width="160" 
                     height="160" 
                     loading="lazy" 
+                    onError={() => setBrokenPhotoUrl(player.photo_url || null)}
                   />
                 ) : (
                   <div className="player-photo-dummy">

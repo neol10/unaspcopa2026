@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Session, User } from '@supabase/supabase-js';
 import toast from 'react-hot-toast';
-import { withTimeout } from '../lib/withTimeout';
 
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -10,6 +9,19 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(true);
   const fetchingProfile = useRef(false);
   const resolvedOnce = useRef(false);
+
+  const isIgnorableAuthAbort = (err: unknown) => {
+    const msg =
+      typeof (err as { message?: unknown })?.message === 'string'
+        ? String((err as { message: string }).message)
+        : '';
+    const lower = msg.toLowerCase();
+    return (
+      lower.includes('aborterror')
+      || lower.includes("lock broken by another request with the 'steal' option")
+      || lower.includes('request was aborted')
+    );
+  };
 
   useEffect(() => {
     const getRoleCacheKey = (uid: string) => `copa_unasp_role_${uid}`;
@@ -48,7 +60,9 @@ export const useAuth = () => {
         setRole(nextRole);
         setCachedRole(uid, nextRole);
       } catch (err) {
-        console.error('Error fetching profile:', err);
+        if (!isIgnorableAuthAbort(err)) {
+          console.error('Error fetching profile:', err);
+        }
         // Não rebaixa para 'user' em erro transitório; mantém o que já tinha/cached.
         const fallback = cached;
         if (fallback) setRole(prev => prev || fallback);
@@ -66,7 +80,10 @@ export const useAuth = () => {
         setUser(session.user);
         const cached = getCachedRole(session.user.id);
         if (cached) setRole(prev => prev || cached);
-        await fetchProfile(session.user.id);
+        // Libera a UI rapidamente e atualiza role em background.
+        setLoading(false);
+        void fetchProfile(session.user.id);
+        return;
       } else {
         setUser(null);
         setRole(null);
@@ -91,28 +108,25 @@ export const useAuth = () => {
       }
     });
 
-    // Fallback: em alguns refreshes o INITIAL_SESSION pode não disparar.
-    // Tentamos recuperar a sessão diretamente sem bloquear indefinidamente.
+    // Fallback: tenta recuperar sessão sem forçar guest prematuramente.
+    // Isso evita cair em "Acesso Restrito" por corrida transitória de inicialização.
     const fallbackTimer = setTimeout(() => {
       if (resolvedOnce.current) return;
       void (async () => {
         try {
-          const { data, error } = await withTimeout(
-            supabase.auth.getSession(),
-            15000,
-            'Tempo limite ao recuperar sessão'
-          );
+          const { data, error } = await supabase.auth.getSession();
           if (error) throw error;
-          await applySession(data?.session);
-        } catch {
-          // Se falhar, sai como guest (sem travar UI)
-          resolvedOnce.current = true;
-          setUser(null);
-          setRole(null);
-          setLoading(false);
+          if (data?.session) {
+            await applySession(data.session);
+            return;
+          }
+        } catch (err) {
+          if (!isIgnorableAuthAbort(err)) {
+            console.warn('Fallback getSession failed:', err);
+          }
         }
       })();
-    }, 1500);
+    }, 4000);
 
     // Safety timeout: o GoTrue pode segurar lock por alguns segundos ao inicializar/refresh.
     // Se cairmos em "guest" cedo demais, dá a impressão de deslogar/sumir admin.

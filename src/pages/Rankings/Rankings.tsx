@@ -80,6 +80,7 @@ const Rankings: React.FC = () => {
     </div>
   );
 
+  const hasScorers = scorers.length > 0;
   const top3Scorers = scorers.slice(0, 3);
   const roundWinner = selectedRound ? roundMvps[selectedRound] : null;
 
@@ -156,43 +157,50 @@ const Rankings: React.FC = () => {
         </section>
 
         {/* Podium for Top 3 Scorers */}
-        <div className="scorers-podium glass animate-fade-in">
-          {podiumOrder.map((player, idx) => {
-            if (!player) return <div key={idx} className="podium-item empty"></div>;
-            
-            const isFirst = player.id === top3Scorers[0]?.id;
-            const isSecond = player.id === top3Scorers[1]?.id;
-            const positionClass = isFirst ? 'first-place' : isSecond ? 'second-place' : 'third-place';
-            const rankLabel = isFirst ? '1º' : isSecond ? '2º' : '3º';
+        {hasScorers ? (
+          <div className="scorers-podium glass animate-fade-in">
+            {podiumOrder.map((player, idx) => {
+              if (!player) return <div key={idx} className="podium-item empty"></div>;
+              
+              const isFirst = player.id === top3Scorers[0]?.id;
+              const isSecond = player.id === top3Scorers[1]?.id;
+              const positionClass = isFirst ? 'first-place' : isSecond ? 'second-place' : 'third-place';
+              const rankLabel = isFirst ? '1º' : isSecond ? '2º' : '3º';
 
-            return (
-              <motion.div 
-                key={player.id} 
-                className={`podium-item ${positionClass}`}
-                initial={{ opacity: 0, y: 50 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: idx * 0.15 }}
-                onClick={() => setSelectedPlayer(player)}
-              >
-                <div className="podium-player-box glass">
-                  <div className="podium-avatar-wrapper">
-                    {player.photo_url ? (
-                      <img src={player.photo_url} alt={player.name} className="podium-avatar" />
-                    ) : (
-                      <div className="podium-avatar" style={{ background: 'var(--bg-glass)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <User size={isFirst ? 48 : 32} />
-                      </div>
-                    )}
-                    <div className="podium-rank-badge">{rankLabel}</div>
+              return (
+                <motion.div 
+                  key={player.id} 
+                  className={`podium-item ${positionClass}`}
+                  initial={{ opacity: 0, y: 50 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: idx * 0.15 }}
+                  onClick={() => setSelectedPlayer(player)}
+                >
+                  <div className="podium-player-box glass">
+                    <div className="podium-avatar-wrapper">
+                      {player.photo_url ? (
+                        <img src={player.photo_url} alt={player.name} className="podium-avatar" />
+                      ) : (
+                        <div className="podium-avatar" style={{ background: 'var(--bg-glass)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <User size={isFirst ? 48 : 32} />
+                        </div>
+                      )}
+                      <div className="podium-rank-badge">{rankLabel}</div>
+                    </div>
+                    <div className="podium-player-name">{player.name.split(' ')[0]}</div>
+                    <div className="podium-player-team">{player.team_name}</div>
+                    <div className="podium-stat-bubble">{player.goals_count} G</div>
                   </div>
-                  <div className="podium-player-name">{player.name.split(' ')[0]}</div>
-                  <div className="podium-player-team">{player.team_name}</div>
-                  <div className="podium-stat-bubble">{player.goals_count} G</div>
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="scorers-podium glass animate-fade-in podium-empty">
+            <Zap size={22} opacity={0.35} />
+            <p>Sem dados de artilharia no momento.</p>
+          </div>
+        )}
       </div>
 
       <div className="rankings-grid">

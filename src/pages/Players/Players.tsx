@@ -14,6 +14,11 @@ const Players: React.FC = () => {
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [stuck, setStuck] = useState(false);
+  const [brokenImageMap, setBrokenImageMap] = useState<Record<string, true>>({});
+
+  const markImageBroken = (key: string) => {
+    setBrokenImageMap((prev) => (prev[key] ? prev : { ...prev, [key]: true }));
+  };
 
   useEffect(() => {
     if (!playersLoading) {
@@ -27,6 +32,7 @@ const Players: React.FC = () => {
   
   const team = teams.find(t => t.id === teamId);
   const isGlobalView = !teamId;
+  const teamBadgeKey = team?.id ? `team-badge-${team.id}` : 'team-badge-global';
 
   const filteredPlayers = players.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -85,7 +91,7 @@ const Players: React.FC = () => {
           <div className="profile-badge-box">
             {isGlobalView ? (
               <Users size={64} color="var(--secondary)" />
-            ) : team?.badge_url ? (
+            ) : team?.badge_url && !brokenImageMap[teamBadgeKey] ? (
               <img 
                 src={team.badge_url} 
                 alt={team.name} 
@@ -94,6 +100,7 @@ const Players: React.FC = () => {
                 height="64" 
                 loading="lazy" 
                 decoding="async" 
+                onError={() => markImageBroken(teamBadgeKey)}
               />
             ) : (
               <Shield size={64} color="var(--secondary)" />
@@ -142,6 +149,8 @@ const Players: React.FC = () => {
           {filteredPlayers.length > 0 ? (
             filteredPlayers.map((player) => {
               const playerTeam = teams.find(t => t.id === player.team_id);
+              const playerImageKey = `player-photo-${player.id}`;
+              const hasValidPhoto = Boolean(player.photo_url && !brokenImageMap[playerImageKey]);
               return (
                 <div 
                   key={player.id} 
@@ -158,7 +167,7 @@ const Players: React.FC = () => {
                   </div>
                   
                   <div className="p-photo-wrapper">
-                    {player.photo_url ? (
+                    {hasValidPhoto ? (
                       <img 
                         src={player.photo_url} 
                         alt={player.name} 
@@ -167,7 +176,7 @@ const Players: React.FC = () => {
                         height="120" 
                         loading="lazy" 
                         decoding="async" 
-                        style={{ objectFit: 'cover' }}
+                        onError={() => markImageBroken(playerImageKey)}
                       />
                     ) : (
                       <div className="p-photo-placeholder">

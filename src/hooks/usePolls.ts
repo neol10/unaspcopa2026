@@ -18,6 +18,31 @@ export interface Poll {
 export const usePolls = () => {
   const queryClient = useQueryClient();
   const [localVotedMap, setLocalVotedMap] = useState<Record<string, true>>({});
+  const cacheKey = 'poll_active_cache_v1';
+
+  const loadCachedPoll = () => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem(cacheKey);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { ts: number; data: Poll | null };
+      if (!parsed?.ts) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  };
+
+  const saveCachedPoll = (data: Poll | null) => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data }));
+    } catch {
+      // noop
+    }
+  };
+
+  const cached = loadCachedPoll();
 
   const query = useQuery({
     queryKey: ['activePoll'],
@@ -30,8 +55,13 @@ export const usePolls = () => {
         .limit(1)
         .maybeSingle();
       if (error) throw error;
-      return (data as Poll) || null;
+      const result = (data as Poll) || null;
+      saveCachedPoll(result);
+      return result;
     },
+    initialData: cached?.data ?? null,
+    initialDataUpdatedAt: cached?.ts,
+    placeholderData: (prev) => prev,
     staleTime: 1000 * 60 * 5, // 5 minutos
     gcTime: 1000 * 60 * 30,  // 30 minutos em memória
   });
@@ -52,9 +82,10 @@ export const usePolls = () => {
       return optionId;
     },
     onSuccess: (optionId) => {
-      if (!optionId || !query.data) return;
-      localStorage.setItem(`poll_voted_${query.data.id}`, 'true');
-      setLocalVotedMap((prev) => ({ ...prev, [query.data.id]: true }));
+      const activePollId = query.data?.id;
+      if (!optionId || !activePollId) return;
+      localStorage.setItem(`poll_voted_${activePollId}`, 'true');
+      setLocalVotedMap((prev) => ({ ...prev, [activePollId]: true }));
       queryClient.invalidateQueries({ queryKey: ['activePoll'] });
     },
     onError: (err: unknown) => {

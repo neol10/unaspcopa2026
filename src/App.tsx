@@ -1,4 +1,4 @@
-import React, { useEffect, Suspense } from 'react';
+import React, { useEffect, Suspense, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import Layout from './components/Layout/Layout';
@@ -18,14 +18,12 @@ const queryClient = new QueryClient({
         if (typeof window !== 'undefined') {
           const path = window.location.pathname;
           if (path.startsWith('/admin')) return false;
-          if (path.startsWith('/central-da-partida')) return 1000 * 4;
-          if (path === '/' || path.startsWith('/jogos')) return 1000 * 8;
-          return 1000 * 12;
+          return 1000 * 10;
         }
         if (typeof navigator !== 'undefined' && !navigator.onLine) {
           return false;
         }
-        return 1000 * 8;
+        return 1000 * 10;
       },
       refetchIntervalInBackground: false, // Evita tempestade de requests quando aba não está ativa
       retry: 2, // Retry 2 vezes em erro antes de falhar
@@ -118,6 +116,16 @@ import { useAuthContext } from './contexts/AuthContext';
 
 function AppContent() {
   const { loading: authLoading } = useAuthContext();
+  const [showSplash, setShowSplash] = useState(true);
+
+  useEffect(() => {
+    const id = setTimeout(() => setShowSplash(false), 1200);
+    return () => clearTimeout(id);
+  }, []);
+
+  useEffect(() => {
+    if (!authLoading) setShowSplash(false);
+  }, [authLoading]);
 
   useEffect(() => {
     // Escuta mudanças na conectividade para feedback offline
@@ -132,11 +140,24 @@ function AppContent() {
 
     // Tratamento global de erros para evitar tela branca (ex: erro de chunk no PWA)
     const handleError = (e: unknown) => {
-      console.error('Global Error Caught:', e);
-      reportErrorFromWindowEvent(e, 'window');
-      const evt = e as { message?: unknown; reason?: unknown };
+      const evt = e as { message?: unknown; reason?: unknown; preventDefault?: () => void };
       const reason = evt?.reason as { message?: unknown } | undefined;
       const msg = String(evt?.message ?? reason?.message ?? '');
+
+      const lowerMsg = msg.toLowerCase();
+      const isIgnorableAbort =
+        lowerMsg.includes('aborterror')
+        || lowerMsg.includes("lock broken by another request with the 'steal' option")
+        || lowerMsg.includes('request was aborted');
+
+      if (isIgnorableAbort && typeof evt.preventDefault === 'function') {
+        evt.preventDefault();
+        return;
+      }
+      if (isIgnorableAbort) return;
+
+      console.error('Global Error Caught:', e);
+      reportErrorFromWindowEvent(e, 'window');
       if (msg.includes('Loading chunk') || msg.includes('Failed to fetch dynamically imported module')) {
         toast.error('Nova versão disponível! Atualizando...', { duration: 3000 });
         setTimeout(() => window.location.reload(), 2000);
@@ -178,7 +199,7 @@ function AppContent() {
     };
   }, []);
 
-  if (authLoading) return <SplashScreen />;
+  if (authLoading && showSplash) return <SplashScreen />;
 
   return (
     <>

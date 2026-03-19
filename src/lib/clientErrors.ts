@@ -10,6 +10,9 @@ type ClientErrorInsert = {
 
 const QUEUE_KEY = 'copa_unasp_client_errors_queue';
 const LAST_SENT_KEY = 'copa_unasp_client_errors_last_sent';
+const DISABLED_KEY = 'copa_unasp_client_errors_disabled';
+
+let reporterDisabled: boolean | null = null;
 
 const getAppVersion = () => {
   try {
@@ -35,6 +38,46 @@ const loadQueue = () => {
   } catch {
     return [] as ClientErrorInsert[];
   }
+};
+
+const isReporterDisabled = () => {
+  if (reporterDisabled != null) return reporterDisabled;
+
+  try {
+    reporterDisabled = sessionStorage.getItem(DISABLED_KEY) === '1';
+  } catch {
+    reporterDisabled = false;
+  }
+
+  return reporterDisabled;
+};
+
+const disableReporter = () => {
+  reporterDisabled = true;
+  try {
+    sessionStorage.setItem(DISABLED_KEY, '1');
+    localStorage.removeItem(QUEUE_KEY);
+  } catch {
+    // ignore
+  }
+};
+
+const isPermanentInsertError = (err: unknown) => {
+  const raw = err as { code?: unknown; message?: unknown; details?: unknown; status?: unknown };
+  const code = typeof raw?.code === 'string' ? raw.code : '';
+  const status = typeof raw?.status === 'number' ? raw.status : 0;
+  const message = typeof raw?.message === 'string' ? raw.message.toLowerCase() : '';
+  const details = typeof raw?.details === 'string' ? raw.details.toLowerCase() : '';
+
+  if (status === 400 || status === 401 || status === 403 || status === 404) return true;
+  if (code === '42501' || code === '42P01' || code.startsWith('PGRST')) return true;
+
+  return (
+    message.includes('permission denied') ||
+    message.includes('row-level security') ||
+    message.includes('does not exist') ||
+    details.includes('row-level security')
+  );
 };
 
 const saveQueue = (queue: ClientErrorInsert[]) => {
@@ -66,6 +109,8 @@ const markSent = (signature: string) => {
 };
 
 export const reportClientError = (payload: Omit<ClientErrorInsert, 'app_version'>) => {
+  if (import.meta.env.DEV || isReporterDisabled()) return;
+
   const item: ClientErrorInsert = {
     ...payload,
     app_version: getAppVersion(),
@@ -84,6 +129,7 @@ export const reportClientError = (payload: Omit<ClientErrorInsert, 'app_version'
 };
 
 export const flushClientErrorQueue = async () => {
+  if (import.meta.env.DEV || isReporterDisabled()) return;
   if (!navigator.onLine) return;
 
   const queue = loadQueue();
@@ -103,7 +149,12 @@ export const flushClientErrorQueue = async () => {
       // envia em lotes sem travar
       setTimeout(() => void flushClientErrorQueue(), 800);
     }
-  } catch {
+  } catch (err) {
+    if (isPermanentInsertError(err)) {
+      disableReporter();
+      return;
+    }
+
     // Se falhar, mantém na fila
   }
 };

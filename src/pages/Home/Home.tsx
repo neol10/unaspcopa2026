@@ -129,6 +129,11 @@ const Home: React.FC = () => {
     ));
   })();
 
+  const breakingItems = useMemo(() => {
+    if (!news || news.length === 0) return [] as string[];
+    return news.map(item => item.title).filter(Boolean).slice(0, 6);
+  }, [news]);
+
   return (
     <div className="home-page-v2 animate-fade-in">
       {/* Widget Ao Vivo Flutuante - Premium */}
@@ -157,21 +162,21 @@ const Home: React.FC = () => {
       </AnimatePresence>
 
       {/* Breaking News Ticker - Premium Phase 2 */}
-      <div className="breaking-news-ticker glass">
-        <div className="ticker-label">
-          <Zap size={14} fill="currentColor" />
-          <span>BREAKING</span>
-        </div>
-        <div className="ticker-content">
-          <div className="ticker-track">
-            <span>• Nova rodada confirmada para este domingo!</span>
-            <span>• Inscrições para o torneio de 3 pontos abertas.</span>
-            <span>• Recorde de público na última partida do Central.</span>
-            <span>• Entrevista exclusiva com o artilheiro da rodada disponível agora.</span>
-            <span>• Veja os lances do último clássico na Central da Partida.</span>
+      {breakingItems.length > 0 && (
+        <div className="breaking-news-ticker glass">
+          <div className="ticker-label">
+            <Zap size={14} fill="currentColor" />
+            <span>BREAKING</span>
+          </div>
+          <div className="ticker-content">
+            <div className="ticker-track">
+              {breakingItems.map((item, index) => (
+                <span key={`${item}-${index}`}>• {item}</span>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Acontecendo Agora - Seção de Jogo ao Vivo Prioritária */}
       <AnimatePresence>
