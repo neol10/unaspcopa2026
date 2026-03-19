@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Home.css';
 import { Trophy, Bell, ArrowRight, Zap, Shield, Vote, Timer, Calendar, X } from 'lucide-react';
@@ -7,6 +7,7 @@ import { useNews, News } from '../../hooks/useNews';
 import { useStandings } from '../../hooks/useStandings';
 import { usePolls } from '../../hooks/usePolls';
 import { useMatches } from '../../hooks/useMatches';
+import type { Match } from '../../hooks/useMatches';
 import { useTournamentConfig } from '../../hooks/useTournamentConfig';
 import { useRankings } from '../../hooks/useRankings';
 import { Star, Goal, Handshake } from 'lucide-react';
@@ -25,24 +26,18 @@ const Home: React.FC = () => {
   const [selectedNews, setSelectedNews] = useState<News | null>(null);
   
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-  const [nextMatch, setNextMatch] = useState<any>(null);
-  const [liveMatch, setLiveMatch] = useState<any>(null);
 
-  const topTeams = standings.slice(0, 3);
-  const totalVotes = activePoll?.options.reduce((acc, opt) => acc + opt.votes, 0) || 0;
-
-  useEffect(() => {
+  const nextMatch = useMemo<Match | null>(() => {
     const scheduled = matches
       .filter(m => m.status === 'agendado' && new Date(m.match_date).getTime() > new Date().getTime())
       .sort((a, b) => new Date(a.match_date).getTime() - new Date(b.match_date).getTime());
-    
-    if (scheduled.length > 0) {
-      setNextMatch(scheduled[0]);
-    }
-
-    const currentLive = matches.find(m => m.status === 'ao_vivo');
-    setLiveMatch(currentLive);
+    return scheduled.length > 0 ? scheduled[0] : null;
   }, [matches]);
+
+  const liveMatch = useMemo<Match | null>(() => matches.find(m => m.status === 'ao_vivo') || null, [matches]);
+
+  const topTeams = standings.slice(0, 3);
+  const totalVotes = activePoll?.options.reduce((acc, opt) => acc + opt.votes, 0) || 0;
 
   useEffect(() => {
     if (!nextMatch) return;
@@ -122,7 +117,7 @@ const Home: React.FC = () => {
         <div className="news-card-body">
           <div className="news-meta">
             <span className="news-tag">COBERTURA</span>
-            <span className="news-date">{formatNewsDate((item as any).published_at || (item as any).created_at)}</span>
+            <span className="news-date">{formatNewsDate(item.published_at)}</span>
           </div>
           <h3>{item.title}</h3>
           <p>{item.summary}</p>
@@ -520,7 +515,7 @@ const Home: React.FC = () => {
                   <div className="news-modal-body">
                     <div className="news-meta">
                       <span className="news-tag">COBERTURA</span>
-                      <span className="news-date">{formatNewsDate((selectedNews as any).published_at || (selectedNews as any).created_at)}</span>
+                      <span className="news-date">{formatNewsDate(selectedNews.published_at)}</span>
                     </div>
                     <h2>{selectedNews.title}</h2>
                     <div className="news-modal-text">

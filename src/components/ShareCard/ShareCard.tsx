@@ -1,12 +1,14 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { useRef } from 'react';
 import { toPng } from 'html-to-image';
-import { Trophy, Star } from 'lucide-react';
+import { Star } from 'lucide-react';
 import logo from '../../assets/unasp_logo.png';
 import './ShareCard.css';
+import type { Match } from '../../hooks/useMatches';
 
 interface ShareCardProps {
-  match: any;
-  mvpPlayer?: any;
+  match: Match;
+  mvpPlayer?: { name: string } | null;
 }
 
 export const useShareCard = () => {

@@ -29,8 +29,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
         await signUp(email, password);
         setSuccessMsg('Conta criada! Verifique seu email para confirmar.');
       }
-    } catch (err: any) {
-      setError(err.message || 'Erro ao autenticar.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Erro ao autenticar.';
+      setError(message || 'Erro ao autenticar.');
     } finally {
       setLoading(false);
     }

@@ -25,7 +25,8 @@ export const useGallery = () => {
 
   return { 
     items: query.data || [], 
-    loading: query.isLoading, 
+    loading: query.isLoading && query.data === undefined, 
     refresh: query.refetch 
   };
 };
+

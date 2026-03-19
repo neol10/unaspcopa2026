@@ -21,12 +21,12 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     fetch: (url, options) => {
       const asString = typeof url === 'string' ? url : url.toString();
 
-      // Auth (sessão/refresh) pode ser mais lento em rede móvel/baixa;
-      // não queremos derrubar o boot do app por um timeout agressivo.
+      // Timeouts balanceados para estabilidade em rede móvel/instável.
+      // Auth: 30s, Realtime/Storage: 45s, Queries padrão: 20s
       const timeoutMs = asString.includes('/auth/v1/')
         ? 30000
         : asString.includes('/realtime/v1/') || asString.includes('/storage/v1/')
-          ? 30000
+          ? 45000
           : 20000;
       const controller = new AbortController();
 
@@ -43,8 +43,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       let hardTimeoutId: ReturnType<typeof setTimeout> | undefined;
       const hardTimeoutPromise = new Promise<Response>((_, reject) => {
         hardTimeoutId = setTimeout(() => {
-          reject(new Error('Request timeout'));
-        }, timeoutMs + 4000);
+          reject(new Error('Tempo limite de requisição excedido'));
+        }, timeoutMs + 5000);
       });
 
       const fetchPromise = fetch(url, { ...options, signal: controller.signal });

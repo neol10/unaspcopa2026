@@ -12,6 +12,7 @@ const Teams: React.FC = () => {
 
   useEffect(() => {
     if (!loading) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStuck(false);
       return;
     }

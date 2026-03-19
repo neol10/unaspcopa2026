@@ -17,6 +17,7 @@ const Players: React.FC = () => {
 
   useEffect(() => {
     if (!playersLoading) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStuck(false);
       return;
     }

@@ -314,6 +314,7 @@
   padding: 1rem 1.5rem;
   justify-content: space-between;
   align-items: center;
+  gap: 1rem;
   background: var(--bg-card);
   backdrop-filter: blur(20px);
   position: sticky;

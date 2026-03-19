@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 
@@ -17,7 +17,7 @@ export interface Poll {
 
 export const usePolls = () => {
   const queryClient = useQueryClient();
-  const [hasVoted, setHasVoted] = useState(false);
+  const [localVotedMap, setLocalVotedMap] = useState<Record<string, true>>({});
 
   const query = useQuery({
     queryKey: ['activePoll'],
@@ -36,12 +36,9 @@ export const usePolls = () => {
     gcTime: 1000 * 60 * 30,  // 30 minutos em memória
   });
 
-  useEffect(() => {
-    if (query.data) {
-      const voted = localStorage.getItem(`poll_voted_${query.data.id}`);
-      setHasVoted(!!voted);
-    }
-  }, [query.data]);
+  const pollId = query.data?.id || null;
+  const storageHasVoted = pollId ? localStorage.getItem(`poll_voted_${pollId}`) === 'true' : false;
+  const hasVoted = Boolean(pollId && (storageHasVoted || localVotedMap[pollId]));
 
   const voteMutation = useMutation({
     mutationFn: async (optionId: string) => {
@@ -57,21 +54,27 @@ export const usePolls = () => {
     onSuccess: (optionId) => {
       if (!optionId || !query.data) return;
       localStorage.setItem(`poll_voted_${query.data.id}`, 'true');
-      setHasVoted(true);
+      setLocalVotedMap((prev) => ({ ...prev, [query.data.id]: true }));
       queryClient.invalidateQueries({ queryKey: ['activePoll'] });
     },
-    onError: (err: any) => {
-      console.error("Erro ao registrar voto", err);
+    onError: (err: unknown) => {
+      console.error('Erro ao registrar voto', err);
       alert("Falha ao registrar voto. Tente novamente.");
     }
   });
 
   return { 
     activePoll: query.data, 
-    loading: query.isLoading, 
-    error: (query.error as any)?.message || null,
+    loading: query.isLoading && query.data === undefined, 
+    error: (
+      query.error &&
+      typeof (query.error as { message?: unknown }).message === 'string'
+        ? String((query.error as { message: string }).message)
+        : null
+    ),
     hasVoted, 
     submitVote: voteMutation.mutateAsync,
     refresh: query.refetch,
   };
 };
+

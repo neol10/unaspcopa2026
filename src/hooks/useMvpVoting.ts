@@ -12,6 +12,15 @@ export interface MvpVoteCount {
 export const useMvpVoting = (round: string) => {
   const queryClient = useQueryClient();
 
+  type VoteRow = {
+    player_id: string;
+    players?: {
+      name?: string | null;
+      number?: number | null;
+      teams?: { name?: string | null } | null;
+    } | null;
+  };
+
   const query = useQuery({
     queryKey: ['roundMvpVotes', round],
     queryFn: async () => {
@@ -39,7 +48,7 @@ export const useMvpVoting = (round: string) => {
       ]);
 
       const counts: Record<string, MvpVoteCount> = {};
-      (votesRes.data || []).forEach((v: any) => {
+      (votesRes.data as VoteRow[] || []).forEach((v) => {
         const pid = v.player_id;
         if (!counts[pid]) {
           counts[pid] = {
@@ -87,9 +96,15 @@ export const useMvpVoting = (round: string) => {
   return {
     voteCounts,
     userVote,
-    loading: query.isLoading,
-    error: (query.error as any)?.message || null,
+    loading: query.isLoading && query.data === undefined,
+    error: (
+      query.error &&
+      typeof (query.error as { message?: unknown }).message === 'string'
+        ? String((query.error as { message: string }).message)
+        : null
+    ),
     vote: voteMutation.mutateAsync,
     refresh: query.refetch,
   };
 };
+

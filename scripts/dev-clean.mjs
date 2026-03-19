@@ -84,11 +84,9 @@ if (killed.length > 0) {
   }, {});
 
   for (const [port, pids] of Object.entries(byPort)) {
-    // eslint-disable-next-line no-console
     console.log(`[dev:clean] Porta ${port}: encerrado PID(s) ${unique(pids).join(', ')}`);
   }
 } else {
-  // eslint-disable-next-line no-console
   console.log('[dev:clean] Nenhum processo ouvindo em 5174/5175');
 }
 

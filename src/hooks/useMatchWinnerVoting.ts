@@ -96,8 +96,14 @@ export const useMatchWinnerVoting = (matchId: string) => {
   return { 
     votes, 
     userVote, 
-    loading: query.isLoading, 
-    error: (query.error as any)?.message || null,
+    loading: query.isLoading && query.data === undefined, 
+    error: (
+      query.error &&
+      typeof (query.error as { message?: unknown }).message === 'string'
+        ? String((query.error as { message: string }).message)
+        : null
+    ),
     vote: voteMutation.mutateAsync 
   };
 };
+

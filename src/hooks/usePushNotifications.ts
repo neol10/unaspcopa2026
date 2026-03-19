@@ -74,7 +74,7 @@ export const usePushNotifications = () => {
       const registration = await navigator.serviceWorker.ready;
       
       const vapidPublicKey =
-        (import.meta as any).env?.VITE_VAPID_PUBLIC_KEY ||
+        import.meta.env.VITE_VAPID_PUBLIC_KEY ||
         'BCnIZTU55SHGk26e-Eijokx_PKAklTJY8LOwN6kvnRXaz7NGwC2THcjrVG6DR5f2WeRbE9_83cj-xfVWMvp_fqI';
 
       const subscription = await registration.pushManager.subscribe({
@@ -129,3 +129,4 @@ export const usePushNotifications = () => {
 
   return { isSubscribed, loading, subscribe, unsubscribe };
 };
+

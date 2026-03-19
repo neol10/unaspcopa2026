@@ -43,8 +43,14 @@ export const useNews = (limit?: number) => {
 
   return { 
     news: query.data || [], 
-    loading: query.isLoading,
-    error: (query.error as any)?.message || null,
+    loading: query.isLoading && query.data === undefined,
+    error: (
+      query.error &&
+      typeof (query.error as { message?: unknown }).message === 'string'
+        ? String((query.error as { message: string }).message)
+        : null
+    ),
     refresh: query.refetch 
   };
 };
+

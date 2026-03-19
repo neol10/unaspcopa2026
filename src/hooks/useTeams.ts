@@ -20,16 +20,15 @@ export const useTeams = () => {
       if (!raw) return null as null | { ts: number; data: Team[] };
       const parsed = JSON.parse(raw) as { ts: number; data: Team[] };
       if (!parsed?.ts || !Array.isArray(parsed.data)) return null;
-      if (Date.now() - parsed.ts > 24 * 60 * 60 * 1000) return null;
       return parsed;
     } catch {
       return null;
     }
   };
 
-  const saveCache = (data: Team[]) => {
+  const saveCache = (data: Team[], ts: number) => {
     try {
-      localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data }));
+      localStorage.setItem(cacheKey, JSON.stringify({ ts, data }));
     } catch {
       // ignore
     }
@@ -54,19 +53,18 @@ export const useTeams = () => {
       if (error) throw error;
       return (data as Team[]) || [];
     },
-    staleTime: 1000 * 60 * 15, // 15 min (times mudam pouco)
-    gcTime: 1000 * 60 * 30,    // 30 min
+    staleTime: 1000 * 60 * 20, // 20 min (times mudam pouco, mantém cache mais tempo)
+    gcTime: 1000 * 60 * 60,    // 60 min (garbage collection mais longo)
     refetchOnReconnect: true,
-    networkMode: 'always',
+    networkMode: 'online',
     initialData: cached?.data,
     initialDataUpdatedAt: cached?.ts,
   });
 
   useEffect(() => {
     if (query.status === 'success' && Array.isArray(query.data) && query.data.length > 0) {
-      saveCache(query.data);
+      saveCache(query.data, Date.now());
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query.status, query.data]);
 
   useEffect(() => {
@@ -85,8 +83,9 @@ export const useTeams = () => {
 
   return { 
     teams: query.data || [], 
-    loading: query.isLoading, 
+    loading: query.isLoading && query.data === undefined, 
     error: friendlyError(query.error?.message), 
     refresh: query.refetch 
   };
 };
+

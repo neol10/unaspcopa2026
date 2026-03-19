@@ -1,4 +1,3 @@
-/* eslint-disable no-restricted-globals */
 // Service Worker para Push Notifications - Copa UNASP
 
 self.addEventListener('push', (event) => {

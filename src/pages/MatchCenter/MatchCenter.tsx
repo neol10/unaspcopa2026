@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useMatches } from '../../hooks/useMatches';
-import { useMatchEvents } from '../../hooks/useMatchEvents';
+import { useMatchEvents, type MatchEvent } from '../../hooks/useMatchEvents';
 import { usePlayers } from '../../hooks/usePlayers';
 import { useMvpVoting } from '../../hooks/useMvpVoting';
 import Skeleton from '../../components/Skeleton/Skeleton';
@@ -8,7 +8,7 @@ import { useTournamentConfig } from '../../hooks/useTournamentConfig';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useStandings } from '../../hooks/useStandings';
 import { supabase } from '../../lib/supabase';
-import { Shield, Timer, Award, Zap, History, Vote, Download, Trophy, ArrowRightLeft, TrendingUp, HelpCircle, Copy } from 'lucide-react';
+import { Shield, Timer, Award, Zap, History, Download, Trophy, ArrowRightLeft, TrendingUp, HelpCircle, Copy } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import ShareCard, { useShareCard } from '../../components/ShareCard/ShareCard';
@@ -31,7 +31,7 @@ const MatchCenter: React.FC = () => {
   const { players } = usePlayers();
   const { standings } = useStandings();
 
-  const handleNewEvent = (event: any) => {
+  const handleNewEvent = (event: MatchEvent) => {
     // Only show toasts if the event is from the active match
     if (event.match_id !== activeMatch?.id) return;
 
@@ -52,7 +52,9 @@ const MatchCenter: React.FC = () => {
     } else if (event.event_type === 'vermelho') {
       toast.error(`🟥 Cartão Vermelho para ${event.players?.name || ''}`);
     } else if (event.event_type === 'substituicao') {
-      const playerIn = players.find((p: any) => p.id === event.assistant_id)?.name;
+      const playerIn = event.assistant_id
+        ? players.find(p => p.id === event.assistant_id)?.name
+        : undefined;
       toast(`🔄 Substituição: Sai ${event.players?.name || ''}, Entra ${playerIn || 'jogador'}`, { icon: '🔄' });
     } else if (event.event_type === 'momento') {
       const text = event.commentary || 'Momento importante!';
@@ -97,8 +99,12 @@ const MatchCenter: React.FC = () => {
       if (error) throw error;
       setNewComment('');
       toast.success('Comentário enviado!');
-    } catch (err: any) {
-      toast.error('Erro ao enviar comentário');
+    } catch (err: unknown) {
+      const message =
+        typeof (err as { message?: unknown })?.message === 'string'
+          ? String((err as { message: string }).message)
+          : null;
+      toast.error(message ? `Erro ao enviar comentário: ${message}` : 'Erro ao enviar comentário');
     } finally {
       setIsSendingComment(false);
     }
@@ -319,16 +325,16 @@ const MatchCenter: React.FC = () => {
             </div>
 
             {/* Craque do Jogo (Opcional) */}
-            {(activeMatch as any).match_mvp_player_id && (
+            {activeMatch.match_mvp_player_id && (
               <div className="match-mvp-badge glass animate-slide-up">
                 <Award size={20} className="glow-icon" />
                 <div className="mvp-details">
                   <span className="mvp-label">CRAQUE DO JOGO</span>
                   <span className="mvp-name">
-                    {players.find(p => p.id === (activeMatch as any).match_mvp_player_id)?.name}
+                    {players.find(p => p.id === activeMatch.match_mvp_player_id)?.name}
                   </span>
-                  {(activeMatch as any).match_mvp_description && (
-                    <p className="mvp-desc">"{(activeMatch as any).match_mvp_description}"</p>
+                  {activeMatch.match_mvp_description && (
+                    <p className="mvp-desc">"{activeMatch.match_mvp_description}"</p>
                   )}
                 </div>
               </div>
@@ -461,7 +467,7 @@ const MatchCenter: React.FC = () => {
           {/* ShareCard Template */}
           <ShareCard 
             match={activeMatch} 
-            mvpPlayer={players.find(p => p.id === (activeMatch as any).match_mvp_player_id)} 
+            mvpPlayer={players.find(p => p.id === activeMatch.match_mvp_player_id)} 
             innerRef={cardRef} 
           />
 
@@ -577,7 +583,7 @@ const MatchCenter: React.FC = () => {
               </div>
               <div className="impact-container">
                 {[activeMatch.team_a_id, activeMatch.team_b_id].map(teamId => {
-                  const teamStanding = (standings as any[]).find(s => s.team_id === teamId);
+                  const teamStanding = standings.find(s => s.team_id === teamId);
                   if (!teamStanding) return null;
                   
                   // Calcular pontos virtuais

@@ -3,15 +3,17 @@ import { Share, PlusSquare, X, BellRing } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import './InstallPWAPrompt.css';
 
+type NavigatorWithStandalone = Navigator & { standalone?: boolean };
+
 const InstallPWAPrompt: React.FC = () => {
   const [showPrompt, setShowPrompt] = useState(false);
 
   useEffect(() => {
     // Verificar se é iOS
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !('MSStream' in window);
     
     // Verificar se já está em modo PWA/standalone
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || Boolean((window.navigator as NavigatorWithStandalone).standalone);
 
     // Verificar se o usuário já fechou o prompt nesta sessão/dia
     const pwaPromptHidden = localStorage.getItem('pwa_prompt_hidden');

@@ -17,6 +17,8 @@ export interface Player {
   bio?: string;
 }
 
+type PlayerRow = Player & { teams?: { name: string } };
+
 export const usePlayers = (teamId?: string) => {
   const queryClient = useQueryClient();
 
@@ -34,12 +36,12 @@ export const usePlayers = (teamId?: string) => {
       if (teamId) q = q.eq('team_id', teamId);
       const { data, error } = await q.order('name');
       if (error) throw error;
-      return (data as any[]) || [];
+      return (data as PlayerRow[]) || [];
     },
-    staleTime: 1000 * 60 * 5, // 5 min
-    gcTime: 1000 * 60 * 15,    // 15 min
+    staleTime: 1000 * 60 * 10, // 10 min
+    gcTime: 1000 * 60 * 30,    // 30 min
     refetchOnReconnect: true,
-    networkMode: 'always',
+    networkMode: 'online',
   });
 
   useEffect(() => {
@@ -64,8 +66,9 @@ export const usePlayers = (teamId?: string) => {
 
   return { 
     players: query.data || [], 
-    loading: query.isLoading, 
+    loading: query.isLoading && query.data === undefined, 
     error: friendlyError(query.error?.message), 
     refresh: query.refetch 
   };
 };
+

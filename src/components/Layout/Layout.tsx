@@ -4,6 +4,7 @@ import { Home, Trophy, BarChart2, Users, Settings, Timer, Sun, Moon, Menu, X, Lo
 import { useTheme } from '../../hooks/useTheme';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
+import { AutoRefreshStatus } from '../AutoRefreshStatus/AutoRefreshStatus';
 import AuthModal from '../Auth/AuthModal';
 import IOSInstallPrompt from '../PWA/IOSInstallPrompt';
 import logo from '../../assets/unasp_logo.png';
@@ -154,6 +155,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               <span className="brand-year">2026</span>
             </div>
           </NavLink>
+          <AutoRefreshStatus />
           <button className="mobile-menu-btn" onClick={toggleMobileMenu} aria-label="Abrir menu">
             <Menu size={24} />
           </button>

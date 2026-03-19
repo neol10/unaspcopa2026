@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import type { User } from '@supabase/supabase-js';
+import type { Session, User } from '@supabase/supabase-js';
 import toast from 'react-hot-toast';
 import { withTimeout } from '../lib/withTimeout';
 
@@ -11,56 +11,56 @@ export const useAuth = () => {
   const fetchingProfile = useRef(false);
   const resolvedOnce = useRef(false);
 
-  const getRoleCacheKey = (uid: string) => `copa_unasp_role_${uid}`;
-
-  const getCachedRole = (uid: string): 'admin' | 'user' | null => {
-    try {
-      const raw = localStorage.getItem(getRoleCacheKey(uid));
-      if (raw === 'admin' || raw === 'user') return raw;
-      return null;
-    } catch {
-      return null;
-    }
-  };
-
-  const setCachedRole = (uid: string, nextRole: 'admin' | 'user') => {
-    try {
-      localStorage.setItem(getRoleCacheKey(uid), nextRole);
-    } catch {
-      // ignore
-    }
-  };
-
-  const fetchProfile = async (uid: string) => {
-    // Evitar chamadas simultâneas ao perfil
-    if (fetchingProfile.current) return;
-    fetchingProfile.current = true;
-
-    // Carrega cache imediatamente (evita menu sumir por role null)
-    const cached = getCachedRole(uid);
-    if (cached) setRole(prev => prev || cached);
-
-    try {
-      const { data, error } = await supabase.from('profiles').select('role').eq('id', uid).single();
-      if (error) throw error;
-      const nextRole: 'admin' | 'user' = data?.role === 'admin' ? 'admin' : 'user';
-      setRole(nextRole);
-      setCachedRole(uid, nextRole);
-    } catch (err) {
-      console.error('Error fetching profile:', err);
-      // Não rebaixa para 'user' em erro transitório; mantém o que já tinha/cached.
-      const fallback = cached;
-      if (fallback) setRole(prev => prev || fallback);
-    } finally {
-      fetchingProfile.current = false;
-    }
-  };
-
   useEffect(() => {
+    const getRoleCacheKey = (uid: string) => `copa_unasp_role_${uid}`;
+
+    const getCachedRole = (uid: string): 'admin' | 'user' | null => {
+      try {
+        const raw = localStorage.getItem(getRoleCacheKey(uid));
+        if (raw === 'admin' || raw === 'user') return raw;
+        return null;
+      } catch {
+        return null;
+      }
+    };
+
+    const setCachedRole = (uid: string, nextRole: 'admin' | 'user') => {
+      try {
+        localStorage.setItem(getRoleCacheKey(uid), nextRole);
+      } catch {
+        // ignore
+      }
+    };
+
+    const fetchProfile = async (uid: string) => {
+      // Evitar chamadas simultâneas ao perfil
+      if (fetchingProfile.current) return;
+      fetchingProfile.current = true;
+
+      // Carrega cache imediatamente (evita menu sumir por role null)
+      const cached = getCachedRole(uid);
+      if (cached) setRole(prev => prev || cached);
+
+      try {
+        const { data, error } = await supabase.from('profiles').select('role').eq('id', uid).single();
+        if (error) throw error;
+        const nextRole: 'admin' | 'user' = data?.role === 'admin' ? 'admin' : 'user';
+        setRole(nextRole);
+        setCachedRole(uid, nextRole);
+      } catch (err) {
+        console.error('Error fetching profile:', err);
+        // Não rebaixa para 'user' em erro transitório; mantém o que já tinha/cached.
+        const fallback = cached;
+        if (fallback) setRole(prev => prev || fallback);
+      } finally {
+        fetchingProfile.current = false;
+      }
+    };
+
     // Usamos APENAS o onAuthStateChange para gerenciar estado.
     // O evento INITIAL_SESSION dispara automaticamente na montagem,
     // sem precisar chamar getSession() separadamente (que causava lock contention).
-    const applySession = async (session: any) => {
+    const applySession = async (session: Session | null) => {
       resolvedOnce.current = true;
       if (session?.user) {
         setUser(session.user);
@@ -104,7 +104,7 @@ export const useAuth = () => {
           );
           if (error) throw error;
           await applySession(data?.session);
-        } catch (err) {
+        } catch {
           // Se falhar, sai como guest (sem travar UI)
           resolvedOnce.current = true;
           setUser(null);
@@ -151,11 +151,13 @@ export const useAuth = () => {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       toast.success('Sessão encerrada com sucesso');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('SignOut error:', err);
-      toast.error('Erro ao sair: ' + (err.message || 'Erro de rede'));
+      const message = err instanceof Error ? err.message : 'Erro de rede';
+      toast.error('Erro ao sair: ' + message);
     }
   };
 
   return { user, role, loading, signIn, signUp, signOut };
 };
+

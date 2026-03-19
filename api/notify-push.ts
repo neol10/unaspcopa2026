@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import webpush from 'web-push';
+import type { PushSubscription } from 'web-push';
 import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
@@ -26,6 +27,26 @@ const ensureVapid = () => {
   }
   webpush.setVapidDetails('mailto:desenvolvimento@unasp.edu.br', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
   vapidConfigured = true;
+};
+
+type SubscriptionRow = {
+  subscription: PushSubscription;
+};
+
+type WebPushErrorLike = {
+  statusCode?: number;
+  message?: string;
+};
+
+const getErrorInfo = (err: unknown): { statusCode?: number; message: string } => {
+  if (err && typeof err === 'object') {
+    const e = err as WebPushErrorLike;
+    return {
+      statusCode: typeof e.statusCode === 'number' ? e.statusCode : undefined,
+      message: typeof e.message === 'string' ? e.message : String(err),
+    };
+  }
+  return { message: String(err) };
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -73,13 +94,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     const results = await Promise.all(
-      subscriptions.map(async (row: any) => {
+      (subscriptions as SubscriptionRow[]).map(async (row) => {
         try {
           await webpush.sendNotification(row.subscription, payload);
           return { success: true };
-        } catch (err: any) {
-          const statusCode = err?.statusCode;
-          const message = err?.message || String(err);
+        } catch (err: unknown) {
+          const { statusCode, message } = getErrorInfo(err);
 
           if (statusCode === 410 || statusCode === 404) {
             const endpoint = row?.subscription?.endpoint;
@@ -97,7 +117,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
 
     return res.status(200).setHeader('Access-Control-Allow-Origin', corsHeaders['Access-Control-Allow-Origin']).json({ results });
-  } catch (err: any) {
-    return res.status(500).json({ error: err?.message || String(err) });
+  } catch (err: unknown) {
+    const { message } = getErrorInfo(err);
+    return res.status(500).json({ error: message });
   }
 }

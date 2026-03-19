@@ -2,15 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { Share, PlusSquare, X } from 'lucide-react';
 import './IOSInstallPrompt.css';
 
+type NavigatorWithStandalone = Navigator & { standalone?: boolean };
+
 const IOSInstallPrompt: React.FC = () => {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
     // Detectar se é iOS
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !('MSStream' in window);
     
     // Detectar se já está "instalado" (standalone)
-    const isStandalone = (window.navigator as any).standalone || window.matchMedia('(display-mode: standalone)').matches;
+    const isStandalone = Boolean((window.navigator as NavigatorWithStandalone).standalone) || window.matchMedia('(display-mode: standalone)').matches;
 
     // Mostrar apenas se for iOS e NÃO estiver instalado
     if (isIOS && !isStandalone) {

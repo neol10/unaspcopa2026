@@ -5,10 +5,10 @@ import { supabase } from '../lib/supabase';
 export interface MatchEvent {
   id: string;
   match_id: string;
-  player_id: string;
-  event_type: 'gol' | 'amarelo' | 'vermelho' | 'falta' | 'substituicao' | 'comentario';
+  player_id: string | null;
+  event_type: 'gol' | 'amarelo' | 'vermelho' | 'falta' | 'substituicao' | 'comentario' | 'momento';
   minute: number;
-  assistant_id?: string;
+  assistant_id?: string | null;
   commentary?: string;
   players?: { name: string };
 }
@@ -62,8 +62,14 @@ export const useMatchEvents = (matchId: string, onNewEvent?: (event: MatchEvent)
 
   return { 
     events: query.data || [], 
-    loading: query.isLoading, 
-    error: (query.error as any)?.message || null,
+    loading: query.isLoading && query.data === undefined, 
+    error: (
+      query.error &&
+      typeof (query.error as { message?: unknown }).message === 'string'
+        ? String((query.error as { message: string }).message)
+        : null
+    ),
     refresh: query.refetch 
   };
 };
+

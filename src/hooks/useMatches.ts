@@ -11,7 +11,9 @@ export interface Match {
   match_date: string;
   location: string;
   status: 'agendado' | 'ao_vivo' | 'finalizado';
-  round: string;
+  round: number;
+  match_mvp_player_id?: string | null;
+  match_mvp_description?: string | null;
   teams_a?: { name: string; badge_url: string };
   teams_b?: { name: string; badge_url: string };
 }
@@ -66,6 +68,8 @@ export const useMatches = (limit?: number) => {
           location,
           status,
           round,
+          match_mvp_player_id,
+          match_mvp_description,
           teams_a:team_a_id(name, badge_url),
           teams_b:team_b_id(name, badge_url)
         `)
@@ -77,10 +81,10 @@ export const useMatches = (limit?: number) => {
       if (error) throw error;
       return (data as Match[]) || [];
     },
-    staleTime: 1000 * 60 * 5, // 5 min
-    gcTime: 1000 * 60 * 15,    // 15 min
+    staleTime: 1000 * 60 * 10, // 10 min
+    gcTime: 1000 * 60 * 30,    // 30 min
     refetchOnReconnect: true,
-    networkMode: 'always',
+    networkMode: 'online',
     initialData: cached?.data,
     initialDataUpdatedAt: cached?.ts,
   });
@@ -108,8 +112,9 @@ export const useMatches = (limit?: number) => {
 
   return { 
     matches: query.data || [], 
-    loading: query.isLoading, 
+    loading: query.isLoading && query.data === undefined, 
     error: friendlyError(query.error?.message), 
     refresh: query.refetch 
   };
 };
+

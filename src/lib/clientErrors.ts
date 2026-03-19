@@ -5,7 +5,7 @@ type ClientErrorInsert = {
   path?: string | null;
   user_agent?: string | null;
   app_version?: string | null;
-  extra?: any;
+  extra?: unknown;
 };
 
 const QUEUE_KEY = 'copa_unasp_client_errors_queue';
@@ -108,14 +108,21 @@ export const flushClientErrorQueue = async () => {
   }
 };
 
-export const reportErrorFromWindowEvent = (e: any, source: string) => {
+export const reportErrorFromWindowEvent = (e: unknown, source: string) => {
+  const evt = e as {
+    message?: unknown;
+    reason?: unknown;
+    error?: { stack?: unknown; name?: unknown };
+  };
+
+  const reason = evt?.reason as { message?: unknown; stack?: unknown; name?: unknown } | undefined;
   const message =
-    e?.message ||
-    e?.reason?.message ||
-    (typeof e?.reason === 'string' ? e.reason : '') ||
+    (typeof evt?.message === 'string' ? evt.message : '') ||
+    (typeof reason?.message === 'string' ? reason.message : '') ||
+    (typeof evt?.reason === 'string' ? evt.reason : '') ||
     'Erro desconhecido';
 
-  const stack = e?.error?.stack || e?.reason?.stack || null;
+  const stack = (evt?.error?.stack ?? reason?.stack) || null;
   const path = window.location?.pathname || null;
 
   reportClientError({
@@ -125,7 +132,7 @@ export const reportErrorFromWindowEvent = (e: any, source: string) => {
     path,
     user_agent: navigator.userAgent,
     extra: {
-      name: e?.error?.name || e?.reason?.name,
+      name: evt?.error?.name ?? reason?.name,
     },
   });
 };

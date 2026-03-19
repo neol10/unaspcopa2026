@@ -32,7 +32,7 @@ export const useRankings = () => {
       const playersData = playersRes.data || [];
       const votesData = votesRes.data || [];
       const eventsData = eventsRes.data || [];
-      const matchesData = (matchesRes.data as any[]) || [];
+      const matchesData = (matchesRes.data || []) as Array<{ round: unknown; status: unknown }>;
 
       // --- RODADAS FINALIZADAS ---
       // A rodada só é considerada finalizada quando TODAS as partidas daquela rodada estão com status 'finalizado'
@@ -127,8 +127,8 @@ export const useRankings = () => {
         availableRounds: sortedRounds
       };
     },
-    staleTime: 1000 * 60 * 5, // 5 min
-    gcTime: 1000 * 60 * 15,   // 15 min
+    staleTime: 1000 * 60 * 15, // 15 min
+    gcTime: 1000 * 60 * 30,   // 30 min
   });
 
   useEffect(() => {
@@ -150,8 +150,14 @@ export const useRankings = () => {
 
   return {
     ...data,
-    loading: query.isLoading,
-    error: (query.error as any)?.message || null,
+    loading: query.isLoading && query.data === undefined,
+    error: (
+      query.error &&
+      typeof (query.error as { message?: unknown }).message === 'string'
+        ? String((query.error as { message: string }).message)
+        : null
+    ),
     refresh: query.refetch,
   };
 };
+

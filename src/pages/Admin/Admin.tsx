@@ -1,16 +1,33 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Trophy, Users, Calendar, Plus, Save, Trash2, Shield, ChevronDown, ChevronUp, Newspaper, Image as ImageIcon, CheckCircle, Play, Camera, Search, Settings2, Vote, ShieldAlert, Bell, Star, CreditCard, Target, Square, ArrowRightLeft, MessageSquare, Zap, Clock, ArrowRight, Pause, RotateCcw } from 'lucide-react';
-import { useTeams } from '../../hooks/useTeams';
+import { Trophy, Users, Calendar, Plus, Save, Trash2, Shield, ChevronDown, ChevronUp, Newspaper, CheckCircle, Play, Camera, Search, Settings2, Vote, ShieldAlert, Bell, Star, CreditCard, Target, Square, ArrowRightLeft, MessageSquare, Zap, Clock, Pause, RotateCcw } from 'lucide-react';
+import { useTeams, type Team } from '../../hooks/useTeams';
 import { usePlayers } from '../../hooks/usePlayers';
-import { useNews } from '../../hooks/useNews';
-import { useMatches } from '../../hooks/useMatches';
-import { useMatchEvents } from '../../hooks/useMatchEvents';
-import { useGallery } from '../../hooks/useGallery';
-import { useTournamentConfig } from '../../hooks/useTournamentConfig';
+import { useQueryClient } from '@tanstack/react-query';
+import { useNews, type News } from '../../hooks/useNews';
+import { useMatches, type Match } from '../../hooks/useMatches';
+import { useMatchEvents, type MatchEvent } from '../../hooks/useMatchEvents';
+import { useTournamentConfig, type TournamentConfig } from '../../hooks/useTournamentConfig';
+import type { Poll, PollOption } from '../../hooks/usePolls';
 import { useAuthContext } from '../../contexts/AuthContext';
+import { withTimeout } from '../../lib/withTimeout';
 import { toast } from 'react-hot-toast';
 import './Admin.css';
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function withRetry<T>(operation: () => Promise<T>, attempts: number = 2): Promise<T> {
+  let lastError: unknown;
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      return await operation();
+    } catch (err) {
+      lastError = err;
+      if (i < attempts - 1) await sleep(600 * (i + 1));
+    }
+  }
+  throw lastError;
+}
 
 const uploadToStorage = async (file: File, bucket: string = 'images', folder: string = 'team-badges'): Promise<string | null> => {
   try {
@@ -18,16 +35,18 @@ const uploadToStorage = async (file: File, bucket: string = 'images', folder: st
     const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
     const filePath = `${folder}/${fileName}`;
 
-    // Adicionar timeout ao upload
-    const uploadPromise = supabase.storage
-      .from(bucket)
-      .upload(filePath, file);
+    // Retry curto para reduzir falhas intermitentes em rede móvel.
+    const { error: uploadError } = await withRetry(async () => {
+      const uploadPromise = supabase.storage
+        .from(bucket)
+        .upload(filePath, file);
 
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Tempo limite de upload excedido (15s)')), 15000)
-    );
+      const timeoutPromise = new Promise<Awaited<typeof uploadPromise>>((_, reject) =>
+        setTimeout(() => reject(new Error('Tempo limite de upload excedido (45s)')), 45000)
+      );
 
-    const { error: uploadError } = await Promise.race([uploadPromise, timeoutPromise]) as any;
+      return (await Promise.race([uploadPromise, timeoutPromise])) as Awaited<typeof uploadPromise>;
+    }, 2);
 
     if (uploadError) throw uploadError;
 
@@ -36,9 +55,13 @@ const uploadToStorage = async (file: File, bucket: string = 'images', folder: st
       .getPublicUrl(filePath);
 
     return data.publicUrl;
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Upload error:', err);
-    toast.error('Erro no upload: ' + err.message);
+    const message =
+      typeof (err as { message?: unknown })?.message === 'string'
+        ? String((err as { message: string }).message)
+        : null;
+    toast.error(message ? `Erro no upload: ${message}` : 'Erro no upload');
     return null;
   }
 };
@@ -47,6 +70,12 @@ const formatDatetimeLocal = (dateStr: string | null) => {
   if (!dateStr) return '';
   const d = new Date(dateStr);
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+};
+
+const getErrorMessage = (err: unknown, fallback: string = 'Ocorreu um erro') => {
+  if (typeof (err as { message?: unknown })?.message === 'string') return String((err as { message: string }).message);
+  if (typeof err === 'string') return err;
+  return fallback;
 };
 
 
@@ -200,8 +229,12 @@ const NotificationBroadcast = () => {
       setTitle('');
       setBody('');
       setUrl('/');
-    } catch (err: any) {
-      toast.error('Erro ao enviar broadcast: ' + err.message);
+    } catch (err: unknown) {
+      const message =
+        typeof (err as { message?: unknown })?.message === 'string'
+          ? String((err as { message: string }).message)
+          : null;
+      toast.error(message ? `Erro ao enviar broadcast: ${message}` : 'Erro ao enviar broadcast');
     } finally {
       setSending(false);
     }
@@ -273,7 +306,7 @@ type ClientErrorRow = {
   path: string | null;
   user_agent: string | null;
   app_version: string | null;
-  extra: any;
+  extra: unknown;
 };
 
 const formatDateTime = (value: string) => {
@@ -301,9 +334,12 @@ const ClientErrorsPanel = () => {
 
       if (error) throw error;
       setItems((data || []) as ClientErrorRow[]);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error loading client_errors:', err);
-      const msg = err?.message || 'Falha ao carregar erros';
+      const msg =
+        typeof (err as { message?: unknown })?.message === 'string'
+          ? String((err as { message: string }).message)
+          : 'Falha ao carregar erros';
       setLoadError(msg);
       toast.error(msg);
     } finally {
@@ -313,7 +349,6 @@ const ClientErrorsPanel = () => {
 
   React.useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -383,8 +418,19 @@ const MatchManagement = () => {
   const { matches, loading, refresh } = useMatches();
   const { teams } = useTeams();
   const [isAdding, setIsAdding] = useState(false);
+  const [isSubmittingMatch, setIsSubmittingMatch] = useState(false);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ 
+
+  type MatchFormData = {
+    team_a_id: string;
+    team_b_id: string;
+    match_date: string;
+    location: string;
+    status: Match['status'];
+    round: string;
+  };
+
+  const [formData, setFormData] = useState<MatchFormData>({ 
     team_a_id: '', 
     team_b_id: '', 
     match_date: '', 
@@ -395,7 +441,7 @@ const MatchManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
 
   // Agrupar equipes por grupo
-  const groupedTeams = teams.reduce((acc: any, team) => {
+  const groupedTeams = teams.reduce<Record<string, Team[]>>((acc, team) => {
     const groupName = team.group || 'Sem Grupo';
     if (!acc[groupName]) acc[groupName] = [];
     acc[groupName].push(team);
@@ -404,6 +450,7 @@ const MatchManagement = () => {
 
   const handleCreateMatch = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingMatch) return;
     if (formData.team_a_id === formData.team_b_id) return toast.error('Selecione times diferentes!');
     
     // Validação: Impedir que o mesmo time jogue duas vezes na mesma rodada
@@ -420,28 +467,42 @@ const MatchManagement = () => {
       return toast.error(`Erro: O time ${teamName} já possui uma partida na rodada ${currentRound}!`);
     }
 
+    setIsSubmittingMatch(true);
     try {
-      const { error } = await supabase.from('matches').insert([{
-        ...formData,
-        match_date: formData.match_date ? new Date(formData.match_date).toISOString() : null,
-        round: currentRound
-      }]);
+      const { error } = await withTimeout(
+        supabase.from('matches').insert([{
+          ...formData,
+          match_date: formData.match_date ? new Date(formData.match_date).toISOString() : null,
+          round: currentRound
+        }]),
+        30000,
+        'Tempo limite ao criar partida'
+      );
       if (error) throw error;
       setFormData({ team_a_id: '', team_b_id: '', match_date: '', location: 'Ginásio Principal', status: 'agendado', round: '1' });
       setIsAdding(false);
-      refresh();
-    } catch (err: any) { toast.error(err.message); }
+      void refresh();
+      toast.success('Partida criada com sucesso!');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao criar partida'));
+    } finally {
+      setIsSubmittingMatch(false);
+    }
   };
 
-  const updateStatus = async (id: string, status: string, match?: any) => {
+  const updateStatus = async (id: string, status: Match['status'], match?: Match) => {
     try {
-      const { error } = await supabase.from('matches').update({ status }).eq('id', id);
+      const { error } = await withTimeout(
+        supabase.from('matches').update({ status }).eq('id', id),
+        30000,
+        'Tempo limite ao atualizar status'
+      );
       if (error) throw error;
       
       if (status === 'ao_vivo' && match) {
         sendPushNotification(
           '🍿 Jogo Iniciado!', 
-          `${match.teams_a.name} vs ${match.teams_b.name} acaba de começar!`,
+          `${match.teams_a?.name || 'Equipe A'} vs ${match.teams_b?.name || 'Equipe B'} acaba de começar!`,
           '/central-da-partida'
         );
       }
@@ -449,18 +510,37 @@ const MatchManagement = () => {
       if (status === 'finalizado' && match) {
         sendPushNotification(
           '🏁 Partida Finalizada!', 
-          `Placar Final: ${match.teams_a.name} ${match.team_a_score} x ${match.team_b_score} ${match.teams_b.name}`,
+          `Placar Final: ${match.teams_a?.name || 'Equipe A'} ${match.team_a_score} x ${match.team_b_score} ${match.teams_b?.name || 'Equipe B'}`,
           '/central-da-partida'
         );
       }
       
-      refresh();
-    } catch (err: any) { toast.error(err.message); }
+      void refresh();
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao atualizar status'));
+    }
+  };
+
+  const handleDeleteMatch = async (id: string) => {
+    if (!confirm('Apagar partida?')) return;
+    const loadingToast = toast.loading('Excluindo partida...');
+    try {
+      const { error } = await withTimeout(
+        supabase.from('matches').delete().eq('id', id),
+        30000,
+        'Tempo limite ao excluir partida'
+      );
+      if (error) throw error;
+      void refresh();
+      toast.success('Partida excluída!', { id: loadingToast });
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao excluir partida'), { id: loadingToast });
+    }
   };
 
   const [editingMatchId, setEditingMatchId] = useState<string | null>(null);
 
-  const handleUpdateMatch = async (id: string, data: any) => {
+  const handleUpdateMatch = async (id: string, data: MatchFormData) => {
     // Validação: Impedir que o mesmo time jogue duas vezes na mesma rodada (ignorando a própria partida sendo editada)
     const currentRound = parseInt(data.round) || 1;
     const teamACollision = matches.find(m => m.id !== id && m.round === currentRound && (m.team_a_id === data.team_a_id || m.team_b_id === data.team_a_id));
@@ -476,19 +556,25 @@ const MatchManagement = () => {
     }
 
     try {
-      const { error } = await supabase.from('matches').update({
-        team_a_id: data.team_a_id,
-        team_b_id: data.team_b_id,
-        match_date: data.match_date ? new Date(data.match_date).toISOString() : null,
-        location: data.location,
-        status: data.status,
-        round: currentRound
-      }).eq('id', id);
+      const { error } = await withTimeout(
+        supabase.from('matches').update({
+          team_a_id: data.team_a_id,
+          team_b_id: data.team_b_id,
+          match_date: data.match_date ? new Date(data.match_date).toISOString() : null,
+          location: data.location,
+          status: data.status,
+          round: currentRound
+        }).eq('id', id),
+        30000,
+        'Tempo limite ao atualizar partida'
+      );
       if (error) throw error;
       setEditingMatchId(null);
-      refresh();
+      void refresh();
       toast.success('Partida atualizada!');
-    } catch (err: any) { toast.error(err.message); }
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao atualizar partida'));
+    }
   };
 
   const filteredMatches = matches.filter(m => 
@@ -538,11 +624,11 @@ const MatchManagement = () => {
                 <select required value={formData.team_a_id} onChange={e => setFormData({...formData, team_a_id: e.target.value})}>
                   <option value="">Selecione...</option>
                   {Object.keys(groupedTeams).sort().map(group => {
-                    const availableTeamsInGroup = groupedTeams[group].filter((t: any) => !busyTeamIdsInRound.has(t.id) || t.id === formData.team_a_id);
+                    const availableTeamsInGroup = groupedTeams[group].filter((t) => !busyTeamIdsInRound.has(t.id) || t.id === formData.team_a_id);
                     if (availableTeamsInGroup.length === 0) return null;
                     return (
                       <optgroup key={group} label={`Grupo ${group}`}>
-                        {availableTeamsInGroup.sort((a: any, b: any) => a.name.localeCompare(b.name)).map((t: any) => (
+                        {availableTeamsInGroup.sort((a, b) => a.name.localeCompare(b.name)).map((t) => (
                           <option key={t.id} value={t.id} disabled={formData.team_b_id === t.id}>{t.name}</option>
                         ))}
                       </optgroup>
@@ -555,11 +641,11 @@ const MatchManagement = () => {
                 <select required value={formData.team_b_id} onChange={e => setFormData({...formData, team_b_id: e.target.value})}>
                   <option value="">Selecione...</option>
                   {Object.keys(groupedTeams).sort().map(group => {
-                    const availableTeamsInGroup = groupedTeams[group].filter((t: any) => !busyTeamIdsInRound.has(t.id) || t.id === formData.team_b_id);
+                    const availableTeamsInGroup = groupedTeams[group].filter((t) => !busyTeamIdsInRound.has(t.id) || t.id === formData.team_b_id);
                     if (availableTeamsInGroup.length === 0) return null;
                     return (
                       <optgroup key={group} label={`Grupo ${group}`}>
-                        {availableTeamsInGroup.sort((a: any, b: any) => a.name.localeCompare(b.name)).map((t: any) => (
+                        {availableTeamsInGroup.sort((a, b) => a.name.localeCompare(b.name)).map((t) => (
                           <option key={t.id} value={t.id} disabled={formData.team_a_id === t.id}>{t.name}</option>
                         ))}
                       </optgroup>
@@ -576,7 +662,9 @@ const MatchManagement = () => {
                  <input type="number" placeholder="Ex: 1, 2..." required value={formData.round} onChange={e => setFormData({...formData, round: e.target.value})} />
                </div>
            </div>
-           <button type="submit" className="btn-save"><Save size={18} /> Criar Partida</button>
+           <button type="submit" className="btn-save" disabled={isSubmittingMatch}>
+             <Save size={18} /> {isSubmittingMatch ? 'Criando...' : 'Criar Partida'}
+           </button>
         </form>
       )}
 
@@ -659,7 +747,7 @@ const MatchManagement = () => {
                      <span className="final-label">Finalizado</span>
                    </>
                 )}
-                <button className="btn-icon delete" onClick={() => { if(confirm('Apagar partida?')) supabase.from('matches').delete().eq('id', match.id).then(() => refresh()) }}><Trash2 size={18} /></button>
+                <button className="btn-icon delete" onClick={() => handleDeleteMatch(match.id)}><Trash2 size={18} /></button>
               </div>
             </div>
 
@@ -711,7 +799,7 @@ const MatchManagement = () => {
   );
 }
 
-const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
+const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   const { players: playersA } = usePlayers(match.team_a_id);
   const { players: playersB } = usePlayers(match.team_b_id);
   const { events, refresh: refreshEvents } = useMatchEvents(match.id);
@@ -734,15 +822,17 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
   const [isActive, setIsActive] = useState(false);
 
   useEffect(() => {
-    let interval: any = null;
+    let interval: ReturnType<typeof setInterval> | null = null;
     if (isActive) {
       interval = setInterval(() => {
         setSeconds(s => s + 1);
       }, 1000);
     } else {
-      clearInterval(interval);
+      if (interval) clearInterval(interval);
     }
-    return () => clearInterval(interval);
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, [isActive]);
 
   const formatTime = (s: number) => {
@@ -763,7 +853,7 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
     if (playersB.length > 0 && onFieldB.length === 0) {
       setOnFieldB(playersB.slice(0, 5).map(p => p.id));
     }
-  }, [playersA, playersB]);
+  }, [playersA, playersB, onFieldA.length, onFieldB.length]);
 
   // Atalhos (Admin produtivo): Alt+1..6 troca tipo, Ctrl+Espaço inicia/pausa cronômetro
   useEffect(() => {
@@ -808,10 +898,20 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
     try {
       const eventMinute = selectedMinute > 0 ? selectedMinute : Math.floor(seconds / 60) || 1;
 
-      const eventData: any = {
+      type InsertMatchEvent = {
+        match_id: string;
+        event_type: MatchEvent['event_type'];
+        minute: number;
+        player_id: string | null;
+        assistant_id?: string | null;
+        commentary?: string;
+      };
+
+      const eventData: InsertMatchEvent = {
         match_id: match.id,
         event_type: eventType,
-        minute: eventMinute
+        minute: eventMinute,
+        player_id: null,
       };
 
       if (eventType === 'comentario' || eventType === 'momento') {
@@ -878,7 +978,7 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
       
       if (eventType === 'gol') {
         const player = [...playersA, ...playersB].find(p => p.id === playerId);
-        const teamName = team === 'a' ? match.teams_a.name : match.teams_b.name;
+        const teamName = team === 'a' ? (match.teams_a?.name || 'Equipe A') : (match.teams_b?.name || 'Equipe B');
         let title = '⚽ GOOOOOOL!';
         let body = `Gol de ${player?.name || 'alguém'} para o ${teamName}!`;
         
@@ -891,7 +991,7 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
         sendPushNotification(title, body, '/central-da-partida');
       } else if (eventType === 'amarelo' || eventType === 'vermelho') {
         const player = [...playersA, ...playersB].find(p => p.id === playerId);
-        const teamName = team === 'a' ? match.teams_a.name : match.teams_b.name;
+        const teamName = team === 'a' ? (match.teams_a?.name || 'Equipe A') : (match.teams_b?.name || 'Equipe B');
         sendPushNotification(
           eventType === 'amarelo' ? '🟨 Cartão Amarelo' : '🟥 Cartão Vermelho',
           `${player?.name} (${teamName}) ${eventMinute}'`,
@@ -900,7 +1000,7 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
       } else if (eventType === 'substituicao') {
         const pOut = [...playersA, ...playersB].find(p => p.id === playerId);
         const pIn = [...playersA, ...playersB].find(p => p.id === assistantId);
-        const teamName = team === 'a' ? match.teams_a.name : match.teams_b.name;
+        const teamName = team === 'a' ? (match.teams_a?.name || 'Equipe A') : (match.teams_b?.name || 'Equipe B');
         sendPushNotification(
           '🔄 Substituição',
           `${teamName}: Sai ${pOut?.name}, Entra ${pIn?.name}`,
@@ -914,14 +1014,17 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
       
       // Feedback visual rápido
       toast.success('Evento registrado!');
-    } catch (err: any) { toast.error(err.message); }
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao registrar evento'));
+    }
   };
 
-  const removeEvent = async (event: any) => {
+  const removeEvent = async (event: MatchEvent) => {
     if (!confirm('Deseja realmente excluir este lance? Isso reverterá placares e estatísticas.')) return;
     
     try {
       if (event.event_type === 'gol') {
+        if (!event.player_id) throw new Error('Evento de gol sem jogador vinculado');
         const isTeamA = playersA.some(p => p.id === event.player_id);
         const newScore = isTeamA 
           ? { team_a_score: Math.max(0, match.team_a_score - 1) } 
@@ -938,9 +1041,11 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
       }
 
       if (event.event_type === 'amarelo') {
+        if (!event.player_id) throw new Error('Evento de cartão sem jogador vinculado');
         const { data: p } = await supabase.from('players').select('yellow_cards').eq('id', event.player_id).single();
         await supabase.from('players').update({ yellow_cards: Math.max(0, (p?.yellow_cards || 0) - 1) }).eq('id', event.player_id);
       } else if (event.event_type === 'vermelho') {
+        if (!event.player_id) throw new Error('Evento de cartão sem jogador vinculado');
         const { data: p } = await supabase.from('players').select('red_cards').eq('id', event.player_id).single();
         await supabase.from('players').update({ red_cards: Math.max(0, (p?.red_cards || 0) - 1) }).eq('id', event.player_id);
       }
@@ -948,7 +1053,9 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
       await supabase.from('match_events').delete().eq('id', event.id);
       refreshEvents();
       toast.success('Evento removido e revertido.');
-    } catch (err: any) { toast.error(err.message); }
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao remover evento'));
+    }
   };
 
   const undoLastEvent = () => {
@@ -966,7 +1073,9 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
       const { error } = await supabase.from('matches').update(updateData).eq('id', match.id);
       if (error) throw error;
       toast.success(`Placar ${team === 'a' ? 'A' : 'B'} ajustado!`);
-    } catch (err: any) { toast.error(err.message); }
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao ajustar placar'));
+    }
   };
 
 
@@ -975,7 +1084,7 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
       <div className="live-match-controls-top">
         <div className="live-score-display">
           <div className="team-score">
-            <span className="team-name">{match.teams_a.name}</span>
+            <span className="team-name">{match.teams_a?.name || 'Equipe A'}</span>
             <div className="score-control">
               <button className="btn-score-adjust" onClick={() => handleManualScore('a', -1)}>-</button>
               <span className="score">{match.team_a_score}</span>
@@ -989,7 +1098,7 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
               <span className="score">{match.team_b_score}</span>
               <button className="btn-score-adjust" onClick={() => handleManualScore('b', 1)}>+</button>
             </div>
-            <span className="team-name">{match.teams_b.name}</span>
+            <span className="team-name">{match.teams_b?.name || 'Equipe B'}</span>
           </div>
         </div>
 
@@ -1107,7 +1216,7 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
         
       <div className={`teams-lanes event-selector-active-${eventType}`}>
         <div className="lane">
-          <h5>{match.teams_a.name}</h5>
+          <h5>{match.teams_a?.name || 'Equipe A'}</h5>
           
           <div className="roster-section">
             <span className="roster-label"><Zap size={12} /> Em Campo</span>
@@ -1138,7 +1247,7 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
         <div className="divider-vertical"></div>
 
         <div className="lane">
-          <h5>{match.teams_b.name}</h5>
+          <h5>{match.teams_b?.name || 'Equipe B'}</h5>
           
           <div className="roster-section">
             <span className="roster-label"><Zap size={12} /> Em Campo</span>
@@ -1192,7 +1301,9 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
                           setEditingEventId(null);
                           refreshEvents();
                           toast.success('Tempo atualizado!');
-                        } catch (err: any) { toast.error(err.message); }
+                        } catch (err: unknown) {
+                          toast.error(getErrorMessage(err, 'Erro ao atualizar tempo'));
+                        }
                       }}><Save size={12} /></button>
                       <button className="btn-cancel-edit" onClick={() => setEditingEventId(null)}>✕</button>
                     </div>
@@ -1233,6 +1344,7 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
               
               events.forEach(ev => {
                 if (ev.event_type === 'gol') {
+                  if (!ev.player_id) return;
                   // Gols (ignorando contra-gols que têm [CONTRA] no comentário)
                   const isOwnGoal = ev.commentary?.includes('[CONTRA]');
                   if (!isOwnGoal) {
@@ -1319,7 +1431,9 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
               if (error) throw error;
               setMvpSaved(true);
               setTimeout(() => setMvpSaved(false), 2000);
-            } catch (err: any) { toast.error(err.message); }
+            } catch (err: unknown) {
+              toast.error(getErrorMessage(err, 'Erro ao salvar craque do jogo'));
+            }
           }}
 
         >
@@ -1332,7 +1446,9 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
 
 const TeamManagement = () => {
   const { teams, loading, refresh } = useTeams();
+  const queryClient = useQueryClient();
   const [isAdding, setIsAdding] = useState(false);
+  const [isSubmittingTeam, setIsSubmittingTeam] = useState(false);
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editGroupValue, setEditGroupValue] = useState('');
@@ -1348,49 +1464,63 @@ const TeamManagement = () => {
     setUploading(false);
   };
 
-  const handleSaveGroup = async (teamId: string) => {
-    try {
-      const { error } = await supabase.from('teams').update({ group: editGroupValue }).eq('id', teamId);
-      if (error) throw error;
-      setEditingGroupId(null);
-      refresh();
-    } catch (err: any) {
-      toast.error(err.message);
-    }
-  };
-
   const handleAddTeam = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingTeam) return;
+    setIsSubmittingTeam(true);
+    const loadingToast = toast.loading('Criando equipe...');
     try {
-      const { error } = await supabase.from('teams').insert([formData]);
+      const { error } = await withTimeout(
+        supabase.from('teams').insert([formData]),
+        30000,
+        'Tempo limite ao criar equipe'
+      );
       if (error) throw error;
       setFormData({ name: '', group: '', leader: '', badge_url: '' });
       setIsAdding(false);
-      refresh();
-    } catch (err: any) {
-      toast.error(err.message);
+      void queryClient.invalidateQueries({ queryKey: ['teams'] });
+      void refresh();
+      toast.success('Equipe criada com sucesso!', { id: loadingToast });
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao adicionar equipe'), { id: loadingToast });
+    } finally {
+      setIsSubmittingTeam(false);
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Deseja realmente excluir esta equipe? Todos os jogadores também serão removidos.')) return;
+    const loadingToast = toast.loading('Excluindo equipe...');
     try {
-      const { error } = await supabase.from('teams').delete().eq('id', id);
+      const { error } = await withTimeout(
+        supabase.from('teams').delete().eq('id', id),
+        30000,
+        'Tempo limite ao excluir equipe'
+      );
       if (error) throw error;
-      refresh();
-    } catch (err: any) {
-      toast.error(err.message);
+      void queryClient.invalidateQueries({ queryKey: ['teams'] });
+      void queryClient.invalidateQueries({ queryKey: ['players'] });
+      void refresh();
+      toast.success('Equipe excluída com sucesso!', { id: loadingToast });
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao excluir equipe'), { id: loadingToast });
     }
   };
 
-  const handleUpdateTeam = async (teamId: string, data: any) => {
+  const handleUpdateTeam = async (teamId: string, data: Partial<Team>) => {
+    const loadingToast = toast.loading('Atualizando equipe...');
     try {
-      const { error } = await supabase.from('teams').update(data).eq('id', teamId);
+      const { error } = await withTimeout(
+        supabase.from('teams').update(data).eq('id', teamId),
+        30000,
+        'Tempo limite ao atualizar equipe'
+      );
       if (error) throw error;
-      refresh();
-      toast.success('Equipe atualizada!');
-    } catch (err: any) {
-      toast.error(err.message);
+      void queryClient.invalidateQueries({ queryKey: ['teams'] });
+      void refresh();
+      toast.success('Equipe atualizada!', { id: loadingToast });
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao atualizar equipe'), { id: loadingToast });
     }
   };
 
@@ -1464,7 +1594,9 @@ const TeamManagement = () => {
               </div>
             </div>
           </div>
-          <button type="submit" className="btn-save"><Save size={18} /> Salvar Equipe</button>
+          <button type="submit" className="btn-save" disabled={isSubmittingTeam}>
+            <Save size={18} /> {isSubmittingTeam ? 'Salvando...' : 'Salvar Equipe'}
+          </button>
         </form>
       )}
 
@@ -1537,7 +1669,7 @@ const TeamManagement = () => {
               </div>
               {expandedTeamId === team.id && (
                 <div className="team-players-admin glass">
-                  <PlayerManagement teamId={team.id} teamName={team.name} />
+                  <PlayerManagement teamId={team.id} />
                 </div>
               )}
             </React.Fragment>
@@ -1548,9 +1680,11 @@ const TeamManagement = () => {
   );
 }
 
-const PlayerManagement: React.FC<{ teamId: string, teamName: string }> = ({ teamId, teamName }) => {
-  const { players, loading, refresh } = usePlayers(teamId);
+const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
+  const { players, loading } = usePlayers(teamId);
+  const queryClient = useQueryClient();
   const [isAdding, setIsAdding] = useState(false);
+  const [isSubmittingPlayer, setIsSubmittingPlayer] = useState(false);
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [formData, setFormData] = useState({ 
@@ -1569,22 +1703,32 @@ const PlayerManagement: React.FC<{ teamId: string, teamName: string }> = ({ team
 
   const handleAddPlayer = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingPlayer) return;
+    setIsSubmittingPlayer(true);
     const loadingToast = toast.loading('Adicionando atleta...');
     try {
-      const { error } = await supabase.from('players').insert([{
-        ...formData,
-        team_id: teamId,
-        number: parseInt(formData.number) || 0
-      }]);
+      const { error } = await withTimeout(
+        supabase.from('players').insert([{
+          ...formData,
+          team_id: teamId,
+          number: parseInt(formData.number) || 0
+        }]),
+        30000,
+        'Tempo limite ao adicionar atleta'
+      );
       if (error) throw error;
       setFormData({ 
         name: '', number: '', position: 'Ala', photo_url: '', bio: '',
         goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0'
       });
       setIsAdding(false);
+      void queryClient.invalidateQueries({ queryKey: ['players', teamId] });
+      void queryClient.invalidateQueries({ queryKey: ['players', 'all'] });
       toast.success('Atleta adicionado!', { id: loadingToast });
-    } catch (err: any) {
-      toast.error(err.message, { id: loadingToast });
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao adicionar atleta'), { id: loadingToast });
+    } finally {
+      setIsSubmittingPlayer(false);
     }
   };
 
@@ -1592,31 +1736,56 @@ const PlayerManagement: React.FC<{ teamId: string, teamName: string }> = ({ team
     if (!confirm('Excluir atleta?')) return;
     const loadingToast = toast.loading('Excluindo...');
     try {
-      const { error } = await supabase.from('players').delete().eq('id', id);
+      const { error } = await withTimeout(
+        supabase.from('players').delete().eq('id', id),
+        30000,
+        'Tempo limite ao excluir atleta'
+      );
       if (error) throw error;
+      void queryClient.invalidateQueries({ queryKey: ['players', teamId] });
+      void queryClient.invalidateQueries({ queryKey: ['players', 'all'] });
       toast.success('Atleta excluído!', { id: loadingToast });
-    } catch (err: any) {
-      toast.error(err.message, { id: loadingToast });
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao excluir atleta'), { id: loadingToast });
     }
   };
 
-  const handleUpdatePlayer = async (playerId: string, data: any) => {
+  type PlayerFormData = {
+    name: string;
+    number: string;
+    position: string;
+    photo_url: string;
+    bio: string;
+    goals_count: string;
+    assists: string;
+    yellow_cards: string;
+    red_cards: string;
+    clean_sheets: string;
+  };
+
+  const handleUpdatePlayer = async (playerId: string, data: PlayerFormData) => {
     const loadingToast = toast.loading('Atualizando...');
     try {
-      const { error } = await supabase.from('players').update({
-        ...data,
-        number: parseInt(data.number) || 0,
-        goals_count: parseInt(data.goals_count) || 0,
-        assists: parseInt(data.assists) || 0,
-        yellow_cards: parseInt(data.yellow_cards) || 0,
-        red_cards: parseInt(data.red_cards) || 0,
-        clean_sheets: parseInt(data.clean_sheets) || 0
-      }).eq('id', playerId);
+      const { error } = await withTimeout(
+        supabase.from('players').update({
+          ...data,
+          number: parseInt(data.number) || 0,
+          goals_count: parseInt(data.goals_count) || 0,
+          assists: parseInt(data.assists) || 0,
+          yellow_cards: parseInt(data.yellow_cards) || 0,
+          red_cards: parseInt(data.red_cards) || 0,
+          clean_sheets: parseInt(data.clean_sheets) || 0
+        }).eq('id', playerId),
+        30000,
+        'Tempo limite ao atualizar atleta'
+      );
       if (error) throw error;
       setEditingPlayerId(null);
+      void queryClient.invalidateQueries({ queryKey: ['players', teamId] });
+      void queryClient.invalidateQueries({ queryKey: ['players', 'all'] });
       toast.success('Atleta atualizado!', { id: loadingToast });
-    } catch (err: any) {
-      toast.error(err.message, { id: loadingToast });
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao atualizar atleta'), { id: loadingToast });
     }
   };
 
@@ -1721,8 +1890,8 @@ const PlayerManagement: React.FC<{ teamId: string, teamName: string }> = ({ team
                 <input type="number" value={formData.clean_sheets} onChange={e => setFormData({...formData, clean_sheets: e.target.value})} />
              </div>
           </div>
-          <button type="submit" className="btn-save-player">
-            <Save size={14} /> Salvar Atleta
+          <button type="submit" className="btn-save-player" disabled={isSubmittingPlayer}>
+            <Save size={14} /> {isSubmittingPlayer ? 'Salvando...' : 'Salvar Atleta'}
           </button>
         </form>
       )}
@@ -1879,8 +2048,8 @@ const NewsManagement = () => {
       );
       
       refresh();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao publicar notícia'));
     }
   };
 
@@ -1890,19 +2059,21 @@ const NewsManagement = () => {
       const { error } = await supabase.from('news').delete().eq('id', id);
       if (error) throw error;
       refresh();
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao excluir notícia'));
     }
   };
 
-  const handleUpdateNews = async (id: string, data: any) => {
+  const handleUpdateNews = async (id: string, data: Partial<News>) => {
     try {
       const { error } = await supabase.from('news').update(data).eq('id', id);
       if (error) throw error;
       setEditingNewsId(null);
       refresh();
       toast.success('Notícia atualizada!');
-    } catch (err: any) { toast.error(err.message); }
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao atualizar notícia'));
+    }
   };
 
   return (
@@ -1984,7 +2155,7 @@ const NewsManagement = () => {
                   <Newspaper size={24} className="icon-subtle" />
                   <div className="item-info">
                     <strong>{item.title}</strong>
-                    <span>{formatNewsDate((item as any).published_at || (item as any).created_at)}</span>
+                    <span>{formatNewsDate(item.published_at)}</span>
                   </div>
                 </div>
                 <div className="item-actions">
@@ -2039,7 +2210,15 @@ const NewsManagement = () => {
 // ===== Gerenciamento do Torneio =====
 const TournamentManagement = () => {
   const { config, loading, saveConfig } = useTournamentConfig();
-  const [form, setForm] = useState({ total_rounds: 5, matches_per_round: 4, current_phase: 'grupos', current_round: 1 });
+
+  type ConfigForm = Pick<TournamentConfig, 'total_rounds' | 'matches_per_round' | 'current_phase' | 'current_round'>;
+
+  const [form, setForm] = useState<ConfigForm>({
+    total_rounds: 5,
+    matches_per_round: 4,
+    current_phase: 'grupos',
+    current_round: 1,
+  });
   const [saved, setSaved] = useState(false);
 
   React.useEffect(() => {
@@ -2051,15 +2230,22 @@ const TournamentManagement = () => {
         current_round: config.current_round,
       });
     }
-  }, [loading, config.id]);
+  }, [
+    loading,
+    config.id,
+    config.total_rounds,
+    config.matches_per_round,
+    config.current_phase,
+    config.current_round,
+  ]);
 
   const handleSave = async () => {
     try {
-      await saveConfig(form as any);
+      await saveConfig(form);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao salvar configurações'));
     }
   };
 
@@ -2085,7 +2271,7 @@ const TournamentManagement = () => {
             <label>Fase Atual</label>
             <select
               value={form.current_phase}
-              onChange={e => setForm({ ...form, current_phase: e.target.value })}
+              onChange={e => setForm({ ...form, current_phase: e.target.value as TournamentConfig['current_phase'] })}
             >
               <option value="grupos">1ª Fase (Grupos)</option>
               <option value="quartas">Quartas de Final</option>
@@ -2165,11 +2351,13 @@ const TournamentManagement = () => {
 };
 
 const PollManagement = () => {
-  const [polls, setPolls] = useState<any[]>([]);
+  type PollFormData = { question: string; options: string[] };
+
+  const [polls, setPolls] = useState<Poll[]>([]);
   const [loading, setLoading] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [editingPollId, setEditingPollId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ 
+  const [formData, setFormData] = useState<PollFormData>({ 
     question: '', 
     options: ['', ''] 
   });
@@ -2182,9 +2370,9 @@ const PollManagement = () => {
         .select('*')
         .order('created_at', { ascending: false });
       if (error) throw error;
-      setPolls(data || []);
-    } catch (err: any) {
-      toast.error(err.message);
+      setPolls(((data || []) as Poll[]) || []);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao carregar enquetes'));
     } finally {
       setLoading(false);
     }
@@ -2219,10 +2407,12 @@ const PollManagement = () => {
       setFormData({ question: '', options: ['', ''] });
       setIsAdding(false);
       fetchPolls();
-    } catch (err: any) { toast.error(err.message); }
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao criar enquete'));
+    }
   };
 
-  const handleUpdatePoll = async (id: string, data: any) => {
+  const handleUpdatePoll = async (id: string, data: PollFormData) => {
     try {
       const validOptions = data.options.filter((o: string) => o.trim() !== '');
       const { error } = await supabase.from('polls').update({
@@ -2237,7 +2427,9 @@ const PollManagement = () => {
       setEditingPollId(null);
       fetchPolls();
       toast.success('Enquete atualizada!');
-    } catch (err: any) { toast.error(err.message); }
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao atualizar enquete'));
+    }
   };
 
   const toggleActive = async (id: string, currentActive: boolean) => {
@@ -2261,7 +2453,9 @@ const PollManagement = () => {
       }
       
       fetchPolls();
-    } catch (err: any) { toast.error(err.message); }
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao atualizar enquete'));
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -2270,7 +2464,9 @@ const PollManagement = () => {
       const { error } = await supabase.from('polls').delete().eq('id', id);
       if (error) throw error;
       fetchPolls();
-    } catch (err: any) { toast.error(err.message); }
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao excluir enquete'));
+    }
   };
 
   return (
@@ -2335,7 +2531,7 @@ const PollManagement = () => {
                 <Shield size={24} className={poll.active ? 'icon-active' : 'icon-subtle'} />
                 <div className="item-info">
                   <strong>{poll.question}</strong>
-                  <span>{poll.options.length} opções • Total: {poll.options.reduce((acc: number, o: any) => acc + o.votes, 0)} votos</span>
+                  <span>{poll.options.length} opções • Total: {poll.options.reduce((acc: number, o: PollOption) => acc + o.votes, 0)} votos</span>
                 </div>
               </div>
               <div className="item-actions">
@@ -2347,7 +2543,7 @@ const PollManagement = () => {
                 </button>
                 <button className="btn-icon edit" onClick={() => {
                   setEditingPollId(poll.id);
-                  setFormData({ question: poll.question, options: poll.options.map((o: any) => o.text) });
+                  setFormData({ question: poll.question, options: poll.options.map((o) => o.text) });
                 }}><Settings2 size={18} /></button>
                 <button className="btn-icon delete" onClick={() => handleDelete(poll.id)}><Trash2 size={18} /></button>
               </div>
@@ -2387,7 +2583,9 @@ const PollManagement = () => {
 const GlobalPlayerManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  const [isSubmittingGlobalPlayer, setIsSubmittingGlobalPlayer] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const queryClient = useQueryClient();
   const { teams } = useTeams();
   const { players: allPlayers, loading } = usePlayers();
   
@@ -2411,26 +2609,35 @@ const GlobalPlayerManagement = () => {
   const handleAddPlayer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.team_id) return toast.error('Selecione uma equipe!');
+    if (isSubmittingGlobalPlayer) return;
+    setIsSubmittingGlobalPlayer(true);
     const loadingToast = toast.loading('Salvando atleta...');
     try {
-      const { error } = await supabase.from('players').insert([{
-        ...formData,
-        number: parseInt(formData.number) || 0,
-        goals_count: parseInt(formData.goals_count) || 0,
-        assists: parseInt(formData.assists) || 0,
-        yellow_cards: parseInt(formData.yellow_cards) || 0,
-        red_cards: parseInt(formData.red_cards) || 0,
-        clean_sheets: parseInt(formData.clean_sheets) || 0
-      }]);
+      const { error } = await withTimeout(
+        supabase.from('players').insert([{
+          ...formData,
+          number: parseInt(formData.number) || 0,
+          goals_count: parseInt(formData.goals_count) || 0,
+          assists: parseInt(formData.assists) || 0,
+          yellow_cards: parseInt(formData.yellow_cards) || 0,
+          red_cards: parseInt(formData.red_cards) || 0,
+          clean_sheets: parseInt(formData.clean_sheets) || 0
+        }]),
+        30000,
+        'Tempo limite ao cadastrar atleta'
+      );
       if (error) throw error;
       setFormData({ 
         name: '', number: '', position: 'Ala', team_id: '', photo_url: '', bio: '',
         goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0'
       });
       setIsAdding(false);
+      void queryClient.invalidateQueries({ queryKey: ['players'] });
       toast.success('Atleta cadastrado com sucesso!', { id: loadingToast });
-    } catch (err: any) {
-      toast.error(err.message, { id: loadingToast });
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao cadastrar atleta'), { id: loadingToast });
+    } finally {
+      setIsSubmittingGlobalPlayer(false);
     }
   };
 
@@ -2533,7 +2740,9 @@ const GlobalPlayerManagement = () => {
                 <input type="number" value={formData.red_cards} onChange={e => setFormData({...formData, red_cards: e.target.value})} />
              </div>
           </div>
-          <button type="submit" className="btn-save mt-3"><Save size={18} /> Salvar Atleta no Sistema</button>
+          <button type="submit" className="btn-save mt-3" disabled={isSubmittingGlobalPlayer}>
+            <Save size={18} /> {isSubmittingGlobalPlayer ? 'Salvando...' : 'Salvar Atleta no Sistema'}
+          </button>
         </form>
       )}
 

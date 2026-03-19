@@ -11,13 +11,26 @@ import { flushClientErrorQueue, reportErrorFromWindowEvent } from './lib/clientE
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutos de cache em memória
-      refetchOnWindowFocus: true,
-      retry: 1,
-      retryDelay: 800,
-      // Evita ficar travado em "loading" quando o navegador detecta offline
-      // (React Query pode pausar a query em vez de falhar rápido)
-      networkMode: 'always',
+      staleTime: 1000 * 60 * 10, // 10 minutos - mais agressivo para reduzir refetch
+      refetchOnWindowFocus: false, // Não refetch ao voltar para a aba (evita carregamento infinito)
+      // Auto-refresh por rota para reduzir carga e manter telas críticas mais vivas.
+      refetchInterval: () => {
+        if (typeof window !== 'undefined') {
+          const path = window.location.pathname;
+          if (path.startsWith('/admin')) return false;
+          if (path.startsWith('/central-da-partida')) return 1000 * 4;
+          if (path === '/' || path.startsWith('/jogos')) return 1000 * 8;
+          return 1000 * 12;
+        }
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          return false;
+        }
+        return 1000 * 8;
+      },
+      refetchIntervalInBackground: false, // Evita tempestade de requests quando aba não está ativa
+      retry: 2, // Retry 2 vezes em erro antes de falhar
+      retryDelay: (attemptIndex) => Math.min(300 * Math.pow(2, attemptIndex), 5000), // Exponential backoff, max 5s
+      networkMode: 'online', // Respeita status de rede, não tenta offline
     },
   },
 });
@@ -64,7 +77,7 @@ const ForceRefresh = () => {
     if (currentVersion !== APP_VERSION) {
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          for (let registration of registrations) {
+          for (const registration of registrations) {
             registration.unregister();
           }
         }).catch(function(err) {
@@ -118,10 +131,12 @@ function AppContent() {
     window.addEventListener('offline', handleOffline);
 
     // Tratamento global de erros para evitar tela branca (ex: erro de chunk no PWA)
-    const handleError = (e: any) => {
+    const handleError = (e: unknown) => {
       console.error('Global Error Caught:', e);
       reportErrorFromWindowEvent(e, 'window');
-      const msg = e.message || (e.reason && e.reason.message) || '';
+      const evt = e as { message?: unknown; reason?: unknown };
+      const reason = evt?.reason as { message?: unknown } | undefined;
+      const msg = String(evt?.message ?? reason?.message ?? '');
       if (msg.includes('Loading chunk') || msg.includes('Failed to fetch dynamically imported module')) {
         toast.error('Nova versão disponível! Atualizando...', { duration: 3000 });
         setTimeout(() => window.location.reload(), 2000);

@@ -126,7 +126,7 @@ export const useStandings = () => {
     gcTime: 1000 * 60 * 10,  // 10 min
     retry: 0,
     refetchOnReconnect: true,
-    networkMode: 'always',
+    networkMode: 'online',
   });
 
   useEffect(() => {
@@ -149,15 +149,17 @@ export const useStandings = () => {
   const friendlyError = (raw: string | undefined) => {
     if (!raw) return null;
     if (raw.includes('Request timeout')) return 'Tempo limite ao carregar classificação';
+    if (raw.includes('Tempo limite')) return 'Tempo limite ao carregar classificação';
     if (raw.toLowerCase().includes('abort')) return 'Tempo limite ao carregar classificação';
     return raw;
   };
 
   return { 
     standings: query.data || [], 
-    loading: query.isLoading, 
+    loading: query.isLoading && query.data === undefined, 
     error: friendlyError(query.error?.message), 
     refresh: query.refetch,
     paused: query.fetchStatus === 'paused',
   };
 };
+

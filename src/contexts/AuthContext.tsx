@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import type { User } from '@supabase/supabase-js';
@@ -6,8 +7,8 @@ interface AuthContextType {
   user: User | null;
   role: 'admin' | 'user' | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<any>;
-  signUp: (email: string, password: string) => Promise<any>;
+  signIn: (email: string, password: string) => Promise<unknown>;
+  signUp: (email: string, password: string) => Promise<unknown>;
   signOut: () => Promise<void>;
 }
 
