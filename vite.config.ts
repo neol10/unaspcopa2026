@@ -6,6 +6,9 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       // Em localhost (DEV) o Service Worker pode ficar ativo de builds antigos
       // e interferir no carregamento (cache/requests), causando loading infinito.
       // Desabilitamos o SW em DEV; em produção continua habilitado.
@@ -41,45 +44,10 @@ export default defineConfig({
           }
         ]
       },
-      workbox: {
-        importScripts: ['push-sw.js'],
-        // Cacheia apenas assets estáticos, NUNCA a API
+      injectManifest: {
+        // Mantém o precache de estáticos; a regra de navegação (HTML) fica no SW customizado.
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-        cleanupOutdatedCaches: true,
-        // Força o SW a assumir o controle imediatamente ao atualizar
-        skipWaiting: true,
-        clientsClaim: true,
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-cache',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          },
-          {
-            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'image-cache',
-              expiration: {
-                maxEntries: 200,
-                maxAgeSeconds: 60 * 60 * 24 * 30
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          }
-        ]
-      }
+      },
     })
   ],
   server: {

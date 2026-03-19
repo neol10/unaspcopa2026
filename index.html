@@ -27,6 +27,36 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      (function () {
+        try {
+          var isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+          if (!isLocalhost) return;
+          if (!('serviceWorker' in navigator)) return;
+
+          var key = 'sw_cleared_once';
+          if (sessionStorage.getItem(key) === '1') return;
+
+          navigator.serviceWorker
+            .getRegistrations()
+            .then(function (regs) {
+              return Promise.all(regs.map(function (r) { return r.unregister(); }));
+            })
+            .then(function () {
+              if (!('caches' in window)) return;
+              return caches.keys().then(function (keys) {
+                return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+              });
+            })
+            .finally(function () {
+              sessionStorage.setItem(key, '1');
+              location.reload();
+            });
+        } catch (e) {
+          // noop
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
