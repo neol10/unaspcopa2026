@@ -1,12 +1,42 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import './Standings.css';
 import { Shield, Info, LayoutGrid, List, Trophy } from 'lucide-react';
 import { useStandings } from '../../hooks/useStandings';
 import Skeleton from '../../components/Skeleton/Skeleton';
 
 const Standings: React.FC = () => {
-  const { standings, loading, error } = useStandings();
+  const { standings, loading, error, refresh, paused } = useStandings();
   const [showByGroup, setShowByGroup] = useState(true);
+  const [stuck, setStuck] = useState(false);
+
+  useEffect(() => {
+    if (!loading) {
+      setStuck(false);
+      return;
+    }
+    const id = setTimeout(() => setStuck(true), 15000);
+    return () => clearTimeout(id);
+  }, [loading]);
+
+  if ((paused || stuck) && standings.length === 0) {
+    return (
+      <div className="error-state glass" style={{ margin: '2rem auto', maxWidth: 720 }}>
+        <p style={{ marginBottom: '0.75rem' }}>
+          {paused
+            ? 'Sem conexão no momento. A classificação vai carregar assim que a internet voltar.'
+            : 'Demorou muito para carregar a classificação.'}
+        </p>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => refresh()}>
+            Tentar novamente
+          </button>
+          <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => window.location.reload()}>
+            Recarregar página
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading && standings.length === 0) return (
     <div className="standings-container animate-fade-in">
@@ -25,7 +55,16 @@ const Standings: React.FC = () => {
     </div>
   );
   
-  if (error) return <div className="error-state glass">Erro: {error}</div>;
+  if (error && standings.length === 0) {
+    return (
+      <div className="error-state glass" style={{ margin: '2rem auto', maxWidth: 720 }}>
+        <p style={{ marginBottom: '0.75rem' }}>Erro ao carregar classificação: {error}</p>
+        <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => refresh()}>
+          Tentar novamente
+        </button>
+      </div>
+    );
+  }
 
   // Agrupar equipes por grupo
   const groupedStandings = standings.reduce((acc: Record<string, typeof standings>, team) => {

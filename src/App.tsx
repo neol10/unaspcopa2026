@@ -6,13 +6,18 @@ import { AuthProvider } from './contexts/AuthContext';
 import { Toaster, toast } from 'react-hot-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import './components/Layout/Layout.css';
+import { flushClientErrorQueue, reportErrorFromWindowEvent } from './lib/clientErrors';
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 1000 * 60 * 5, // 5 minutos de cache em memória
       refetchOnWindowFocus: true,
-      retry: 2,
+      retry: 1,
+      retryDelay: 800,
+      // Evita ficar travado em "loading" quando o navegador detecta offline
+      // (React Query pode pausar a query em vez de falhar rápido)
+      networkMode: 'always',
     },
   },
 });
@@ -36,6 +41,22 @@ const PageLoader = () => (
 
 const ForceRefresh = () => {
   useEffect(() => {
+    // Em DEV (localhost), um Service Worker antigo pode continuar ativo e
+    // interferir em requisições/caches, causando "loading" infinito.
+    // Aqui removemos o SW e caches sem mexer no localStorage (token Supabase).
+    if (import.meta.env.DEV) {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations()
+          .then((registrations) => Promise.all(registrations.map((r) => r.unregister())))
+          .catch((err) => console.log('Service Worker unregister failed: ', err));
+      }
+      if ('caches' in window) {
+        caches.keys()
+          .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
+          .catch(() => undefined);
+      }
+    }
+
     // Versão da aplicação para controle de cache
     const APP_VERSION = '1.0.4';
     const currentVersion = localStorage.getItem('app_version');
@@ -87,7 +108,10 @@ function AppContent() {
 
   useEffect(() => {
     // Escuta mudanças na conectividade para feedback offline
-    const handleOnline = () => toast.success('Você está online! ✨', { id: 'connectivity' });
+    const handleOnline = () => {
+      toast.success('Você está online! ✨', { id: 'connectivity' });
+      flushClientErrorQueue();
+    };
     const handleOffline = () => toast.error('Você está offline. Exibindo dados salvos.', { id: 'connectivity', duration: 5000 });
 
     window.addEventListener('online', handleOnline);
@@ -96,6 +120,7 @@ function AppContent() {
     // Tratamento global de erros para evitar tela branca (ex: erro de chunk no PWA)
     const handleError = (e: any) => {
       console.error('Global Error Caught:', e);
+      reportErrorFromWindowEvent(e, 'window');
       const msg = e.message || (e.reason && e.reason.message) || '';
       if (msg.includes('Loading chunk') || msg.includes('Failed to fetch dynamically imported module')) {
         toast.error('Nova versão disponível! Atualizando...', { duration: 3000 });
@@ -105,6 +130,9 @@ function AppContent() {
 
     window.addEventListener('error', handleError);
     window.addEventListener('unhandledrejection', handleError);
+
+    // Tenta enviar erros pendentes no boot
+    flushClientErrorQueue();
 
     // Prefetch de dados críticos para navegação instantânea - COM SEGURANÇA
     const performPrefetch = async () => {

@@ -69,7 +69,9 @@ export const usePolls = () => {
   return { 
     activePoll: query.data, 
     loading: query.isLoading, 
+    error: (query.error as any)?.message || null,
     hasVoted, 
-    submitVote: voteMutation.mutateAsync 
+    submitVote: voteMutation.mutateAsync,
+    refresh: query.refetch,
   };
 };

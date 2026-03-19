@@ -97,6 +97,7 @@ export const useMatchWinnerVoting = (matchId: string) => {
     votes, 
     userVote, 
     loading: query.isLoading, 
+    error: (query.error as any)?.message || null,
     vote: voteMutation.mutateAsync 
   };
 };

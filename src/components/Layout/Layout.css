@@ -205,6 +205,36 @@
   border-top: 1px solid var(--border-light);
 }
 
+.net-status {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.9rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-light);
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+}
+
+.net-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--text-dim);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.06);
+}
+
+.net-status.online .net-dot {
+  background: var(--vibrant-green);
+}
+
+.net-status.offline .net-dot {
+  background: var(--primary);
+}
+
 .theme-toggle {
   width: 100%;
   background: var(--bg-glass);

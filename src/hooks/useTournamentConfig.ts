@@ -66,6 +66,7 @@ export const useTournamentConfig = () => {
   return { 
     config: query.data || DEFAULT, 
     loading: query.isLoading, 
+    error: (query.error as any)?.message || null,
     saveConfig: saveMutation.mutateAsync, 
     refresh: query.refetch 
   };

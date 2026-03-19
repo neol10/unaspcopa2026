@@ -6,6 +6,12 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      // Em localhost (DEV) o Service Worker pode ficar ativo de builds antigos
+      // e interferir no carregamento (cache/requests), causando loading infinito.
+      // Desabilitamos o SW em DEV; em produção continua habilitado.
+      devOptions: {
+        enabled: false,
+      },
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'favicon.png', 'icons.svg'],
       manifest: {
@@ -39,6 +45,7 @@ export default defineConfig({
         importScripts: ['push-sw.js'],
         // Cacheia apenas assets estáticos, NUNCA a API
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        cleanupOutdatedCaches: true,
         // Força o SW a assumir o controle imediatamente ao atualizar
         skipWaiting: true,
         clientsClaim: true,
@@ -51,23 +58,6 @@ export default defineConfig({
               expiration: {
                 maxEntries: 10,
                 maxAgeSeconds: 60 * 60 * 24 * 365
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          },
-          {
-            // Cacheia as requisições de leitura do Supabase para suporte offline
-            urlPattern: ({ url, request }) => {
-              return url.hostname === 'etxqacjtqleucpkhvyhg.supabase.co' && request.method === 'GET';
-            },
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'supabase-data-cache',
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 // 1 dia
               },
               cacheableResponse: {
                 statuses: [0, 200]
@@ -94,6 +84,9 @@ export default defineConfig({
   ],
   server: {
     host: true,
-    port: 5173,
+    // Evita subir múltiplas instâncias em portas diferentes (5174/5175/...)
+    // o que confunde durante debug (F5 parece “não atualizar”).
+    port: 5174,
+    strictPort: true,
   }
 })

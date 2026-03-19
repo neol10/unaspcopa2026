@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Teams.css';
 import { Shield } from 'lucide-react';
@@ -7,7 +7,37 @@ import Skeleton from '../../components/Skeleton/Skeleton';
 
 const Teams: React.FC = () => {
   const navigate = useNavigate();
-  const { teams, loading, error } = useTeams();
+  const { teams, loading, error, refresh } = useTeams();
+  const [stuck, setStuck] = useState(false);
+
+  useEffect(() => {
+    if (!loading) {
+      setStuck(false);
+      return;
+    }
+    const id = setTimeout(() => setStuck(true), 15000);
+    return () => clearTimeout(id);
+  }, [loading]);
+
+  if ((stuck || (!navigator.onLine && loading)) && teams.length === 0) {
+    return (
+      <div className="error-state glass" style={{ margin: '2rem auto', maxWidth: 720 }}>
+        <p style={{ marginBottom: '0.75rem' }}>
+          {!navigator.onLine
+            ? 'Sem conexão no momento. As equipes vão carregar assim que a internet voltar.'
+            : 'Demorou muito para carregar as equipes.'}
+        </p>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => refresh()}>
+            Tentar novamente
+          </button>
+          <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => window.location.reload()}>
+            Recarregar página
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading && teams.length === 0) return (
     <div className="teams-page animate-fade-in">
@@ -39,7 +69,16 @@ const Teams: React.FC = () => {
     </div>
   );
   
-  if (error) return <div className="error-state glass">Erro ao carregar equipes: {error}</div>;
+  if (error && teams.length === 0) {
+    return (
+      <div className="error-state glass" style={{ margin: '2rem auto', maxWidth: 720 }}>
+        <p style={{ marginBottom: '0.75rem' }}>Erro ao carregar equipes: {error}</p>
+        <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => refresh()}>
+          Tentar novamente
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="teams-page animate-fade-in">

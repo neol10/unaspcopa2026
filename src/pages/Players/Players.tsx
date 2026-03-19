@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePlayers, Player } from '../../hooks/usePlayers';
 import { useTeams } from '../../hooks/useTeams';
@@ -9,10 +9,20 @@ import './Players.css';
 const Players: React.FC = () => {
   const { teamId } = useParams<{ teamId: string }>();
   const navigate = useNavigate();
-  const { players, loading: playersLoading, error: playersError } = usePlayers(teamId);
+  const { players, loading: playersLoading, error: playersError, refresh: refreshPlayers } = usePlayers(teamId);
   const { teams } = useTeams();
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [stuck, setStuck] = useState(false);
+
+  useEffect(() => {
+    if (!playersLoading) {
+      setStuck(false);
+      return;
+    }
+    const id = setTimeout(() => setStuck(true), 15000);
+    return () => clearTimeout(id);
+  }, [playersLoading]);
   
   const team = teams.find(t => t.id === teamId);
   const isGlobalView = !teamId;
@@ -22,14 +32,43 @@ const Players: React.FC = () => {
     p.position.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  if (playersLoading) return (
+  if ((stuck || (!navigator.onLine && playersLoading)) && players.length === 0) {
+    return (
+      <div className="error-state glass" style={{ margin: '2rem auto', maxWidth: 720 }}>
+        <p style={{ marginBottom: '0.75rem' }}>
+          {!navigator.onLine
+            ? 'Sem conexão no momento. Os jogadores vão carregar assim que a internet voltar.'
+            : 'Demorou muito para carregar os jogadores.'}
+        </p>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => refreshPlayers()}>
+            Tentar novamente
+          </button>
+          <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => window.location.reload()}>
+            Recarregar página
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (playersLoading && players.length === 0) return (
     <div className="players-loading">
       <div className="spinner"></div>
       <p>Convocando atletas...</p>
     </div>
   );
   
-  if (playersError) return <div className="error-state glass">Erro: {playersError}</div>;
+  if (playersError && players.length === 0) {
+    return (
+      <div className="error-state glass" style={{ margin: '2rem auto', maxWidth: 720 }}>
+        <p style={{ marginBottom: '0.75rem' }}>Erro ao carregar jogadores: {playersError}</p>
+        <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => refreshPlayers()}>
+          Tentar novamente
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="players-page animate-fade-in">

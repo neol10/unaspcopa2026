@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Home, Trophy, BarChart2, Users, Settings, Timer, Sun, Moon, Menu, X, LogIn, User, LogOut, Calendar, Bell, BellOff } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme';
 import { useAuthContext } from '../../contexts/AuthContext';
@@ -15,7 +15,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isSubscribed, subscribe, unsubscribe } = usePushNotifications();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const showAdminNav = role === 'admin' || location.pathname.startsWith('/admin');
 
   const handleSignOut = async () => {
     await signOut();
@@ -25,6 +29,17 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
+
+  useEffect(() => {
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
 
   return (
     <div className="app-container">
@@ -82,7 +97,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                   <Users size={20} /> <span>Jogadores</span>
                 </NavLink>
               </li>
-              {role === 'admin' && (
+              {showAdminNav && (
                 <li>
                   <NavLink to="/admin" className={({ isActive }) => isActive ? 'nav-active' : ''} onClick={closeMobileMenu}>
                     <Settings size={20} /> <span>Admin</span>
@@ -93,6 +108,10 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           </nav>
 
           <div className="sidebar-footer">
+            <div className={`net-status ${isOnline ? 'online' : 'offline'}`}>
+              <span className="net-dot" aria-hidden="true"></span>
+              <span>{isOnline ? 'Online' : 'Sem conexão'}</span>
+            </div>
             {user ? (
               <div className="auth-user-block">
                 <div className="auth-user-info">

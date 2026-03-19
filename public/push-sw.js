@@ -39,6 +39,16 @@ self.addEventListener('push', (event) => {
   event.waitUntil(self.registration.showNotification(data.title, options))
 })
 
+// Em versões anteriores, havia runtime cache para GET do Supabase.
+// Para evitar inconsistências (dados/permissões) após deploys, removemos esse cache automaticamente.
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(keys.filter((k) => k === 'supabase-data-cache').map((k) => caches.delete(k))),
+    ),
+  );
+});
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
 

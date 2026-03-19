@@ -16,18 +16,39 @@ export const useRankings = () => {
     queryKey: ['rankings'],
     queryFn: async () => {
       
-      // 1-3. Buscar dados em paralelo
-      const [playersRes, votesRes, eventsRes] = await Promise.all([
+      // 1-4. Buscar dados em paralelo
+      const [playersRes, votesRes, eventsRes, matchesRes] = await Promise.all([
         supabase.from('players').select('*, teams:team_id(name, badge_url)'),
         supabase.from('match_mvp_votes').select('player_id'),
-        supabase.from('match_events').select('*, matches:match_id(round)').in('event_type', ['gol', 'assistencia'])
+        supabase.from('match_events').select('*, matches:match_id(round)').in('event_type', ['gol', 'assistencia']),
+        supabase.from('matches').select('round, status'),
       ]);
 
       if (playersRes.error) throw playersRes.error;
+      if (votesRes.error) throw votesRes.error;
+      if (eventsRes.error) throw eventsRes.error;
+      if (matchesRes.error) throw matchesRes.error;
       
       const playersData = playersRes.data || [];
       const votesData = votesRes.data || [];
       const eventsData = eventsRes.data || [];
+      const matchesData = (matchesRes.data as any[]) || [];
+
+      // --- RODADAS FINALIZADAS ---
+      // A rodada só é considerada finalizada quando TODAS as partidas daquela rodada estão com status 'finalizado'
+      const roundTotals: Record<string, { total: number; finalized: number }> = {};
+      matchesData.forEach(m => {
+        const round = String(m.round ?? '').trim();
+        if (!round) return;
+        if (!roundTotals[round]) roundTotals[round] = { total: 0, finalized: 0 };
+        roundTotals[round].total += 1;
+        if (m.status === 'finalizado') roundTotals[round].finalized += 1;
+      });
+      const completedRounds = new Set(
+        Object.entries(roundTotals)
+          .filter(([, v]) => v.total > 0 && v.finalized === v.total)
+          .map(([round]) => round),
+      );
 
       // Contabilizar votos por jogador
       const voteCounts: Record<string, number> = {};
@@ -49,8 +70,10 @@ export const useRankings = () => {
       const roundsFound = new Set<string>();
 
       eventsData.forEach(ev => {
-        const round = ev.matches?.round;
+        const round = String(ev.matches?.round ?? '').trim();
         if (!round) return;
+        // Só computa “Craque da Rodada” para rodadas finalizadas
+        if (!completedRounds.has(round)) return;
         roundsFound.add(String(round));
 
         if (!roundStats[round]) roundStats[round] = {};
@@ -125,5 +148,10 @@ export const useRankings = () => {
     scorers: [], assistants: [], goalkeepers: [], galeraRank: [], disciplined: [], roundMvps: {}, availableRounds: []
   };
 
-  return { ...data, loading: query.isLoading };
+  return {
+    ...data,
+    loading: query.isLoading,
+    error: (query.error as any)?.message || null,
+    refresh: query.refetch,
+  };
 };

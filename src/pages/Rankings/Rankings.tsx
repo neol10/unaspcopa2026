@@ -1,15 +1,25 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import './Rankings.css';
 import { useRankings, RankingPlayer } from '../../hooks/useRankings';
-import { Trophy, Activity, ShieldAlert, Zap, Medal, User } from 'lucide-react';
+import { Trophy, Activity, ShieldAlert, Zap, User } from 'lucide-react';
 import PlayerProfileModal from '../Players/PlayerProfileModal';
 import Skeleton from '../../components/Skeleton/Skeleton';
 
 const Rankings: React.FC = () => {
-  const { scorers, assistants, goalkeepers, galeraRank, disciplined, roundMvps, availableRounds, loading } = useRankings();
+  const { scorers, assistants, goalkeepers, disciplined, roundMvps, availableRounds, loading, error, refresh } = useRankings();
   const [selectedPlayer, setSelectedPlayer] = useState<RankingPlayer | null>(null);
   const [selectedRound, setSelectedRound] = useState<string | null>(null);
+  const [stuck, setStuck] = useState(false);
+
+  useEffect(() => {
+    if (!loading) {
+      setStuck(false);
+      return;
+    }
+    const id = setTimeout(() => setStuck(true), 15000);
+    return () => clearTimeout(id);
+  }, [loading]);
 
   // Set default round once available
   React.useEffect(() => {
@@ -17,6 +27,38 @@ const Rankings: React.FC = () => {
       setSelectedRound(availableRounds[availableRounds.length - 1]);
     }
   }, [availableRounds, selectedRound]);
+
+  if ((stuck || (!navigator.onLine && loading)) && scorers.length === 0 && assistants.length === 0 && goalkeepers.length === 0) {
+    return (
+      <div className="rankings-container animate-fade-in">
+        <div className="empty-state glass">
+          <p style={{ marginBottom: '0.75rem' }}>
+            {!navigator.onLine
+              ? 'Sem conexão no momento. Os rankings vão carregar assim que a internet voltar.'
+              : 'Demorou muito para carregar os rankings.'}
+          </p>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => refresh()}>
+              Tentar novamente
+            </button>
+            <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => window.location.reload()}>
+              Recarregar página
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && scorers.length === 0 && assistants.length === 0 && goalkeepers.length === 0) {
+    return (
+      <div className="rankings-container animate-fade-in">
+        <div className="empty-state glass">
+          <p>Erro ao carregar os rankings. Verifique sua conexão e tente novamente.</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading && scorers.length === 0) return (
     <div className="rankings-container animate-fade-in">
@@ -225,38 +267,6 @@ const Rankings: React.FC = () => {
               </div>
             ))}
             {goalkeepers.length === 0 && <p className="empty-rank">Aguardando súmulas...</p>}
-          </div>
-        </section>
-
-        {/* Craque da Galera */}
-        <section className="rank-panel glass highlighted-purple">
-          <div className="panel-header">
-            <Medal size={20} color="#a855f7" />
-            <div className="header-text-stacked">
-              <h3>Craque da Galera</h3>
-              <small>Prêmio final de encerramento</small>
-            </div>
-          </div>
-          <div className="rank-rows">
-            {galeraRank.map((p, i) => (
-              <div key={p.id} className="rank-row-item glass-hover" onClick={() => setSelectedPlayer(p)}>
-                <div className="rank-idx">{i + 1}º</div>
-                <div className="rank-avatar">
-                   {p.photo_url ? <img src={p.photo_url} alt={p.name} /> : <div className="avatar-dummy"><User size={14} /></div>}
-                </div>
-                <div className="rank-player">
-                   <div className="player-name-wrapper">
-                     <strong>{p.name}</strong>
-                     <div className="team-mini-info">
-                        {p.team_badge_url && <img src={p.team_badge_url} alt="" className="mini-badge" />}
-                        <span>{p.team_name}</span>
-                     </div>
-                   </div>
-                </div>
-                <div className="rank-val">{p.mvp_votes} Votos</div>
-              </div>
-            ))}
-            {galeraRank.length === 0 && <p className="empty-rank">Sem votações abertas.</p>}
           </div>
         </section>
 

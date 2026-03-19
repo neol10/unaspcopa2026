@@ -95,6 +95,86 @@
   font-weight: 900;
 }
 
+/* --- Client Errors Panel --- */
+.client-errors-body {
+  padding: 1.5rem 2.5rem 2.5rem;
+}
+
+.client-errors-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.client-error-item.glass {
+  padding: 1rem 1.25rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.client-error-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.client-error-head strong {
+  font-weight: 900;
+  color: var(--text-main);
+}
+
+.client-error-date {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  font-weight: 700;
+}
+
+.client-error-message {
+  color: var(--text-main);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.client-error-meta {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.client-error-details {
+  margin-top: 0.75rem;
+  color: var(--text-dim);
+}
+
+.client-error-details summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.client-error-pre {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.8rem;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.client-error-ua {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
 /* Admin Global Header */
 .admin-main-header {
   padding: 2rem 3rem;

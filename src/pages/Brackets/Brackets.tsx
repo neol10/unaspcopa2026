@@ -1,14 +1,24 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useMatches, Match } from '../../hooks/useMatches';
 import { Trophy, Timer, ChevronRight, ChevronLeft } from 'lucide-react';
 import './Brackets.css';
 
 const Brackets: React.FC = () => {
-  const { matches, loading } = useMatches();
+  const { matches, loading, error, refresh } = useMatches();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [stuck, setStuck] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [startX, setStartX] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
+
+  useEffect(() => {
+    if (!loading) {
+      setStuck(false);
+      return;
+    }
+    const id = setTimeout(() => setStuck(true), 15000);
+    return () => clearTimeout(id);
+  }, [loading]);
 
   const formatRoundName = (name: string) => {
     if (/^\d+$/.test(name)) return `${name}ª Rodada`;
@@ -84,7 +94,38 @@ const Brackets: React.FC = () => {
     }
   };
 
-  if (loading) return <div className="loading-state">Carregando Jogos...</div>;
+  if ((stuck || (!navigator.onLine && loading)) && matches.length === 0) {
+    return (
+      <div className="error-state glass" style={{ margin: '2rem auto', maxWidth: 720 }}>
+        <p style={{ marginBottom: '0.75rem' }}>
+          {!navigator.onLine
+            ? 'Sem conexão no momento. Os jogos vão carregar assim que a internet voltar.'
+            : 'Demorou muito para carregar os jogos.'}
+        </p>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => refresh()}>
+            Tentar novamente
+          </button>
+          <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => window.location.reload()}>
+            Recarregar página
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading && matches.length === 0) return <div className="loading-state">Carregando Jogos...</div>;
+
+  if (error && matches.length === 0) {
+    return (
+      <div className="error-state glass" style={{ margin: '2rem auto', maxWidth: 720 }}>
+        <p style={{ marginBottom: '0.75rem' }}>Erro ao carregar jogos: {error}</p>
+        <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => refresh()}>
+          Tentar novamente
+        </button>
+      </div>
+    );
+  }
 
   const MatchBox: React.FC<{ match: Match; isKnockout?: boolean }> = ({ match, isKnockout }) => {
     const isTeamAWinner = match.status === 'finalizado' && match.team_a_score > match.team_b_score;

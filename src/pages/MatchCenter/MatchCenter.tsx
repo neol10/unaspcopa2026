@@ -3,13 +3,12 @@ import { useMatches } from '../../hooks/useMatches';
 import { useMatchEvents } from '../../hooks/useMatchEvents';
 import { usePlayers } from '../../hooks/usePlayers';
 import { useMvpVoting } from '../../hooks/useMvpVoting';
-import { useMatchMvpVoting } from '../../hooks/useMatchMvpVoting';
 import Skeleton from '../../components/Skeleton/Skeleton';
 import { useTournamentConfig } from '../../hooks/useTournamentConfig';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useStandings } from '../../hooks/useStandings';
 import { supabase } from '../../lib/supabase';
-import { Shield, Timer, Award, Zap, History, Vote, Download, Trophy, ArrowRightLeft, TrendingUp, HelpCircle } from 'lucide-react';
+import { Shield, Timer, Award, Zap, History, Vote, Download, Trophy, ArrowRightLeft, TrendingUp, HelpCircle, Copy } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import ShareCard, { useShareCard } from '../../components/ShareCard/ShareCard';
@@ -17,13 +16,15 @@ import { useMatchWinnerVoting } from '../../hooks/useMatchWinnerVoting';
 import './MatchCenter.css';
 
 const MatchCenter: React.FC = () => {
-  const { matches, loading: matchesLoading } = useMatches();
+  const { matches, loading: matchesLoading, error: matchesError } = useMatches();
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [showGoalOverlay, setShowGoalOverlay] = useState<{ team: string, player: string } | null>(null);
   
   const activeMatch = selectedMatchId 
     ? matches.find(m => m.id === selectedMatchId) 
     : matches.find(m => m.status === 'ao_vivo') || matches[0];
+
+  const activeMatchRoundText = activeMatch ? String(activeMatch.round ?? '').toLowerCase() : '';
 
   const [elapsedTime, setElapsedTime] = useState('00:00');
 
@@ -53,16 +54,18 @@ const MatchCenter: React.FC = () => {
     } else if (event.event_type === 'substituicao') {
       const playerIn = players.find((p: any) => p.id === event.assistant_id)?.name;
       toast(`🔄 Substituição: Sai ${event.players?.name || ''}, Entra ${playerIn || 'jogador'}`, { icon: '🔄' });
+    } else if (event.event_type === 'momento') {
+      const text = event.commentary || 'Momento importante!';
+      toast(`🔥 ${text}`, { icon: '🔥' });
     }
   };
 
-  const { events, loading: eventsLoading } = useMatchEvents(activeMatch?.id || '', handleNewEvent);
+  const { events, loading: eventsLoading, error: eventsError, refresh: refreshEvents } = useMatchEvents(activeMatch?.id || '', handleNewEvent);
   const { user } = useAuthContext();
   const { config } = useTournamentConfig();
-  const { voteCounts: roundVotes, userVote: roundUserVote, vote: castRoundVote, loading: roundMvpLoading } = useMvpVoting(String(config.current_round));
-  const { voteCounts: matchVotes, userVote: matchUserVote, vote: castMatchVote, loading: matchMvpLoading } = useMatchMvpVoting(activeMatch?.id || '');
+  const { voteCounts: roundVotes, userVote: roundUserVote, vote: castRoundVote, loading: roundMvpLoading, error: roundMvpError, refresh: refreshRoundMvp } = useMvpVoting(String(config.current_round));
   
-  const { votes: winnerVotes, userVote: winnerUserVote, vote: castWinnerVote } = useMatchWinnerVoting(activeMatch?.id || '');
+  const { votes: winnerVotes, userVote: winnerUserVote, vote: castWinnerVote, error: winnerVotesError } = useMatchWinnerVoting(activeMatch?.id || '');
 
   const getPollQuestion = () => {
     if (!activeMatch) return 'Quem vence?';
@@ -138,7 +141,25 @@ const MatchCenter: React.FC = () => {
     setIsExporting(false);
   };
 
-  if (matchesLoading) return (
+  const handleCopySummary = async () => {
+    if (!activeMatch) return;
+    try {
+      const teamA = activeMatch.teams_a?.name || 'Equipe A';
+      const teamB = activeMatch.teams_b?.name || 'Equipe B';
+      const scoreA = activeMatch.team_a_score ?? 0;
+      const scoreB = activeMatch.team_b_score ?? 0;
+      const roundText = activeMatch.round ? ` • Rodada ${activeMatch.round}` : '';
+      const dateText = activeMatch.match_date ? ` • ${new Date(activeMatch.match_date).toLocaleDateString('pt-BR')}` : '';
+      const text = `${teamA} ${scoreA}x${scoreB} ${teamB}${roundText}${dateText}`;
+
+      await navigator.clipboard.writeText(text);
+      toast.success('Resumo copiado!');
+    } catch {
+      toast.error('Não foi possível copiar.');
+    }
+  };
+
+    if (matchesLoading && matches.length === 0) return (
     <div className="match-center animate-fade-in" style={{ padding: '2rem' }}>
        <Skeleton width="100%" height="80px" borderRadius="16px" className="mb-4" />
        <div className="match-layout">
@@ -152,6 +173,16 @@ const MatchCenter: React.FC = () => {
        </div>
     </div>
   );
+
+  if (matchesError && matches.length === 0) {
+    return (
+      <div className="match-center animate-fade-in" style={{ padding: '2rem' }}>
+        <div className="empty-state glass">
+          Erro ao carregar as partidas. Verifique sua conexão e tente novamente.
+        </div>
+      </div>
+    );
+  }
   
   if (!activeMatch) return <div className="empty-state glass">Nenhuma partida programada.</div>;
 
@@ -303,7 +334,7 @@ const MatchCenter: React.FC = () => {
               </div>
             )}
 
-            <div className="scoreboard-actions">
+            <div className="scoreboard-actions" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
               <button 
                 className="btn-share-result" 
                 onClick={handleDownloadCard}
@@ -311,6 +342,11 @@ const MatchCenter: React.FC = () => {
               >
                 {isExporting ? <div className="spinner-mini"></div> : <Download size={18} />}
                 Baixar Card de Resultado
+              </button>
+
+              <button className="btn-share-result" onClick={handleCopySummary}>
+                <Copy size={18} />
+                Copiar Resumo
               </button>
             </div>
           </section>
@@ -326,105 +362,101 @@ const MatchCenter: React.FC = () => {
             </div>
             
             <div className="winner-options-v2">
-              <button 
-                className={`w-opt-v2 ${winnerUserVote === 'team_a' ? 'selected' : ''}`}
-                onClick={() => {
-                  if (navigator.vibrate) navigator.vibrate(50);
-                  castWinnerVote('team_a');
-                }}
-                disabled={!!winnerUserVote}
-              >
-                <div className="w-label-group">
-                  <span className="w-name">{activeMatch.teams_a?.name}</span>
-                  {winnerUserVote && (
-                    <span className="w-perc">
-                      {winnerVotes.total > 0 ? Math.round((winnerVotes.team_a / winnerVotes.total) * 100) : 0}%
-                    </span>
-                  )}
+              {winnerVotesError ? (
+                <div className="empty-state glass" style={{ padding: '12px' }}>
+                  Erro ao carregar enquete: {winnerVotesError}
                 </div>
-                {winnerUserVote && (
-                  <div className="w-bar-container">
-                    <motion.div 
-                      className="w-bar" 
-                      initial={{ width: 0 }}
-                      animate={{ width: `${winnerVotes.total > 0 ? (winnerVotes.team_a / winnerVotes.total) * 100 : 0}%` }}
-                    />
-                  </div>
-                )}
-              </button>
-
-              {/* Só mostra Empate se NÃO for Final/Mata-Mata (opcional, ajustável ao torneio) */}
-              {!activeMatch.round.toLowerCase().includes('final') && 
-               !activeMatch.round.toLowerCase().includes('semi') && 
-               !activeMatch.round.toLowerCase().includes('quarta') && (
-                <button 
-                  className={`w-opt-v2 draw ${winnerUserVote === 'draw' ? 'selected' : ''}`}
-                  onClick={() => {
-                    if (navigator.vibrate) navigator.vibrate(50);
-                    castWinnerVote('draw');
-                  }}
-                  disabled={!!winnerUserVote}
-                >
-                  <div className="w-label-group">
-                    <span className="w-name">Empate</span>
-                    {winnerUserVote && (
-                      <span className="w-perc">
-                        {winnerVotes.total > 0 ? Math.round((winnerVotes.draw / winnerVotes.total) * 100) : 0}%
-                      </span>
-                    )}
-                  </div>
-                  {winnerUserVote && (
-                    <div className="w-bar-container">
-                      <motion.div 
-                        className="w-bar" 
-                        initial={{ width: 0 }}
-                        animate={{ width: `${winnerVotes.total > 0 ? (winnerVotes.draw / winnerVotes.total) * 100 : 0}%` }}
-                      />
+              ) : (
+                <>
+                  <button 
+                    className={`w-opt-v2 ${winnerUserVote === 'team_a' ? 'selected' : ''}`}
+                    onClick={() => {
+                      if (navigator.vibrate) navigator.vibrate(50);
+                      castWinnerVote('team_a');
+                    }}
+                    disabled={!!winnerUserVote}
+                  >
+                    <div className="w-label-group">
+                      <span className="w-name">{activeMatch.teams_a?.name}</span>
+                      {winnerUserVote && (
+                        <span className="w-perc">
+                          {winnerVotes.total > 0 ? Math.round((winnerVotes.team_a / winnerVotes.total) * 100) : 0}%
+                        </span>
+                      )}
                     </div>
-                  )}
-                </button>
-              )}
+                    {winnerUserVote && (
+                      <div className="w-bar-container">
+                        <motion.div 
+                          className="w-bar" 
+                          initial={{ width: 0 }}
+                          animate={{ width: `${winnerVotes.total > 0 ? (winnerVotes.team_a / winnerVotes.total) * 100 : 0}%` }}
+                        />
+                      </div>
+                    )}
+                  </button>
 
-              <button 
-                className={`w-opt-v2 ${winnerUserVote === 'team_b' ? 'selected' : ''}`}
-                onClick={() => {
-                  if (navigator.vibrate) navigator.vibrate(50);
-                  castWinnerVote('team_b');
-                }}
-                disabled={!!winnerUserVote}
-              >
-                <div className="w-label-group">
-                  <span className="w-name">{activeMatch.teams_b?.name}</span>
-                  {winnerUserVote && (
-                    <span className="w-perc">
-                      {winnerVotes.total > 0 ? Math.round((winnerVotes.team_b / winnerVotes.total) * 100) : 0}%
-                    </span>
+                  {/* Só mostra Empate se NÃO for Final/Mata-Mata (opcional, ajustável ao torneio) */}
+                  {!activeMatchRoundText.includes('final') && 
+                   !activeMatchRoundText.includes('semi') && 
+                   !activeMatchRoundText.includes('quarta') && (
+                    <button 
+                      className={`w-opt-v2 draw ${winnerUserVote === 'draw' ? 'selected' : ''}`}
+                      onClick={() => {
+                        if (navigator.vibrate) navigator.vibrate(50);
+                        castWinnerVote('draw');
+                      }}
+                      disabled={!!winnerUserVote}
+                    >
+                      <div className="w-label-group">
+                        <span className="w-name">Empate</span>
+                        {winnerUserVote && (
+                          <span className="w-perc">
+                            {winnerVotes.total > 0 ? Math.round((winnerVotes.draw / winnerVotes.total) * 100) : 0}%
+                          </span>
+                        )}
+                      </div>
+                      {winnerUserVote && (
+                        <div className="w-bar-container">
+                          <motion.div 
+                            className="w-bar" 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${winnerVotes.total > 0 ? (winnerVotes.draw / winnerVotes.total) * 100 : 0}%` }}
+                          />
+                        </div>
+                      )}
+                    </button>
                   )}
-                </div>
-                {winnerUserVote && (
-                  <div className="w-bar-container">
-                    <motion.div 
-                      className="w-bar" 
-                      initial={{ width: 0 }}
-                      animate={{ width: `${winnerVotes.total > 0 ? (winnerVotes.team_b / winnerVotes.total) * 100 : 0}%` }}
-                    />
-                  </div>
-                )}
-              </button>
+
+                  <button 
+                    className={`w-opt-v2 ${winnerUserVote === 'team_b' ? 'selected' : ''}`}
+                    onClick={() => {
+                      if (navigator.vibrate) navigator.vibrate(50);
+                      castWinnerVote('team_b');
+                    }}
+                    disabled={!!winnerUserVote}
+                  >
+                    <div className="w-label-group">
+                      <span className="w-name">{activeMatch.teams_b?.name}</span>
+                      {winnerUserVote && (
+                        <span className="w-perc">
+                          {winnerVotes.total > 0 ? Math.round((winnerVotes.team_b / winnerVotes.total) * 100) : 0}%
+                        </span>
+                      )}
+                    </div>
+                    {winnerUserVote && (
+                      <div className="w-bar-container">
+                        <motion.div 
+                          className="w-bar" 
+                          initial={{ width: 0 }}
+                          animate={{ width: `${winnerVotes.total > 0 ? (winnerVotes.team_b / winnerVotes.total) * 100 : 0}%` }}
+                        />
+                      </div>
+                    )}
+                  </button>
+                </>
+              )}
             </div>
           </div>
-
-          {/* Craque da Galera (Votado) */}
-          {activeMatch.status === 'finalizado' && matchVotes.length > 0 && (
-            <div className="match-public-mvp glass animate-slide-up">
-              <Vote size={20} color="var(--accent-blue)" />
-              <div className="mvp-details">
-                <span className="mvp-label">CRAQUE DA GALERA</span>
-                <span className="mvp-name">{matchVotes[0].player_name}</span>
-                <span className="mvp-vote-info">{matchVotes[0].vote_count} votos da torcida</span>
-              </div>
-            </div>
-          )}
 
           {/* ShareCard Template */}
           <ShareCard 
@@ -443,6 +475,13 @@ const MatchCenter: React.FC = () => {
             <div className="timeline-v2-list">
               {eventsLoading ? (
                 <div className="mini-spinner"></div>
+              ) : eventsError ? (
+                <div className="empty-state glass" style={{ padding: '12px' }}>
+                  <p style={{ marginBottom: '0.75rem' }}>Erro ao carregar lances: {eventsError}</p>
+                  <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => refreshEvents()}>
+                    Tentar novamente
+                  </button>
+                </div>
               ) : events.length > 0 ? (
                 events.map((event) => (
                   <div key={event.id} className="t-event animate-fade-in">
@@ -452,7 +491,7 @@ const MatchCenter: React.FC = () => {
                       {event.event_type === 'amarelo' && <div className="card-yellow"></div>}
                       {event.event_type === 'vermelho' && <div className="card-red"></div>}
                       {event.event_type === 'substituicao' && <ArrowRightLeft size={14} color="#fff" />}
-                      {event.event_type === 'comentario' && <Zap size={14} color="var(--accent-blue)" />}
+                      {(event.event_type === 'comentario' || event.event_type === 'momento') && <Zap size={14} color="var(--accent-blue)" />}
                     </div>
                     <div className="t-content glass">
                       <div className="t-header">
@@ -460,7 +499,8 @@ const MatchCenter: React.FC = () => {
                           {event.event_type === 'gol' ? 'GOL!' : 
                            event.event_type === 'amarelo' ? 'Cartão Amarelo' :
                            event.event_type === 'vermelho' ? 'Cartão Vermelho' :
-                           event.event_type === 'substituicao' ? 'Substituição' : 'Informação'}
+                           event.event_type === 'substituicao' ? 'Substituição' :
+                           event.event_type === 'momento' ? 'Momento' : 'Informação'}
                         </span>
                       </div>
                       <p>
@@ -476,7 +516,7 @@ const MatchCenter: React.FC = () => {
                             Entra: {players.find(p => p.id === event.assistant_id)?.name}
                           </span>
                         )}
-                        {event.event_type === 'comentario' && event.commentary}
+                        {(event.event_type === 'comentario' || event.event_type === 'momento') && event.commentary}
                       </p>
                     </div>
                   </div>
@@ -492,13 +532,13 @@ const MatchCenter: React.FC = () => {
                 <h3>Comentários ao Vivo</h3>
               </div>
               <div className="feed-content">
-                {events.filter(e => e.event_type === 'comentario').map(ev => (
+                {events.filter(e => e.event_type === 'comentario' || e.event_type === 'momento').map(ev => (
                   <div key={ev.id} className="comment-bubble animate-slide-up">
                     <span className="comment-time">{ev.minute}'</span>
                     <p className="commentary-text">{ev.commentary}</p>
                   </div>
                 ))}
-                {events.filter(e => e.event_type === 'comentario').length === 0 && (
+                {events.filter(e => e.event_type === 'comentario' || e.event_type === 'momento').length === 0 && (
                   <p className="empty-feed">Aguardando lances da partida...</p>
                 )}
               </div>
@@ -565,58 +605,6 @@ const MatchCenter: React.FC = () => {
             </div>
           )}
 
-          {/* Votação MVP: Craque da Galera */}
-          <div className="vote-widget glass">
-            <div className="side-header">
-              <Vote size={18} color="var(--accent-blue)" />
-              <h3>Votação: Craque da Galera</h3>
-            </div>
-            <div className="poll-minimal">
-              {activeMatch?.status === 'ao_vivo' ? (
-                matchMvpLoading ? (
-                  <p className="loading-msg">Carregando votação...</p>
-                ) : (
-                  <>
-                    <p className="poll-question">Quem está brilhando nesta partida?</p>
-                    <div className="vote-options-grid">
-                      {[...players.filter(p => p.team_id === activeMatch.team_a_id || p.team_id === activeMatch.team_b_id)].map(player => {
-                        const totalVotes = matchVotes.reduce((acc, v) => acc + v.vote_count, 0) || 0;
-                        const playerVotes = matchVotes.find(v => v.player_id === player.id)?.vote_count || 0;
-                        const percentage = totalVotes > 0 ? Math.round((playerVotes / totalVotes) * 100) : 0;
-                        
-                        return (
-                          <button 
-                            key={player.id} 
-                            className={`vote-player-btn ${matchUserVote === player.id ? 'voted' : ''}`}
-                            onClick={() => !matchUserVote && castMatchVote(player.id)}
-                            disabled={!!matchUserVote && matchUserVote !== player.id}
-                          >
-                            <div className="v-player-info">
-                              <span className="v-name">{player.name}</span>
-                              <span className="v-team">
-                                {player.team_id === activeMatch.team_a_id 
-                                  ? activeMatch.teams_a?.name.substring(0,3) 
-                                  : activeMatch.teams_b?.name.substring(0,3)}
-                              </span>
-                            </div>
-                            {matchUserVote && <span className="v-perc">{percentage}%</span>}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {matchUserVote && <p className="voted-msg">Você já votou nesta partida! ✨</p>}
-                  </>
-                )
-              ) : (
-                <p className="empty-msg">
-                  {activeMatch?.status === 'finalizado' 
-                    ? 'Votação encerrada. Confira o vencedor acima!' 
-                    : 'Aguarde o início do jogo para votar!'}
-                </p>
-              )}
-            </div>
-          </div>
-
           <div className="round-mvp-widget glass">
             <div className="side-header">
               <Award size={18} color="var(--secondary)" />
@@ -625,6 +613,13 @@ const MatchCenter: React.FC = () => {
             <div className="mvp-ranking-list">
               {roundMvpLoading ? (
                 <div className="mini-spinner"></div>
+              ) : roundMvpError ? (
+                <div className="empty-state glass" style={{ padding: '12px' }}>
+                  <p style={{ marginBottom: '0.75rem' }}>Erro ao carregar ranking da rodada: {roundMvpError}</p>
+                  <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => refreshRoundMvp()}>
+                    Tentar novamente
+                  </button>
+                </div>
               ) : roundVotes.length > 0 ? (
                 roundVotes.slice(0, 3).map((mvp, idx) => (
                   <div key={mvp.player_id} className={`mvp-rank-item ${idx === 0 ? 'top-1' : ''}`}>

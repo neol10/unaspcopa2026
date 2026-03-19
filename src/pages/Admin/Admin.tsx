@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Trophy, Users, Calendar, Plus, Save, Trash2, Shield, ChevronDown, ChevronUp, Newspaper, Image as ImageIcon, CheckCircle, Play, Camera, Search, Settings2, Vote, ShieldAlert, Bell, Star, CreditCard, Target, Square, ArrowRightLeft, MessageSquare, Zap, Clock, ArrowRight, Pause, RotateCcw } from 'lucide-react';
-import { useMatchMvpVoting } from '../../hooks/useMatchMvpVoting';
 import { useTeams } from '../../hooks/useTeams';
 import { usePlayers } from '../../hooks/usePlayers';
 import { useNews } from '../../hooks/useNews';
@@ -53,9 +52,19 @@ const formatDatetimeLocal = (dateStr: string | null) => {
 
 const Admin: React.FC = () => {
   const { user, role, loading: authLoading } = useAuthContext();
-  const [activeTab, setActiveTab] = useState<'matches' | 'teams' | 'players' | 'news' | 'tournament' | 'polls' | 'notifications'>('matches');
+  const [activeTab, setActiveTab] = useState<'matches' | 'teams' | 'players' | 'news' | 'tournament' | 'polls' | 'notifications' | 'errors'>('matches');
   
   if (authLoading) return <div className="admin-loading-state glass"><div className="spinner"></div><p>Verificando credenciais...</p></div>;
+
+  // Evita piscar "Acesso Restrito" enquanto o role ainda está sendo resolvido.
+  if (user && role === null) {
+    return (
+      <div className="admin-loading-state glass">
+        <div className="spinner"></div>
+        <p>Carregando permissões...</p>
+      </div>
+    );
+  }
 
   const isAdmin = role === 'admin';
 
@@ -134,6 +143,13 @@ const Admin: React.FC = () => {
                 <Bell size={18} />
                 <span>Alertas Push</span>
               </button>
+              <button 
+                className={`tab-btn ${activeTab === 'errors' ? 'active' : ''}`} 
+                onClick={() => setActiveTab('errors')}
+              >
+                <ShieldAlert size={18} />
+                <span>Erros</span>
+              </button>
             </nav>
           </header>
 
@@ -145,6 +161,7 @@ const Admin: React.FC = () => {
             {activeTab === 'tournament' && <TournamentManagement />}
             {activeTab === 'polls' && <PollManagement />}
             {activeTab === 'notifications' && <NotificationBroadcast />}
+            {activeTab === 'errors' && <ClientErrorsPanel />}
           </main>
         </>
       )}
@@ -155,8 +172,10 @@ const Admin: React.FC = () => {
 // --- Helpers ---
 const sendPushNotification = async (title: string, body: string, url: string = '/') => {
   try {
-    await supabase.functions.invoke('notify-push', {
-      body: { title, body, url, sound: 'default' }
+    await fetch('/api/notify-push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, body, url, sound: 'default' }),
     });
   } catch (err) {
     console.error('Push notification error:', err);
@@ -239,6 +258,120 @@ const NotificationBroadcast = () => {
           <li>Seja breve e direto ao ponto.</li>
           <li>Evite enviar muitos alertas em curto espaço de tempo.</li>
         </ul>
+      </div>
+    </div>
+  );
+};
+
+// --- Observabilidade: Erros do Client ---
+type ClientErrorRow = {
+  id: string;
+  created_at: string;
+  source: string;
+  message: string;
+  stack: string | null;
+  path: string | null;
+  user_agent: string | null;
+  app_version: string | null;
+  extra: any;
+};
+
+const formatDateTime = (value: string) => {
+  try {
+    return new Date(value).toLocaleString();
+  } catch {
+    return value;
+  }
+};
+
+const ClientErrorsPanel = () => {
+  const [items, setItems] = useState<ClientErrorRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const { data, error } = await supabase
+        .from('client_errors')
+        .select('id, created_at, source, message, stack, path, user_agent, app_version, extra')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+      setItems((data || []) as ClientErrorRow[]);
+    } catch (err: any) {
+      console.error('Error loading client_errors:', err);
+      const msg = err?.message || 'Falha ao carregar erros';
+      setLoadError(msg);
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div className="admin-section glass animate-fade-in">
+      <div className="section-header">
+        <div>
+          <h2>Erros do App (Client)</h2>
+          <p className="section-subtitle">Últimos 50 erros reportados pelos usuários (observabilidade).</p>
+        </div>
+        <button className="btn-add" onClick={() => void load()} disabled={loading}>
+          <RotateCcw size={18} /> {loading ? 'Atualizando...' : 'Atualizar'}
+        </button>
+      </div>
+
+      <div className="client-errors-body">
+        {loadError ? (
+          <div className="admin-empty-state">
+            <p>Não foi possível carregar: {loadError}</p>
+            <button className="btn-add" onClick={() => void load()} disabled={loading}>
+              <RotateCcw size={18} /> Tentar novamente
+            </button>
+          </div>
+        ) : items.length === 0 ? (
+          <div className="admin-empty-state">
+            <p>Nenhum erro registrado ainda.</p>
+          </div>
+        ) : (
+          <div className="client-errors-list">
+            {items.map((it) => (
+              <div key={it.id} className="client-error-item glass">
+                <div className="client-error-head">
+                  <strong>{it.source}</strong>
+                  <span className="client-error-date">{formatDateTime(it.created_at)}</span>
+                </div>
+                <div className="client-error-message">{it.message}</div>
+                <div className="client-error-meta">
+                  {it.path ? <span>Rota: {it.path}</span> : null}
+                  {it.app_version ? <span>Versão: {it.app_version}</span> : null}
+                </div>
+
+                {(it.stack || it.extra || it.user_agent) ? (
+                  <details className="client-error-details">
+                    <summary>Detalhes</summary>
+                    {it.stack ? (
+                      <pre className="client-error-pre">{it.stack}</pre>
+                    ) : null}
+                    {it.user_agent ? (
+                      <div className="client-error-ua">UA: {it.user_agent}</div>
+                    ) : null}
+                    {it.extra ? (
+                      <pre className="client-error-pre">{JSON.stringify(it.extra, null, 2)}</pre>
+                    ) : null}
+                  </details>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -566,11 +699,6 @@ const MatchManagement = () => {
                 </div>
               </div>
             )}
-            {match.status === 'ao_vivo' && (
-              <div className="admin-match-mvp-section glass mt-2">
-                <MatchMvpVotingAdmin matchId={match.id} teamAName={match.teams_a.name} teamBName={match.teams_b.name} />
-              </div>
-            )}
             {selectedMatchId === match.id && (
               <div className="live-event-panel glass animate-slide-down">
                 <LiveMatchControl match={match} />
@@ -587,7 +715,7 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
   const { players: playersA } = usePlayers(match.team_a_id);
   const { players: playersB } = usePlayers(match.team_b_id);
   const { events, refresh: refreshEvents } = useMatchEvents(match.id);
-  const [eventType, setEventType] = useState<'gol' | 'amarelo' | 'vermelho' | 'substituicao' | 'comentario'>('gol');
+  const [eventType, setEventType] = useState<'gol' | 'amarelo' | 'vermelho' | 'substituicao' | 'comentario' | 'momento'>('gol');
   const [goalType, setGoalType] = useState<'normal' | 'penalti' | 'contra'>('normal');
   const [selectedMinute, setSelectedMinute] = useState<number>(0);
   const [assistantId, setAssistantId] = useState<string>('');
@@ -637,6 +765,37 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
     }
   }, [playersA, playersB]);
 
+  // Atalhos (Admin produtivo): Alt+1..6 troca tipo, Ctrl+Espaço inicia/pausa cronômetro
+  useEffect(() => {
+    const shouldIgnore = (target: EventTarget | null) => {
+      const el = target as HTMLElement | null;
+      if (!el) return false;
+      const tag = (el.tagName || '').toLowerCase();
+      return tag === 'input' || tag === 'textarea' || tag === 'select' || el.isContentEditable;
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (shouldIgnore(e.target)) return;
+
+      if (e.ctrlKey && (e.code === 'Space' || e.key === ' ')) {
+        e.preventDefault();
+        setIsActive(prev => !prev);
+        return;
+      }
+
+      if (!e.altKey) return;
+      if (e.key === '1') setEventType('gol');
+      else if (e.key === '2') setEventType('amarelo');
+      else if (e.key === '3') setEventType('vermelho');
+      else if (e.key === '4') setEventType('substituicao');
+      else if (e.key === '5') setEventType('momento');
+      else if (e.key === '6') setEventType('comentario');
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   const togglePlayerStatus = (playerId: string, team: 'a' | 'b') => {
     if (team === 'a') {
       setOnFieldA(prev => prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId]);
@@ -651,10 +810,15 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
 
       const eventData: any = {
         match_id: match.id,
-        player_id: playerId,
         event_type: eventType,
         minute: eventMinute
       };
+
+      if (eventType === 'comentario' || eventType === 'momento') {
+        eventData.player_id = null;
+      } else {
+        eventData.player_id = playerId;
+      }
 
       if (eventType === 'gol') {
         eventData.commentary = goalType === 'normal' ? '' : `[${goalType.toUpperCase()}]`;
@@ -671,7 +835,7 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
         }
       }
 
-      if (eventType === 'comentario') {
+      if (eventType === 'comentario' || eventType === 'momento') {
         eventData.commentary = commentaryText;
       }
 
@@ -744,6 +908,8 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
         );
       } else if (eventType === 'comentario') {
         sendPushNotification('📝 Atualização', commentaryText, '/central-da-partida');
+      } else if (eventType === 'momento') {
+        sendPushNotification('🔥 Momento da Partida', commentaryText, '/central-da-partida');
       }
       
       // Feedback visual rápido
@@ -859,6 +1025,9 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
         <button className={eventType === 'substituicao' ? 'active' : ''} onClick={() => setEventType('substituicao')}>
           <ArrowRightLeft size={16} /> SUBST.
         </button>
+        <button className={eventType === 'momento' ? 'active' : ''} onClick={() => setEventType('momento')}>
+          <Clock size={16} /> MOMENTO
+        </button>
         <button className={eventType === 'comentario' ? 'active' : ''} onClick={() => setEventType('comentario')}>
           <MessageSquare size={16} /> TEXTO
         </button>
@@ -891,15 +1060,17 @@ const LiveMatchControl: React.FC<{ match: any }> = ({ match }) => {
           </div>
         )}
 
-        {eventType === 'comentario' && (
+        {(eventType === 'comentario' || eventType === 'momento') && (
           <div className="form-group-full">
             <input 
               type="text" 
-              placeholder="Digite o comentário do jogo..." 
+              placeholder={eventType === 'momento' ? 'Descreva o momento da partida...' : 'Digite o comentário do jogo...'}
               value={commentaryText} 
               onChange={e => setCommentaryText(e.target.value)} 
             />
-            <button className="btn-send-msg" onClick={() => addEvent('', 'a')}>Enviar</button>
+            <button className="btn-send-msg" onClick={() => addEvent('', 'a')} disabled={!commentaryText.trim()}>
+              Enviar
+            </button>
           </div>
         )}
 
@@ -1670,11 +1841,18 @@ const PlayerManagement: React.FC<{ teamId: string, teamName: string }> = ({ team
 }
 
 const NewsManagement = () => {
-  const { news, loading, refresh } = useNews();
+  const { news, loading, error, refresh } = useNews();
   const [isAdding, setIsAdding] = useState(false);
   const [editingNewsId, setEditingNewsId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ title: '', summary: '', content: '', image_url: '' });
   const [uploading, setUploading] = useState(false);
+
+  const formatNewsDate = (value?: string) => {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleDateString();
+  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1792,7 +1970,12 @@ const NewsManagement = () => {
         </form>
       )}
 
-      {loading ? <p>Carregando...</p> : (
+      {loading ? <p>Carregando...</p> : error ? (
+        <div className="empty-state glass">
+          <p>Erro ao carregar os comunicados. Verifique sua conexão e tente novamente.</p>
+          <button className="btn-save" onClick={() => refresh()}>Tentar novamente</button>
+        </div>
+      ) : (
         <div className="admin-list">
           {news.map(item => (
             <div key={item.id} className="admin-list-item-wrapper">
@@ -1801,7 +1984,7 @@ const NewsManagement = () => {
                   <Newspaper size={24} className="icon-subtle" />
                   <div className="item-info">
                     <strong>{item.title}</strong>
-                    <span>{new Date(item.published_at).toLocaleDateString()}</span>
+                    <span>{formatNewsDate((item as any).published_at || (item as any).created_at)}</span>
                   </div>
                 </div>
                 <div className="item-actions">
@@ -2196,61 +2379,6 @@ const PollManagement = () => {
           </React.Fragment>
         ))}
         {polls.length === 0 && !loading && <p className="empty-msg">Nenhuma enquete cadastrada.</p>}
-      </div>
-    </div>
-  );
-};
-
-const MatchMvpVotingAdmin: React.FC<{ matchId: string, teamAName: string, teamBName: string }> = ({ matchId, teamAName, teamBName }) => {
-  const { voteCounts, loading } = useMatchMvpVoting(matchId);
-  const { players: playersA } = usePlayers(''); // Need to get players for teams A and B
-  const [teamAPlayers, setTeamAPlayers] = useState<any[]>([]);
-  const [teamBPlayers, setTeamBPlayers] = useState<any[]>([]);
-
-  React.useEffect(() => {
-    const fetchPlayers = async () => {
-      // Logic to fetch team players since usePlayers hook needs teamId
-      // We can get them from match data if available or fetch now
-      const { data: match } = await supabase.from('matches').select('team_a_id, team_b_id').eq('id', matchId).single();
-      if (match) {
-        const { data: pa } = await supabase.from('players').select('*').eq('team_id', match.team_a_id);
-        const { data: pb } = await supabase.from('players').select('*').eq('team_id', match.team_b_id);
-        setTeamAPlayers(pa || []);
-        setTeamBPlayers(pb || []);
-      }
-    };
-    fetchPlayers();
-  }, [matchId]);
-
-  if (loading) return <span className="admin-mvp-loading">Carregando votos...</span>;
-
-  const totalVotes = Object.values(voteCounts).reduce((acc: number, val) => acc + (Number(val) || 0), 0);
-
-  return (
-    <div className="admin-mvp-review">
-      <div className="mvp-review-header">
-        <strong><Vote size={14} /> Votos da Galera ({totalVotes})</strong>
-      </div>
-      <div className="mvp-results-grid">
-        <div className="mvp-team-column">
-          <small>{teamAName}</small>
-          {teamAPlayers.filter(p => voteCounts[p.id]).sort((a,b) => (voteCounts[b.id] || 0) - (voteCounts[a.id] || 0)).map(p => (
-            <div key={p.id} className="mvp-vote-row">
-              <span className="mvp-v-name">{p.name}</span>
-              <span className="mvp-v-count">{voteCounts[p.id]}</span>
-            </div>
-          ))}
-        </div>
-        <div className="mvp-team-divider"></div>
-        <div className="mvp-team-column">
-          <small>{teamBName}</small>
-          {teamBPlayers.filter(p => voteCounts[p.id]).sort((a,b) => (voteCounts[b.id] || 0) - (voteCounts[a.id] || 0)).map(p => (
-            <div key={p.id} className="mvp-vote-row">
-              <span className="mvp-v-name">{p.name}</span>
-              <span className="mvp-v-count">{voteCounts[p.id]}</span>
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );

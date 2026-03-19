@@ -15,11 +15,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const Home: React.FC = () => {
   const { config } = useTournamentConfig();
-  const { news, loading: newsLoading } = useNews(3);
+  const { news, loading: newsLoading, error: newsError, refresh: refreshNews } = useNews(3);
   const { standings, loading: standingsLoading } = useStandings();
   const { matches } = useMatches();
   const navigate = useNavigate();
-  const { activePoll, loading: pollLoading, hasVoted, submitVote } = usePolls();
+  const { activePoll, loading: pollLoading, error: pollError, hasVoted, submitVote, refresh: refreshPoll } = usePolls();
   const { scorers, assistants, galeraRank, loading: rankingsLoading } = useRankings();
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [selectedNews, setSelectedNews] = useState<News | null>(null);
@@ -65,6 +65,75 @@ const Home: React.FC = () => {
     return () => clearInterval(interval);
   }, [nextMatch]);
 
+  const formatNewsDate = (value?: string) => {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('pt-BR');
+  };
+
+  const newsCards = (() => {
+    if (newsLoading) {
+      return [1, 2, 3].map(i => (
+        <div key={i} className="news-card-v2 glass" style={{ padding: '1rem' }}>
+          <Skeleton width="100%" height="150px" borderRadius="12px" />
+          <Skeleton width="60%" height="20px" className="mt-2" />
+          <Skeleton width="90%" height="40px" className="mt-2" />
+        </div>
+      ));
+    }
+
+    if (newsError && news.length === 0) {
+      return (
+        <div className="news-card-v2 glass" style={{ padding: '1rem' }}>
+          <div className="empty-state glass" style={{ margin: 0 }}>
+            <p>Erro ao carregar os comunicados. Verifique sua conexão e tente novamente.</p>
+            <button className="btn-read-more" onClick={() => refreshNews()}>
+              Tentar novamente <ArrowRight size={14} />
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return news.map((item, index) => (
+      <article
+        key={item.id}
+        className={`news-card-v2 glass-hover glass ${index === 0 ? 'featured-news' : ''}`}
+        onClick={() => setSelectedNews(item)}
+      >
+        <div className="news-card-img">
+          {item.image_url ? (
+            <img
+              src={item.image_url}
+              alt=""
+              width="320"
+              height="180"
+              loading="lazy"
+              decoding="async"
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
+          ) : (
+            <Zap size={index === 0 ? 64 : 32} color="var(--text-muted)" />
+          )}
+          {index === 0 && <span className="news-badge">Destaque</span>}
+        </div>
+        <div className="news-card-body">
+          <div className="news-meta">
+            <span className="news-tag">COBERTURA</span>
+            <span className="news-date">{formatNewsDate((item as any).published_at || (item as any).created_at)}</span>
+          </div>
+          <h3>{item.title}</h3>
+          <p>{item.summary}</p>
+          <button className="btn-read-more">
+            Ler Notícia Completa <ArrowRight size={14} />
+          </button>
+        </div>
+      </article>
+    ));
+  })();
+
   return (
     <div className="home-page-v2 animate-fade-in">
       {/* Widget Ao Vivo Flutuante - Premium */}
@@ -81,10 +150,11 @@ const Home: React.FC = () => {
               <div className="pulse-dot"></div>
               AO VIVO
             </div>
+
             <div className="live-widget-teams">
-              <span>{liveMatch.teams_a?.name.substring(0,3)}</span>
+              <span>{liveMatch.teams_a?.name.substring(0, 3)}</span>
               <span className="live-widget-score">{liveMatch.team_a_score} - {liveMatch.team_b_score}</span>
-              <span>{liveMatch.teams_b?.name.substring(0,3)}</span>
+              <span>{liveMatch.teams_b?.name.substring(0, 3)}</span>
             </div>
             <ArrowRight size={14} />
           </motion.div>
@@ -260,18 +330,6 @@ const Home: React.FC = () => {
         </motion.section>
       )}
 
-      {/* Sponsors Row - Professional Touch */}
-      <section className="sponsors-row glass animate-fade-in">
-        <span className="sponsors-title">PARCEIROS OFICIAIS</span>
-        <div className="sponsors-grid">
-          <div className="sponsor-logo">UNASP</div>
-          <div className="sponsor-logo">NIKE</div>
-          <div className="sponsor-logo">GAZE</div>
-          <div className="sponsor-logo">ULTRA</div>
-          <div className="sponsor-logo">APEX</div>
-        </div>
-      </section>
-
       {/* Match Countdown Banner */}
       {nextMatch && (
         <motion.section 
@@ -429,50 +487,7 @@ const Home: React.FC = () => {
             </div>
             
             <div className="news-stack-v2">
-              {newsLoading ? (
-                [1, 2, 3].map(i => (
-                  <div key={i} className="news-card-v2 glass" style={{ padding: '1rem' }}>
-                    <Skeleton width="100%" height="150px" borderRadius="12px" />
-                    <Skeleton width="60%" height="20px" className="mt-2" />
-                    <Skeleton width="90%" height="40px" className="mt-2" />
-                  </div>
-                ))
-              ) : news.map((item, index) => (
-                 <article 
-                  key={item.id} 
-                  className={`news-card-v2 glass-hover glass ${index === 0 ? 'featured-news' : ''}`} 
-                  onClick={() => setSelectedNews(item)}
-                >
-                  <div className="news-card-img">
-                    {item.image_url ? (
-                      <img 
-                        src={item.image_url} 
-                        alt="" 
-                        width="320" 
-                        height="180" 
-                        loading="lazy" 
-                        decoding="async" 
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        onError={(e) => { e.currentTarget.style.display = 'none'; }} 
-                      />
-                    ) : (
-                      <Zap size={index === 0 ? 64 : 32} color="var(--text-muted)" />
-                    )}
-                    {index === 0 && <span className="news-badge">Destaque</span>}
-                  </div>
-                  <div className="news-card-body">
-                    <div className="news-meta">
-                      <span className="news-tag">COBERTURA</span>
-                      <span className="news-date">{new Date(item.published_at).toLocaleDateString('pt-BR')}</span>
-                    </div>
-                    <h3>{item.title}</h3>
-                    <p>{item.summary}</p>
-                    <button className="btn-read-more">
-                      Ler Notícia Completa <ArrowRight size={14} />
-                    </button>
-                  </div>
-                </article>
-              ))}
+              {newsCards}
              </div>
           </motion.section>
 
@@ -505,7 +520,7 @@ const Home: React.FC = () => {
                   <div className="news-modal-body">
                     <div className="news-meta">
                       <span className="news-tag">COBERTURA</span>
-                      <span className="news-date">{new Date(selectedNews.published_at).toLocaleDateString('pt-BR')}</span>
+                      <span className="news-date">{formatNewsDate((selectedNews as any).published_at || (selectedNews as any).created_at)}</span>
                     </div>
                     <h2>{selectedNews.title}</h2>
                     <div className="news-modal-text">
@@ -537,6 +552,13 @@ const Home: React.FC = () => {
               <div className="poll-container-v2">
                 {pollLoading ? (
                   <p>Carregando enquete...</p>
+                ) : pollError ? (
+                  <div className="error-state glass" style={{ padding: '12px', marginTop: '8px' }}>
+                    <p style={{ marginBottom: '0.5rem' }}>Erro ao carregar enquete: {pollError}</p>
+                    <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => refreshPoll()}>
+                      Tentar novamente
+                    </button>
+                  </div>
                 ) : activePoll ? (
                   <>
                     <h4 style={{marginBottom: '1rem'}}>{activePoll.question}</h4>

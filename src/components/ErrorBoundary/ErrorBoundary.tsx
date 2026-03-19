@@ -1,4 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { reportClientError } from '../../lib/clientErrors';
 
 interface Props {
   children: ReactNode;
@@ -19,6 +20,14 @@ class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Uncaught error:', error, errorInfo);
+    reportClientError({
+      source: 'ErrorBoundary',
+      message: error.message || 'Erro de renderização',
+      stack: error.stack || null,
+      path: window.location?.pathname || null,
+      user_agent: navigator.userAgent,
+      extra: { componentStack: errorInfo.componentStack },
+    });
   }
 
   public render() {
@@ -74,7 +83,7 @@ class ErrorBoundary extends Component<Props, State> {
       );
     }
 
-    return this.children;
+    return this.props.children;
   }
 }
 

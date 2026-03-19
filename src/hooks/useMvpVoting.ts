@@ -84,5 +84,12 @@ export const useMvpVoting = (round: string) => {
 
   const { voteCounts = [], userVote = null } = query.data || {};
 
-  return { voteCounts, userVote, loading: query.isLoading, vote: voteMutation.mutateAsync, refresh: query.refetch };
+  return {
+    voteCounts,
+    userVote,
+    loading: query.isLoading,
+    error: (query.error as any)?.message || null,
+    vote: voteMutation.mutateAsync,
+    refresh: query.refetch,
+  };
 };

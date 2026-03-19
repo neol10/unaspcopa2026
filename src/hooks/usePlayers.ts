@@ -20,6 +20,13 @@ export interface Player {
 export const usePlayers = (teamId?: string) => {
   const queryClient = useQueryClient();
 
+  const friendlyError = (raw: string | undefined) => {
+    if (!raw) return null;
+    if (raw.includes('Request timeout')) return 'Tempo limite ao carregar jogadores';
+    if (raw.toLowerCase().includes('abort')) return 'Tempo limite ao carregar jogadores';
+    return raw;
+  };
+
   const query = useQuery({
     queryKey: ['players', teamId || 'all'],
     queryFn: async () => {
@@ -31,6 +38,8 @@ export const usePlayers = (teamId?: string) => {
     },
     staleTime: 1000 * 60 * 5, // 5 min
     gcTime: 1000 * 60 * 15,    // 15 min
+    refetchOnReconnect: true,
+    networkMode: 'always',
   });
 
   useEffect(() => {
@@ -56,7 +65,7 @@ export const usePlayers = (teamId?: string) => {
   return { 
     players: query.data || [], 
     loading: query.isLoading, 
-    error: query.error?.message || null, 
+    error: friendlyError(query.error?.message), 
     refresh: query.refetch 
   };
 };

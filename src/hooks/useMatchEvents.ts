@@ -63,6 +63,7 @@ export const useMatchEvents = (matchId: string, onNewEvent?: (event: MatchEvent)
   return { 
     events: query.data || [], 
     loading: query.isLoading, 
+    error: (query.error as any)?.message || null,
     refresh: query.refetch 
   };
 };

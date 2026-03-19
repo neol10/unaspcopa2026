@@ -25,11 +25,16 @@ export const useStandings = () => {
   const query = useQuery({
     queryKey: ['standings'],
     queryFn: async () => {
-      
       // 1-2. Buscar dados em paralelo
+      // Importante: evitamos um timeout manual aqui para não "cortar" requests
+      // lentos (ex.: Supabase acordando). O próprio fetch do Supabase já tem timeout.
       const [teamsRes, matchesRes] = await Promise.all([
         supabase.from('teams').select('id, name, group, badge_url'),
-        supabase.from('matches').select('*').in('status', ['finalizado', 'ao_vivo']).order('match_date', { ascending: true })
+        supabase
+          .from('matches')
+          .select('team_a_id, team_b_id, team_a_score, team_b_score, match_date, status')
+          .in('status', ['finalizado', 'ao_vivo'])
+          .order('match_date', { ascending: true }),
       ]);
 
       if (teamsRes.error) throw teamsRes.error;
@@ -119,6 +124,9 @@ export const useStandings = () => {
     },
     staleTime: 1000 * 60 * 2, // 2 min
     gcTime: 1000 * 60 * 10,  // 10 min
+    retry: 0,
+    refetchOnReconnect: true,
+    networkMode: 'always',
   });
 
   useEffect(() => {
@@ -138,10 +146,18 @@ export const useStandings = () => {
     };
   }, [queryClient]);
 
+  const friendlyError = (raw: string | undefined) => {
+    if (!raw) return null;
+    if (raw.includes('Request timeout')) return 'Tempo limite ao carregar classificação';
+    if (raw.toLowerCase().includes('abort')) return 'Tempo limite ao carregar classificação';
+    return raw;
+  };
+
   return { 
     standings: query.data || [], 
     loading: query.isLoading, 
-    error: query.error?.message || null, 
-    refresh: query.refetch 
+    error: friendlyError(query.error?.message), 
+    refresh: query.refetch,
+    paused: query.fetchStatus === 'paused',
   };
 };
