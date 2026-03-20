@@ -438,8 +438,15 @@ const sendPushNotification = async (title: string, body: string, options: PushSe
     if (lastStatus) {
       if (lastStatus === 400) {
         lastPushErrorMessage = `API retornou 400. Detalhe: ${lastDetail || 'requisição inválida'}`;
-      } else if (lastStatus === 401 || lastStatus === 403) {
-        lastPushErrorMessage = 'API de push sem permissão (401/403). Verifique variáveis do backend no deploy.';
+      } else if (lastStatus === 401) {
+        lastPushErrorMessage = 'API de push sem permissão (401). Verifique variáveis do backend no deploy.';
+      } else if (lastStatus === 403) {
+        const low = String(lastDetail || '').toLowerCase();
+        if (low.includes('unexpected response code') || low.includes('nenhum push entregue')) {
+          lastPushErrorMessage = 'Inscrições push antigas/inválidas detectadas. Desative e ative as notificações no dispositivo para reinscrever.';
+        } else {
+          lastPushErrorMessage = 'API de push sem permissão (403). Verifique variáveis do backend no deploy.';
+        }
       } else if (lastStatus === 404) {
         lastPushErrorMessage = 'Endpoint de push não encontrado (404).';
       } else if (lastStatus === 502) {

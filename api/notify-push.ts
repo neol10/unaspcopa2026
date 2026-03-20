@@ -219,7 +219,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         } catch (err: unknown) {
           const { statusCode, message } = getErrorInfo(err);
 
-          if (statusCode === 410 || statusCode === 404) {
+          if (statusCode === 410 || statusCode === 404 || statusCode === 403) {
             const endpoint = row?.subscription?.endpoint;
             if (endpoint) {
               await supabaseAdmin
