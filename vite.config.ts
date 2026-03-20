@@ -3,6 +3,23 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+
+          if (id.includes('react') || id.includes('scheduler')) return 'react-core';
+          if (id.includes('react-router')) return 'router';
+          if (id.includes('@supabase')) return 'supabase';
+          if (id.includes('@tanstack/react-query')) return 'react-query';
+          if (id.includes('framer-motion')) return 'framer';
+          if (id.includes('lucide-react')) return 'icons';
+          return 'vendor';
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     VitePWA({

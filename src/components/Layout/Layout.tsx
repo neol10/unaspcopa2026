@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Home, Trophy, BarChart2, Users, Settings, Timer, Sun, Moon, Menu, X, LogIn, User, LogOut, Calendar, Bell, BellOff } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme';
 import { useAuthContext } from '../../contexts/AuthContext';
@@ -8,6 +9,7 @@ import { AutoRefreshStatus } from '../AutoRefreshStatus/AutoRefreshStatus';
 import AuthModal from '../Auth/AuthModal';
 import IOSInstallPrompt from '../PWA/IOSInstallPrompt';
 import logo from '../../assets/unasp_logo.png';
+import { prefetchRouteIntent } from '../../lib/routePrefetch';
 import './Layout.css';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -17,6 +19,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -30,6 +33,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
+
+  const navIntentHandlers = (path: string) => ({
+    onMouseEnter: () => prefetchRouteIntent(path, queryClient),
+    onFocus: () => prefetchRouteIntent(path, queryClient),
+  });
 
   useEffect(() => {
     const onOnline = () => setIsOnline(true);
@@ -64,43 +72,43 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           <nav className="sidebar-nav">
             <ul className="nav-links">
               <li>
-                <NavLink to="/" className={({ isActive }) => isActive ? 'nav-active' : ''} onClick={closeMobileMenu}>
+                <NavLink to="/" className={({ isActive }) => isActive ? 'nav-active' : ''} onClick={closeMobileMenu} {...navIntentHandlers('/')}>
                   <Home size={20} /> <span>Início</span>
                 </NavLink>
               </li>
               <li>
-                <NavLink to="/classificacao" className={({ isActive }) => isActive ? 'nav-active' : ''} onClick={closeMobileMenu}>
+                <NavLink to="/classificacao" className={({ isActive }) => isActive ? 'nav-active' : ''} onClick={closeMobileMenu} {...navIntentHandlers('/classificacao')}>
                   <Trophy size={20} /> <span>Classificação</span>
                 </NavLink>
               </li>
               <li>
-                <NavLink to="/rankings" className={({ isActive }) => isActive ? 'nav-active' : ''} onClick={closeMobileMenu}>
+                <NavLink to="/rankings" className={({ isActive }) => isActive ? 'nav-active' : ''} onClick={closeMobileMenu} {...navIntentHandlers('/rankings')}>
                   <BarChart2 size={20} /> <span>Rankings</span>
                 </NavLink>
               </li>
               <li>
-                <NavLink to="/equipes" className={({ isActive }) => isActive ? 'nav-active' : ''} onClick={closeMobileMenu}>
+                <NavLink to="/equipes" className={({ isActive }) => isActive ? 'nav-active' : ''} onClick={closeMobileMenu} {...navIntentHandlers('/equipes')}>
                   <Users size={20} /> <span>Equipes</span>
                 </NavLink>
               </li>
               <li>
-                <NavLink to="/central-da-partida" className={({ isActive }) => isActive ? 'nav-active' : ''} onClick={closeMobileMenu}>
+                <NavLink to="/central-da-partida" className={({ isActive }) => isActive ? 'nav-active' : ''} onClick={closeMobileMenu} {...navIntentHandlers('/central-da-partida')}>
                   <Timer size={20} /> <span>Central</span>
                 </NavLink>
               </li>
               <li>
-                <NavLink to="/jogos" className={({ isActive }) => isActive ? 'nav-active' : ''} onClick={closeMobileMenu}>
+                <NavLink to="/jogos" className={({ isActive }) => isActive ? 'nav-active' : ''} onClick={closeMobileMenu} {...navIntentHandlers('/jogos')}>
                   <Calendar size={20} /> <span>Jogos</span>
                 </NavLink>
               </li>
               <li>
-                <NavLink to="/jogadores" className={({ isActive }) => (isActive ? 'nav-active' : '')} onClick={closeMobileMenu}>
+                <NavLink to="/jogadores" className={({ isActive }) => (isActive ? 'nav-active' : '')} onClick={closeMobileMenu} {...navIntentHandlers('/jogadores')}>
                   <Users size={20} /> <span>Jogadores</span>
                 </NavLink>
               </li>
               {showAdminNav && (
                 <li>
-                  <NavLink to="/admin" className={({ isActive }) => isActive ? 'nav-active' : ''} onClick={closeMobileMenu}>
+                  <NavLink to="/admin" className={({ isActive }) => isActive ? 'nav-active' : ''} onClick={closeMobileMenu} {...navIntentHandlers('/admin')}>
                     <Settings size={20} /> <span>Admin</span>
                   </NavLink>
                 </li>

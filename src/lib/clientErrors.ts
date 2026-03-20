@@ -1,3 +1,5 @@
+import { supabase } from './supabase';
+
 type ClientErrorInsert = {
   source: string;
   message: string;
@@ -11,6 +13,7 @@ type ClientErrorInsert = {
 const QUEUE_KEY = 'copa_unasp_client_errors_queue';
 const LAST_SENT_KEY = 'copa_unasp_client_errors_last_sent';
 const DISABLED_KEY = 'copa_unasp_client_errors_disabled';
+const SESSION_KEY = 'copa_unasp_session_id';
 
 let reporterDisabled: boolean | null = null;
 
@@ -30,6 +33,32 @@ const safeParse = (raw: string | null) => {
   } catch {
     return [] as ClientErrorInsert[];
   }
+};
+
+const getSessionId = () => {
+  try {
+    const existing = sessionStorage.getItem(SESSION_KEY);
+    if (existing) return existing;
+    const next = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    sessionStorage.setItem(SESSION_KEY, next);
+    return next;
+  } catch {
+    return 'unknown';
+  }
+};
+
+const getConnectionMeta = () => {
+  const nav = navigator as Navigator & {
+    connection?: { effectiveType?: string; downlink?: number; rtt?: number; saveData?: boolean };
+  };
+  return {
+    online: navigator.onLine,
+    visibility: typeof document !== 'undefined' ? document.visibilityState : 'unknown',
+    effectiveType: nav.connection?.effectiveType ?? null,
+    downlink: nav.connection?.downlink ?? null,
+    rtt: nav.connection?.rtt ?? null,
+    saveData: nav.connection?.saveData ?? null,
+  };
 };
 
 const loadQueue = () => {
@@ -111,9 +140,18 @@ const markSent = (signature: string) => {
 export const reportClientError = (payload: Omit<ClientErrorInsert, 'app_version'>) => {
   if (import.meta.env.DEV || isReporterDisabled()) return;
 
+  const enrichedExtra = {
+    ...(typeof payload.extra === 'object' && payload.extra ? payload.extra : {}),
+    session_id: getSessionId(),
+    connection: getConnectionMeta(),
+    href: typeof window !== 'undefined' ? window.location.href : null,
+    ts: new Date().toISOString(),
+  };
+
   const item: ClientErrorInsert = {
     ...payload,
     app_version: getAppVersion(),
+    extra: enrichedExtra,
   };
 
   const signature = `${item.source}::${item.message}::${item.path || ''}`.slice(0, 200);
@@ -136,7 +174,6 @@ export const flushClientErrorQueue = async () => {
   if (queue.length === 0) return;
 
   try {
-    const { supabase } = await import('./supabase');
     const batch = queue.slice(0, 10);
 
     const { error } = await supabase.from('client_errors').insert(batch);
@@ -184,6 +221,24 @@ export const reportErrorFromWindowEvent = (e: unknown, source: string) => {
     user_agent: navigator.userAgent,
     extra: {
       name: evt?.error?.name ?? reason?.name,
+    },
+  });
+};
+
+export const reportPerformanceMetric = (name: string, valueMs: number, extra?: Record<string, unknown>) => {
+  if (import.meta.env.DEV || isReporterDisabled()) return;
+  if (!Number.isFinite(valueMs)) return;
+
+  reportClientError({
+    source: 'performance',
+    message: `${name}:${Math.round(valueMs)}ms`,
+    stack: null,
+    path: typeof window !== 'undefined' ? window.location.pathname : null,
+    user_agent: navigator.userAgent,
+    extra: {
+      ...extra,
+      metric: name,
+      duration_ms: Math.round(valueMs),
     },
   });
 };

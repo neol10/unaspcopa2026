@@ -1,4 +1,4 @@
-import React, { useEffect, Suspense, useState } from 'react';
+import React, { useEffect, Suspense, useRef, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import Layout from './components/Layout/Layout';
@@ -6,7 +6,8 @@ import { AuthProvider } from './contexts/AuthContext';
 import { Toaster, toast } from 'react-hot-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import './components/Layout/Layout.css';
-import { flushClientErrorQueue, reportErrorFromWindowEvent } from './lib/clientErrors';
+import { flushClientErrorQueue, reportErrorFromWindowEvent, reportPerformanceMetric } from './lib/clientErrors';
+import { supabase } from './lib/supabase';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -117,6 +118,7 @@ import { useAuthContext } from './contexts/AuthContext';
 function AppContent() {
   const { loading: authLoading } = useAuthContext();
   const [showSplash, setShowSplash] = useState(true);
+  const bootMetricSentRef = useRef(false);
 
   useEffect(() => {
     const id = setTimeout(() => setShowSplash(false), 1200);
@@ -124,8 +126,19 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
-    if (!authLoading) setShowSplash(false);
-  }, [authLoading]);
+    if (bootMetricSentRef.current) return;
+    if (authLoading || showSplash) return;
+
+    const navEntry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+    const navStart = navEntry?.startTime ?? 0;
+    const now = performance.now();
+    const bootMs = Math.max(0, now - navStart);
+
+    reportPerformanceMetric('app_boot_ready', bootMs, {
+      route: window.location.pathname,
+    });
+    bootMetricSentRef.current = true;
+  }, [authLoading, showSplash]);
 
   useEffect(() => {
     // Escuta mudanças na conectividade para feedback offline
@@ -176,7 +189,7 @@ function AppContent() {
         await queryClient.prefetchQuery({
           queryKey: ['teams'],
           queryFn: async () => {
-            const { data, error } = await (await import('./lib/supabase')).supabase
+            const { data, error } = await supabase
               .from('teams')
               .select('*')
               .order('name');

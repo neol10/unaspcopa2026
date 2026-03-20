@@ -30,7 +30,7 @@ async function withRetry<T>(operation: () => Promise<T>, attempts: number = 2): 
 }
 
 const MAX_IMAGE_SIZE_MB = 5;
-const COMPRESS_MIN_BYTES = 1024 * 1024; // 1MB
+const COMPRESS_MIN_BYTES = 350 * 1024; // 350KB
 const COMPRESS_MAX_DIM = 1024;
 const COMPRESS_QUALITY = 0.82;
 
@@ -43,7 +43,6 @@ const validateImageFile = (file: File): string | null => {
 
 const prepareImageForUpload = async (file: File): Promise<File> => {
   if (!file.type.startsWith('image/')) return file;
-  if (file.size < COMPRESS_MIN_BYTES) return file;
 
   const image = await new Promise<HTMLImageElement>((resolve, reject) => {
     const img = new Image();
@@ -61,7 +60,9 @@ const prepareImageForUpload = async (file: File): Promise<File> => {
 
   const maxDim = Math.max(image.width, image.height);
   const scale = Math.min(1, COMPRESS_MAX_DIM / maxDim);
-  if (scale === 1) return file;
+  const shouldResize = scale < 1;
+  const shouldReencode = file.size >= COMPRESS_MIN_BYTES;
+  if (!shouldResize && !shouldReencode) return file;
 
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(image.width * scale);
@@ -70,15 +71,17 @@ const prepareImageForUpload = async (file: File): Promise<File> => {
   if (!ctx) return file;
   ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
 
-  const outputType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+  // Preferimos WebP para reduzir payload e acelerar carregamento no app.
+  const outputType = 'image/webp';
   const blob = await new Promise<Blob | null>((resolve) => {
     canvas.toBlob(resolve, outputType, COMPRESS_QUALITY);
   });
   if (!blob) return file;
+  if (blob.size >= file.size && !shouldResize) return file;
 
-  const ext = outputType === 'image/png' ? 'png' : 'jpg';
+  const ext = 'webp';
   const baseName = file.name.replace(/\.[^.]+$/, '');
-  const fileName = `${baseName}_compressed.${ext}`;
+  const fileName = `${baseName}_optimized.${ext}`;
   return new File([blob], fileName, { type: outputType });
 };
 
