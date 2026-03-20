@@ -272,7 +272,7 @@ const Rankings: React.FC = () => {
                      </div>
                    </div>
                 </div>
-                <div className="rank-val">{p.clean_sheets || 0} Clean Sheets</div>
+                <div className="rank-val">{p.goals_conceded || 0} Gols Sofridos</div>
               </div>
             ))}
             {goalkeepers.length === 0 && <p className="empty-rank">Aguardando súmulas...</p>}
@@ -365,11 +365,13 @@ const Rankings: React.FC = () => {
                   </div>
                 </div>
                 <div className="rank-cards">
-                  {p.yellow_cards > 0 && <span className="p-card-new yellow">{p.yellow_cards}</span>}
-                  {p.red_cards > 0 && <span className="p-card-new red">{p.red_cards}</span>}
+                  <span className="p-card-new yellow">{p.yellow_cards || 0}</span>
+                  <span className="p-card-new red">{p.red_cards || 0}</span>
                 </div>
+                <div className="rank-val">{p.fair_play_points || 0} pts</div>
               </div>
             ))}
+            {disciplined.length === 0 && <p className="empty-rank">Sem dados de cartões.</p>}
           </div>
         </section>
       </div>

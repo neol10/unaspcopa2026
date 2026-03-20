@@ -691,41 +691,6 @@
   color: black;
 }
 
-.btn-live-phase {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  border-radius: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--text-main);
-  font-size: 0.72rem;
-  font-weight: 800;
-  padding: 0.5rem 0.65rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-live-phase.pause {
-  border-color: rgba(245, 158, 11, 0.35);
-  color: #fbbf24;
-}
-
-.btn-live-phase.interval {
-  border-color: rgba(168, 85, 247, 0.35);
-  color: #c084fc;
-}
-
-.btn-live-phase.resume {
-  border-color: rgba(34, 197, 94, 0.35);
-  color: #4ade80;
-}
-
-.btn-live-phase:hover {
-  transform: translateY(-1px);
-  background: rgba(255, 255, 255, 0.09);
-}
-
 /* Animations */
 .animate-slide-down {
   animation: slideDown 0.3s ease-out;
@@ -1458,6 +1423,75 @@
   .player-form-grid {
     grid-template-columns: 1fr;
   }
+
+  .player-edit-form {
+    padding: 1rem;
+  }
+
+  .player-edit-form .player-form-grid {
+    gap: 0.7rem;
+  }
+
+  .player-edit-form .player-form-field {
+    width: 100%;
+  }
+
+  .player-edit-form input,
+  .player-edit-form select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .player-edit-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+    gap: 0.5rem;
+  }
+
+  .btn-save-mini,
+  .btn-cancel-mini {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .player-actions {
+    opacity: 1;
+  }
+
+  .player-row {
+    gap: 0.5rem;
+  }
+
+  .player-info {
+    min-width: 0;
+  }
+
+  .player-position-tag {
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 480px) {
+  .player-edit-form {
+    padding: 0.85rem;
+  }
+
+  .player-edit-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .btn-save-mini,
+  .btn-cancel-mini {
+    min-height: 38px;
+  }
+
+  .player-stats-editor-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.7rem;
+    padding: 0.8rem;
+  }
 }
 
 /* Goal Type Selector */
@@ -1565,95 +1599,6 @@
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--secondary);
-}
-
-.global-player-edit-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1200;
-  background: rgba(0, 0, 0, 0.72);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-}
-
-.global-player-edit-modal {
-  width: min(960px, 100%);
-  max-height: 92vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(10, 16, 30, 0.98);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
-  padding: 1rem;
-}
-
-.global-player-edit-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.5rem 0.5rem 0.75rem;
-  position: sticky;
-  top: 0;
-  z-index: 3;
-  background: rgba(10, 16, 30, 0.98);
-}
-
-.global-player-edit-modal-header h3 {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 850;
-}
-
-.global-player-edit-form {
-  overflow-y: auto;
-  padding-right: 0.3rem;
-}
-
-.global-player-edit-actions {
-  display: flex;
-  gap: 0.75rem;
-  margin-top: 1rem;
-  position: sticky;
-  bottom: 0;
-  z-index: 3;
-  padding-top: 0.85rem;
-  background: linear-gradient(180deg, rgba(10, 16, 30, 0) 0%, rgba(10, 16, 30, 0.98) 28%);
-}
-
-@media (max-width: 768px) {
-  .global-player-edit-modal-backdrop {
-    padding: 0;
-    align-items: stretch;
-  }
-
-  .global-player-edit-modal {
-    width: 100%;
-    height: 100dvh;
-    max-height: none;
-    border-radius: 0;
-    border: none;
-    padding: 0.75rem;
-  }
-
-  .global-player-edit-modal-header h3 {
-    font-size: 1rem;
-  }
-
-  .global-player-edit-actions {
-    padding-bottom: env(safe-area-inset-bottom, 0);
-  }
-
-  .global-player-edit-actions .btn-save,
-  .global-player-edit-actions .btn-cancel {
-    flex: 1;
-    justify-content: center;
-  }
 }
 
 /* MVP Voting Review */
@@ -2488,49 +2433,6 @@
   .btn-undo-last {
     width: 100%;
     justify-content: center;
-  }
-}
-
-@media (max-width: 360px) {
-  .admin-container {
-    gap: 1rem;
-    padding-bottom: 2rem;
-  }
-
-  .admin-main-header,
-  .section-header,
-  .admin-list,
-  .admin-form,
-  .client-errors-body {
-    padding-left: 0.7rem;
-    padding-right: 0.7rem;
-  }
-
-  .section-header h2 {
-    font-size: 1.05rem;
-  }
-
-  .btn-add,
-  .btn-save,
-  .btn-cancel {
-    padding: 0.62rem 0.78rem;
-    font-size: 0.72rem;
-    letter-spacing: 0.4px;
-  }
-
-  .admin-list-item {
-    padding: 0.65rem;
-    border-radius: 12px;
-  }
-
-  .player-search-row {
-    align-items: flex-start;
-    gap: 0.65rem;
-  }
-
-  .item-stats-mini {
-    gap: 0.65rem;
-    font-size: 0.74rem;
   }
 }
 

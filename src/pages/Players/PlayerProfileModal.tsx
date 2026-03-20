@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Trophy, Zap, ShieldAlert, User, Award, Hash, Timer } from 'lucide-react';
+import { X, Trophy, ShieldAlert, User, Hash, Timer, Goal, Footprints } from 'lucide-react';
 import { Player } from '../../hooks/usePlayers';
 import './PlayerProfileModal.css';
 
@@ -78,7 +78,7 @@ const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose
           <div className="player-stats-grid">
             <div className="stat-card glass-hover">
               <div className="stat-icon-circle" style={{ background: 'rgba(251, 191, 36, 0.1)' }}>
-                <Award size={20} color="#fbbf24" />
+                <Goal size={20} color="#fbbf24" />
               </div>
               <div className="stat-content">
                 <strong>{player.goals_count}</strong>
@@ -88,7 +88,7 @@ const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose
 
             <div className="stat-card glass-hover">
               <div className="stat-icon-circle" style={{ background: 'rgba(0, 176, 255, 0.1)' }}>
-                <Zap size={20} color="#00b0ff" />
+                <Footprints size={20} color="#00b0ff" />
               </div>
               <div className="stat-content">
                 <strong>{player.assists}</strong>

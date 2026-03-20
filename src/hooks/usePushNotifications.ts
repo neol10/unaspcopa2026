@@ -2,6 +2,67 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../contexts/AuthContext';
 
+export type PushCategories = {
+  live: boolean;
+  results: boolean;
+  news: boolean;
+  polls: boolean;
+  standings: boolean;
+};
+
+export type PushPreferences = {
+  categories: PushCategories;
+  onlyImportant: boolean;
+  favoriteTeamId: string | null;
+  preGameReminder: boolean;
+};
+
+type PushPreferencesPatch =
+  Partial<Omit<PushPreferences, 'categories'>> & {
+    categories?: Partial<PushCategories>;
+  };
+
+const PUSH_PREFS_KEY = 'copa_unasp_push_preferences_v1';
+
+const DEFAULT_PREFERENCES: PushPreferences = {
+  categories: {
+    live: true,
+    results: true,
+    news: true,
+    polls: true,
+    standings: true,
+  },
+  onlyImportant: false,
+  favoriteTeamId: null,
+  preGameReminder: true,
+};
+
+const loadPreferences = (): PushPreferences => {
+  try {
+    const raw = localStorage.getItem(PUSH_PREFS_KEY);
+    if (!raw) return DEFAULT_PREFERENCES;
+    const parsed = JSON.parse(raw) as Partial<PushPreferences>;
+    return {
+      ...DEFAULT_PREFERENCES,
+      ...parsed,
+      categories: {
+        ...DEFAULT_PREFERENCES.categories,
+        ...(parsed.categories || {}),
+      },
+    };
+  } catch {
+    return DEFAULT_PREFERENCES;
+  }
+};
+
+const persistPreferences = (prefs: PushPreferences) => {
+  try {
+    localStorage.setItem(PUSH_PREFS_KEY, JSON.stringify(prefs));
+  } catch {
+    // ignore
+  }
+};
+
 const urlBase64ToUint8Array = (base64String: string) => {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -18,7 +79,16 @@ const urlBase64ToUint8Array = (base64String: string) => {
 export const usePushNotifications = () => {
   const { user } = useAuthContext();
   const [isSubscribed, setIsSubscribed] = useState(false);
+  const [preferences, setPreferences] = useState<PushPreferences>(DEFAULT_PREFERENCES);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setPreferences(loadPreferences());
+  }, []);
+
+  useEffect(() => {
+    persistPreferences(preferences);
+  }, [preferences]);
 
   useEffect(() => {
     let mounted = true;
@@ -38,9 +108,14 @@ export const usePushNotifications = () => {
 
         // Se estiver inscrito e o usuário mudou, sincronizar no banco (sem depender de UNIQUE)
         if (subscription && user) {
+          const subscriptionWithPrefs = {
+            ...(subscription.toJSON() as Record<string, unknown>),
+            preferences,
+          };
+
           await supabase
             .from('push_subscriptions')
-            .update({ user_id: user.id })
+            .update({ user_id: user.id, subscription: subscriptionWithPrefs })
             .eq('subscription->>endpoint', subscription.endpoint);
         }
       } catch (err) {
@@ -52,7 +127,41 @@ export const usePushNotifications = () => {
 
     checkAndSyncSubscription();
     return () => { mounted = false; };
-  }, [user]);
+  }, [user, preferences]);
+
+  const updatePreferences = async (patch: PushPreferencesPatch) => {
+    const next = {
+      ...preferences,
+      ...patch,
+      categories: {
+        ...preferences.categories,
+        ...(patch.categories || {}),
+      },
+    };
+
+    setPreferences(next);
+
+    if (!('serviceWorker' in navigator)) return;
+
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      if (!subscription) return;
+
+      await supabase
+        .from('push_subscriptions')
+        .update({
+          user_id: user?.id || null,
+          subscription: {
+            ...(subscription.toJSON() as Record<string, unknown>),
+            preferences: next,
+          },
+        })
+        .eq('subscription->>endpoint', subscription.endpoint);
+    } catch (err) {
+      console.debug('Push preference sync skipped:', err);
+    }
+  };
 
   const subscribe = async () => {
     try {
@@ -91,7 +200,10 @@ export const usePushNotifications = () => {
       // Salvar no Supabase
       const { error } = await supabase.from('push_subscriptions').insert({
         user_id: user?.id || null,
-        subscription: subscription.toJSON()
+        subscription: {
+          ...(subscription.toJSON() as Record<string, unknown>),
+          preferences,
+        }
       });
 
       if (error) throw error;
@@ -127,6 +239,13 @@ export const usePushNotifications = () => {
     }
   };
 
-  return { isSubscribed, loading, subscribe, unsubscribe };
+  return {
+    isSubscribed,
+    loading,
+    subscribe,
+    unsubscribe,
+    preferences,
+    updatePreferences,
+  };
 };
 

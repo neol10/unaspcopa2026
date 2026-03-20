@@ -5,6 +5,9 @@ import { Home, Trophy, BarChart2, Users, Settings, Timer, Sun, Moon, Menu, X, Lo
 import { useTheme } from '../../hooks/useTheme';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
+import { useTeams } from '../../hooks/useTeams';
+import { useMatches } from '../../hooks/useMatches';
+import { usePreGameReminder } from '../../hooks/usePreGameReminder';
 import { AutoRefreshStatus } from '../AutoRefreshStatus/AutoRefreshStatus';
 import AuthModal from '../Auth/AuthModal';
 import IOSInstallPrompt from '../PWA/IOSInstallPrompt';
@@ -15,8 +18,11 @@ import './Layout.css';
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { theme, toggleTheme } = useTheme();
   const { user, role, signOut } = useAuthContext();
-  const { isSubscribed, subscribe, unsubscribe } = usePushNotifications();
+  const { isSubscribed, subscribe, unsubscribe, preferences, updatePreferences } = usePushNotifications();
+  const { teams } = useTeams();
+  const { matches } = useMatches();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showPushPrefs, setShowPushPrefs] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   const queryClient = useQueryClient();
@@ -49,6 +55,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       window.removeEventListener('offline', onOffline);
     };
   }, []);
+
+  usePreGameReminder(matches, isSubscribed, {
+    preGameReminder: preferences.preGameReminder,
+    favoriteTeamId: preferences.favoriteTeamId,
+  });
 
   return (
     <div className="app-container">
@@ -145,6 +156,99 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               {isSubscribed ? <Bell size={20} color="var(--secondary)" /> : <BellOff size={20} />}
               <span>{isSubscribed ? 'Alertas Ativos' : 'Ativar Alertas'}</span>
             </button>
+
+            {isSubscribed && (
+              <div className="push-prefs glass">
+                <button
+                  className="push-prefs-toggle"
+                  type="button"
+                  onClick={() => setShowPushPrefs((prev) => !prev)}
+                >
+                  <span>Preferências de Alertas</span>
+                  <span>{showPushPrefs ? '−' : '+'}</span>
+                </button>
+
+                {showPushPrefs && (
+                  <div className="push-prefs-content">
+                    <label className="push-pref-check">
+                      <input
+                        type="checkbox"
+                        checked={preferences.onlyImportant}
+                        onChange={(e) => void updatePreferences({ onlyImportant: e.target.checked })}
+                      />
+                      <span>Apenas alertas importantes</span>
+                    </label>
+
+                    <label className="push-pref-check">
+                      <input
+                        type="checkbox"
+                        checked={preferences.preGameReminder}
+                        onChange={(e) => void updatePreferences({ preGameReminder: e.target.checked })}
+                      />
+                      <span>Lembrete 15 min antes do jogo</span>
+                    </label>
+
+                    <div className="push-pref-group">
+                      <span className="push-pref-title">Categorias</span>
+                      <label className="push-pref-check">
+                        <input
+                          type="checkbox"
+                          checked={preferences.categories.live}
+                          onChange={(e) => void updatePreferences({ categories: { live: e.target.checked } })}
+                        />
+                        <span>Ao vivo (gols e lances)</span>
+                      </label>
+                      <label className="push-pref-check">
+                        <input
+                          type="checkbox"
+                          checked={preferences.categories.results}
+                          onChange={(e) => void updatePreferences({ categories: { results: e.target.checked } })}
+                        />
+                        <span>Resultados</span>
+                      </label>
+                      <label className="push-pref-check">
+                        <input
+                          type="checkbox"
+                          checked={preferences.categories.news}
+                          onChange={(e) => void updatePreferences({ categories: { news: e.target.checked } })}
+                        />
+                        <span>Notícias</span>
+                      </label>
+                      <label className="push-pref-check">
+                        <input
+                          type="checkbox"
+                          checked={preferences.categories.polls}
+                          onChange={(e) => void updatePreferences({ categories: { polls: e.target.checked } })}
+                        />
+                        <span>Enquetes</span>
+                      </label>
+                      <label className="push-pref-check">
+                        <input
+                          type="checkbox"
+                          checked={preferences.categories.standings}
+                          onChange={(e) => void updatePreferences({ categories: { standings: e.target.checked } })}
+                        />
+                        <span>Classificação</span>
+                      </label>
+                    </div>
+
+                    <div className="push-pref-group">
+                      <span className="push-pref-title">Time favorito (opcional)</span>
+                      <select
+                        className="push-pref-select"
+                        value={preferences.favoriteTeamId || ''}
+                        onChange={(e) => void updatePreferences({ favoriteTeamId: e.target.value || null })}
+                      >
+                        <option value="">Todos os times</option>
+                        {teams.map((team) => (
+                          <option key={team.id} value={team.id}>{team.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             <button className="theme-toggle" onClick={toggleTheme} aria-label="Alternar tema">
               {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}

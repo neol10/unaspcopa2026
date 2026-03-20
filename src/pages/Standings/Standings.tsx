@@ -75,6 +75,21 @@ const Standings: React.FC = () => {
     return acc;
   }, {});
 
+  const getGroupRankColorClass = (index: number) => {
+    if (index <= 2) return 'rank-green';
+    if (index === 3) return 'rank-yellow';
+    if (index === 4) return 'rank-red';
+    return '';
+  };
+
+  const getOverallRankColorClass = (index: number) => {
+    if (index <= 2) return 'rank-green';
+    if (index <= 5) return 'rank-blue';
+    if (index <= 8) return 'rank-yellow';
+    if (index === 9) return 'rank-red';
+    return '';
+  };
+
   return (
     <div className="standings-container animate-fade-in">
       <header className="standings-header">
@@ -135,7 +150,7 @@ const Standings: React.FC = () => {
                 </thead>
                 <tbody>
                   {groupTeams.map((team, index) => (
-                    <tr key={team.team_id} className={`row-animate ${index < 4 ? 'zone-up' : index >= groupTeams.length - 2 ? 'zone-down' : ''}`}>
+                    <tr key={team.team_id} className={`row-animate group-rank ${getGroupRankColorClass(index)}`}>
                       <td className="col-rank">
                         <span className="rank-num">{index + 1}</span>
                       </td>
@@ -182,6 +197,7 @@ const Standings: React.FC = () => {
                   ))}
                 </tbody>
               </table>
+              <p className="table-swipe-hint">Arraste para os lados para ver todas as colunas.</p>
             </div>
           </div>
         ))
@@ -211,7 +227,7 @@ const Standings: React.FC = () => {
               </thead>
               <tbody>
                 {standings.map((team, index) => (
-                  <tr key={team.team_id} className={`row-animate ${index < 8 ? 'zone-up' : index >= standings.length - 4 ? 'zone-down' : ''}`}>
+                  <tr key={team.team_id} className={`row-animate overall-rank ${getOverallRankColorClass(index)}`}>
                     <td className="col-rank">
                       <span className="rank-num">{index + 1}</span>
                     </td>
@@ -263,20 +279,48 @@ const Standings: React.FC = () => {
                 ))}
               </tbody>
             </table>
+            <p className="table-swipe-hint">Arraste para os lados para ver todas as colunas.</p>
           </div>
         </div>
       )}
 
       <footer className="standings-footer glass">
         <div className="legend">
-          <div className="legend-item">
-            <span className="box-green"></span>
-            <span>G4 - Classificação Direta</span>
-          </div>
-          <div className="legend-item">
-            <span className="box-red"></span>
-            <span>Zona de Risco</span>
-          </div>
+          {showByGroup ? (
+            <>
+              <div className="legend-item">
+                <span className="box-green"></span>
+                <span>1º, 2º e 3º colocados</span>
+              </div>
+              <div className="legend-item">
+                <span className="box-yellow"></span>
+                <span>4º colocado</span>
+              </div>
+              <div className="legend-item">
+                <span className="box-red"></span>
+                <span>5º colocado</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="legend-item">
+                <span className="box-green"></span>
+                <span>1º, 2º e 3º colocados</span>
+              </div>
+              <div className="legend-item">
+                <span className="box-blue"></span>
+                <span>4º, 5º e 6º colocados</span>
+              </div>
+              <div className="legend-item">
+                <span className="box-yellow"></span>
+                <span>7º, 8º e 9º colocados</span>
+              </div>
+              <div className="legend-item">
+                <span className="box-red"></span>
+                <span>10º colocado</span>
+              </div>
+            </>
+          )}
         </div>
         <div className="standings-tip">
           <Info size={14} />

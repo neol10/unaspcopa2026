@@ -66,8 +66,10 @@ export const useNews = (limit?: number) => {
     initialData: cached?.data ?? [],
     initialDataUpdatedAt: cached?.ts,
     placeholderData: (prev) => prev,
-    staleTime: 1000 * 60 * 10, // 10 min
+    staleTime: 1000 * 30,      // 30s
     gcTime: 1000 * 60 * 30,    // 30 min
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
     retry: 1,
     retryDelay: 1000,
   });

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase, supabaseStorage } from '../../lib/supabase';
 import { Trophy, Users, Calendar, Plus, Save, Trash2, Shield, ChevronDown, ChevronUp, Newspaper, CheckCircle, Play, Camera, Search, Settings2, Vote, ShieldAlert, Bell, Star, CreditCard, Target, Square, ArrowRightLeft, MessageSquare, Zap, Clock, Pause, RotateCcw } from 'lucide-react';
 import { useTeams, type Team } from '../../hooks/useTeams';
@@ -288,23 +289,101 @@ const Admin: React.FC = () => {
 };
 
 // --- Helpers ---
-const sendPushNotification = async (title: string, body: string, url: string = '/') => {
+type PushSendOptions = {
+  url?: string;
+  category?: 'live' | 'results' | 'news' | 'polls' | 'standings' | 'general';
+  important?: boolean;
+  teamIds?: string[];
+};
+
+const resolvePushApiEndpoint = () => {
+  const raw = (import.meta.env.VITE_PUSH_API_URL as string | undefined)?.trim();
+  if (raw) {
+    return raw.includes('notify-push')
+      ? raw
+      : `${raw.replace(/\/$/, '')}/api/notify-push`;
+  }
+
+  const host = typeof window !== 'undefined' ? window.location.hostname : '';
+  const isLocal = host === 'localhost' || host === '127.0.0.1';
+
+  // Em localhost com Vite, /api/* não existe por padrão (a menos que rode via vercel dev/proxy).
+  if (isLocal) return null;
+
+  return '/api/notify-push';
+};
+
+const buildPushEndpointCandidates = (endpoint: string) => {
+  const candidates = [endpoint];
+  if (endpoint.includes('notify-push')) {
+    candidates.push(endpoint.replace('notify-push', 'notify_push'));
+  } else if (endpoint.includes('notify_push')) {
+    candidates.push(endpoint.replace('notify_push', 'notify-push'));
+  }
+  return Array.from(new Set(candidates));
+};
+
+const sendPushNotification = async (title: string, body: string, options: PushSendOptions | string = '/'): Promise<boolean> => {
+  const payload = typeof options === 'string'
+    ? { title, body, url: options }
+    : {
+        title,
+        body,
+        url: options.url || '/',
+        category: options.category || 'general',
+        important: Boolean(options.important),
+        teamIds: options.teamIds || [],
+      };
+
+  const endpoint = resolvePushApiEndpoint();
+  if (!endpoint) {
+    toast.error('Push indisponivel no localhost sem VITE_PUSH_API_URL configurado.');
+    return false;
+  }
+
   try {
-    await fetch('/api/notify-push', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, body, url, sound: 'default' }),
-    });
+    const endpoints = buildPushEndpointCandidates(endpoint);
+    let lastStatus = 0;
+    let lastDetail = '';
+
+    for (const candidate of endpoints) {
+      const response = await fetch(candidate, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...payload, sound: 'default' }),
+      });
+
+      if (response.ok) return true;
+
+      lastStatus = response.status;
+      lastDetail = await response.text().catch(() => '');
+
+      if (response.status !== 404) {
+        console.error(`Push endpoint returned ${response.status}: ${lastDetail}`);
+        return false;
+      }
+    }
+
+    if (lastStatus) {
+      console.error(`Push endpoint returned ${lastStatus}: ${lastDetail}`);
+    }
+
+    return false;
   } catch (err) {
     console.error('Push notification error:', err);
+    return false;
   }
 };
 
 // --- Alertas Push em Massa ---
 const NotificationBroadcast = () => {
+  const { teams } = useTeams();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [url, setUrl] = useState('/');
+  const [category, setCategory] = useState<PushSendOptions['category']>('general');
+  const [important, setImportant] = useState(false);
+  const [targetTeamId, setTargetTeamId] = useState('');
   const [sending, setSending] = useState(false);
 
   const handleBroadcast = async (e: React.FormEvent) => {
@@ -313,11 +392,24 @@ const NotificationBroadcast = () => {
     
     setSending(true);
     try {
-      await sendPushNotification(title, body, url);
+      const sent = await sendPushNotification(title, body, {
+        url,
+        category,
+        important,
+        teamIds: targetTeamId ? [targetTeamId] : [],
+      });
+
+      if (!sent) {
+        throw new Error('Endpoint de push indisponivel. Configure VITE_PUSH_API_URL no ambiente local.');
+      }
+
       toast.success('Alerta push enviado para todos os inscritos! 📢');
       setTitle('');
       setBody('');
       setUrl('/');
+      setCategory('general');
+      setImportant(false);
+      setTargetTeamId('');
     } catch (err: unknown) {
       const message =
         typeof (err as { message?: unknown })?.message === 'string'
@@ -366,6 +458,37 @@ const NotificationBroadcast = () => {
             onChange={e => setUrl(e.target.value)} 
           />
           <small>Caminho para onde o usuário será levado ao clicar.</small>
+        </div>
+
+        <div className="form-group">
+          <label>Categoria do Alerta</label>
+          <select value={category} onChange={(e) => setCategory(e.target.value as PushSendOptions['category'])}>
+            <option value="general">Geral</option>
+            <option value="live">Ao vivo (gols e lances)</option>
+            <option value="results">Resultados</option>
+            <option value="news">Notícias</option>
+            <option value="polls">Enquetes</option>
+            <option value="standings">Classificação</option>
+          </select>
+        </div>
+
+        <div className="form-group">
+          <label>Segmentar por Time (Opcional)</label>
+          <select value={targetTeamId} onChange={(e) => setTargetTeamId(e.target.value)}>
+            <option value="">Todos os times</option>
+            {teams.map((team) => (
+              <option key={team.id} value={team.id}>{team.name}</option>
+            ))}
+          </select>
+          <small>Quando selecionado, envia só para quem escolheu esse time como favorito.</small>
+        </div>
+
+        <div className="form-group" style={{ marginTop: '-0.25rem' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+            <input type="checkbox" checked={important} onChange={(e) => setImportant(e.target.checked)} />
+            Marcar como alerta importante
+          </label>
+          <small>Usuários com modo "apenas importantes" só recebem alertas com esta opção ativa.</small>
         </div>
         
         <button type="submit" className="btn-save" disabled={sending}>
@@ -420,6 +543,8 @@ const isClientErrorsUnavailable = (err: unknown) => {
     message.includes('permission denied') ||
     message.includes('row-level security') ||
     message.includes('does not exist') ||
+    message.includes('schema cache') ||
+    message.includes('could not find the table') ||
     details.includes('row-level security')
   );
 };
@@ -442,6 +567,7 @@ const ClientErrorsPanel = () => {
       if (error) throw error;
       setItems((data || []) as ClientErrorRow[]);
     } catch (err: unknown) {
+      const unavailable = isClientErrorsUnavailable(err);
       if (!isClientErrorsUnavailable(err)) {
         console.error('Error loading client_errors:', err);
       }
@@ -449,8 +575,12 @@ const ClientErrorsPanel = () => {
         typeof (err as { message?: unknown })?.message === 'string'
           ? String((err as { message: string }).message)
           : 'Falha ao carregar erros';
-      setLoadError(msg);
-      if (!isClientErrorsUnavailable(err)) {
+      setLoadError(
+        unavailable
+          ? 'Observabilidade não configurada neste ambiente (tabela client_errors ausente ou sem permissão).'
+          : msg,
+      );
+      if (!unavailable) {
         toast.error(msg);
       }
     } finally {
@@ -622,7 +752,12 @@ const MatchManagement = () => {
         sendPushNotification(
           '🍿 Jogo Iniciado!', 
           `${match.teams_a?.name || 'Equipe A'} vs ${match.teams_b?.name || 'Equipe B'} acaba de começar!`,
-          '/central-da-partida'
+          {
+            url: '/central-da-partida',
+            category: 'live',
+            important: true,
+            teamIds: [match.team_a_id, match.team_b_id],
+          }
         );
       }
 
@@ -630,7 +765,12 @@ const MatchManagement = () => {
         sendPushNotification(
           '🏁 Partida Finalizada!', 
           `Placar Final: ${match.teams_a?.name || 'Equipe A'} ${match.team_a_score} x ${match.team_b_score} ${match.teams_b?.name || 'Equipe B'}`,
-          '/central-da-partida'
+          {
+            url: '/central-da-partida',
+            category: 'results',
+            important: true,
+            teamIds: [match.team_a_id, match.team_b_id],
+          }
         );
       }
       
@@ -660,6 +800,40 @@ const MatchManagement = () => {
   };
 
   const [editingMatchId, setEditingMatchId] = useState<string | null>(null);
+
+  const sendLivePhaseNotification = (match: Match, phase: 'pausa' | 'intervalo' | 'retomada') => {
+    const teamA = match.teams_a?.name || 'Equipe A';
+    const teamB = match.teams_b?.name || 'Equipe B';
+
+    if (phase === 'pausa') {
+      sendPushNotification('⏸️ Jogo Pausado', `${teamA} x ${teamB} está em pausa técnica.`, {
+        url: '/central-da-partida',
+        category: 'live',
+        teamIds: [match.team_a_id, match.team_b_id],
+      });
+      toast.success('Alerta de pausa enviado.');
+      return;
+    }
+
+    if (phase === 'intervalo') {
+      sendPushNotification('🕒 Intervalo de Jogo', `${teamA} x ${teamB} foi para o intervalo.`, {
+        url: '/central-da-partida',
+        category: 'live',
+        important: true,
+        teamIds: [match.team_a_id, match.team_b_id],
+      });
+      toast.success('Alerta de intervalo enviado.');
+      return;
+    }
+
+    sendPushNotification('▶️ Bola Rolando de Novo', `${teamA} x ${teamB} voltou para o segundo tempo.`, {
+      url: '/central-da-partida',
+      category: 'live',
+      important: true,
+      teamIds: [match.team_a_id, match.team_b_id],
+    });
+    toast.success('Alerta de retomada enviado.');
+  };
 
   const handleUpdateMatch = async (id: string, data: MatchFormData) => {
     // Validação: Impedir que o mesmo time jogue duas vezes na mesma rodada (ignorando a própria partida sendo editada)
@@ -731,7 +905,14 @@ const MatchManagement = () => {
           </button>
           <button 
             className="btn-test-push" 
-            onClick={() => sendPushNotification('🔔 Teste de Alerta', 'Se você recebeu isso, as notificações estão funcionando! 🚀')}
+            onClick={async () => {
+              const sent = await sendPushNotification('🔔 Teste de Alerta', 'Se você recebeu isso, as notificações estão funcionando! 🚀');
+              if (sent) {
+                toast.success('Teste de push enviado com sucesso.');
+              } else {
+                toast.error('Falha ao enviar push de teste. Verifique o endpoint configurado.');
+              }
+            }}
           >
             <Bell size={18} /> Testar Notificações
           </button>
@@ -849,6 +1030,15 @@ const MatchManagement = () => {
                   <>
                     <button className="btn-live-control" onClick={() => setSelectedMatchId(selectedMatchId === match.id ? null : match.id)}>
                       {selectedMatchId === match.id ? 'Fechar Painel' : 'Lançar Eventos'}
+                    </button>
+                    <button className="btn-live-phase pause" title="Enviar alerta de pausa" onClick={() => sendLivePhaseNotification(match, 'pausa')}>
+                      <Pause size={14} /> Pausa
+                    </button>
+                    <button className="btn-live-phase interval" title="Enviar alerta de intervalo" onClick={() => sendLivePhaseNotification(match, 'intervalo')}>
+                      <Clock size={14} /> Intervalo
+                    </button>
+                    <button className="btn-live-phase resume" title="Enviar alerta de retomada" onClick={() => sendLivePhaseNotification(match, 'retomada')}>
+                      <Play size={14} /> Retomar
                     </button>
                     <button className="btn-icon finish" title="Finalizar Jogo" onClick={() => updateStatus(match.id, 'finalizado', match)}><CheckCircle size={18} /></button>
                   </>
@@ -1110,14 +1300,24 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           body = `Gol contra de ${player?.name}!`;
         }
 
-        sendPushNotification(title, body, '/central-da-partida');
+        sendPushNotification(title, body, {
+          url: '/central-da-partida',
+          category: 'live',
+          important: true,
+          teamIds: [match.team_a_id, match.team_b_id],
+        });
       } else if (eventType === 'amarelo' || eventType === 'vermelho') {
         const player = [...playersA, ...playersB].find(p => p.id === playerId);
         const teamName = team === 'a' ? (match.teams_a?.name || 'Equipe A') : (match.teams_b?.name || 'Equipe B');
         sendPushNotification(
           eventType === 'amarelo' ? '🟨 Cartão Amarelo' : '🟥 Cartão Vermelho',
           `${player?.name} (${teamName}) ${eventMinute}'`,
-          '/central-da-partida'
+          {
+            url: '/central-da-partida',
+            category: 'live',
+            important: eventType === 'vermelho',
+            teamIds: [match.team_a_id, match.team_b_id],
+          }
         );
       } else if (eventType === 'substituicao') {
         const pOut = [...playersA, ...playersB].find(p => p.id === playerId);
@@ -1126,12 +1326,25 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         sendPushNotification(
           '🔄 Substituição',
           `${teamName}: Sai ${pOut?.name}, Entra ${pIn?.name}`,
-          '/central-da-partida'
+          {
+            url: '/central-da-partida',
+            category: 'live',
+            teamIds: [match.team_a_id, match.team_b_id],
+          }
         );
       } else if (eventType === 'comentario') {
-        sendPushNotification('📝 Atualização', commentaryText, '/central-da-partida');
+        sendPushNotification('📝 Atualização', commentaryText, {
+          url: '/central-da-partida',
+          category: 'live',
+          teamIds: [match.team_a_id, match.team_b_id],
+        });
       } else if (eventType === 'momento') {
-        sendPushNotification('🔥 Momento da Partida', commentaryText, '/central-da-partida');
+        sendPushNotification('🔥 Momento da Partida', commentaryText, {
+          url: '/central-da-partida',
+          category: 'live',
+          important: true,
+          teamIds: [match.team_a_id, match.team_b_id],
+        });
       }
       
       // Feedback visual rápido
@@ -1858,6 +2071,15 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
     goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0'
   });
 
+  useEffect(() => {
+    if (!editingPlayerId) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [editingPlayerId]);
+
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -2118,7 +2340,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
         )}
       </div>
 
-      {editingPlayerId && (
+      {editingPlayerId && typeof document !== 'undefined' && createPortal(
         <div className="global-player-edit-modal-backdrop" onClick={() => setEditingPlayerId(null)}>
           <div className="global-player-edit-modal glass" onClick={(e) => e.stopPropagation()}>
             <div className="global-player-edit-modal-header">
@@ -2128,7 +2350,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
               </button>
             </div>
 
-            <form className="admin-form glass" onSubmit={(e) => { e.preventDefault(); void handleUpdatePlayer(editingPlayerId); }}>
+            <form className="admin-form glass global-player-edit-form" onSubmit={(e) => { e.preventDefault(); void handleUpdatePlayer(editingPlayerId); }}>
               <div className="form-grid">
                 <div className="form-group">
                   <label>Nome</label>
@@ -2195,7 +2417,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
+              <div className="global-player-edit-actions">
                 <button type="submit" className="btn-save" disabled={isUpdatingPlayer}>
                   <Save size={16} /> {isUpdatingPlayer ? 'Salvando...' : 'Salvar Alterações'}
                 </button>
@@ -2205,7 +2427,8 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -2213,6 +2436,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
 
 const NewsManagement = () => {
   const { news, loading, error, refresh } = useNews();
+  const queryClient = useQueryClient();
   const [isAdding, setIsAdding] = useState(false);
   const [editingNewsId, setEditingNewsId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ title: '', summary: '', content: '', image_url: '' });
@@ -2237,19 +2461,38 @@ const NewsManagement = () => {
   const handleAddNews = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const { error } = await supabase.from('news').insert([formData]);
+      const payload = {
+        ...formData,
+        published_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from('news')
+        .insert([payload])
+        .select('*')
+        .single();
       if (error) throw error;
       setFormData({ title: '', summary: '', content: '', image_url: '' });
       setIsAdding(false);
+
+      if (data) {
+        queryClient.setQueryData<News[]>(['news', 'all'], (prev = []) => [data as News, ...prev]);
+      }
+      await queryClient.invalidateQueries({ queryKey: ['news'] });
       
       // Notificar nova notícia
       sendPushNotification(
         '📰 Nova Notícia!', 
         formData.title,
-        '/jogadores' 
+        {
+          url: '/jogadores',
+          category: 'news',
+          important: true,
+        }
       );
       
-      refresh();
+      await refresh();
+      toast.success('Notícia publicada com sucesso!');
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Erro ao publicar notícia'));
     }
@@ -2650,7 +2893,11 @@ const PollManagement = () => {
         sendPushNotification(
           '🗳️ Nova Enquete!', 
           poll?.question || 'Dê sua opinião no site!',
-          '/'
+          {
+            url: '/',
+            category: 'polls',
+            important: true,
+          }
         );
       }
       
@@ -2802,6 +3049,15 @@ const GlobalPlayerManagement = () => {
     name: '', number: '', position: 'Ala', team_id: '', photo_url: '', bio: '',
     goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0'
   });
+
+  useEffect(() => {
+    if (!editingGlobalPlayerId) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [editingGlobalPlayerId]);
 
   const getTeamNameById = (teamId: string) => {
     return teams.find((t) => t.id === teamId)?.name || null;
@@ -3196,7 +3452,7 @@ const GlobalPlayerManagement = () => {
             <React.Fragment key={p.id}>
               <div className="admin-list-item player-search-row">
                 <div className="item-main">
-                  <img src={p.photo_url || 'https://via.placeholder.com/40'} alt={p.name} className="player-mini-photo" />
+                  <img src={p.photo_url || '/favicon.svg'} alt={p.name} className="player-mini-photo" />
                   <div className="item-info">
                     <strong>{p.name} (#{p.number})</strong>
                     <span>{p.teams?.name} • {p.position}</span>
@@ -3221,7 +3477,7 @@ const GlobalPlayerManagement = () => {
         {!loading && filteredPlayers.length === 0 && <p className="empty-msg">Nenhum atleta encontrado.</p>}
       </div>
 
-      {editingGlobalPlayerId && (
+      {editingGlobalPlayerId && typeof document !== 'undefined' && createPortal(
         <div className="global-player-edit-modal-backdrop" onClick={() => setEditingGlobalPlayerId(null)}>
           <div className="global-player-edit-modal glass" onClick={(e) => e.stopPropagation()}>
             <div className="global-player-edit-modal-header">
@@ -3231,7 +3487,7 @@ const GlobalPlayerManagement = () => {
               </button>
             </div>
 
-            <form className="admin-form glass" onSubmit={handleUpdatePlayer}>
+            <form className="admin-form glass global-player-edit-form" onSubmit={handleUpdatePlayer}>
               <div className="form-grid">
                 <div className="form-group">
                   <label>Nome do Atleta</label>
@@ -3311,7 +3567,7 @@ const GlobalPlayerManagement = () => {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
+              <div className="global-player-edit-actions">
                 <button type="submit" className="btn-save" disabled={isUpdatingGlobalPlayer}>
                   <Save size={16} /> {isUpdatingGlobalPlayer ? 'Salvando...' : 'Salvar Alterações'}
                 </button>
@@ -3321,7 +3577,8 @@ const GlobalPlayerManagement = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

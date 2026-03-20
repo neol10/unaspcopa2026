@@ -30,7 +30,42 @@ const ensureVapid = () => {
 };
 
 type SubscriptionRow = {
-  subscription: PushSubscription;
+  subscription: PushSubscription & {
+    preferences?: {
+      categories?: Record<string, boolean>;
+      onlyImportant?: boolean;
+      favoriteTeamId?: string | null;
+      preGameReminder?: boolean;
+    };
+  };
+};
+
+type NotifyPayload = {
+  title: string;
+  body: string;
+  url?: string;
+  category?: string;
+  important?: boolean;
+  teamIds?: string[];
+};
+
+const shouldReceiveNotification = (
+  row: SubscriptionRow,
+  payload: NotifyPayload,
+): boolean => {
+  const prefs = row.subscription?.preferences;
+  if (!prefs) return true;
+
+  if (prefs.onlyImportant && !payload.important) return false;
+
+  if (payload.category && prefs.categories && prefs.categories[payload.category] === false) {
+    return false;
+  }
+
+  const favorite = prefs.favoriteTeamId;
+  if (!favorite || !Array.isArray(payload.teamIds) || payload.teamIds.length === 0) return true;
+
+  return payload.teamIds.includes(favorite);
 };
 
 type WebPushErrorLike = {
@@ -68,7 +103,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(500).json({ error: 'Missing SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY' });
     }
 
-    const { title, body, url } = (typeof req.body === 'string' ? JSON.parse(req.body) : req.body) ?? {};
+    const { title, body, url, category, important, teamIds } =
+      ((typeof req.body === 'string' ? JSON.parse(req.body) : req.body) ?? {}) as NotifyPayload;
 
     if (!title || !body) {
       return res.status(400).json({ error: 'Missing title/body' });
@@ -91,10 +127,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body,
       url: url || '/',
       icon: ICON_URL,
+      category: category || 'general',
+      important: Boolean(important),
     });
 
+    const eligibleSubscriptions = (subscriptions as SubscriptionRow[]).filter((row) =>
+      shouldReceiveNotification(row, { title, body, url, category, important, teamIds }),
+    );
+
+    if (eligibleSubscriptions.length === 0) {
+      return res
+        .status(200)
+        .setHeader('Access-Control-Allow-Origin', corsHeaders['Access-Control-Allow-Origin'])
+        .json({ message: 'No eligible subscriptions for this notification', results: [] });
+    }
+
     const results = await Promise.all(
-      (subscriptions as SubscriptionRow[]).map(async (row) => {
+      eligibleSubscriptions.map(async (row) => {
         try {
           await webpush.sendNotification(row.subscription, payload);
           return { success: true };

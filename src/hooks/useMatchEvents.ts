@@ -13,6 +13,8 @@ export interface MatchEvent {
   players?: { name: string };
 }
 
+type EventRow = Omit<MatchEvent, 'players'> & { created_at?: string };
+
 export const useMatchEvents = (matchId: string, onNewEvent?: (event: MatchEvent) => void) => {
   const queryClient = useQueryClient();
   const cacheKey = `match_events_cache_v1_${matchId || 'none'}`;
@@ -47,15 +49,27 @@ export const useMatchEvents = (matchId: string, onNewEvent?: (event: MatchEvent)
       if (!matchId) return [];
       const { data, error } = await supabase
         .from('match_events')
-        .select(`
-          *,
-          players:player_id(*)
-        `)
+        .select('id, match_id, player_id, event_type, minute, assistant_id, commentary, created_at')
         .eq('match_id', matchId)
         .order('minute', { ascending: false })
         .order('created_at', { ascending: false });
       if (error) throw error;
-      const result = (data as MatchEvent[]) || [];
+
+      const rows = (data as EventRow[]) || [];
+      const playerIds = Array.from(new Set(rows.map((row) => row.player_id).filter(Boolean))) as string[];
+
+      let playerMap: Record<string, { name: string }> = {};
+      if (playerIds.length > 0) {
+        const { data: playersData } = await supabase.from('players').select('id, name').in('id', playerIds);
+        if (playersData) {
+          playerMap = Object.fromEntries(playersData.map((p) => [p.id as string, { name: String(p.name || 'Atleta') }]));
+        }
+      }
+
+      const result = rows.map((row) => ({
+        ...row,
+        players: row.player_id ? playerMap[row.player_id] || { name: 'Atleta' } : undefined,
+      })) as MatchEvent[];
       saveCachedEvents(result);
       return result;
     },
@@ -77,9 +91,17 @@ export const useMatchEvents = (matchId: string, onNewEvent?: (event: MatchEvent)
         filter: `match_id=eq.${matchId}` 
       }, (payload) => {
         if (payload.eventType === 'INSERT' && onNewEvent) {
-          supabase.from('match_events').select('*, players:player_id(*)').eq('id', payload.new.id).single().then(({data}) => {
-            if (data) onNewEvent(data as MatchEvent);
-          });
+          const eventData = payload.new as EventRow;
+          if (eventData.player_id) {
+            supabase.from('players').select('name').eq('id', eventData.player_id).single().then(({ data }) => {
+              onNewEvent({
+                ...eventData,
+                players: { name: String(data?.name || 'Atleta') },
+              } as MatchEvent);
+            });
+          } else {
+            onNewEvent(eventData as MatchEvent);
+          }
         }
         queryClient.invalidateQueries({ queryKey: ['match_events', matchId] });
       })

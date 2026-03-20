@@ -114,10 +114,17 @@
   overflow-x: auto;
   border-radius: var(--radius-lg);
   padding: 1rem;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+}
+
+.table-swipe-hint {
+  display: none;
 }
 
 .standings-table-new {
   width: 100%;
+  min-width: 860px;
   border-collapse: separate;
   border-spacing: 0 0.5rem;
   text-align: center;
@@ -190,14 +197,86 @@
   color: var(--text-main);
 }
 
-.zone-up .rank-num {
-  color: var(--secondary);
+.rank-green .rank-num {
+  color: #22c55e;
   opacity: 1;
 }
 
-.zone-down .rank-num {
-  color: var(--primary);
+.rank-blue .rank-num {
+  color: #3b82f6;
   opacity: 1;
+}
+
+.rank-yellow .rank-num {
+  color: #facc15;
+  opacity: 1;
+}
+
+.rank-red .rank-num {
+  color: #ef4444;
+  opacity: 1;
+}
+
+.standings-table-new tbody tr.rank-green td,
+.standings-table-new tbody tr.rank-blue td,
+.standings-table-new tbody tr.rank-yellow td,
+.standings-table-new tbody tr.rank-red td {
+  border-top: 1px solid transparent;
+  border-bottom: 1px solid transparent;
+}
+
+.standings-table-new tbody tr.rank-green td {
+  border-color: rgba(34, 197, 94, 0.42);
+  background: rgba(34, 197, 94, 0.04);
+}
+
+.standings-table-new tbody tr.rank-blue td {
+  border-color: rgba(59, 130, 246, 0.42);
+  background: rgba(59, 130, 246, 0.04);
+}
+
+.standings-table-new tbody tr.rank-yellow td {
+  border-color: rgba(250, 204, 21, 0.42);
+  background: rgba(250, 204, 21, 0.04);
+}
+
+.standings-table-new tbody tr.rank-red td {
+  border-color: rgba(239, 68, 68, 0.42);
+  background: rgba(239, 68, 68, 0.04);
+}
+
+.standings-table-new tbody tr.rank-green td:first-child,
+.standings-table-new tbody tr.rank-blue td:first-child,
+.standings-table-new tbody tr.rank-yellow td:first-child,
+.standings-table-new tbody tr.rank-red td:first-child {
+  border-left: 3px solid transparent;
+  border-top-left-radius: 12px;
+  border-bottom-left-radius: 12px;
+}
+
+.standings-table-new tbody tr.rank-green td:last-child,
+.standings-table-new tbody tr.rank-blue td:last-child,
+.standings-table-new tbody tr.rank-yellow td:last-child,
+.standings-table-new tbody tr.rank-red td:last-child {
+  border-right: 1px solid transparent;
+  border-top-right-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+.standings-table-new tbody tr.rank-green td:first-child {
+  border-left-color: #22c55e;
+}
+
+.standings-table-new tbody tr.rank-blue td:first-child {
+  border-left-color: #3b82f6;
+}
+
+.standings-table-new tbody tr.rank-yellow td:first-child {
+  border-left-color: #facc15;
+}
+
+.standings-table-new tbody tr.rank-red td:first-child {
+  border-left-color: #ef4444;
 }
 
 /* Footer & Legend */
@@ -223,14 +302,16 @@
   color: var(--text-muted);
 }
 
-.box-green, .box-red {
+.box-green, .box-blue, .box-yellow, .box-red {
   width: 12px;
   height: 12px;
   border-radius: 3px;
 }
 
-.box-green { background: var(--secondary); box-shadow: 0 0 10px rgba(0, 230, 118, 0.3); }
-.box-red { background: var(--primary); box-shadow: 0 0 10px rgba(255, 45, 45, 0.3); }
+.box-green { background: #22c55e; box-shadow: 0 0 10px rgba(34, 197, 94, 0.3); }
+.box-blue { background: #3b82f6; box-shadow: 0 0 10px rgba(59, 130, 246, 0.35); }
+.box-yellow { background: #facc15; box-shadow: 0 0 10px rgba(250, 204, 21, 0.3); }
+.box-red { background: #ef4444; box-shadow: 0 0 10px rgba(239, 68, 68, 0.35); }
 
 .standings-tip {
   display: flex;
@@ -267,8 +348,32 @@
   .standings-container { padding-top: 1rem; }
   .standings-header { flex-direction: column; align-items: flex-start; gap: 1.5rem; }
   .standings-footer { flex-direction: column; gap: 1.5rem; align-items: flex-start; }
-  .hide-mobile { display: none; }
   .col-name { min-width: 180px; }
+}
+
+@media (max-width: 640px) {
+  .standings-container { gap: 1.5rem; }
+  .group-title { font-size: 1.1rem; letter-spacing: 0.8px; }
+  .header-info h1 { font-size: 2.1rem; }
+  .view-toggle button { padding: 0.45rem 0.7rem; font-size: 0.75rem; }
+  .table-container { padding: 0.5rem 0.35rem; }
+  .standings-table-new { border-spacing: 0 0.35rem; }
+  .standings-table-new th { padding: 0.75rem 0.35rem; font-size: 0.62rem; }
+  .standings-table-new td { padding: 0.75rem 0.35rem; font-size: 0.78rem; }
+  .team-cell { gap: 0.55rem; }
+  .team-shield { width: 28px; height: 28px; border-radius: 8px; }
+  .team-cell strong { font-size: 0.82rem; }
+  .col-name { min-width: 135px; }
+  .legend { gap: 0.8rem; flex-wrap: wrap; }
+
+  .table-swipe-hint {
+    display: block;
+    margin-top: 0.6rem;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    text-align: center;
+    font-style: italic;
+  }
 }
 .col-form { width: 140px; }
 

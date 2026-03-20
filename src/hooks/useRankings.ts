@@ -7,6 +7,8 @@ export interface RankingPlayer extends Player {
   team_name?: string;
   team_badge_url?: string;
   mvp_votes?: number;
+  goals_conceded?: number;
+  fair_play_points?: number;
 }
 
 export const useRankings = () => {
@@ -107,7 +109,14 @@ export const useRankings = () => {
             .select('player_id, assistant_id, event_type, minute, metadata, matches:match_id(round)')
             .in('event_type', ['gol', 'assistencia']),
         ),
-        safeList<{ round: unknown; status: unknown }>(() => supabase.from('matches').select('round, status')),
+        safeList<{
+          round: unknown;
+          status: unknown;
+          team_a_id: string;
+          team_b_id: string;
+          team_a_score: number;
+          team_b_score: number;
+        }>(() => supabase.from('matches').select('round, status, team_a_id, team_b_id, team_a_score, team_b_score')),
       ]);
 
       const playersData = playersRes.data || [];
@@ -142,6 +151,43 @@ export const useRankings = () => {
         team_badge_url: p.teams?.badge_url,
         mvp_votes: voteCounts[p.id] || 0
       }));
+
+      const teamGoalsAgainst: Record<string, number> = {};
+      matchesData.forEach((m) => {
+        if (m.status !== 'finalizado' && m.status !== 'ao_vivo') return;
+        teamGoalsAgainst[m.team_a_id] = (teamGoalsAgainst[m.team_a_id] || 0) + (m.team_b_score || 0);
+        teamGoalsAgainst[m.team_b_id] = (teamGoalsAgainst[m.team_b_id] || 0) + (m.team_a_score || 0);
+      });
+
+      const fairPlayList = [...playersWithTeam]
+        .map((p) => ({
+          ...p,
+          fair_play_points: (p.red_cards || 0) * 3 + (p.yellow_cards || 0),
+        }))
+        .sort((a, b) => {
+          if ((a.fair_play_points || 0) !== (b.fair_play_points || 0)) {
+            return (a.fair_play_points || 0) - (b.fair_play_points || 0);
+          }
+          if ((a.red_cards || 0) !== (b.red_cards || 0)) return (a.red_cards || 0) - (b.red_cards || 0);
+          if ((a.yellow_cards || 0) !== (b.yellow_cards || 0)) return (a.yellow_cards || 0) - (b.yellow_cards || 0);
+          return a.name.localeCompare(b.name);
+        })
+        .slice(0, 10);
+
+      const goldenGloveList = [...playersWithTeam]
+        .filter((p) => p.position === 'Goleiro')
+        .map((p) => ({
+          ...p,
+          goals_conceded: teamGoalsAgainst[p.team_id] || 0,
+        }))
+        .sort((a, b) => {
+          if ((a.goals_conceded || 0) !== (b.goals_conceded || 0)) {
+            return (a.goals_conceded || 0) - (b.goals_conceded || 0);
+          }
+          if ((b.clean_sheets || 0) !== (a.clean_sheets || 0)) return (b.clean_sheets || 0) - (a.clean_sheets || 0);
+          return a.name.localeCompare(b.name);
+        })
+        .slice(0, 10);
 
       // --- LOGICA CRAQUE DA RODADA ---
       const roundStats: Record<string, Record<string, { points: number, goals: number, firstEvent: number }>> = {};
@@ -198,9 +244,9 @@ export const useRankings = () => {
       const result = {
         scorers: [...playersWithTeam].sort((a, b) => b.goals_count - a.goals_count).filter(p => p.goals_count > 0).slice(0, 10),
         assistants: [...playersWithTeam].sort((a, b) => b.assists - a.assists).filter(p => p.assists > 0).slice(0, 10),
-        goalkeepers: [...playersWithTeam].filter(p => p.position === 'Goleiro').sort((a, b) => (b.clean_sheets || 0) - (a.clean_sheets || 0)).slice(0, 10),
+        goalkeepers: goldenGloveList,
         galeraRank: [...playersWithTeam].filter(p => p.mvp_votes > 0).sort((a, b) => b.mvp_votes - a.mvp_votes).slice(0, 10),
-        disciplined: [...playersWithTeam].sort((a, b) => (a.red_cards * 3 + a.yellow_cards) - (b.red_cards * 3 + b.yellow_cards)).slice(0, 10),
+        disciplined: fairPlayList,
         roundMvps: calculatedRoundMvps,
         availableRounds: sortedRounds
       };

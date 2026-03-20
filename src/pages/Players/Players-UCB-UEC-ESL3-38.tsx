@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePlayers, Player } from '../../hooks/usePlayers';
 import { useTeams } from '../../hooks/useTeams';
-import { Shield, ChevronLeft, User, Search, Users, Goal, Footprints } from 'lucide-react';
+import { Shield, ChevronLeft, User, Star, Search, Users } from 'lucide-react';
 import PlayerProfileModal from './PlayerProfileModal';
 import './Players.css';
 
@@ -14,22 +14,7 @@ const Players: React.FC = () => {
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [stuck, setStuck] = useState(false);
-  const [brokenImageMap, setBrokenImageMap] = useState<Record<string, true>>({});
-
-  const normalizeImageSrc = (value: string) => {
-    const trimmed = value.trim();
-    if (!trimmed) return '';
-    if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) return trimmed;
-    try {
-      return encodeURI(trimmed);
-    } catch {
-      return trimmed;
-    }
-  };
-
-  const markImageBroken = (key: string) => {
-    setBrokenImageMap((prev) => (prev[key] ? prev : { ...prev, [key]: true }));
-  };
+  const [failedPhotos, setFailedPhotos] = useState<Record<string, true>>({});
 
   useEffect(() => {
     if (!playersLoading) {
@@ -42,27 +27,19 @@ const Players: React.FC = () => {
   }, [playersLoading]);
   
   const team = teams.find(t => t.id === teamId);
-  const teamFromPlayers = useMemo(() => {
-    if (!teamId || players.length === 0) return null;
-    const first = players[0];
-    return {
-      name: first.team_name,
-      badge_url: first.team_badge_url,
-      group: first.team_group,
-      leader: first.team_leader,
-    };
-  }, [teamId, players]);
-
-  const resolvedTeamName = team?.name || teamFromPlayers?.name || 'Equipe';
-  const resolvedTeamBadge = team?.badge_url || teamFromPlayers?.badge_url || '';
-  const resolvedTeamGroup = team?.group || teamFromPlayers?.group || '';
-  const resolvedTeamLeader = team?.leader || teamFromPlayers?.leader || '';
   const isGlobalView = !teamId;
-  const teamBadgeKey = teamId ? `team-badge-${teamId}` : 'team-badge-global';
 
-  const filteredPlayers = players.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.position.toLowerCase().includes(searchTerm.toLowerCase())
+  const teamNameById = useMemo(() => {
+    const entries = teams.map((t) => [t.id, t.name] as const);
+    return Object.fromEntries(entries) as Record<string, string>;
+  }, [teams]);
+
+  const filteredPlayers = useMemo(
+    () => players.filter((p) =>
+      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.position.toLowerCase().includes(searchTerm.toLowerCase())
+    ),
+    [players, searchTerm]
   );
 
   if ((stuck || (!navigator.onLine && playersLoading)) && players.length === 0) {
@@ -117,30 +94,29 @@ const Players: React.FC = () => {
           <div className="profile-badge-box">
             {isGlobalView ? (
               <Users size={64} color="var(--secondary)" />
-            ) : resolvedTeamBadge && !brokenImageMap[teamBadgeKey] ? (
+            ) : team?.badge_url ? (
               <img 
-                src={normalizeImageSrc(resolvedTeamBadge)} 
-                alt={resolvedTeamName} 
+                src={team.badge_url} 
+                alt={team.name} 
                 className="profile-badge-img" 
                 width="64" 
                 height="64" 
                 loading="lazy" 
                 decoding="async" 
-                onError={() => markImageBroken(teamBadgeKey)}
               />
             ) : (
               <Shield size={64} color="var(--secondary)" />
             )}
           </div>
           <div className="profile-info-group">
-            <h1>{isGlobalView ? 'Hub de Atletas' : resolvedTeamName}</h1>
+            <h1>{isGlobalView ? 'Hub de Atletas' : (team?.name || 'Equipe')}</h1>
             <div className="profile-tags">
                {isGlobalView ? (
                  <span className="profile-tag group">Copa Unasp 2026</span>
                ) : (
                  <>
-                   <span className="profile-tag group">{resolvedTeamGroup}</span>
-                   <span className="profile-tag captain">Líder: {resolvedTeamLeader}</span>
+                   <span className="profile-tag group">{team?.group}</span>
+                   <span className="profile-tag captain">Líder: {team?.leader}</span>
                  </>
                )}
             </div>
@@ -174,8 +150,8 @@ const Players: React.FC = () => {
         <div className="players-v2-grid">
           {filteredPlayers.length > 0 ? (
             filteredPlayers.map((player) => {
-              const playerImageKey = `player-photo-${player.id}`;
-              const hasValidPhoto = Boolean(player.photo_url && !brokenImageMap[playerImageKey]);
+                const playerTeamName = teamNameById[player.team_id];
+                const hidePhoto = failedPhotos[player.id];
               return (
                 <div 
                   key={player.id} 
@@ -184,36 +160,26 @@ const Players: React.FC = () => {
                   style={{ cursor: 'pointer' }}
                 >
                   <div className="p-header">
-                    <div className="p-team-badge-chip" title={player.team_name || 'Equipe'}>
-                      {player.team_badge_url && !brokenImageMap[`team-chip-${player.team_id}`] ? (
-                        <img
-                          src={normalizeImageSrc(player.team_badge_url)}
-                          alt={player.team_name || 'Equipe'}
-                          className="p-team-badge-img"
-                          width="22"
-                          height="22"
-                          loading="lazy"
-                          decoding="async"
-                          onError={() => markImageBroken(`team-chip-${player.team_id}`)}
-                        />
-                      ) : (
-                        <Shield size={16} color="var(--secondary)" />
-                      )}
+                    <div className="p-num-box">
+                      <span className="p-num">#{player.number}</span>
+                      <div className="p-num-glow"></div>
                     </div>
                     <div className="p-position">{player.position}</div>
                   </div>
                   
                   <div className="p-photo-wrapper">
-                    {hasValidPhoto ? (
+                    {player.photo_url && !hidePhoto ? (
                       <img 
-                        src={normalizeImageSrc(player.photo_url || '')} 
+                        src={player.photo_url} 
                         alt={player.name} 
                         className="p-photo" 
                         width="120" 
                         height="120" 
                         loading="lazy" 
                         decoding="async" 
-                        onError={() => markImageBroken(playerImageKey)}
+                        fetchPriority="low"
+                        style={{ objectFit: 'cover' }}
+                        onError={() => setFailedPhotos((prev) => ({ ...prev, [player.id]: true }))}
                       />
                     ) : (
                       <div className="p-photo-placeholder">
@@ -226,39 +192,30 @@ const Players: React.FC = () => {
                      <h3>{player.name}</h3>
                      {isGlobalView && (
                        <div className="p-team-name">
-                         {player.team_name || 'Time não encontrado'}
+                         {playerTeamName || 'Time não encontrado'}
                        </div>
                      )}
                   </div>
                   
                   <div className="p-stats-v2">
                     <div className="p-stat-box">
-                       <div className="p-stat-icon-wrap goal">
-                         <Goal size={14} color="var(--secondary)" className="p-stat-icon" />
-                       </div>
+                       <Star size={14} color="var(--secondary)" />
                        <strong>{player.goals_count}</strong>
-                        <span>G</span>
+                       <span>Gols</span>
                     </div>
                     <div className="p-stat-box">
-                       <div className="p-stat-icon-wrap assist">
-                         <Footprints size={14} color="#00b0ff" className="p-stat-icon" />
-                       </div>
                        <strong>{player.assists}</strong>
-                        <span>A</span>
+                       <span>ASS</span>
                     </div>
                     <div className="p-stat-box">
-                        <div className="p-stat-icon-wrap yellow-card">
-                         <div className="p-card-icon yellow" />
-                        </div>
+                       <div style={{ width: 12, height: 16, background: '#fbbf24', borderRadius: 2 }} />
                        <strong>{player.yellow_cards}</strong>
-                        <span>C/A</span>
+                       <span>Amar</span>
                     </div>
                     <div className="p-stat-box">
-                        <div className="p-stat-icon-wrap red-card">
-                         <div className="p-card-icon red" />
-                        </div>
+                       <div style={{ width: 12, height: 16, background: '#ef4444', borderRadius: 2 }} />
                        <strong>{player.red_cards}</strong>
-                        <span>C/V</span>
+                       <span>Verm</span>
                     </div>
                     <div className="p-cards">
                       {(player.red_cards > 0 || player.yellow_cards >= 3) && (
@@ -280,7 +237,7 @@ const Players: React.FC = () => {
       <PlayerProfileModal 
         player={selectedPlayer} 
         onClose={() => setSelectedPlayer(null)} 
-        teamName={selectedPlayer?.team_name || teams.find(t => t.id === selectedPlayer?.team_id)?.name}
+        teamName={teams.find(t => t.id === selectedPlayer?.team_id)?.name}
       />
     </div>
   );
