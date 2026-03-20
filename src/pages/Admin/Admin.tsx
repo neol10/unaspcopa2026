@@ -296,50 +296,55 @@ type PushSendOptions = {
   teamIds?: string[];
 };
 
+let lastPushErrorMessage = '';
+
 const resolvePushApiEndpoint = () => {
   const raw = (import.meta.env.VITE_PUSH_API_URL as string | undefined)?.trim();
+  const host = typeof window !== 'undefined' ? window.location.hostname : '';
+  const isLocal = host === 'localhost' || host === '127.0.0.1';
+
+  // Em localhost, forçamos rota relativa para usar proxy do Vite e evitar CORS.
+  if (isLocal) return '/api/notify-push';
+
   if (raw) {
     return raw.includes('notify-push')
       ? raw
       : `${raw.replace(/\/$/, '')}/api/notify-push`;
   }
 
-  const host = typeof window !== 'undefined' ? window.location.hostname : '';
-  const isLocal = host === 'localhost' || host === '127.0.0.1';
-
-  // Em localhost com Vite, /api/* não existe por padrão (a menos que rode via vercel dev/proxy).
-  if (isLocal) return null;
-
+  // Fallback padrão: funciona em produção (Vercel) e também em localhost via vercel dev/proxy.
   return '/api/notify-push';
 };
 
 const buildPushEndpointCandidates = (endpoint: string) => {
-  const candidates = [endpoint];
-  if (endpoint.includes('notify-push')) {
-    candidates.push(endpoint.replace('notify-push', 'notify_push'));
-  } else if (endpoint.includes('notify_push')) {
-    candidates.push(endpoint.replace('notify_push', 'notify-push'));
-  }
-  return Array.from(new Set(candidates));
+  return [endpoint];
 };
 
 const sendPushNotification = async (title: string, body: string, options: PushSendOptions | string = '/'): Promise<boolean> => {
+  lastPushErrorMessage = '';
+  const safeTitle = String(title || '').trim();
+  const safeBody = String(body || '').trim();
+
+  if (!safeTitle || !safeBody) {
+    lastPushErrorMessage = 'Payload inválido: título/corpo vazios.';
+    console.error(lastPushErrorMessage);
+    return false;
+  }
+
   const payload = typeof options === 'string'
-    ? { title, body, url: options }
+    ? { title: safeTitle, body: safeBody, message: safeBody, url: options }
     : {
-        title,
-        body,
+        title: safeTitle,
+        body: safeBody,
+        message: safeBody,
         url: options.url || '/',
         category: options.category || 'general',
         important: Boolean(options.important),
         teamIds: options.teamIds || [],
+        team_ids: options.teamIds || [],
       };
 
   const endpoint = resolvePushApiEndpoint();
-  if (!endpoint) {
-    toast.error('Push indisponivel no localhost sem VITE_PUSH_API_URL configurado.');
-    return false;
-  }
 
   try {
     const endpoints = buildPushEndpointCandidates(endpoint);
@@ -353,23 +358,67 @@ const sendPushNotification = async (title: string, body: string, options: PushSe
         body: JSON.stringify({ ...payload, sound: 'default' }),
       });
 
-      if (response.ok) return true;
+      if (response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        // Em localhost com Vite sem proxy, /api/* pode devolver HTML do index com 200.
+        if (contentType.includes('text/html')) {
+          lastStatus = 502;
+          lastDetail = 'Resposta HTML recebida no endpoint de push (provavel dev server sem proxy/api).';
+          continue;
+        }
+        lastPushErrorMessage = '';
+        return true;
+      }
 
       lastStatus = response.status;
-      lastDetail = await response.text().catch(() => '');
+      const rawDetail = await response.text().catch(() => '');
+      lastDetail = rawDetail;
 
-      if (response.status !== 404) {
+      if (response.status === 404) {
+        const fallbackCandidates = endpoint.includes('notify-push')
+          ? [endpoint.replace('notify-push', 'notify_push')]
+          : endpoint.includes('notify_push')
+            ? [endpoint.replace('notify_push', 'notify-push')]
+            : [];
+
+        for (const fallback of fallbackCandidates) {
+          const fallbackResp = await fetch(fallback, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...payload, sound: 'default' }),
+          });
+
+          if (fallbackResp.ok) return true;
+
+          lastStatus = fallbackResp.status;
+          lastDetail = await fallbackResp.text().catch(() => '');
+        }
+      }
+
+      // Tenta próximo candidato mesmo para 4xx para cobrir diferenças de rota/contrato.
+      if (response.status >= 500) {
         console.error(`Push endpoint returned ${response.status}: ${lastDetail}`);
-        return false;
       }
     }
 
     if (lastStatus) {
+      if (lastStatus === 400) {
+        lastPushErrorMessage = `API retornou 400. Detalhe: ${lastDetail || 'requisição inválida'}`;
+      } else if (lastStatus === 401 || lastStatus === 403) {
+        lastPushErrorMessage = 'API de push sem permissão (401/403). Verifique variáveis do backend no deploy.';
+      } else if (lastStatus === 404) {
+        lastPushErrorMessage = 'Endpoint de push não encontrado (404).';
+      } else if (lastStatus === 502) {
+        lastPushErrorMessage = 'No dev local, /api/notify-push está retornando HTML. Use vercel dev ou configure VITE_PUSH_API_URL com URL absoluta.';
+      } else {
+        lastPushErrorMessage = `Falha no endpoint de push (${lastStatus}).`;
+      }
       console.error(`Push endpoint returned ${lastStatus}: ${lastDetail}`);
     }
 
     return false;
   } catch (err) {
+    lastPushErrorMessage = 'Falha de rede ao chamar endpoint de push.';
     console.error('Push notification error:', err);
     return false;
   }
@@ -400,7 +449,7 @@ const NotificationBroadcast = () => {
       });
 
       if (!sent) {
-        throw new Error('Endpoint de push indisponivel. Configure VITE_PUSH_API_URL no ambiente local.');
+        throw new Error(lastPushErrorMessage || 'Não foi possível enviar o push. Verifique o endpoint e as variáveis do backend.');
       }
 
       toast.success('Alerta push enviado para todos os inscritos! 📢');

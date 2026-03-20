@@ -171,14 +171,18 @@
 
 .cards-brief {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.8rem;
   margin-bottom: 0.2rem;
 }
 
 .cards-brief span {
+  display: inline-flex;
+  align-items: center;
   font-weight: 700;
   font-size: 1rem !important;
   text-transform: none !important;
+  white-space: nowrap;
 }
 
 .cards-brief .yellow { color: #facc15; }
@@ -203,5 +207,11 @@
   }
   .player-profile-modal {
     padding: 1.5rem;
+  }
+  .cards-brief {
+    gap: 0.45rem;
+  }
+  .cards-brief span {
+    font-size: 0.92rem !important;
   }
 }

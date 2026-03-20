@@ -92,7 +92,7 @@ const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose
               </div>
               <div className="stat-content">
                 <strong>{player.assists}</strong>
-                <span>ASS</span>
+                <span>Assistências</span>
               </div>
             </div>
 

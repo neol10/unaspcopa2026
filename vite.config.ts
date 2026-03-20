@@ -73,5 +73,17 @@ export default defineConfig({
     // o que confunde durante debug (F5 parece “não atualizar”).
     port: 5174,
     strictPort: true,
+    proxy: {
+      '/api/notify-push': {
+        target: 'https://unaspcopa2026.vercel.app',
+        changeOrigin: true,
+        secure: true,
+      },
+      '/api/notify_push': {
+        target: 'https://unaspcopa2026.vercel.app',
+        changeOrigin: true,
+        secure: true,
+      },
+    },
   }
 })
