@@ -45,6 +45,11 @@ const ensureVapid = () => {
 
 const isLikelyJwt = (value: string) => value.split('.').length === 3;
 
+const getUsableSupabaseKeys = () => {
+  const rawKeys = [SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY].filter(Boolean) as string[];
+  return Array.from(new Set(rawKeys)).filter((key) => isLikelyJwt(key));
+};
+
 const validateSupabaseEnv = () => {
   if (!SUPABASE_URL || (!SUPABASE_SERVICE_ROLE_KEY && !SUPABASE_ANON_KEY)) {
     return 'Missing SUPABASE_URL and keys (SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY)';
@@ -59,12 +64,8 @@ const validateSupabaseEnv = () => {
     return 'SUPABASE_URL is invalid';
   }
 
-  if (SUPABASE_SERVICE_ROLE_KEY && !isLikelyJwt(SUPABASE_SERVICE_ROLE_KEY)) {
-    return 'SUPABASE_SERVICE_ROLE_KEY appears invalid (expected JWT format)';
-  }
-
-  if (SUPABASE_ANON_KEY && !isLikelyJwt(SUPABASE_ANON_KEY)) {
-    return 'SUPABASE_ANON_KEY appears invalid (expected JWT format)';
+  if (getUsableSupabaseKeys().length === 0) {
+    return 'No valid Supabase key detected (expected JWT format)';
   }
 
   return null;
@@ -160,9 +161,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Missing title/body' });
     }
 
-    const keysToTry = Array.from(
-      new Set([SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY].filter(Boolean) as string[]),
-    );
+    const keysToTry = getUsableSupabaseKeys();
 
     let supabaseAdmin: ReturnType<typeof createClient> | null = null;
     let subscriptions: SubscriptionRow[] | null = null;
