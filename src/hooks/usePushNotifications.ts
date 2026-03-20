@@ -171,6 +171,15 @@ export const usePushNotifications = () => {
         let subscription = await registration.pushManager.getSubscription();
         if (mounted) setIsSubscribed(!!subscription);
 
+        if (!subscription && Notification.permission === 'granted') {
+          const vapidPublicKey = await getServerVapidPublicKey();
+          subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+          });
+          markPushSyncVersion();
+        }
+
         // Se já há inscrição antiga no dispositivo, renovamos para garantir
         // que está assinada com a chave VAPID atual do backend.
         if (subscription && !isPushSyncCurrent()) {
