@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../contexts/AuthContext';
 
 export type PushCategories = {
@@ -100,18 +99,19 @@ export const usePushNotifications = () => {
       preferences: prefs,
     };
 
-    // Sem depender de UNIQUE no banco: remove endpoint antigo e insere estado atual.
-    await supabase
-      .from('push_subscriptions')
-      .delete()
-      .eq('subscription->>endpoint', subscription.endpoint);
-
-    const { error } = await supabase.from('push_subscriptions').insert({
-      user_id: userId,
-      subscription: subscriptionPayload,
+    const response = await fetch('/api/push-subscription', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        subscription: subscriptionPayload,
+      }),
     });
 
-    if (error) throw error;
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      throw new Error(text || `push-subscription POST failed (${response.status})`);
+    }
   };
 
   useEffect(() => {
@@ -215,12 +215,12 @@ export const usePushNotifications = () => {
       
       if (subscription) {
         await subscription.unsubscribe();
-        
-        // Remover do Supabase
-        await supabase
-          .from('push_subscriptions')
-          .delete()
-          .eq('subscription->>endpoint', subscription.endpoint);
+
+        await fetch('/api/push-subscription', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint: subscription.endpoint }),
+        });
       }
       
       setIsSubscribed(false);
