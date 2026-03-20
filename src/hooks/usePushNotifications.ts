@@ -90,6 +90,30 @@ export const usePushNotifications = () => {
     persistPreferences(preferences);
   }, [preferences]);
 
+  const syncSubscriptionRecord = async (
+    subscription: PushSubscription,
+    prefs: PushPreferences,
+    userId: string | null,
+  ) => {
+    const subscriptionPayload = {
+      ...(subscription.toJSON() as Record<string, unknown>),
+      preferences: prefs,
+    };
+
+    // Sem depender de UNIQUE no banco: remove endpoint antigo e insere estado atual.
+    await supabase
+      .from('push_subscriptions')
+      .delete()
+      .eq('subscription->>endpoint', subscription.endpoint);
+
+    const { error } = await supabase.from('push_subscriptions').insert({
+      user_id: userId,
+      subscription: subscriptionPayload,
+    });
+
+    if (error) throw error;
+  };
+
   useEffect(() => {
     let mounted = true;
 
@@ -106,17 +130,9 @@ export const usePushNotifications = () => {
         const subscription = await registration.pushManager.getSubscription();
         if (mounted) setIsSubscribed(!!subscription);
 
-        // Se estiver inscrito e o usuário mudou, sincronizar no banco (sem depender de UNIQUE)
-        if (subscription && user) {
-          const subscriptionWithPrefs = {
-            ...(subscription.toJSON() as Record<string, unknown>),
-            preferences,
-          };
-
-          await supabase
-            .from('push_subscriptions')
-            .update({ user_id: user.id, subscription: subscriptionWithPrefs })
-            .eq('subscription->>endpoint', subscription.endpoint);
+        // Mantém assinatura persistida no banco mesmo sem usuário logado.
+        if (subscription) {
+          await syncSubscriptionRecord(subscription, preferences, user?.id || null);
         }
       } catch (err) {
         console.debug('Push sync skipped:', err);
@@ -148,16 +164,7 @@ export const usePushNotifications = () => {
       const subscription = await registration.pushManager.getSubscription();
       if (!subscription) return;
 
-      await supabase
-        .from('push_subscriptions')
-        .update({
-          user_id: user?.id || null,
-          subscription: {
-            ...(subscription.toJSON() as Record<string, unknown>),
-            preferences: next,
-          },
-        })
-        .eq('subscription->>endpoint', subscription.endpoint);
+      await syncSubscriptionRecord(subscription, next, user?.id || null);
     } catch (err) {
       console.debug('Push preference sync skipped:', err);
     }
@@ -191,22 +198,7 @@ export const usePushNotifications = () => {
         applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
       });
 
-      // Evita duplicatas (e permite unsubscribe confiável) usando o endpoint do JSON
-      await supabase
-        .from('push_subscriptions')
-        .delete()
-        .eq('subscription->>endpoint', subscription.endpoint);
-
-      // Salvar no Supabase
-      const { error } = await supabase.from('push_subscriptions').insert({
-        user_id: user?.id || null,
-        subscription: {
-          ...(subscription.toJSON() as Record<string, unknown>),
-          preferences,
-        }
-      });
-
-      if (error) throw error;
+      await syncSubscriptionRecord(subscription, preferences, user?.id || null);
       setIsSubscribed(true);
     } catch (err) {
       console.error('Push Subscription Error:', err);

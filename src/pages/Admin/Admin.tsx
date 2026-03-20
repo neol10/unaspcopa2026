@@ -366,6 +366,40 @@ const sendPushNotification = async (title: string, body: string, options: PushSe
           lastDetail = 'Resposta HTML recebida no endpoint de push (provavel dev server sem proxy/api).';
           continue;
         }
+
+        const bodyJson = await response.json().catch(() => ({} as Record<string, unknown>));
+        const apiMessage = typeof bodyJson.message === 'string' ? bodyJson.message : '';
+        const apiResults = Array.isArray(bodyJson.results)
+          ? (bodyJson.results as Array<{ success?: boolean; error?: string; statusCode?: number }>)
+          : [];
+
+        if (apiMessage.toLowerCase().includes('no subscriptions')) {
+          lastPushErrorMessage = 'Nenhum dispositivo inscrito para receber push.';
+          lastStatus = 200;
+          lastDetail = apiMessage;
+          continue;
+        }
+
+        if (apiMessage.toLowerCase().includes('no eligible subscriptions')) {
+          lastPushErrorMessage = 'Nenhum inscrito elegível para este alerta (filtros atuais).';
+          lastStatus = 200;
+          lastDetail = apiMessage;
+          continue;
+        }
+
+        if (apiResults.length > 0) {
+          const successCount = apiResults.filter((r) => r.success).length;
+          if (successCount === 0) {
+            const firstFail = apiResults.find((r) => !r.success);
+            lastPushErrorMessage = firstFail?.error
+              ? `Nenhum push entregue. Detalhe: ${firstFail.error}`
+              : 'Nenhum push foi entregue para os inscritos.';
+            lastStatus = firstFail?.statusCode || 200;
+            lastDetail = lastPushErrorMessage;
+            continue;
+          }
+        }
+
         lastPushErrorMessage = '';
         return true;
       }
@@ -581,7 +615,7 @@ const formatDateTime = (value: string) => {
 const isClientErrorsUnavailable = (err: unknown) => {
   const raw = err as { code?: unknown; message?: unknown; details?: unknown; status?: unknown };
   const code = typeof raw?.code === 'string' ? raw.code : '';
-  const status = typeof raw?.status === 'number' ? raw.status : 0;
+  const status = typeof raw?.status === 'number' ? raw.status : null;
   const message = typeof raw?.message === 'string' ? raw.message.toLowerCase() : '';
   const details = typeof raw?.details === 'string' ? raw.details.toLowerCase() : '';
 
