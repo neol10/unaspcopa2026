@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuthContext } from '../contexts/AuthContext';
+import { toast } from 'react-hot-toast';
 
 export type PushCategories = {
   live: boolean;
@@ -80,6 +81,11 @@ export const usePushNotifications = () => {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [preferences, setPreferences] = useState<PushPreferences>(DEFAULT_PREFERENCES);
   const [loading, setLoading] = useState(true);
+  const warnedSyncRef = useRef(false);
+
+  const isPushSupported = () => {
+    return 'serviceWorker' in navigator && 'PushManager' in window;
+  };
 
   useEffect(() => {
     setPreferences(loadPreferences());
@@ -118,7 +124,7 @@ export const usePushNotifications = () => {
     let mounted = true;
 
     const checkAndSyncSubscription = async () => {
-      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      if (!isPushSupported()) {
         setLoading(false);
         return;
       }
@@ -133,9 +139,15 @@ export const usePushNotifications = () => {
         // Mantém assinatura persistida no banco mesmo sem usuário logado.
         if (subscription) {
           await syncSubscriptionRecord(subscription, preferences, user?.id || null);
+          warnedSyncRef.current = false;
         }
       } catch (err) {
         console.debug('Push sync skipped:', err);
+        if (!warnedSyncRef.current) {
+          toast.error('Push ativo no dispositivo, mas não sincronizado no servidor. Toque em desativar/ativar alertas.');
+          warnedSyncRef.current = true;
+        }
+        setIsSubscribed(false);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -157,7 +169,7 @@ export const usePushNotifications = () => {
 
     setPreferences(next);
 
-    if (!('serviceWorker' in navigator)) return;
+    if (!isPushSupported()) return;
 
     try {
       const registration = await navigator.serviceWorker.ready;
@@ -167,6 +179,7 @@ export const usePushNotifications = () => {
       await syncSubscriptionRecord(subscription, next, user?.id || null);
     } catch (err) {
       console.debug('Push preference sync skipped:', err);
+      toast.error('Não foi possível salvar preferências de alertas no servidor.');
     }
   };
 
@@ -176,6 +189,10 @@ export const usePushNotifications = () => {
 
       if (!window.isSecureContext) {
         throw new Error('Push requer HTTPS (ou localhost).');
+      }
+
+      if (!isPushSupported()) {
+        throw new Error('Push não suportado neste navegador/dispositivo.');
       }
 
       if (!('Notification' in window)) {
@@ -200,8 +217,12 @@ export const usePushNotifications = () => {
 
       await syncSubscriptionRecord(subscription, preferences, user?.id || null);
       setIsSubscribed(true);
+      toast.success('Alertas ativados com sucesso!');
     } catch (err) {
       console.error('Push Subscription Error:', err);
+      const message = err instanceof Error ? err.message : 'Falha ao ativar alertas push.';
+      toast.error(message);
+      setIsSubscribed(false);
     } finally {
       setLoading(false);
     }
@@ -224,8 +245,10 @@ export const usePushNotifications = () => {
       }
       
       setIsSubscribed(false);
+      toast.success('Alertas desativados.');
     } catch (err) {
       console.error('Push Unsubscription Error:', err);
+      toast.error('Falha ao desativar alertas push.');
     } finally {
       setLoading(false);
     }
