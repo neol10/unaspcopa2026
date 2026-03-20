@@ -374,8 +374,18 @@
   .sidebar {
     width: 240px;
   }
+
+  .brand-copa {
+    font-size: 1.35rem;
+  }
+
+  .brand-year {
+    letter-spacing: 4px;
+    font-size: 0.72rem;
+  }
+
   .content {
-    padding: 1.5rem 2rem 2rem;
+    padding: 1.25rem 1.5rem 1.75rem;
   }
 }
 
@@ -387,7 +397,7 @@
   .sidebar {
     position: fixed;
     left: -100%;
-    width: 280px;
+    width: min(320px, 84vw);
     height: 100vh;
     z-index: 1001;
     box-shadow: 20px 0 50px rgba(0,0,0,0.2);
@@ -414,7 +424,7 @@
   }
 
   .content {
-    padding: 1rem 1.25rem 2rem;
+    padding: 0.85rem 0.95rem 1.5rem;
   }
 
   .mobile-menu-btn {
@@ -431,6 +441,11 @@
 
   .nav-overlay.show {
     display: block;
+  }
+
+  .footer {
+    padding: 1.4rem 1rem;
+    font-size: 0.82rem;
   }
 }
 

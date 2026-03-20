@@ -9,6 +9,22 @@ const Teams: React.FC = () => {
   const navigate = useNavigate();
   const { teams, loading, error, refresh } = useTeams();
   const [stuck, setStuck] = useState(false);
+  const [brokenBadgeMap, setBrokenBadgeMap] = useState<Record<string, true>>({});
+
+  const markBadgeBroken = (teamId: string) => {
+    setBrokenBadgeMap((prev) => (prev[teamId] ? prev : { ...prev, [teamId]: true }));
+  };
+
+  const normalizeImageSrc = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) return trimmed;
+    try {
+      return encodeURI(trimmed);
+    } catch {
+      return trimmed;
+    }
+  };
 
   useEffect(() => {
     if (!loading) {
@@ -108,14 +124,15 @@ const Teams: React.FC = () => {
             
             <div className="card-badge">
               <div className="badge-glow"></div>
-              {team.badge_url ? (
+              {team.badge_url && !brokenBadgeMap[team.id] ? (
                 <img 
-                  src={team.badge_url} 
+                  src={normalizeImageSrc(team.badge_url)} 
                   alt={team.name} 
                   width="48" 
                   height="48" 
                   loading="lazy"
-                  style={{ objectFit: 'contain' }} 
+                  style={{ objectFit: 'contain' }}
+                  onError={() => markBadgeBroken(team.id)}
                 />
               ) : (
                 <Shield size={40} color="var(--secondary)" />

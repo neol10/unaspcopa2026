@@ -16,7 +16,7 @@ export default defineConfig({
         enabled: false,
       },
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'favicon.png', 'icons.svg'],
+      includeAssets: ['favicon.svg', 'favicon.png', 'icons.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'],
       manifest: {
         name: 'Copa Unasp 2026',
         short_name: 'Copa Unasp',
@@ -27,17 +27,17 @@ export default defineConfig({
         start_url: '/',
         icons: [
           {
-            src: '/favicon.png',
+            src: '/icon-192.png',
             sizes: '192x192',
             type: 'image/png'
           },
           {
-            src: '/favicon.png',
+            src: '/icon-512.png',
             sizes: '512x512',
             type: 'image/png'
           },
           {
-            src: '/favicon.png',
+            src: '/icon-512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable'

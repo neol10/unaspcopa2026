@@ -556,3 +556,42 @@
     font-size: 1.2rem;
   }
 }
+
+@media (max-width: 360px) {
+  .rankings-container {
+    gap: 1.5rem;
+    padding-bottom: 1.5rem;
+  }
+
+  .rankings-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .rankings-featured-grid,
+  .rankings-grid {
+    grid-template-columns: 1fr;
+    gap: 0.85rem;
+    margin-bottom: 1rem;
+  }
+
+  .round-mvp-highlight,
+  .highlight-hero,
+  .rank-panel {
+    padding: 0.9rem;
+    border-radius: 14px;
+  }
+
+  .scorers-podium {
+    gap: 0.45rem;
+  }
+
+  .podium-player-name {
+    font-size: 0.78rem;
+  }
+
+  .podium-player-team {
+    font-size: 0.62rem;
+  }
+}

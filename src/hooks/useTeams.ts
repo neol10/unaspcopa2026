@@ -10,6 +10,17 @@ export interface Team {
   leader: string;
 }
 
+const normalizeImageSrc = (value: string | null | undefined) => {
+  const raw = (value || '').trim();
+  if (!raw) return '';
+  if (raw.startsWith('data:') || raw.startsWith('blob:')) return raw;
+  try {
+    return encodeURI(raw);
+  } catch {
+    return raw;
+  }
+};
+
 export const useTeams = () => {
   const queryClient = useQueryClient();
 
@@ -51,7 +62,11 @@ export const useTeams = () => {
         .select('*')
         .order('name');
       if (error) throw error;
-      return (data as Team[]) || [];
+      const rows = (data as Team[]) || [];
+      return rows.map((team) => ({
+        ...team,
+        badge_url: normalizeImageSrc(team.badge_url),
+      }));
     },
     staleTime: 1000 * 60 * 20, // 20 min (times mudam pouco, mantém cache mais tempo)
     gcTime: 1000 * 60 * 60,    // 60 min (garbage collection mais longo)
@@ -83,7 +98,10 @@ export const useTeams = () => {
   }, [queryClient]);
 
   return { 
-    teams: query.data || [], 
+    teams: (query.data || []).map((team) => ({
+      ...team,
+      badge_url: normalizeImageSrc(team.badge_url),
+    })), 
     loading: query.isLoading && query.data === undefined, 
     error: friendlyError(query.error?.message), 
     refresh: query.refetch 

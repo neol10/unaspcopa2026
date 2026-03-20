@@ -525,6 +525,7 @@ const ClientErrorsPanel = () => {
 const MatchManagement = () => {
   const { matches, loading, refresh } = useMatches();
   const { teams } = useTeams();
+  const queryClient = useQueryClient();
   const [isAdding, setIsAdding] = useState(false);
   const [isSubmittingMatch, setIsSubmittingMatch] = useState(false);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
@@ -547,6 +548,12 @@ const MatchManagement = () => {
     round: '1' 
   });
   const [searchTerm, setSearchTerm] = useState('');
+
+  const invalidateCompetitionData = () => {
+    void queryClient.invalidateQueries({ queryKey: ['matches'] });
+    void queryClient.invalidateQueries({ queryKey: ['standings'] });
+    void queryClient.invalidateQueries({ queryKey: ['rankings'] });
+  };
 
   // Agrupar equipes por grupo
   const groupedTeams = teams.reduce<Record<string, Team[]>>((acc, team) => {
@@ -590,6 +597,7 @@ const MatchManagement = () => {
       setFormData({ team_a_id: '', team_b_id: '', match_date: '', location: 'Ginásio Principal', status: 'agendado', round: '1' });
       setIsAdding(false);
       void refresh();
+      invalidateCompetitionData();
       toast.success('Partida criada com sucesso!');
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Erro ao criar partida'));
@@ -624,6 +632,7 @@ const MatchManagement = () => {
       }
       
       void refresh();
+      invalidateCompetitionData();
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Erro ao atualizar status'));
     }
@@ -640,6 +649,7 @@ const MatchManagement = () => {
       );
       if (error) throw error;
       void refresh();
+      invalidateCompetitionData();
       toast.success('Partida excluída!', { id: loadingToast });
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Erro ao excluir partida'), { id: loadingToast });
@@ -679,6 +689,7 @@ const MatchManagement = () => {
       if (error) throw error;
       setEditingMatchId(null);
       void refresh();
+      invalidateCompetitionData();
       toast.success('Partida atualizada!');
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Erro ao atualizar partida'));
@@ -1609,6 +1620,8 @@ const TeamManagement = () => {
       setNewTeamData({ name: '', group: '', leader: '', badge_url: '' });
       setIsAdding(false);
       void queryClient.invalidateQueries({ queryKey: ['teams'] });
+      void queryClient.invalidateQueries({ queryKey: ['standings'] });
+      void queryClient.invalidateQueries({ queryKey: ['rankings'] });
       void refresh();
       toast.success('Equipe criada com sucesso!', { id: loadingToast });
     } catch (err: unknown) {
@@ -1630,6 +1643,8 @@ const TeamManagement = () => {
       if (error) throw error;
       void queryClient.invalidateQueries({ queryKey: ['teams'] });
       void queryClient.invalidateQueries({ queryKey: ['players'] });
+      void queryClient.invalidateQueries({ queryKey: ['standings'] });
+      void queryClient.invalidateQueries({ queryKey: ['rankings'] });
       void refresh();
       toast.success('Equipe excluída com sucesso!', { id: loadingToast });
     } catch (err: unknown) {
@@ -1647,6 +1662,8 @@ const TeamManagement = () => {
       );
       if (error) throw error;
       void queryClient.invalidateQueries({ queryKey: ['teams'] });
+      void queryClient.invalidateQueries({ queryKey: ['standings'] });
+      void queryClient.invalidateQueries({ queryKey: ['rankings'] });
       void refresh();
       toast.success('Equipe atualizada!', { id: loadingToast });
     } catch (err: unknown) {
@@ -1870,6 +1887,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
       setIsAdding(false);
       void queryClient.invalidateQueries({ queryKey: ['players', teamId] });
       void queryClient.invalidateQueries({ queryKey: ['players', 'all'] });
+      void queryClient.invalidateQueries({ queryKey: ['rankings'] });
       toast.success('Atleta adicionado!', { id: loadingToast });
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Erro ao adicionar atleta'), { id: loadingToast });
@@ -1890,6 +1908,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
       if (error) throw error;
       void queryClient.invalidateQueries({ queryKey: ['players', teamId] });
       void queryClient.invalidateQueries({ queryKey: ['players', 'all'] });
+      void queryClient.invalidateQueries({ queryKey: ['rankings'] });
       toast.success('Atleta excluído!', { id: loadingToast });
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Erro ao excluir atleta'), { id: loadingToast });
@@ -1932,6 +1951,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
       setEditingPlayerId(null);
       void queryClient.invalidateQueries({ queryKey: ['players', teamId] });
       void queryClient.invalidateQueries({ queryKey: ['players', 'all'] });
+      void queryClient.invalidateQueries({ queryKey: ['rankings'] });
       toast.success('Atleta atualizado!', { id: loadingToast });
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Erro ao atualizar atleta'), { id: loadingToast });
@@ -2905,6 +2925,7 @@ const GlobalPlayerManagement = () => {
       });
       setIsAdding(false);
       void queryClient.invalidateQueries({ queryKey: ['players'] });
+      void queryClient.invalidateQueries({ queryKey: ['rankings'] });
       toast.success('Atleta cadastrado com sucesso!', { id: loadingToast });
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Erro ao cadastrar atleta'), { id: loadingToast });
@@ -3014,6 +3035,7 @@ const GlobalPlayerManagement = () => {
 
       setEditingGlobalPlayerId(null);
       void queryClient.invalidateQueries({ queryKey: ['players'] });
+      void queryClient.invalidateQueries({ queryKey: ['rankings'] });
       toast.success('Atleta atualizado com sucesso!', { id: loadingToast });
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Erro ao atualizar atleta'), { id: loadingToast });
@@ -3039,6 +3061,7 @@ const GlobalPlayerManagement = () => {
       }
       removePlayerFromCache(playerId, playerToDelete?.team_id);
       void queryClient.invalidateQueries({ queryKey: ['players'] });
+      void queryClient.invalidateQueries({ queryKey: ['rankings'] });
       toast.success('Atleta excluido com sucesso!', { id: loadingToast });
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Erro ao excluir atleta'), { id: loadingToast });

@@ -172,3 +172,59 @@
   .hero-content h1 { font-size: 2.2rem; }
   .teams-hero-header { flex-direction: column; align-items: flex-start; }
 }
+
+@media (max-width: 1024px) {
+  .teams-grid-v2 {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1.25rem;
+  }
+
+  .team-card-v2 {
+    padding: 1.4rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .teams-page {
+    gap: 1.5rem;
+  }
+
+  .teams-hero-header {
+    padding: 1rem 0;
+    gap: 1rem;
+  }
+
+  .hero-content h1 {
+    font-size: 1.75rem;
+    letter-spacing: -1px;
+  }
+
+  .hero-content p {
+    font-size: 0.92rem;
+  }
+
+  .hero-stats {
+    width: 100%;
+    padding: 1rem 1.2rem;
+  }
+
+  .teams-grid-v2 {
+    grid-template-columns: 1fr;
+    gap: 0.9rem;
+  }
+
+  .card-badge {
+    width: 92px;
+    height: 92px;
+    margin-bottom: 1rem;
+  }
+
+  .card-body h3 {
+    font-size: 1.2rem;
+  }
+
+  .btn-explore {
+    padding: 0.82rem;
+    font-size: 0.8rem;
+  }
+}

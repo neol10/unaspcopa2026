@@ -13,6 +13,17 @@ interface PlayerProfileModalProps {
 const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose, teamName }) => {
   const [brokenPhotoUrl, setBrokenPhotoUrl] = useState<string | null>(null);
 
+  const normalizeImageSrc = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) return trimmed;
+    try {
+      return encodeURI(trimmed);
+    } catch {
+      return trimmed;
+    }
+  };
+
   if (!player) return null;
 
   return (
@@ -35,7 +46,7 @@ const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose
               <div className="player-photo-wrapper">
                 {player.photo_url && brokenPhotoUrl !== player.photo_url ? (
                   <img 
-                    src={player.photo_url} 
+                    src={normalizeImageSrc(player.photo_url)} 
                     alt={player.name} 
                     className="player-large-photo" 
                     width="160" 

@@ -1096,3 +1096,43 @@
 @media (max-width: 768px) {
   .breaking-news-ticker { margin: 1rem 1rem -3.5rem; }
 }
+
+@media (max-width: 360px) {
+  .home-page-v2 {
+    gap: 2.25rem;
+  }
+
+  .hero-cinematic {
+    min-height: 70vh;
+    padding: 2.2rem 0.9rem;
+    border-radius: 20px;
+  }
+
+  .hero-title-v2 {
+    font-size: 2.25rem;
+    letter-spacing: -1px;
+  }
+
+  .hero-badge-v2 {
+    font-size: 0.68rem;
+    padding: 0.45rem 0.8rem;
+    letter-spacing: 1px;
+  }
+
+  .live-now-banner {
+    margin: 0.5rem 0.45rem 0;
+    padding: 1rem 0.8rem;
+    border-radius: 14px;
+  }
+
+  .breaking-news-ticker {
+    margin: 0.6rem 0.45rem -2.8rem;
+    border-radius: 12px;
+    padding: 0.55rem;
+  }
+
+  .ticker-track span {
+    font-size: 0.72rem;
+    padding-right: 1.8rem;
+  }
+}

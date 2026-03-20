@@ -16,6 +16,17 @@ const Players: React.FC = () => {
   const [stuck, setStuck] = useState(false);
   const [brokenImageMap, setBrokenImageMap] = useState<Record<string, true>>({});
 
+  const normalizeImageSrc = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) return trimmed;
+    try {
+      return encodeURI(trimmed);
+    } catch {
+      return trimmed;
+    }
+  };
+
   const markImageBroken = (key: string) => {
     setBrokenImageMap((prev) => (prev[key] ? prev : { ...prev, [key]: true }));
   };
@@ -93,7 +104,7 @@ const Players: React.FC = () => {
               <Users size={64} color="var(--secondary)" />
             ) : team?.badge_url && !brokenImageMap[teamBadgeKey] ? (
               <img 
-                src={team.badge_url} 
+                src={normalizeImageSrc(team.badge_url)} 
                 alt={team.name} 
                 className="profile-badge-img" 
                 width="64" 
@@ -169,7 +180,7 @@ const Players: React.FC = () => {
                   <div className="p-photo-wrapper">
                     {hasValidPhoto ? (
                       <img 
-                        src={player.photo_url} 
+                        src={normalizeImageSrc(player.photo_url || '')} 
                         alt={player.name} 
                         className="p-photo" 
                         width="120" 

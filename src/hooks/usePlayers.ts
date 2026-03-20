@@ -19,6 +19,17 @@ export interface Player {
 
 type PlayerRow = Player & { teams?: { name: string } };
 
+const normalizeImageSrc = (value: string | null | undefined) => {
+  const raw = (value || '').trim();
+  if (!raw) return '';
+  if (raw.startsWith('data:') || raw.startsWith('blob:')) return raw;
+  try {
+    return encodeURI(raw);
+  } catch {
+    return raw;
+  }
+};
+
 export const usePlayers = (teamId?: string) => {
   const queryClient = useQueryClient();
   const cacheKey = `players_cache_v1_${teamId || 'all'}`;
@@ -52,7 +63,11 @@ export const usePlayers = (teamId?: string) => {
       if (teamId) q = q.eq('team_id', teamId);
       const { data, error } = await q.order('name');
       if (error) throw error;
-      return (data as PlayerRow[]) || [];
+      const rows = (data as PlayerRow[]) || [];
+      return rows.map((player) => ({
+        ...player,
+        photo_url: normalizeImageSrc(player.photo_url),
+      }));
     },
     staleTime: 1000 * 60 * 10, // 10 min
     gcTime: 1000 * 60 * 30,    // 30 min
@@ -95,7 +110,10 @@ export const usePlayers = (teamId?: string) => {
   }, [teamId, queryClient]);
 
   return { 
-    players: query.data || [], 
+    players: (query.data || []).map((player) => ({
+      ...player,
+      photo_url: normalizeImageSrc(player.photo_url),
+    })), 
     loading: query.isLoading && query.data === undefined, 
     error: friendlyError(query.error?.message), 
     refresh: query.refetch 
