@@ -76,6 +76,23 @@ const urlBase64ToUint8Array = (base64String: string) => {
   return outputArray;
 };
 
+const getServerVapidPublicKey = async (): Promise<string> => {
+  try {
+    const response = await fetch('/api/push-public-key', { method: 'GET' });
+    if (!response.ok) throw new Error(`push-public-key failed (${response.status})`);
+    const data = (await response.json()) as { publicKey?: unknown };
+    if (typeof data.publicKey === 'string' && data.publicKey.trim()) {
+      return data.publicKey.trim();
+    }
+  } catch {
+    // fallback below
+  }
+
+  const fallback = (import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined)?.trim();
+  if (fallback) return fallback;
+  throw new Error('Chave pública VAPID indisponível.');
+};
+
 export const usePushNotifications = () => {
   const { user } = useAuthContext();
   const [isSubscribed, setIsSubscribed] = useState(false);
@@ -205,10 +222,13 @@ export const usePushNotifications = () => {
       }
 
       const registration = await navigator.serviceWorker.ready;
-      
-      const vapidPublicKey =
-        import.meta.env.VITE_VAPID_PUBLIC_KEY ||
-        'BCnIZTU55SHGk26e-Eijokx_PKAklTJY8LOwN6kvnRXaz7NGwC2THcjrVG6DR5f2WeRbE9_83cj-xfVWMvp_fqI';
+      const vapidPublicKey = await getServerVapidPublicKey();
+
+      // Reinscreve para garantir compatibilidade com par VAPID atual do backend.
+      const existing = await registration.pushManager.getSubscription();
+      if (existing) {
+        await existing.unsubscribe();
+      }
 
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,

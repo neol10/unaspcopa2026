@@ -89,6 +89,11 @@ export default defineConfig({
         changeOrigin: true,
         secure: true,
       },
+      '/api/push-public-key': {
+        target: 'https://unaspcopa2026.vercel.app',
+        changeOrigin: true,
+        secure: true,
+      },
     },
   }
 })
