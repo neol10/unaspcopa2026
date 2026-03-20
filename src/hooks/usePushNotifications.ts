@@ -23,6 +23,8 @@ type PushPreferencesPatch =
   };
 
 const PUSH_PREFS_KEY = 'copa_unasp_push_preferences_v1';
+const PUSH_SYNC_VERSION_KEY = 'copa_unasp_push_sync_version';
+const PUSH_SYNC_VERSION = 'v1';
 
 const DEFAULT_PREFERENCES: PushPreferences = {
   categories: {
@@ -104,6 +106,22 @@ export const usePushNotifications = () => {
     return 'serviceWorker' in navigator && 'PushManager' in window;
   };
 
+  const markPushSyncVersion = () => {
+    try {
+      localStorage.setItem(PUSH_SYNC_VERSION_KEY, PUSH_SYNC_VERSION);
+    } catch {
+      // ignore
+    }
+  };
+
+  const isPushSyncCurrent = () => {
+    try {
+      return localStorage.getItem(PUSH_SYNC_VERSION_KEY) === PUSH_SYNC_VERSION;
+    } catch {
+      return false;
+    }
+  };
+
   useEffect(() => {
     setPreferences(loadPreferences());
   }, []);
@@ -150,13 +168,26 @@ export const usePushNotifications = () => {
         const registration = await navigator.serviceWorker.ready;
         if (!registration) return;
 
-        const subscription = await registration.pushManager.getSubscription();
+        let subscription = await registration.pushManager.getSubscription();
         if (mounted) setIsSubscribed(!!subscription);
+
+        // Se já há inscrição antiga no dispositivo, renovamos para garantir
+        // que está assinada com a chave VAPID atual do backend.
+        if (subscription && !isPushSyncCurrent()) {
+          const vapidPublicKey = await getServerVapidPublicKey();
+          await subscription.unsubscribe();
+          subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+          });
+          markPushSyncVersion();
+        }
 
         // Mantém assinatura persistida no banco mesmo sem usuário logado.
         if (subscription) {
           await syncSubscriptionRecord(subscription, preferences, user?.id || null);
           warnedSyncRef.current = false;
+          if (mounted) setIsSubscribed(true);
         }
       } catch (err) {
         console.debug('Push sync skipped:', err);
@@ -236,6 +267,7 @@ export const usePushNotifications = () => {
       });
 
       await syncSubscriptionRecord(subscription, preferences, user?.id || null);
+      markPushSyncVersion();
       setIsSubscribed(true);
       toast.success('Alertas ativados com sucesso!');
     } catch (err) {
@@ -265,6 +297,11 @@ export const usePushNotifications = () => {
       }
       
       setIsSubscribed(false);
+      try {
+        localStorage.removeItem(PUSH_SYNC_VERSION_KEY);
+      } catch {
+        // ignore
+      }
       toast.success('Alertas desativados.');
     } catch (err) {
       console.error('Push Unsubscription Error:', err);
