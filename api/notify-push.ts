@@ -166,7 +166,7 @@ const deleteByEndpointBestEffort = async (
   supabaseAdmin: ReturnType<typeof createClient>,
   endpoint: string,
 ) => {
-  const filters = ['endpoint', 'subscription->>endpoint'];
+  const filters = ['subscription->>endpoint', 'endpoint'];
   for (const filter of filters) {
     const { error } = await supabaseAdmin
       .from('push_subscriptions')
@@ -235,6 +235,47 @@ const normalizeSubscriptionRow = (row: SubscriptionRowLegacy): SubscriptionRow |
   return { subscription: reconstructed };
 };
 
+const isSchemaCompatibilityError = (error: unknown) => {
+  const message = String((error as { message?: unknown })?.message || error).toLowerCase();
+  return (
+    message.includes('column') ||
+    message.includes('does not exist') ||
+    message.includes('operator does not exist') ||
+    message.includes('failed to parse') ||
+    message.includes('invalid input syntax')
+  );
+};
+
+const selectSubscriptionsAdaptive = async (client: ReturnType<typeof createClient>) => {
+  const queries = [
+    'subscription',
+    'subscription, preferences',
+    'endpoint, p256dh, auth, preferences',
+    'endpoint, p256dh, auth',
+  ];
+
+  let lastError: unknown = null;
+  for (const query of queries) {
+    const { data, error } = await client
+      .from('push_subscriptions')
+      .select(query);
+
+    if (!error) {
+      const normalized = ((data as SubscriptionRowLegacy[]) || [])
+        .map((row) => normalizeSubscriptionRow(row))
+        .filter((row): row is SubscriptionRow => Boolean(row));
+      return { data: normalized, error: null as unknown };
+    }
+
+    lastError = error;
+    if (!isSchemaCompatibilityError(error)) {
+      return { data: null, error };
+    }
+  }
+
+  return { data: null, error: lastError };
+};
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') {
     return res.status(200).setHeader('Access-Control-Allow-Origin', corsHeaders['Access-Control-Allow-Origin']).setHeader('Access-Control-Allow-Headers', corsHeaders['Access-Control-Allow-Headers']).setHeader('Access-Control-Allow-Methods', corsHeaders['Access-Control-Allow-Methods']).send('ok');
@@ -270,15 +311,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     for (const key of keysToTry) {
       const candidateClient = createClient(SUPABASE_URL, key);
-      const { data, error } = await candidateClient
-        .from('push_subscriptions')
-        .select('subscription, endpoint, p256dh, auth, preferences');
+      const { data, error } = await selectSubscriptionsAdaptive(candidateClient);
 
       if (!error) {
         supabaseAdmin = candidateClient;
-        subscriptions = ((data as SubscriptionRowLegacy[]) || [])
-          .map((row) => normalizeSubscriptionRow(row))
-          .filter((row): row is SubscriptionRow => Boolean(row));
+        subscriptions = data as SubscriptionRow[];
         break;
       }
 

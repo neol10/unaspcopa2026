@@ -198,7 +198,7 @@ const withSupabaseClient = async <T>(authHeader: string | undefined, fn: (client
 
   let lastError: unknown = null;
   for (const key of keysToTry) {
-    const options: any = {};
+    const options: { global?: { headers: { Authorization: string } } } = {};
     if (authHeader && key === SUPABASE_ANON_KEY) {
       options.global = { headers: { Authorization: authHeader } };
     }
