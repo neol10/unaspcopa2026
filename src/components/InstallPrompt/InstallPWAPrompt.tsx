@@ -15,15 +15,6 @@ const InstallPWAPrompt: React.FC = () => {
     // Verificar se já está em modo PWA/standalone
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || Boolean((window.navigator as NavigatorWithStandalone).standalone);
 
-18:     // Verificar se o usuário já fechou o prompt permanentemente
-19:     const pwaPromptHidden = localStorage.getItem('pwa_prompt_hidden');
-20:     // Se existir o registro, não mostra mais (persistência total)
-21:     const hasHeenHidden = !!pwaPromptHidden;
-22: 
-23:     if (isIOS && !isStandalone && !hasHeenHidden) {
-24:       const timer = setTimeout(() => setShowPrompt(true), 3000); // Mostra após 3s
-25:       return () => clearTimeout(timer);
-26:     }
     // Verificar se o usuário já fechou o prompt permanentemente
     const storedPromptHidden = localStorage.getItem('pwa_prompt_hidden');
     // Se existir o registro, não mostra mais (persistência total)
