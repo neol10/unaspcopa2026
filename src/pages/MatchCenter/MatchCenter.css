@@ -1610,3 +1610,159 @@
 .w-opt-v2:disabled {
   cursor: default;
 }
+
+/* ============================================================ */
+/* RESPONSIVIDADE PWA (CENTRAL DA PARTIDA)                     */
+/* ============================================================ */
+
+@media (max-width: 768px) {
+  .match-center {
+    gap: 1.5rem;
+  }
+
+  .match-selector-bar {
+    padding: 1rem;
+    margin: 0 -0.5rem;
+    border-radius: 0;
+  }
+
+  .selector-list {
+    gap: 0.5rem;
+  }
+
+  .match-pill {
+    padding: 0.5rem 1rem;
+    font-size: 0.75rem;
+  }
+
+  .live-scoreboard {
+    padding: 1.5rem 1rem;
+    gap: 2rem;
+  }
+
+  .sb-shield {
+    width: 80px;
+    height: 80px;
+    border-radius: 20px;
+  }
+
+  .sb-team h3 {
+    font-size: 1.1rem;
+  }
+
+  .score-numbers .num {
+    font-size: 4rem;
+  }
+
+  .score-numbers .vs {
+    font-size: 1.2rem;
+  }
+
+  .sb-timer {
+    font-size: 0.8rem;
+    padding: 0.4rem 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .match-center {
+    padding: 0 0.75rem;
+  }
+
+  .live-scoreboard {
+    padding: 1.25rem 0.75rem;
+    border-radius: 20px;
+  }
+
+  .scoreboard-main {
+    flex-direction: row;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .sb-team {
+    gap: 0.75rem;
+  }
+
+  .sb-shield {
+    width: 65px;
+    height: 65px;
+    border-radius: 16px;
+  }
+
+  .sb-team h3 {
+    font-size: 0.95rem;
+    letter-spacing: -0.5px;
+  }
+
+  .score-numbers {
+    gap: 0.75rem;
+  }
+
+  .score-numbers .num {
+    font-size: 3.2rem;
+  }
+
+  .sb-timer {
+    font-size: 0.75rem;
+    padding: 0.35rem 0.75rem;
+    margin-top: 0.5rem;
+  }
+
+  /* Timeline adjustments */
+  .timeline-v2-list::before {
+    left: 45px;
+  }
+
+  .t-event {
+    gap: 1rem;
+  }
+
+  .t-time {
+    width: 35px;
+    font-size: 0.8rem;
+  }
+
+  .t-icon-box {
+    width: 30px;
+    height: 30px;
+  }
+
+  .t-content {
+    padding: 0.75rem 1rem;
+  }
+
+  .t-content p {
+    font-size: 0.85rem;
+  }
+
+  /* Fan Zone */
+  .fan-zone {
+    height: 350px;
+    padding: 1rem;
+  }
+
+  /* Stats cards */
+  .val-a, .val-b {
+    font-size: 1.8rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .sb-shield {
+    width: 55px;
+    height: 55px;
+  }
+
+  .score-numbers .num {
+    font-size: 2.8rem;
+  }
+
+  .sb-team h3 {
+    font-size: 0.85rem;
+  }
+  
+  .match-selector-bar {
+    padding: 0.75rem 0.5rem;
+  }
+}
