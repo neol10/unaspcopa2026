@@ -212,10 +212,28 @@ const isValidPushSubscription = (subscription: unknown) => {
 };
 
 const normalizeSubscriptionRow = (row: SubscriptionRowLegacy): SubscriptionRow | null => {
-  if (row?.subscription && typeof row.subscription === 'object') {
-    const candidate = row.subscription as SubscriptionRow['subscription'];
-    if (isValidPushSubscription(candidate)) {
-      return { subscription: candidate };
+  if (!row) return null;
+
+  let subObj = row.subscription;
+  if (typeof subObj === 'string') {
+    try {
+      subObj = JSON.parse(subObj);
+    } catch {
+      // invalid json
+    }
+  }
+
+  if (subObj && typeof subObj === 'object') {
+    const s = subObj as { endpoint?: string; keys?: { p256dh?: string; auth?: string } };
+    if (s?.endpoint && s.keys?.p256dh && s.keys?.auth) {
+      const reconstructed = {
+        endpoint: s.endpoint,
+        keys: { p256dh: s.keys.p256dh, auth: s.keys.auth },
+        preferences: (row.preferences as Record<string, unknown>) || {},
+      } as SubscriptionRow['subscription'];
+      if (isValidPushSubscription(reconstructed)) {
+        return { subscription: reconstructed };
+      }
     }
   }
 
