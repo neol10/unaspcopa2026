@@ -128,17 +128,51 @@ function AppContent() {
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
 
+    const triggerConfetti = async () => {
+      try {
+        const confetti = (await import('canvas-confetti')).default;
+        confetti({
+          particleCount: 150,
+          spread: 80,
+          origin: { y: 0.6 },
+          colors: ['#FFD700', '#FF0000', '#0000FF', '#FFFFFF'],
+          zIndex: 9999
+        });
+      } catch (err) {
+        console.warn('Confetti fail:', err);
+      }
+    };
+
+    const playNotificationSound = (type: string) => {
+      // Som de gol (cheering) ou apito (informação)
+      const url = type === 'gol' 
+        ? 'https://assets.mixkit.co/active_storage/sfx/123/123-preview.mp3' 
+        : 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
+      const audio = new Audio(url);
+      audio.volume = 0.5;
+      audio.play().catch(() => {});
+    };
+
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'PUSH_NOTIFICATION') {
-        const { title, body } = event.data.payload || {};
+        const { title, body, category } = event.data.payload || {};
+        
+        // Efeitos Imersivos em Tempo Real
+        if (category === 'gol') {
+          triggerConfetti();
+          playNotificationSound('gol');
+        } else {
+          playNotificationSound('info');
+        }
+
         toast(() => (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <strong style={{ fontSize: '0.95rem' }}>{title || 'Copa UNASP'}</strong>
             <span style={{ fontSize: '0.85rem', opacity: 0.9 }}>{body}</span>
           </div>
         ), {
-          icon: '🔔',
-          duration: 6000,
+          icon: category === 'gol' ? '⚽' : '🔔',
+          duration: 8000,
           position: 'top-center'
         });
       }

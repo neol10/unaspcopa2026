@@ -7,11 +7,11 @@ import { useNews, News } from '../../hooks/useNews';
 import { useStandings } from '../../hooks/useStandings';
 import { usePolls } from '../../hooks/usePolls';
 import { useMatches } from '../../hooks/useMatches';
+import { useMatchEvents } from '../../hooks/useMatchEvents';
 import type { Match } from '../../hooks/useMatches';
 import { useTournamentConfig } from '../../hooks/useTournamentConfig';
-import { Star, Goal, Handshake, Info, Clock } from 'lucide-react';
-import { useNotifications } from '../../hooks/useNotifications';
-import { useRankings } from '../../hooks/useRankings'; // This import was missing in the original content, but implied by the instruction. Adding it.
+import { Star, Goal, Handshake } from 'lucide-react';
+import { useRankings } from '../../hooks/useRankings';
 
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -23,7 +23,6 @@ const Home: React.FC = () => {
   const navigate = useNavigate();
   const { activePoll, loading: pollLoading, error: pollError, hasVoted, submitVote, refresh: refreshPoll } = usePolls();
   const { scorers, assistants, galeraRank, loading: rankingsLoading } = useRankings();
-  const { data: notifications, isLoading: notificationsLoading } = useNotifications(5);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [selectedNews, setSelectedNews] = useState<News | null>(null);
   
@@ -37,6 +36,8 @@ const Home: React.FC = () => {
   }, [matches]);
 
   const liveMatch = useMemo<Match | null>(() => matches.find(m => m.status === 'ao_vivo') || null, [matches]);
+  const { events: liveEvents } = useMatchEvents(liveMatch?.id || '');
+  const latestLiveEvent = liveEvents?.[0];
 
   const topTeams = standings.slice(0, 3);
   const totalVotes = activePoll?.options.reduce((acc, opt) => acc + opt.votes, 0) || 0;
@@ -158,6 +159,18 @@ const Home: React.FC = () => {
               <span className="live-widget-score">{liveMatch.team_a_score} - {liveMatch.team_b_score}</span>
               <span>{liveMatch.teams_b?.name.substring(0, 3)}</span>
             </div>
+            
+            {latestLiveEvent && (
+              <div className="live-ticker">
+                <span className="ticker-time">{latestLiveEvent.minute}'</span>
+                <span className="ticker-text">
+                  {latestLiveEvent.event_type === 'gol' ? '⚽ GOL!' : 
+                   latestLiveEvent.event_type === 'amarelo' ? '🟨 Card' :
+                   latestLiveEvent.event_type === 'vermelho' ? '🟥 Card' : '📢'} {latestLiveEvent.players?.name || ''}
+                </span>
+              </div>
+            )}
+            
             <ArrowRight size={14} />
           </motion.div>
         )}
@@ -268,56 +281,6 @@ const Home: React.FC = () => {
           </div>
         </motion.div>
       </section>
-
-      {/* Centro de Alertas Recentes */}
-      <motion.section 
-        className="notification-center-section"
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-      >
-        <div className="section-head-v2">
-          <Bell size={24} color="var(--primary)" className="animate-pulse" />
-          <h2>Centro de Alertas</h2>
-          {notifications && notifications.length > 0 && (
-            <div className="live-indicator-v2">
-              <div className="pulse-dot"></div>
-              <span>RECENTES</span>
-            </div>
-          )}
-        </div>
-
-        <div className="notifications-feed glass">
-          {notificationsLoading ? (
-            <div className="notification-skeleton">
-              <Skeleton width="100%" height="60px" borderRadius="12px" />
-            </div>
-          ) : notifications && notifications.length > 0 ? (
-            notifications.map((notif) => (
-              <div key={notif.id} className="notification-item-v2">
-                <div className={`notif-icon-wrap ${notif.type}`}>
-                  {notif.type === 'gol' ? <Goal size={18} /> : <Info size={18} />}
-                </div>
-                <div className="notif-content">
-                  <div className="notif-header">
-                    <h4>{notif.title}</h4>
-                    <span className="notif-time">
-                      <Clock size={10} />
-                      {new Date(notif.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-                  <p>{notif.body}</p>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="no-notifications">
-              <Bell size={24} style={{ opacity: 0.3 }} />
-              <p>Nenhum alerta recente no momento.</p>
-            </div>
-          )}
-        </div>
-      </motion.section>
 
       {/* Destaques do Campeonato */}
       {!rankingsLoading && (scorers.length > 0 || assistants.length > 0 || galeraRank.length > 0) && (

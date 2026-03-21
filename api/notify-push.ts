@@ -358,19 +358,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       important: Boolean(important),
     });
 
-    // Salva o histórico da notificação para o Centro de Notificações In-App
-    try {
-      await (supabaseAdmin as any).from('notifications').insert({
-        title,
-        body,
-        type: category || 'info',
-        payload: { url, category, important, teamIds }
-      });
-    } catch (saveErr) {
-      console.error('Erro ao salvar no histórico de notificações:', saveErr);
-      // Não trava o envio do push se falhar em salvar o histórico
-    }
-
     const validSubscriptions = (subscriptions as SubscriptionRow[]).filter((row) =>
       isValidPushSubscription(row?.subscription),
     );
