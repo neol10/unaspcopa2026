@@ -1230,6 +1230,9 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   const [editEventMinute, setEditEventMinute] = useState<number>(0);
 
   // --- Cronômetro Sincronizado (DB) ---
+  const [seconds, setSeconds] = useState(0);
+  const isActive = match.is_timer_running;
+
   // Sincronizar segundos locais com o estado do banco (com Fresh Fetch no mount)
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
@@ -1263,18 +1266,6 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       if (interval) clearInterval(interval);
     };
   }, [match.is_timer_running, match.timer_started_at, match.timer_offset_seconds, match.id]);
-
-  const handleStartTimer = async () => {
-    try {
-      const { error } = await supabase.from('matches').update({
-        is_timer_running: true,
-        timer_started_at: new Date().toISOString()
-      }).eq('id', match.id);
-      if (error) throw error;
-    } catch (err: unknown) {
-      toast.error('Erro ao iniciar cronômetro');
-    }
-  };
 
   const handlePauseTimer = async (isTechnical = false) => {
     try {
@@ -1418,8 +1409,8 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
       if (e.ctrlKey && (e.code === 'Space' || e.key === ' ')) {
         e.preventDefault();
-        if (isActive) handlePauseTimer();
-        else handleStartTimer();
+        if (isActive) handlePauseTimer(false); // Pausa normal via atalho
+        else handleRetomar();
         return;
       }
 
@@ -1672,8 +1663,25 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
              <div className="sb-pro-timer-display glass">
                 <span className={isActive ? 'timer-running' : ''}>{formatTime(seconds)}</span>
              </div>
-             <div className="sb-pro-timer-controls">
-             </div>
+              <div className="sb-pro-timer-controls">
+                {!match.is_timer_running ? (
+                  <button className="timer-btn start" onClick={handleRetomar}>
+                    <Play size={16} /> RETOMAR
+                  </button>
+                ) : (
+                  <>
+                    <button className="timer-btn pause" onClick={() => handlePauseTimer(true)}>
+                      <Pause size={16} /> PAUSA TÉCNICA
+                    </button>
+                    <button className="timer-btn interval" onClick={handleIntervalo} style={{ background: 'rgba(168, 85, 247, 0.1)', color: '#a855f7', borderColor: 'rgba(168, 85, 247, 0.3)' }}>
+                      <Coffee size={16} /> INTERVALO
+                    </button>
+                  </>
+                )}
+                <button className="timer-btn reset" onClick={handleResetTimer}>
+                  <RotateCcw size={16} /> ZERAR
+                </button>
+              </div>
           </div>
 
           {/* Equipe B */}
