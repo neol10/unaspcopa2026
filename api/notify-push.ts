@@ -21,6 +21,7 @@ const readEnvList = (...keys: string[]) => {
 const SUPABASE_URL = readEnv('SUPABASE_URL', 'VITE_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = readEnv(
   'SUPABASE_SERVICE_ROLE_KEY',
+  'SUPABASE_SERVICE_ROLE',
   'SUPABASE_SECRET_KEY',
   'SUPABASE_SERVICE_KEY',
   'SERVICE_ROLE_KEY',
@@ -28,6 +29,7 @@ const SUPABASE_SERVICE_ROLE_KEY = readEnv(
 const SUPABASE_ANON_KEY = readEnv('SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY', 'NEXT_PUBLIC_SUPABASE_ANON_KEY');
 const SUPABASE_SERVICE_KEYS = readEnvList(
   'SUPABASE_SERVICE_ROLE_KEY',
+  'SUPABASE_SERVICE_ROLE',
   'SUPABASE_SECRET_KEY',
   'SUPABASE_SERVICE_KEY',
   'SERVICE_ROLE_KEY',
@@ -147,6 +149,32 @@ const getErrorInfo = (err: unknown): { statusCode?: number; message: string } =>
   return { message: String(err) };
 };
 
+const getBase64UrlByteLength = (value: string) => {
+  try {
+    const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+    const padding = normalized.length % 4 === 0 ? '' : '='.repeat(4 - (normalized.length % 4));
+    return Buffer.from(`${normalized}${padding}`, 'base64').length;
+  } catch {
+    return -1;
+  }
+};
+
+const getSubscriptionEndpoint = (subscription: unknown) => {
+  if (!subscription || typeof subscription !== 'object') return '';
+  const endpoint = (subscription as { endpoint?: unknown }).endpoint;
+  return typeof endpoint === 'string' ? endpoint : '';
+};
+
+const isValidPushSubscription = (subscription: unknown) => {
+  if (!subscription || typeof subscription !== 'object') return false;
+  const s = subscription as { endpoint?: unknown; keys?: { p256dh?: unknown; auth?: unknown } };
+  const endpoint = typeof s.endpoint === 'string' ? s.endpoint.trim() : '';
+  const p256dh = typeof s.keys?.p256dh === 'string' ? s.keys.p256dh.trim() : '';
+  const auth = typeof s.keys?.auth === 'string' ? s.keys.auth.trim() : '';
+  if (!endpoint || !p256dh || !auth) return false;
+  return getBase64UrlByteLength(p256dh) === 65 && getBase64UrlByteLength(auth) === 16;
+};
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') {
     return res.status(200).setHeader('Access-Control-Allow-Origin', corsHeaders['Access-Control-Allow-Origin']).setHeader('Access-Control-Allow-Headers', corsHeaders['Access-Control-Allow-Headers']).setHeader('Access-Control-Allow-Methods', corsHeaders['Access-Control-Allow-Methods']).send('ok');
@@ -213,7 +241,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       important: Boolean(important),
     });
 
-    const eligibleSubscriptions = (subscriptions as SubscriptionRow[]).filter((row) =>
+    const validSubscriptions = (subscriptions as SubscriptionRow[]).filter((row) =>
+      isValidPushSubscription(row?.subscription),
+    );
+
+    const malformedEndpoints = (subscriptions as SubscriptionRow[])
+      .map((row) => getSubscriptionEndpoint(row?.subscription))
+      .filter((endpoint, index, list) => endpoint && !isValidPushSubscription((subscriptions as SubscriptionRow[])[index]?.subscription) && list.indexOf(endpoint) === index);
+
+    if (malformedEndpoints.length > 0) {
+      await Promise.all(
+        malformedEndpoints.map((endpoint) =>
+          supabaseAdmin
+            .from('push_subscriptions')
+            .delete()
+            .eq('subscription->>endpoint', endpoint),
+        ),
+      );
+    }
+
+    const eligibleSubscriptions = validSubscriptions.filter((row) =>
       shouldReceiveNotification(row, { title, body, url, category, important, teamIds }),
     );
 

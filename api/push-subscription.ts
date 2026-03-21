@@ -25,16 +25,19 @@ const readEnvList = (...keys: string[]) => {
 const SUPABASE_URL = readEnv('SUPABASE_URL', 'VITE_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = readEnv(
   'SUPABASE_SERVICE_ROLE_KEY',
+  'SUPABASE_SERVICE_ROLE',
   'SUPABASE_SECRET_KEY',
   'SUPABASE_SERVICE_KEY',
   'SERVICE_ROLE_KEY',
 );
 const SUPABASE_SERVICE_KEYS = readEnvList(
   'SUPABASE_SERVICE_ROLE_KEY',
+  'SUPABASE_SERVICE_ROLE',
   'SUPABASE_SECRET_KEY',
   'SUPABASE_SERVICE_KEY',
   'SERVICE_ROLE_KEY',
 );
+const SUPABASE_ANON_KEY = readEnv('SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY', 'NEXT_PUBLIC_SUPABASE_ANON_KEY');
 
 const getPayload = (req: VercelRequest): Record<string, unknown> => {
   if (typeof req.body === 'string') {
@@ -53,6 +56,27 @@ const getErrorMessage = (err: unknown) => {
     if (typeof maybe.message === 'string') return maybe.message;
   }
   return String(err);
+};
+
+const getBase64UrlByteLength = (value: string) => {
+  try {
+    const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+    const padding = normalized.length % 4 === 0 ? '' : '='.repeat(4 - (normalized.length % 4));
+    return Buffer.from(`${normalized}${padding}`, 'base64').length;
+  } catch {
+    return -1;
+  }
+};
+
+const isValidPushSubscription = (subscription: Record<string, unknown> | null) => {
+  if (!subscription) return false;
+  const endpoint = typeof subscription.endpoint === 'string' ? subscription.endpoint.trim() : '';
+  const keys = (subscription.keys || null) as Record<string, unknown> | null;
+  const p256dh = typeof keys?.p256dh === 'string' ? keys.p256dh.trim() : '';
+  const auth = typeof keys?.auth === 'string' ? keys.auth.trim() : '';
+
+  if (!endpoint || !p256dh || !auth) return false;
+  return getBase64UrlByteLength(p256dh) === 65 && getBase64UrlByteLength(auth) === 16;
 };
 
 const isInvalidApiKeyError = (err: unknown) => {
@@ -90,8 +114,9 @@ const withSupabaseClient = async <T>(fn: (client: SupabaseLikeClient) => Promise
   const keysToTry = SUPABASE_SERVICE_KEYS.length > 0
     ? SUPABASE_SERVICE_KEYS
     : (SUPABASE_SERVICE_ROLE_KEY ? [SUPABASE_SERVICE_ROLE_KEY] : []);
+  if (SUPABASE_ANON_KEY) keysToTry.push(SUPABASE_ANON_KEY);
   if (keysToTry.length === 0) {
-    throw new Error('Missing service key for push-subscription API (SUPABASE_SERVICE_ROLE_KEY/SUPABASE_SECRET_KEY)');
+    throw new Error('Missing Supabase key for push-subscription API');
   }
 
   let lastError: unknown = null;
@@ -151,12 +176,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Missing valid subscription payload' });
     }
 
+    if (!isValidPushSubscription(subscription)) {
+      return res.status(400).json({
+        error: 'Invalid push subscription keys (expected p256dh=65 bytes and auth=16 bytes)',
+      });
+    }
+
     await withSupabaseClient(async (client) => {
       const { error: delError } = await client
         .from('push_subscriptions')
         .delete()
         .eq('subscription->>endpoint', endpoint);
-      if (delError) throw delError;
+      if (delError) {
+        const message = getErrorMessage(delError).toLowerCase();
+        const canContinue = message.includes('operator does not exist') || message.includes('invalid input syntax') || message.includes('failed to parse');
+        if (!canContinue) throw delError;
+      }
 
       const { error: insError } = await client.from('push_subscriptions').insert({
         user_id: userId,
