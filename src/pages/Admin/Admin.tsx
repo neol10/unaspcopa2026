@@ -1129,16 +1129,7 @@ const MatchManagement = () => {
                 {match.status === 'ao_vivo' && (
                   <>
                     <button className="btn-live-control" onClick={() => setSelectedMatchId(selectedMatchId === match.id ? null : match.id)}>
-                      {selectedMatchId === match.id ? 'Fechar Painel' : 'Lançar Eventos'}
-                    </button>
-                    <button className="btn-live-phase pause" title="Enviar alerta de pausa" onClick={() => sendLivePhaseNotification(match, 'pausa')}>
-                      <Pause size={14} /> Pausa
-                    </button>
-                    <button className="btn-live-phase interval" title="Enviar alerta de intervalo" onClick={() => sendLivePhaseNotification(match, 'intervalo')}>
-                      <Clock size={14} /> Intervalo
-                    </button>
-                    <button className="btn-live-phase resume" title="Enviar alerta de retomada" onClick={() => sendLivePhaseNotification(match, 'retomada')}>
-                      <Play size={14} /> Retomar
+                      {selectedMatchId === match.id ? 'Fechar Painel de Controle' : 'Gerenciar Partida (AO VIVO)'}
                     </button>
                     <button className="btn-icon finish" title="Finalizar Jogo" onClick={() => updateStatus(match.id, 'finalizado', match)}><CheckCircle size={18} /></button>
                   </>
