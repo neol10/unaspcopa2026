@@ -13,10 +13,22 @@ export default async function handler(req, res) {
   if (url && serviceKey) {
     try {
       const client = createClient(url, serviceKey);
-      const { count, error } = await client.from('push_subscriptions').select('*', { count: 'exact', head: true });
-      info.results.serviceRole = error ? { error: error.message } : { count };
+      
+      // Test 1: Count
+      const countRes = await client.from('push_subscriptions').select('*', { count: 'exact', head: true });
+      info.results.serviceRoleCount = countRes.error ? { error: countRes.error.message } : { count: countRes.count };
+
+      // Test 2: Try insert
+      const testSub = {
+        endpoint: 'https://test.com/' + Date.now(),
+        subscription: { endpoint: 'test', keys: { p256dh: 'test', auth: 'test' } },
+        user_id: 'debug-test-user'
+      };
+      const insertRes = await client.from('push_subscriptions').insert(testSub);
+      info.results.serviceRoleInsert = insertRes.error ? { error: insertRes.error.message } : { success: true };
+
     } catch (e: any) {
-      info.results.serviceRole = { error: e.message };
+      info.results.serviceRoleError = { error: e.message };
     }
   }
 
