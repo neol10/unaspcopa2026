@@ -126,6 +126,29 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'PUSH_NOTIFICATION') {
+        const { title, body } = event.data.payload || {};
+        toast(() => (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <strong style={{ fontSize: '0.95rem' }}>{title || 'Copa UNASP'}</strong>
+            <span style={{ fontSize: '0.85rem', opacity: 0.9 }}>{body}</span>
+          </div>
+        ), {
+          icon: '🔔',
+          duration: 6000,
+          position: 'top-center'
+        });
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('message', handleMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', handleMessage);
+  }, []);
+
+  useEffect(() => {
     if (bootMetricSentRef.current) return;
     if (authLoading || showSplash) return;
 

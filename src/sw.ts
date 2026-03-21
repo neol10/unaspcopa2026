@@ -42,7 +42,25 @@ self.addEventListener('push', (event) => {
     actions: [{ action: 'open', title: 'Ver Agora 🏆' }],
   };
 
-  event.waitUntil(self.registration.showNotification(data.title, options));
+  // Envia mensagem para abas abertas (foreground notification)
+  event.waitUntil(
+    Promise.all([
+      self.registration.showNotification(data.title, options),
+      self.clients.matchAll({ type: 'window' }).then((clients) => {
+        for (const client of clients) {
+          client.postMessage({
+            type: 'PUSH_NOTIFICATION',
+            payload: {
+              title: data.title,
+              body: data.body,
+              url: data.url || '/',
+              icon: data.icon
+            }
+          });
+        }
+      })
+    ])
+  );
 });
 
 self.addEventListener('notificationclick', (event) => {
