@@ -9,13 +9,74 @@ import { clientsClaim } from 'workbox-core';
 
 declare const self: ServiceWorkerGlobalScope;
 
-// Mantém a lógica de Push Notifications separada (public/push-sw.js)
-// e evita misturar cache de navegação com eventos de push.
-try {
-  importScripts('push-sw.js');
-} catch {
-  // Se falhar, o SW ainda funciona para cache; push pode não estar disponível.
-}
+// Lógica de Push Notifications integrada diretamente para maior confiabilidade em segundo plano.
+self.addEventListener('push', (event) => {
+  let data = {
+    title: 'Copa UNASP',
+    body: 'Nova atualização imperdível do torneio!',
+    icon: '/icons.svg',
+    url: '/'
+  };
+
+  if (event.data) {
+    try {
+      const parsedData = event.data.json();
+      data = { ...data, ...parsedData };
+    } catch (e) {
+      data.body = event.data.text() || data.body;
+    }
+  }
+
+  const options: any = {
+    body: data.body,
+    icon: data.icon || '/icons.svg',
+    badge: '/favicon.svg',
+    vibrate: [300, 100, 400],
+    tag: (data as any).tag || 'copa-unasp-alert',
+    renotify: true,
+    requireInteraction: true,
+    silent: false,
+    data: {
+      url: data.url || '/',
+    },
+    actions: [{ action: 'open', title: 'Ver Agora 🏆' }],
+  };
+
+  event.waitUntil(self.registration.showNotification(data.title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const urlToOpen = new URL((event.notification.data as any).url || '/', self.location.origin).href;
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url === urlToOpen && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clientList.length > 0 && 'navigate' in clientList[0]) {
+        return clientList[0].navigate(urlToOpen).then((client: any) => client?.focus());
+      }
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(urlToOpen);
+      }
+    }),
+  );
+});
+
+// Limpeza de cache antigo e ativação imediata
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    Promise.all([
+      caches.keys().then((keys) =>
+        Promise.all(keys.filter((k) => k === 'supabase-data-cache').map((k) => caches.delete(k))),
+      ),
+      self.clients.claim()
+    ])
+  );
+});
 
 self.skipWaiting();
 clientsClaim();
@@ -31,7 +92,7 @@ registerRoute(
   ({ request }) => request.mode === 'navigate',
   async ({ event }) => {
     try {
-      return await fetch(event.request);
+      return await fetch((event as any).request);
     } catch {
       // Offline (ou rede instável): devolve o app shell do precache.
       const cached = await caches.match('/index.html', { ignoreSearch: true });
