@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuthContext } from '../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
+import { supabase } from '../lib/supabase';
 
 export type PushCategories = {
   live: boolean;
@@ -140,9 +141,17 @@ export const usePushNotifications = () => {
       preferences: prefs,
     };
 
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch('/api/push-subscription', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         userId,
         subscription: subscriptionPayload,
@@ -298,9 +307,16 @@ export const usePushNotifications = () => {
       if (subscription) {
         await subscription.unsubscribe();
 
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+        
         await fetch('/api/push-subscription', {
           method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({ endpoint: subscription.endpoint }),
         });
       }

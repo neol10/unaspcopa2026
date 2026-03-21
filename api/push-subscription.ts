@@ -185,7 +185,7 @@ const insertSubscriptionAdaptive = async (
   throw lastError || new Error('Unable to insert push subscription');
 };
 
-const withSupabaseClient = async <T>(fn: (client: SupabaseLikeClient) => Promise<T>) => {
+const withSupabaseClient = async <T>(authHeader: string | undefined, fn: (client: SupabaseLikeClient) => Promise<T>) => {
   if (!SUPABASE_URL) throw new Error('Missing SUPABASE_URL');
 
   const keysToTry = SUPABASE_SERVICE_KEYS.length > 0
@@ -198,7 +198,11 @@ const withSupabaseClient = async <T>(fn: (client: SupabaseLikeClient) => Promise
 
   let lastError: unknown = null;
   for (const key of keysToTry) {
-    const client = createClient(SUPABASE_URL, key) as unknown as SupabaseLikeClient;
+    const options: any = {};
+    if (authHeader && key === SUPABASE_ANON_KEY) {
+      options.global = { headers: { Authorization: authHeader } };
+    }
+    const client = createClient(SUPABASE_URL, key, options) as unknown as SupabaseLikeClient;
     try {
       return await fn(client);
     } catch (err) {
@@ -234,7 +238,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const endpoint = typeof payload.endpoint === 'string' ? payload.endpoint : '';
       if (!endpoint) return res.status(400).json({ error: 'Missing endpoint' });
 
-      await withSupabaseClient(async (client) => {
+      await withSupabaseClient(req.headers.authorization, async (client) => {
         await deleteByEndpointBestEffort(client, endpoint);
       });
 
@@ -255,7 +259,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    await withSupabaseClient(async (client) => {
+    await withSupabaseClient(req.headers.authorization, async (client) => {
       await deleteByEndpointBestEffort(client, endpoint);
       await insertSubscriptionAdaptive(client, endpoint, subscription, userId);
     });
