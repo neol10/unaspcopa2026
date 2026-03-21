@@ -58,6 +58,18 @@ const getErrorMessage = (err: unknown) => {
   return String(err);
 };
 
+const isSchemaCompatibilityError = (err: unknown) => {
+  const message = getErrorMessage(err).toLowerCase();
+  return (
+    message.includes('column') ||
+    message.includes('does not exist') ||
+    message.includes('operator does not exist') ||
+    message.includes('failed to parse') ||
+    message.includes('invalid input syntax') ||
+    message.includes('null value in column')
+  );
+};
+
 const getBase64UrlByteLength = (value: string) => {
   try {
     const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
@@ -106,6 +118,57 @@ type PushSubscriptionsTable = {
 
 type SupabaseLikeClient = {
   from: (table: string) => PushSubscriptionsTable;
+};
+
+const deleteByEndpointBestEffort = async (client: SupabaseLikeClient, endpoint: string) => {
+  const filters = ['endpoint', 'subscription->>endpoint'];
+  let lastError: unknown = null;
+
+  for (const filter of filters) {
+    const { error } = await client
+      .from('push_subscriptions')
+      .delete()
+      .eq(filter, endpoint);
+
+    if (!error) return;
+    lastError = error;
+    if (!isSchemaCompatibilityError(error)) throw error;
+  }
+
+  if (lastError && !isSchemaCompatibilityError(lastError)) {
+    throw lastError;
+  }
+};
+
+const insertSubscriptionAdaptive = async (
+  client: SupabaseLikeClient,
+  endpoint: string,
+  subscription: Record<string, unknown>,
+  userId: string | null,
+) => {
+  const payloadVariants: Record<string, unknown>[] = [];
+
+  if (userId) payloadVariants.push({ user_id: userId, endpoint, subscription });
+  payloadVariants.push({ endpoint, subscription });
+  if (userId) payloadVariants.push({ user_id: userId, subscription });
+  payloadVariants.push({ subscription });
+
+  let lastError: unknown = null;
+  for (const values of payloadVariants) {
+    const { error } = await client.from('push_subscriptions').insert(values);
+    if (!error) return;
+
+    const message = getErrorMessage(error).toLowerCase();
+    // Se já existe registro da mesma inscrição, não travamos o fluxo.
+    if (message.includes('duplicate key value') || message.includes('unique constraint')) {
+      return;
+    }
+
+    lastError = error;
+    if (!isSchemaCompatibilityError(error)) throw error;
+  }
+
+  throw lastError || new Error('Unable to insert push subscription');
 };
 
 const withSupabaseClient = async <T>(fn: (client: SupabaseLikeClient) => Promise<T>) => {
@@ -158,11 +221,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!endpoint) return res.status(400).json({ error: 'Missing endpoint' });
 
       await withSupabaseClient(async (client) => {
-        const { error } = await client
-          .from('push_subscriptions')
-          .delete()
-          .eq('subscription->>endpoint', endpoint);
-        if (error) throw error;
+        await deleteByEndpointBestEffort(client, endpoint);
       });
 
       return res.status(200).setHeader('Access-Control-Allow-Origin', corsHeaders['Access-Control-Allow-Origin']).json({ ok: true });
@@ -183,21 +242,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     await withSupabaseClient(async (client) => {
-      const { error: delError } = await client
-        .from('push_subscriptions')
-        .delete()
-        .eq('subscription->>endpoint', endpoint);
-      if (delError) {
-        const message = getErrorMessage(delError).toLowerCase();
-        const canContinue = message.includes('operator does not exist') || message.includes('invalid input syntax') || message.includes('failed to parse');
-        if (!canContinue) throw delError;
-      }
-
-      const { error: insError } = await client.from('push_subscriptions').insert({
-        user_id: userId,
-        subscription,
-      });
-      if (insError) throw insError;
+      await deleteByEndpointBestEffort(client, endpoint);
+      await insertSubscriptionAdaptive(client, endpoint, subscription, userId);
     });
 
     return res.status(200).setHeader('Access-Control-Allow-Origin', corsHeaders['Access-Control-Allow-Origin']).json({ ok: true });

@@ -149,6 +149,29 @@ const getErrorInfo = (err: unknown): { statusCode?: number; message: string } =>
   return { message: String(err) };
 };
 
+const deleteByEndpointBestEffort = async (
+  supabaseAdmin: ReturnType<typeof createClient>,
+  endpoint: string,
+) => {
+  const filters = ['endpoint', 'subscription->>endpoint'];
+  for (const filter of filters) {
+    const { error } = await supabaseAdmin
+      .from('push_subscriptions')
+      .delete()
+      .eq(filter, endpoint);
+
+    if (!error) return;
+    const message = String((error as { message?: unknown })?.message || error).toLowerCase();
+    const schemaCompatIssue =
+      message.includes('column') ||
+      message.includes('does not exist') ||
+      message.includes('operator does not exist') ||
+      message.includes('failed to parse') ||
+      message.includes('invalid input syntax');
+    if (!schemaCompatIssue) throw error;
+  }
+};
+
 const getBase64UrlByteLength = (value: string) => {
   try {
     const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
@@ -252,10 +275,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (malformedEndpoints.length > 0) {
       await Promise.all(
         malformedEndpoints.map((endpoint) =>
-          supabaseAdmin
-            .from('push_subscriptions')
-            .delete()
-            .eq('subscription->>endpoint', endpoint),
+          deleteByEndpointBestEffort(supabaseAdmin, endpoint),
         ),
       );
     }
@@ -291,10 +311,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (shouldDeleteSubscription) {
             const endpoint = row?.subscription?.endpoint;
             if (endpoint) {
-              await supabaseAdmin
-                .from('push_subscriptions')
-                .delete()
-                .eq('subscription->>endpoint', endpoint);
+              await deleteByEndpointBestEffort(supabaseAdmin, endpoint);
             }
           }
 
