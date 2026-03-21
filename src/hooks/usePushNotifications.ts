@@ -107,6 +107,15 @@ export const usePushNotifications = () => {
     return 'serviceWorker' in navigator && 'PushManager' in window;
   };
 
+  const isStandalone = () => {
+    const nav: any = window.navigator;
+    return window.matchMedia('(display-mode: standalone)').matches || nav.standalone;
+  };
+
+  const isIOS = () => {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+  };
+
   const markPushSyncVersion = () => {
     try {
       localStorage.setItem(PUSH_SYNC_VERSION_KEY, PUSH_SYNC_VERSION);
@@ -173,14 +182,24 @@ export const usePushNotifications = () => {
         return;
       }
 
+      // iOS não permite inscrição automática sem gesto do usuário.
+      // E só suporta push se estiver em modo 'standalone' (Home Screen).
+      if (isIOS() && !isStandalone()) {
+        setLoading(false);
+        return;
+      }
+
       try {
         const registration = await navigator.serviceWorker.ready;
-        if (!registration) return;
+        if (!registration || !mounted) return;
 
         let subscription = await registration.pushManager.getSubscription();
         if (mounted) setIsSubscribed(!!subscription);
 
-        if (!subscription && Notification.permission === 'granted') {
+        // Somente tenta re-inscrever automaticamente se NÃO for iOS (ou se já tiver permissão e for standalone)
+        const canAutoSubscribe = !isIOS() || (isStandalone() && Notification.permission === 'granted');
+
+        if (!subscription && Notification.permission === 'granted' && canAutoSubscribe) {
           const vapidPublicKey = await getServerVapidPublicKey();
           subscription = await registration.pushManager.subscribe({
             userVisibleOnly: true,
@@ -189,9 +208,7 @@ export const usePushNotifications = () => {
           markPushSyncVersion();
         }
 
-        // Se já há inscrição antiga no dispositivo, renovamos para garantir
-        // que está assinada com a chave VAPID atual do backend.
-        if (subscription && !isPushSyncCurrent()) {
+        if (subscription && !isPushSyncCurrent() && canAutoSubscribe) {
           const vapidPublicKey = await getServerVapidPublicKey();
           await subscription.unsubscribe();
           subscription = await registration.pushManager.subscribe({
@@ -201,19 +218,14 @@ export const usePushNotifications = () => {
           markPushSyncVersion();
         }
 
-        // Mantém assinatura persistida no banco mesmo sem usuário logado.
-        if (subscription) {
+        if (subscription && mounted) {
           await syncSubscriptionRecord(subscription, preferences, user?.id || null);
           warnedSyncRef.current = false;
-          if (mounted) setIsSubscribed(true);
+          setIsSubscribed(true);
         }
       } catch (err) {
         console.debug('Push sync skipped:', err);
-        if (!warnedSyncRef.current) {
-          toast.error('Push ativo no dispositivo, mas não sincronizado no servidor. Toque em desativar/ativar alertas.');
-          warnedSyncRef.current = true;
-        }
-        setIsSubscribed(false);
+        // Evita spam de erro no console do iPhone
       } finally {
         if (mounted) setLoading(false);
       }
@@ -261,19 +273,22 @@ export const usePushNotifications = () => {
         throw new Error('Push não suportado neste navegador/dispositivo.');
       }
 
+      if (isIOS() && !isStandalone()) {
+        throw new Error('No iPhone, as notificações só funcionam se você adicionar o app à Tela de Início primeiro.');
+      }
+
       if (!('Notification' in window)) {
         throw new Error('Notificações não suportadas neste navegador.');
       }
 
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
-        throw new Error('Permissão de notificação negada.');
+        throw new Error('Permissão de notificação negada. Verifique as configurações do iOS.');
       }
 
       const registration = await navigator.serviceWorker.ready;
       const vapidPublicKey = await getServerVapidPublicKey();
 
-      // Reinscreve para garantir compatibilidade com par VAPID atual do backend.
       const existing = await registration.pushManager.getSubscription();
       if (existing) {
         await existing.unsubscribe();
