@@ -490,7 +490,17 @@ const NotificationBroadcast = () => {
       });
 
       if (!sent) {
-        throw new Error(lastPushErrorMessage || 'Não foi possível enviar o push. Verifique o endpoint e as variáveis do backend.');
+        const msg = lastPushErrorMessage || 'Não foi possível enviar o push.';
+        const isNoSubscribers =
+          msg.toLowerCase().includes('nenhum dispositivo inscrito') ||
+          msg.toLowerCase().includes('nenhum inscrito elegível');
+
+        if (isNoSubscribers) {
+          toast.error(msg);
+          return;
+        }
+
+        throw new Error(msg);
       }
 
       toast.success('Alerta push enviado para todos os inscritos! 📢');
