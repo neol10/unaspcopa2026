@@ -122,7 +122,7 @@ type SupabaseLikeClient = {
 };
 
 const deleteByEndpointBestEffort = async (client: SupabaseLikeClient, endpoint: string) => {
-  const filters = ['endpoint', 'subscription->>endpoint'];
+  const filters = ['subscription->>endpoint', 'endpoint'];
   let lastError: unknown = null;
 
   for (const filter of filters) {
