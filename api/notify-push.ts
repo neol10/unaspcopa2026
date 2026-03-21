@@ -382,7 +382,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             statusCode === 403 ||
             lowerMessage.includes('p256dh value should be 65 bytes long') ||
             lowerMessage.includes('auth value should be 16 bytes long') ||
-            lowerMessage.includes('subscription endpoint is required');
+            lowerMessage.includes('subscription endpoint is required') ||
+            lowerMessage.includes('public key is not valid for specified curve') ||
+            lowerMessage.includes('public key must be a valid p-256 key');
 
           if (shouldDeleteSubscription) {
             const endpoint = row?.subscription?.endpoint;
