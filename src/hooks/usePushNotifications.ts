@@ -25,7 +25,7 @@ type PushPreferencesPatch =
 
 const PUSH_PREFS_KEY = 'copa_unasp_push_preferences_v1';
 const PUSH_SYNC_VERSION_KEY = 'copa_unasp_push_sync_version';
-const PUSH_SYNC_VERSION = 'v4';
+const PUSH_SYNC_VERSION = 'v5';
 
 const DEFAULT_PREFERENCES: PushPreferences = {
   categories: {
