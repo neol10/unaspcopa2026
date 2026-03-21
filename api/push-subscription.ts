@@ -38,6 +38,7 @@ const SUPABASE_SERVICE_KEYS = readEnvList(
   'SERVICE_ROLE_KEY',
 );
 const SUPABASE_ANON_KEY = readEnv('SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY', 'NEXT_PUBLIC_SUPABASE_ANON_KEY');
+const ANONYMOUS_FALLBACK_USER_ID = '00000000-0000-0000-0000-000000000000';
 
 const getPayload = (req: VercelRequest): Record<string, unknown> => {
   if (typeof req.body === 'string') {
@@ -146,12 +147,25 @@ const insertSubscriptionAdaptive = async (
   subscription: Record<string, unknown>,
   userId: string | null,
 ) => {
+  const keys = (subscription.keys || null) as { p256dh?: unknown; auth?: unknown } | null;
+  const p256dh = typeof keys?.p256dh === 'string' ? keys.p256dh : null;
+  const auth = typeof keys?.auth === 'string' ? keys.auth : null;
+  const preferences = (subscription.preferences || null) as Record<string, unknown> | null;
+  const normalizedUserId = (userId && userId.trim()) || ANONYMOUS_FALLBACK_USER_ID;
+
   const payloadVariants: Record<string, unknown>[] = [];
 
-  if (userId) payloadVariants.push({ user_id: userId, endpoint, subscription });
+  payloadVariants.push({ user_id: normalizedUserId, endpoint, subscription });
   payloadVariants.push({ endpoint, subscription });
-  if (userId) payloadVariants.push({ user_id: userId, subscription });
+  payloadVariants.push({ user_id: normalizedUserId, subscription });
   payloadVariants.push({ subscription });
+
+  if (p256dh && auth) {
+    payloadVariants.push({ user_id: normalizedUserId, endpoint, p256dh, auth, preferences });
+    payloadVariants.push({ endpoint, p256dh, auth, preferences });
+    payloadVariants.push({ user_id: normalizedUserId, p256dh, auth, preferences });
+    payloadVariants.push({ p256dh, auth, preferences });
+  }
 
   let lastError: unknown = null;
   for (const values of payloadVariants) {

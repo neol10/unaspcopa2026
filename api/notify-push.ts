@@ -105,6 +105,19 @@ type SubscriptionRow = {
   };
 };
 
+type SubscriptionRowLegacy = {
+  subscription?: unknown;
+  endpoint?: string | null;
+  p256dh?: string | null;
+  auth?: string | null;
+  preferences?: {
+    categories?: Record<string, boolean>;
+    onlyImportant?: boolean;
+    favoriteTeamId?: string | null;
+    preGameReminder?: boolean;
+  } | null;
+};
+
 type NotifyPayload = {
   title: string;
   body: string;
@@ -198,6 +211,30 @@ const isValidPushSubscription = (subscription: unknown) => {
   return getBase64UrlByteLength(p256dh) === 65 && getBase64UrlByteLength(auth) === 16;
 };
 
+const normalizeSubscriptionRow = (row: SubscriptionRowLegacy): SubscriptionRow | null => {
+  if (row?.subscription && typeof row.subscription === 'object') {
+    const candidate = row.subscription as SubscriptionRow['subscription'];
+    if (isValidPushSubscription(candidate)) {
+      return { subscription: candidate };
+    }
+  }
+
+  const endpoint = typeof row?.endpoint === 'string' ? row.endpoint.trim() : '';
+  const p256dh = typeof row?.p256dh === 'string' ? row.p256dh.trim() : '';
+  const auth = typeof row?.auth === 'string' ? row.auth.trim() : '';
+
+  if (!endpoint || !p256dh || !auth) return null;
+
+  const reconstructed = {
+    endpoint,
+    keys: { p256dh, auth },
+    preferences: row.preferences || undefined,
+  } as SubscriptionRow['subscription'];
+
+  if (!isValidPushSubscription(reconstructed)) return null;
+  return { subscription: reconstructed };
+};
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') {
     return res.status(200).setHeader('Access-Control-Allow-Origin', corsHeaders['Access-Control-Allow-Origin']).setHeader('Access-Control-Allow-Headers', corsHeaders['Access-Control-Allow-Headers']).setHeader('Access-Control-Allow-Methods', corsHeaders['Access-Control-Allow-Methods']).send('ok');
@@ -235,11 +272,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const candidateClient = createClient(SUPABASE_URL, key);
       const { data, error } = await candidateClient
         .from('push_subscriptions')
-        .select('subscription');
+        .select('subscription, endpoint, p256dh, auth, preferences');
 
       if (!error) {
         supabaseAdmin = candidateClient;
-        subscriptions = (data as SubscriptionRow[]) || [];
+        subscriptions = ((data as SubscriptionRowLegacy[]) || [])
+          .map((row) => normalizeSubscriptionRow(row))
+          .filter((row): row is SubscriptionRow => Boolean(row));
         break;
       }
 
