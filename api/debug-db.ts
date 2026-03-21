@@ -1,29 +1,34 @@
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
-
 export default async function handler(req, res) {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    return res.status(500).json({ error: 'Missing Supabase env vars' });
+  const info: any = {
+    keys: Object.keys(process.env).filter(k => k.includes('SUPABASE') || k.includes('VAPID')),
+    results: {}
+  };
+
+  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || '';
+  const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+
+  if (url && serviceKey) {
+    try {
+      const client = createClient(url, serviceKey);
+      const { count, error } = await client.from('push_subscriptions').select('*', { count: 'exact', head: true });
+      info.results.serviceRole = error ? { error: error.message } : { count };
+    } catch (e: any) {
+      info.results.serviceRole = { error: e.message };
+    }
   }
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-  const { data, error, count } = await supabase
-    .from('push_subscriptions')
-    .select('*', { count: 'exact' });
-
-  if (error) {
-    return res.status(500).json({ error: error.message });
+  if (url && anonKey) {
+    try {
+      const client = createClient(url, anonKey);
+      const { count, error } = await client.from('push_subscriptions').select('*', { count: 'exact', head: true });
+      info.results.anon = error ? { error: error.message } : { count };
+    } catch (e: any) {
+      info.results.anon = { error: e.message };
+    }
   }
 
-  return res.status(200).json({
-    count: count || data.length,
-    subscriptions: data.map(s => ({
-      id: s.id,
-      created_at: s.created_at,
-      user_id: s.user_id,
-      endpoint_prefix: s.endpoint?.substring(0, 30) || (s.subscription?.endpoint?.substring(0, 30)),
-    }))
-  });
+  return res.status(200).json(info);
 }
