@@ -29,16 +29,16 @@
 /* SIDEBAR STYLES */
 .sidebar {
   width: 280px;
-  height: 100vh;
+  height: 100dvh;
   position: sticky;
   top: 0;
   display: flex;
   flex-direction: column;
   z-index: 1000;
   border-right: 1px solid var(--border-light);
-  background: var(--bg-sidebar);
+  background: linear-gradient(180deg, var(--bg-sidebar) 0%, #010204 100%);
   backdrop-filter: blur(25px);
-  transition: transform 0.4s ease, background 0.4s ease;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), background 0.4s ease;
 }
 
 .sidebar-content {
@@ -201,8 +201,11 @@
 
 .sidebar-footer {
   margin-top: auto;
-  padding-top: 2rem;
+  padding: 1.5rem 0 0;
   border-top: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .net-status {
@@ -469,7 +472,7 @@
     position: fixed;
     left: -100%;
     width: min(320px, 84vw);
-    height: 100vh;
+    height: 100dvh;
     z-index: 1001;
     box-shadow: 20px 0 50px rgba(0,0,0,0.2);
   }

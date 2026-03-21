@@ -63,7 +63,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   return (
     <div className="app-container">
-      <aside className={`sidebar glass ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
+      <aside className={`sidebar ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-content">
           <div className="sidebar-header">
             <NavLink to="/" className="brand" onClick={closeMobileMenu}>
