@@ -274,7 +274,7 @@
   background: rgba(255, 255, 255, 0.02);
   border-radius: var(--radius-sm);
   transition: var(--transition-fast);
-  min-width: 280px; /* Ensure content doesn't squash too much */
+  min-width: 0; /* Allow shrinking below fixed min-width if parent allows */
 }
 
 .rank-row-item:hover {
@@ -619,5 +619,43 @@
 
   .podium-player-team {
     font-size: 0.62rem;
+  }
+
+  .rank-row-item {
+    padding: 0.75rem 0.6rem;
+    gap: 0.6rem;
+  }
+
+  .rank-avatar {
+    width: 36px;
+    height: 36px;
+  }
+
+  .rank-idx {
+    width: 22px;
+    font-size: 0.8rem;
+  }
+
+  .rank-player strong {
+    font-size: 0.85rem;
+  }
+
+  .team-mini-info {
+    font-size: 0.65rem;
+  }
+
+  .rank-cards {
+    gap: 0.3rem;
+  }
+
+  .p-card-new {
+    width: 20px;
+    height: 28px;
+    font-size: 0.75rem;
+  }
+
+  .rank-val {
+    padding: 0.2rem 0.5rem;
+    font-size: 0.8rem;
   }
 }

@@ -100,7 +100,7 @@ const Rankings: React.FC = () => {
         </div>
         <div className="stat-summary-pill glass">
           <Activity size={16} color="var(--primary)" />
-          {scorers.length + assistants.length + goalkeepers.length} Recordistas
+          {scorers.length + assistants.length + goalkeepers.length} Destaques da Copa
         </div>
       </header>
 
