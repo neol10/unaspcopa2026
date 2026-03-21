@@ -435,7 +435,7 @@ const sendPushNotification = async (title: string, body: string, options: PushSe
       }
     }
 
-    if (lastStatus) {
+    if (lastStatus && lastStatus !== 200) {
       if (lastStatus === 400) {
         lastPushErrorMessage = `API retornou 400. Detalhe: ${lastDetail || 'requisição inválida'}`;
       } else if (lastStatus === 401) {
