@@ -15,21 +15,26 @@ const readEnv = (...keys: string[]) => {
   return '';
 };
 
+const readEnvList = (...keys: string[]) => {
+  const values = keys
+    .map((key) => process.env[key]?.trim() || '')
+    .filter(Boolean);
+  return Array.from(new Set(values));
+};
+
 const SUPABASE_URL = readEnv('SUPABASE_URL', 'VITE_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = readEnv(
   'SUPABASE_SERVICE_ROLE_KEY',
+  'SUPABASE_SECRET_KEY',
   'SUPABASE_SERVICE_KEY',
   'SERVICE_ROLE_KEY',
-  'SUPABASE_SECRET_KEY',
 );
-const SUPABASE_ANON_KEY = readEnv('SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY', 'NEXT_PUBLIC_SUPABASE_ANON_KEY');
-
-const isLikelyJwt = (value: string) => value.split('.').length === 3;
-
-const getUsableSupabaseKeys = () => {
-  const rawKeys = [SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY].filter(Boolean) as string[];
-  return Array.from(new Set(rawKeys)).filter((key) => isLikelyJwt(key));
-};
+const SUPABASE_SERVICE_KEYS = readEnvList(
+  'SUPABASE_SERVICE_ROLE_KEY',
+  'SUPABASE_SECRET_KEY',
+  'SUPABASE_SERVICE_KEY',
+  'SERVICE_ROLE_KEY',
+);
 
 const getPayload = (req: VercelRequest): Record<string, unknown> => {
   if (typeof req.body === 'string') {
@@ -82,8 +87,12 @@ type SupabaseLikeClient = {
 const withSupabaseClient = async <T>(fn: (client: SupabaseLikeClient) => Promise<T>) => {
   if (!SUPABASE_URL) throw new Error('Missing SUPABASE_URL');
 
-  const keysToTry = getUsableSupabaseKeys();
-  if (keysToTry.length === 0) throw new Error('No valid Supabase key available for push-subscription API');
+  const keysToTry = SUPABASE_SERVICE_KEYS.length > 0
+    ? SUPABASE_SERVICE_KEYS
+    : (SUPABASE_SERVICE_ROLE_KEY ? [SUPABASE_SERVICE_ROLE_KEY] : []);
+  if (keysToTry.length === 0) {
+    throw new Error('Missing service key for push-subscription API (SUPABASE_SERVICE_ROLE_KEY/SUPABASE_SECRET_KEY)');
+  }
 
   let lastError: unknown = null;
   for (const key of keysToTry) {

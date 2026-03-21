@@ -11,14 +11,27 @@ const readEnv = (...keys: string[]) => {
   return '';
 };
 
+const readEnvList = (...keys: string[]) => {
+  const values = keys
+    .map((key) => process.env[key]?.trim() || '')
+    .filter(Boolean);
+  return Array.from(new Set(values));
+};
+
 const SUPABASE_URL = readEnv('SUPABASE_URL', 'VITE_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = readEnv(
   'SUPABASE_SERVICE_ROLE_KEY',
+  'SUPABASE_SECRET_KEY',
   'SUPABASE_SERVICE_KEY',
   'SERVICE_ROLE_KEY',
-  'SUPABASE_SECRET_KEY',
 );
 const SUPABASE_ANON_KEY = readEnv('SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY', 'NEXT_PUBLIC_SUPABASE_ANON_KEY');
+const SUPABASE_SERVICE_KEYS = readEnvList(
+  'SUPABASE_SERVICE_ROLE_KEY',
+  'SUPABASE_SECRET_KEY',
+  'SUPABASE_SERVICE_KEY',
+  'SERVICE_ROLE_KEY',
+);
 
 const VAPID_PUBLIC_KEY = readEnv('VAPID_PUBLIC_KEY', 'VITE_VAPID_PUBLIC_KEY');
 const VAPID_PRIVATE_KEY = readEnv('VAPID_PRIVATE_KEY');
@@ -43,11 +56,11 @@ const ensureVapid = () => {
   vapidConfigured = true;
 };
 
-const isLikelyJwt = (value: string) => value.split('.').length === 3;
-
 const getUsableSupabaseKeys = () => {
-  const rawKeys = [SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY].filter(Boolean) as string[];
-  return Array.from(new Set(rawKeys)).filter((key) => isLikelyJwt(key));
+  const keys: string[] = [];
+  keys.push(...SUPABASE_SERVICE_KEYS);
+  if (SUPABASE_ANON_KEY) keys.push(SUPABASE_ANON_KEY);
+  return Array.from(new Set(keys));
 };
 
 const validateSupabaseEnv = () => {
@@ -65,7 +78,7 @@ const validateSupabaseEnv = () => {
   }
 
   if (getUsableSupabaseKeys().length === 0) {
-    return 'No valid Supabase key detected (expected JWT format)';
+    return 'No Supabase key detected for notify-push endpoint';
   }
 
   return null;
@@ -218,8 +231,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return { success: true };
         } catch (err: unknown) {
           const { statusCode, message } = getErrorInfo(err);
+          const lowerMessage = String(message || '').toLowerCase();
 
-          if (statusCode === 410 || statusCode === 404 || statusCode === 403) {
+          const shouldDeleteSubscription =
+            statusCode === 410 ||
+            statusCode === 404 ||
+            statusCode === 403 ||
+            lowerMessage.includes('p256dh value should be 65 bytes long') ||
+            lowerMessage.includes('auth value should be 16 bytes long') ||
+            lowerMessage.includes('subscription endpoint is required');
+
+          if (shouldDeleteSubscription) {
             const endpoint = row?.subscription?.endpoint;
             if (endpoint) {
               await supabaseAdmin
