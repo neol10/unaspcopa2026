@@ -285,7 +285,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       </div>
 
       {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
-      <IOSInstallPrompt />
     </div>
   );
 };

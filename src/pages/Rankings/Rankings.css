@@ -30,16 +30,26 @@
   margin-bottom: 3rem;
 }
 
-.scorers-podium.podium-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  min-height: 280px;
-  color: var(--text-dim);
-  font-weight: 700;
-  text-align: center;
-}
+33: .scorers-podium.podium-empty {
+34:   display: flex;
+35:   flex-direction: column;
+36:   align-items: center;
+37:   justify-content: center;
+38:   gap: 1.5rem;
+39:   min-height: 280px;
+40:   color: var(--text-dim);
+41:   font-weight: 700;
+42:   text-align: center;
+43:   background: rgba(255, 255, 255, 0.01);
+44:   border: 1px dashed rgba(255, 255, 255, 0.05);
+45:   border-radius: 20px;
+46: }
+47: 
+48: .scorers-podium.podium-empty svg {
+49:   font-size: 3.5rem;
+50:   opacity: 0.2;
+51:   color: var(--secondary);
+52: }
 
 .round-mvp-highlight {
   padding: 2rem;
@@ -583,79 +593,91 @@
   }
 }
 
-@media (max-width: 360px) {
-  .rankings-container {
-    gap: 1.5rem;
-    padding-bottom: 1.5rem;
-  }
-
-  .rankings-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.75rem;
-  }
-
-  .rankings-featured-grid,
-  .rankings-grid {
-    grid-template-columns: 1fr;
-    gap: 0.85rem;
-    margin-bottom: 1rem;
-  }
-
-  .round-mvp-highlight,
-  .highlight-hero,
-  .rank-panel {
-    padding: 0.9rem;
-    border-radius: 14px;
-  }
-
-  .scorers-podium {
-    gap: 0.45rem;
-  }
-
-  .podium-player-name {
-    font-size: 0.78rem;
-  }
-
-  .podium-player-team {
-    font-size: 0.62rem;
-  }
-
-  .rank-row-item {
-    padding: 0.75rem 0.6rem;
-    gap: 0.6rem;
-  }
-
-  .rank-avatar {
-    width: 36px;
-    height: 36px;
-  }
-
-  .rank-idx {
-    width: 22px;
-    font-size: 0.8rem;
-  }
-
-  .rank-player strong {
-    font-size: 0.85rem;
-  }
-
-  .team-mini-info {
-    font-size: 0.65rem;
-  }
-
-  .rank-cards {
-    gap: 0.3rem;
-  }
-
-  .p-card-new {
-    width: 20px;
-    height: 28px;
-    font-size: 0.75rem;
-  }
-
-  .rank-val {
-    padding: 0.2rem 0.5rem;
-    font-size: 0.8rem;
-  }
-}
+586: @media (max-width: 360px) {
+587:   .rankings-container {
+588:     gap: 1.25rem;
+589:     padding-bottom: 1.5rem;
+590:   }
+591: 
+592:   .rankings-header {
+593:     flex-direction: column;
+594:     align-items: flex-start;
+595:     gap: 0.75rem;
+596:   }
+597: 
+598:   .rankings-featured-grid,
+599:   .rankings-grid {
+600:     grid-template-columns: 1fr;
+601:     gap: 1rem;
+602:     margin-bottom: 1rem;
+603:   }
+604: 
+605:   .round-mvp-highlight,
+606:   .highlight-hero,
+607:   .rank-panel {
+608:     padding: 1rem 0.8rem;
+609:     border-radius: 14px;
+610:   }
+611: 
+612:   .scorers-podium {
+613:     gap: 0.45rem;
+614:     padding: 1rem 0.5rem;
+615:   }
+616: 
+617:   .podium-player-name {
+618:     font-size: 0.78rem;
+619:   }
+620: 
+621:   .podium-player-team {
+622:     font-size: 0.62rem;
+623:   }
+624: 
+625:   .rank-row-item {
+626:     padding: 0.75rem 0.6rem;
+627:     gap: 0.5rem;
+628:     min-width: 340px; /* Força o scroll horizontal para manter nomes legíveis */
+629:   }
+630: 
+631:   .rank-avatar {
+632:     width: 32px;
+633:     height: 32px;
+634:     border-radius: 8px;
+635:   }
+636: 
+637:   .rank-idx {
+638:     width: 20px;
+639:     font-size: 0.75rem;
+640:   }
+641: 
+642:   .rank-player strong {
+643:     font-size: 0.82rem;
+644:     line-height: 1.2;
+645:   }
+646: 
+647:   .team-mini-info {
+648:     font-size: 0.6rem;
+649:   }
+650: 
+651:   .mini-badge {
+652:     width: 12px;
+653:     height: 12px;
+654:   }
+655: 
+656:   .rank-cards {
+657:     gap: 0.25rem;
+658:   }
+659: 
+660:   .p-card-new {
+661:     width: 18px;
+662:     height: 24px;
+663:     font-size: 0.7rem;
+664:     border-radius: 3px;
+665:   }
+666: 
+667:   .rank-val {
+668:     padding: 0.2rem 0.4rem;
+669:     font-size: 0.75rem;
+670:     min-width: 32px;
+671:     text-align: center;
+672:   }
+673: }

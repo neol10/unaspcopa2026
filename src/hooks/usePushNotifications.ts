@@ -209,12 +209,9 @@ export const usePushNotifications = () => {
         }
 
         if (subscription && !isPushSyncCurrent() && canAutoSubscribe) {
-          const vapidPublicKey = await getServerVapidPublicKey();
-          await subscription.unsubscribe();
-          subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
-          });
+          // Em vez de forçar unsubscribe/subscribe (que falha no Android em background),
+          // apenas re-sincronizamos o registro atual com a nova versão.
+          await syncSubscriptionRecord(subscription, preferences, user?.id || null);
           markPushSyncVersion();
         }
 
