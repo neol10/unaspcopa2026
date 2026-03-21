@@ -36,5 +36,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   return res
     .status(200)
     .setHeader('Access-Control-Allow-Origin', corsHeaders['Access-Control-Allow-Origin'])
+    .setHeader('Cache-Control', 'no-store, max-age=0')
     .json({ publicKey });
 }

@@ -25,7 +25,7 @@ type PushPreferencesPatch =
 
 const PUSH_PREFS_KEY = 'copa_unasp_push_preferences_v1';
 const PUSH_SYNC_VERSION_KEY = 'copa_unasp_push_sync_version';
-const PUSH_SYNC_VERSION = 'v2';
+const PUSH_SYNC_VERSION = 'v3';
 
 const DEFAULT_PREFERENCES: PushPreferences = {
   categories: {
@@ -81,7 +81,7 @@ const urlBase64ToUint8Array = (base64String: string) => {
 
 const getServerVapidPublicKey = async (): Promise<string> => {
   try {
-    const response = await fetch('/api/push-public-key', { method: 'GET' });
+    const response = await fetch(`/api/push-public-key?t=${Date.now()}`, { method: 'GET' });
     if (!response.ok) throw new Error(`push-public-key failed (${response.status})`);
     const data = (await response.json()) as { publicKey?: unknown };
     if (typeof data.publicKey === 'string' && data.publicKey.trim()) {
