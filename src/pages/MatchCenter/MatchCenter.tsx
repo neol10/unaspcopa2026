@@ -225,7 +225,9 @@ const MatchCenter: React.FC = () => {
               animate={{ y: [0, -20, 0] }}
               transition={{ repeat: Infinity, duration: 2 }}
             >
-              <Trophy size={80} color="var(--secondary)" />
+              <div className="goal-icon-container">
+                <span className="goal-ball-emoji">⚽</span>
+              </div>
               <h1 className="goal-text">GOOOOOOOL!</h1>
               <div className="goal-details">
                 <span className="goal-team">{showGoalOverlay.team}</span>

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase, supabaseStorage } from '../../lib/supabase';
-import { Trophy, Users, Calendar, Plus, Save, Trash2, Shield, ChevronDown, ChevronUp, Newspaper, CheckCircle, Play, Camera, Search, Settings2, Vote, ShieldAlert, Bell, Star, CreditCard, Target, Square, ArrowRightLeft, MessageSquare, Zap, Clock, Pause, RotateCcw } from 'lucide-react';
+import { Trophy, Users, Calendar, Plus, Save, Trash2, Shield, ChevronDown, ChevronUp, Newspaper, CheckCircle, Play, Camera, Search, Settings2, Vote, ShieldAlert, Bell, Star, CreditCard, Target, Square, ArrowRightLeft, MessageSquare, Zap, Clock, Pause, RotateCcw, Coffee } from 'lucide-react';
 import { useTeams, type Team } from '../../hooks/useTeams';
 import { usePlayers } from '../../hooks/usePlayers';
 import { useQueryClient } from '@tanstack/react-query';
@@ -1230,34 +1230,39 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   const [editEventMinute, setEditEventMinute] = useState<number>(0);
 
   // --- Cronômetro Sincronizado (DB) ---
-  const [seconds, setSeconds] = useState(0);
-  const isActive = match.is_timer_running;
-
-  // Sincronizar segundos locais com o estado do banco
+  // Sincronizar segundos locais com o estado do banco (com Fresh Fetch no mount)
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
     
-    const syncTime = () => {
-      if (match.is_timer_running && match.timer_started_at) {
-        const start = new Date(match.timer_started_at).getTime();
+    const syncTime = async (isInitial = false) => {
+      let currentMatch = match;
+      
+      // No mount inicial, buscamos o estado mais fresco do DB para evitar cache estático
+      if (isInitial) {
+        const { data } = await supabase.from('matches').select('*').eq('id', match.id).single();
+        if (data) currentMatch = data;
+      }
+
+      if (currentMatch.is_timer_running && currentMatch.timer_started_at) {
+        const start = new Date(currentMatch.timer_started_at).getTime();
         const now = Date.now();
         const diff = Math.floor((now - start) / 1000);
-        setSeconds(match.timer_offset_seconds + diff);
+        setSeconds(currentMatch.timer_offset_seconds + diff);
       } else {
-        setSeconds(match.timer_offset_seconds);
+        setSeconds(currentMatch.timer_offset_seconds || 0);
       }
     };
 
-    syncTime(); // Inicial
+    syncTime(true); // Inicial e Fresco
 
     if (match.is_timer_running) {
-      interval = setInterval(syncTime, 1000);
+      interval = setInterval(() => syncTime(false), 1000);
     }
 
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [match.is_timer_running, match.timer_started_at, match.timer_offset_seconds]);
+  }, [match.is_timer_running, match.timer_started_at, match.timer_offset_seconds, match.id]);
 
   const handleStartTimer = async () => {
     try {
@@ -1271,7 +1276,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
     }
   };
 
-  const handlePauseTimer = async () => {
+  const handlePauseTimer = async (isTechnical = false) => {
     try {
       const start = match.timer_started_at ? new Date(match.timer_started_at).getTime() : Date.now();
       const now = Date.now();
@@ -1283,9 +1288,84 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         timer_started_at: null,
         timer_offset_seconds: newOffset
       }).eq('id', match.id);
+      
       if (error) throw error;
+
+      if (isTechnical) {
+        // Log de Pausa Técnica
+        await supabase.from('match_events').insert({
+          match_id: match.id,
+          type: 'comentario',
+          minute: Math.floor(newOffset / 60),
+          description: 'Pausa Técnica',
+          assistant_id: null
+        });
+        toast.success('Pausa Técnica registrada');
+      }
     } catch (err: unknown) {
       toast.error('Erro ao pausar cronômetro');
+    }
+  };
+
+  const handleIntervalo = async () => {
+    if (!confirm('Iniciar INTERVALO? O tempo será pausado e registrado.')) return;
+    try {
+      const start = match.timer_started_at ? new Date(match.timer_started_at).getTime() : Date.now();
+      const now = Date.now();
+      const diff = Math.floor((now - start) / 1000);
+      const newOffset = match.timer_offset_seconds + diff;
+
+      await supabase.from('matches').update({
+        is_timer_running: false,
+        timer_started_at: null,
+        timer_offset_seconds: newOffset
+      }).eq('id', match.id);
+
+      await supabase.from('match_events').insert({
+        match_id: match.id,
+        type: 'comentario',
+        minute: Math.floor(newOffset / 60),
+        description: 'Fim do 1º Tempo',
+        assistant_id: null
+      });
+
+      toast.success('Intervalo Iniciado');
+    } catch (err: unknown) {
+      toast.error('Erro ao iniciar intervalo');
+    }
+  };
+
+  const handleRetomar = async () => {
+    try {
+      // Verificar se foi intervalo (último evento de comentário)
+      const { data: lastEvents } = await supabase
+        .from('match_events')
+        .select('*')
+        .eq('match_id', match.id)
+        .eq('type', 'comentario')
+        .order('id', { ascending: false })
+        .limit(1);
+
+      const isPostInterval = lastEvents?.[0]?.description === 'Fim do 1º Tempo';
+
+      const { error } = await supabase.from('matches').update({
+        is_timer_running: true,
+        timer_started_at: new Date().toISOString()
+      }).eq('id', match.id);
+
+      if (error) throw error;
+
+      if (isPostInterval) {
+        await supabase.from('match_events').insert({
+          match_id: match.id,
+          type: 'comentario',
+          minute: Math.floor(match.timer_offset_seconds / 60),
+          description: 'Retornamos ao segundo tempo',
+          assistant_id: null
+        });
+      }
+    } catch (err: unknown) {
+      toast.error('Erro ao retomar cronômetro');
     }
   };
 
@@ -1593,15 +1673,6 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                 <span className={isActive ? 'timer-running' : ''}>{formatTime(seconds)}</span>
              </div>
              <div className="sb-pro-timer-controls">
-                <button className={`timer-btn ${isActive ? 'pause' : 'start'}`} 
-                        onClick={() => isActive ? handlePauseTimer() : handleStartTimer()}>
-                  {isActive ? <Pause size={20} /> : <Play size={20} />}
-                  <span>{isActive ? 'PAUSAR' : 'INICIAR'}</span>
-                </button>
-                <button className="timer-btn reset" onClick={handleResetTimer}>
-                  <RotateCcw size={16} />
-                  <span>ZERAR</span>
-                </button>
              </div>
           </div>
 
