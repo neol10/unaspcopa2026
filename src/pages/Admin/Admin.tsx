@@ -1687,32 +1687,62 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         )}
 
         {eventType === 'substituicao' && (
-          <div className="form-group-full" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-            <div className="form-group-mini" style={{flex: 1}}>
-              <label>Sai do Jogo (OUT):</label>
-              <select value={playerOutId} onChange={e => setPlayerOutId(e.target.value)}>
-                <option value="">Selecione quem sai...</option>
-                {[...playersA, ...playersB].map(p => <option key={`out-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
-              </select>
+          <div className="substitution-grid-admin">
+            {/* Equipe A */}
+            <div className="sub-team-box glass">
+              <span className="sub-team-title">{match.teams_a?.name}</span>
+              <div className="sub-controls">
+                <div className="form-group-mini">
+                  <label>SAI (OUT)</label>
+                  <select value={playerOutId} onChange={e => { setPlayerOutId(e.target.value); setAssistantId(''); }}>
+                    <option value="">Selecione...</option>
+                    {playersA.map(p => <option key={`out-a-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-group-mini">
+                  <label>ENTRA (IN)</label>
+                  <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
+                    <option value="">Selecione...</option>
+                    {playersA.filter(p => !onFieldA.includes(p.id)).map(p => <option key={`in-a-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
+                  </select>
+                </div>
+                <button 
+                  className="btn-confirm-sub" 
+                  onClick={() => addEvent(playerOutId, 'a')}
+                  disabled={!playerOutId || !assistantId || !playersA.some(p => p.id === playerOutId)}
+                >
+                  Substituir
+                </button>
+              </div>
             </div>
-            <div className="form-group-mini" style={{flex: 1}}>
-              <label>Entra no Jogo (IN):</label>
-              <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
-                <option value="">Selecione quem entra...</option>
-                {[...playersA, ...playersB].map(p => <option key={`in-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
-              </select>
+
+            {/* Equipe B */}
+            <div className="sub-team-box glass">
+              <span className="sub-team-title">{match.teams_b?.name}</span>
+              <div className="sub-controls">
+                <div className="form-group-mini">
+                  <label>SAI (OUT)</label>
+                  <select value={playerOutId} onChange={e => { setPlayerOutId(e.target.value); setAssistantId(''); }}>
+                    <option value="">Selecione...</option>
+                    {playersB.map(p => <option key={`out-b-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-group-mini">
+                  <label>ENTRA (IN)</label>
+                  <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
+                    <option value="">Selecione...</option>
+                    {playersB.filter(p => !onFieldB.includes(p.id)).map(p => <option key={`in-b-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
+                  </select>
+                </div>
+                <button 
+                  className="btn-confirm-sub btn-team-b" 
+                  onClick={() => addEvent(playerOutId, 'b')}
+                  disabled={!playerOutId || !assistantId || !playersB.some(p => p.id === playerOutId)}
+                >
+                  Substituir
+                </button>
+              </div>
             </div>
-            <button 
-              className="btn-send-msg" 
-              style={{ width: '100%', marginTop: '0.5rem' }}
-              onClick={() => {
-                const team = playersA.some(p => p.id === playerOutId) ? 'a' : 'b';
-                addEvent(playerOutId, team);
-              }}
-              disabled={!playerOutId || !assistantId}
-            >
-              Registrar Substituição
-            </button>
           </div>
         )}
       </div>
