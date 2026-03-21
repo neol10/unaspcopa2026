@@ -376,6 +376,66 @@
   gap: 1.25rem;
 }
 
+.admin-list-sections {
+  padding: 2rem 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.admin-list-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.list-group-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1.15rem;
+  font-weight: 850;
+  color: var(--text-dim);
+  margin: 1.5rem 0 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.list-group-title.history {
+  color: var(--secondary);
+}
+
+.admin-empty-state {
+  padding: 3rem;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.1);
+  border: 1px dashed rgba(255, 255, 255, 0.05);
+  border-radius: 18px;
+  color: var(--text-dim);
+  font-weight: 700;
+}
+
+.history-item {
+  opacity: 0.9;
+  border-left-color: var(--secondary) !important;
+  background: rgba(251, 191, 36, 0.01) !important;
+}
+
+.history-item:hover {
+  opacity: 1;
+}
+
+.btn-live-control.history {
+  background: rgba(0, 176, 255, 0.08);
+  color: var(--accent-blue);
+  border-color: rgba(0, 176, 255, 0.2);
+}
+
+.btn-live-control.history:hover {
+  background: var(--accent-blue);
+  color: #000;
+}
+
 .admin-list-item {
   display: flex;
   justify-content: space-between;

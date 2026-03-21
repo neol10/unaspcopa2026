@@ -221,6 +221,8 @@
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .panel-header {
@@ -272,6 +274,7 @@
   background: rgba(255, 255, 255, 0.02);
   border-radius: var(--radius-sm);
   transition: var(--transition-fast);
+  min-width: 280px; /* Ensure content doesn't squash too much */
 }
 
 .rank-row-item:hover {
@@ -516,44 +519,67 @@
 
 @media (max-width: 768px) {
   .scorers-podium {
-    gap: 0.75rem;
-    padding: 1rem 0;
+    gap: 0.5rem;
+    padding: 1.5rem 0.5rem;
     min-height: auto;
     align-items: flex-end;
+    overflow-x: auto;
+    justify-content: flex-start;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  
+  .scorers-podium::-webkit-scrollbar {
+    display: none;
   }
   
   .podium-item {
-    max-width: 32%;
+    min-width: 140px;
+    flex-shrink: 0;
   }
   
   .podium-player-box {
     padding: 1rem 0.5rem;
+    border-radius: 16px;
   }
   
   .podium-avatar-wrapper {
-    width: 60px;
-    height: 60px;
+    width: 50px;
+    height: 50px;
   }
   
   .first-place .podium-avatar-wrapper {
-    width: 80px;
-    height: 80px;
+    width: 70px;
+    height: 70px;
   }
   
   .podium-player-name {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
   }
   
   .podium-player-team {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
   }
   
   .podium-stat-bubble {
-    font-size: 1rem;
+    font-size: 0.95rem;
+    padding: 0.35rem 0.75rem;
   }
   
   .first-place .podium-stat-bubble {
-    font-size: 1.2rem;
+    font-size: 1.1rem;
+  }
+
+  .first-place .podium-player-box {
+    height: 300px;
+  }
+  
+  .second-place .podium-player-box {
+    height: 260px;
+  }
+  
+  .third-place .podium-player-box {
+    height: 230px;
   }
 }
 

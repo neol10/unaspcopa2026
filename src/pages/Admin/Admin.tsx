@@ -882,19 +882,57 @@ const MatchManagement = () => {
   };
 
   const handleDeleteMatch = async (id: string) => {
-    if (!confirm('Apagar partida?')) return;
-    const loadingToast = toast.loading('Excluindo partida...');
+    if (!confirm('ATENÇÃO: Apagar esta partida removerá permanentemente todos os eventos e REVERTERÁ as estatísticas dos jogadores (gols, cartões e assistências). Deseja continuar?')) return;
+    
+    const loadingToast = toast.loading('Calculando reversão de estatísticas e excluindo...');
     try {
+      // 1. Buscar todos os eventos desta partida que afetam estatísticas de jogadores
+      const { data: events, error: eventsError } = await supabase
+        .from('match_events')
+        .select('event_type, player_id, assistant_id')
+        .eq('match_id', id);
+
+      if (eventsError) throw eventsError;
+
+      // 2. Reverter estatísticas de cada jogador afetado
+      if (events && events.length > 0) {
+        for (const event of events) {
+          // Reverter Gols e Assistências
+          if (event.event_type === 'gol' && event.player_id) {
+            const { data: p } = await supabase.from('players').select('goals_count').eq('id', event.player_id).single();
+            await supabase.from('players').update({ goals_count: Math.max(0, (p?.goals_count || 0) - 1) }).eq('id', event.player_id);
+            
+            if (event.assistant_id) {
+              const { data: ast } = await supabase.from('players').select('assists').eq('id', event.assistant_id).single();
+              await supabase.from('players').update({ assists: Math.max(0, (ast?.assists || 0) - 1) }).eq('id', event.assistant_id);
+            }
+          }
+          // Reverter Cartão Amarelo
+          else if (event.event_type === 'amarelo' && event.player_id) {
+            const { data: p } = await supabase.from('players').select('yellow_cards').eq('id', event.player_id).single();
+            await supabase.from('players').update({ yellow_cards: Math.max(0, (p?.yellow_cards || 0) - 1) }).eq('id', event.player_id);
+          }
+          // Reverter Cartão Vermelho
+          else if (event.event_type === 'vermelho' && event.player_id) {
+            const { data: p } = await supabase.from('players').select('red_cards').eq('id', event.player_id).single();
+            await supabase.from('players').update({ red_cards: Math.max(0, (p?.red_cards || 0) - 1) }).eq('id', event.player_id);
+          }
+        }
+      }
+
+      // 3. Excluir a partida (o cascade delete no banco cuidará dos eventos)
       const { error } = await withTimeout(
         supabase.from('matches').delete().eq('id', id),
         30000,
         'Tempo limite ao excluir partida'
       );
       if (error) throw error;
+      
       void refresh();
       invalidateCompetitionData();
-      toast.success('Partida excluída!', { id: loadingToast });
+      toast.success('Partida excluída e estatísticas revertidas!', { id: loadingToast });
     } catch (err: unknown) {
+      console.error('Delete match error:', err);
       toast.error(getErrorMessage(err, 'Erro ao excluir partida'), { id: loadingToast });
     }
   };
@@ -1083,120 +1121,183 @@ const MatchManagement = () => {
         </div>
       </div>
 
-      <div className="admin-list">
-        {loading ? <p>Carregando...</p> : filteredMatches.map(match => (
-          <React.Fragment key={match.id}>
-            <div className={`admin-list-item match-admin-card ${match.status}`}>
-              <div className="match-status-info">
-                  <span className={`status-dot ${match.status}`}></span>
-                  <div className="match-info-main">
-                    <strong style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {match.teams_a?.badge_url ? (
-                        <img src={match.teams_a.badge_url} alt="" style={{ width: 24, height: 24, objectFit: 'contain' }} />
-                      ) : (
-                        <Shield size={20} />
-                      )}
-                      <span>{match.teams_a?.name} {match.team_a_score} x {match.team_b_score} {match.teams_b?.name}</span>
-                      {match.teams_b?.badge_url ? (
-                        <img src={match.teams_b.badge_url} alt="" style={{ width: 24, height: 24, objectFit: 'contain' }} />
-                      ) : (
-                        <Shield size={20} />
-                      )}
-                    </strong>
-                    <div className="match-meta-admin">
-                      <span className="round-badge">{match.round}</span>
-                      <span className="match-date">{new Date(match.match_date).toLocaleString('pt-BR')}</span>
+      <div className="admin-list-sections">
+        {/* === PARTIDAS ATIVAS / AGENDADAS === */}
+        <div className="admin-list-group">
+          <h3 className="list-group-title"><Clock size={16} /> Partidas Ativas / Agendadas</h3>
+          {loading ? <p>Carregando...</p> : filteredMatches.filter(m => m.status !== 'finalizado').length === 0 ? (
+            <div className="admin-empty-state"><p>Nenhuma partida agendada.</p></div>
+          ) : filteredMatches.filter(m => m.status !== 'finalizado').map(match => (
+            <React.Fragment key={match.id}>
+              <div className={`admin-list-item match-admin-card ${match.status}`}>
+                <div className="match-status-info">
+                    <span className={`status-dot ${match.status}`}></span>
+                    <div className="match-info-main">
+                      <strong style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {match.teams_a?.badge_url ? (
+                          <img src={match.teams_a.badge_url} alt="" style={{ width: 24, height: 24, objectFit: 'contain' }} />
+                        ) : (
+                          <Shield size={20} />
+                        )}
+                        <span>{match.teams_a?.name} {match.team_a_score} x {match.team_b_score} {match.teams_b?.name}</span>
+                        {match.teams_b?.badge_url ? (
+                          <img src={match.teams_b.badge_url} alt="" style={{ width: 24, height: 24, objectFit: 'contain' }} />
+                        ) : (
+                          <Shield size={20} />
+                        )}
+                      </strong>
+                      <div className="match-meta-admin">
+                        <span className="round-badge">{match.round}ª Rodada</span>
+                        <span className="match-date">{new Date(match.match_date).toLocaleString('pt-BR')}</span>
+                      </div>
+                    </div>
+                </div>
+                <div className="item-actions">
+                  {match.status === 'agendado' && (
+                    <>
+                      <button className="btn-icon edit" title="Editar Partida" onClick={() => {
+                         setEditingMatchId(match.id);
+                         setFormData({
+                           team_a_id: match.team_a_id,
+                           team_b_id: match.team_b_id,
+                           match_date: formatDatetimeLocal(match.match_date),
+                           location: match.location,
+                           status: match.status,
+                           round: String(match.round)
+                         });
+                      }}><Settings2 size={18} /></button>
+                      <button className="btn-icon play" title="Começar Jogo" onClick={() => updateStatus(match.id, 'ao_vivo', match)}><Play size={18} /></button>
+                    </>
+                  )}
+                  {match.status === 'ao_vivo' && (
+                    <>
+                      <button className="btn-live-control" onClick={() => setSelectedMatchId(selectedMatchId === match.id ? null : match.id)}>
+                        {selectedMatchId === match.id ? 'Fechar Painel' : 'Gerenciar (AO VIVO)'}
+                      </button>
+                      <button className="btn-icon finish" title="Finalizar Jogo" onClick={() => updateStatus(match.id, 'finalizado', match)}><CheckCircle size={18} /></button>
+                    </>
+                  )}
+                  <button className="btn-icon delete" onClick={() => handleDeleteMatch(match.id)} title="Excluir Partida"><Trash2 size={18} /></button>
+                </div>
+              </div>
+
+              {editingMatchId === match.id && (
+                <div className="admin-form glass animate-slide-down" style={{ margin: '1rem 0' }}>
+                  <div className="form-grid">
+                    <div className="form-group">
+                      <label>Equipe A</label>
+                      <select value={formData.team_a_id} onChange={e => setFormData({...formData, team_a_id: e.target.value})}>
+                        {teams
+                          .filter(t => !getBusyTeamIdsForEdit(match.id, parseInt(formData.round)).has(t.id) || t.id === match.team_a_id)
+                          .map(t => <option key={t.id} value={t.id}>{t.name}</option>)
+                        }
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Equipe B</label>
+                      <select value={formData.team_b_id} onChange={e => setFormData({...formData, team_b_id: e.target.value})}>
+                        {teams
+                          .filter(t => !getBusyTeamIdsForEdit(match.id, parseInt(formData.round)).has(t.id) || t.id === match.team_b_id)
+                          .map(t => <option key={t.id} value={t.id}>{t.name}</option>)
+                        }
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Data/Hora</label>
+                      <input type="datetime-local" value={formData.match_date} onChange={e => setFormData({...formData, match_date: e.target.value})} />
+                    </div>
+                    <div className="form-group">
+                      <label>Rodada</label>
+                      <input type="number" value={formData.round} onChange={e => setFormData({...formData, round: e.target.value})} />
                     </div>
                   </div>
-              </div>
-              <div className="item-actions">
-                {match.status === 'agendado' && (
-                  <>
-                    <button className="btn-icon edit" title="Editar Partida" onClick={() => {
-                       setEditingMatchId(match.id);
-                       setFormData({
-                         team_a_id: match.team_a_id,
-                         team_b_id: match.team_b_id,
-                         match_date: formatDatetimeLocal(match.match_date),
-                         location: match.location,
-                         status: match.status,
-                         round: String(match.round)
-                       });
-                    }}><Settings2 size={18} /></button>
-                    <button className="btn-icon play" title="Começar Jogo" onClick={() => updateStatus(match.id, 'ao_vivo', match)}><Play size={18} /></button>
-                  </>
-                )}
-                {match.status === 'ao_vivo' && (
-                  <>
-                    <button className="btn-live-control" onClick={() => setSelectedMatchId(selectedMatchId === match.id ? null : match.id)}>
-                      {selectedMatchId === match.id ? 'Fechar Painel de Controle' : 'Gerenciar Partida (AO VIVO)'}
-                    </button>
-                    <button className="btn-icon finish" title="Finalizar Jogo" onClick={() => updateStatus(match.id, 'finalizado', match)}><CheckCircle size={18} /></button>
-                  </>
-                )}
-                {match.status === 'finalizado' && (
-                   <>
-                     <button className="btn-icon edit" title="Editar Resultado/Meta" onClick={() => {
-                        setEditingMatchId(match.id);
-                        setFormData({
-                          team_a_id: match.team_a_id,
-                          team_b_id: match.team_b_id,
-                          match_date: formatDatetimeLocal(match.match_date),
-                          location: match.location,
-                          status: match.status,
-                          round: String(match.round)
-                        });
-                     }}><Settings2 size={18} /></button>
-                     <span className="final-label">Finalizado</span>
-                   </>
-                )}
-                <button className="btn-icon delete" onClick={() => handleDeleteMatch(match.id)}><Trash2 size={18} /></button>
-              </div>
-            </div>
+                  <div style={{ display: 'flex', gap: '1rem' }}>
+                    <button className="btn-save" onClick={() => handleUpdateMatch(match.id, formData)}><Save size={18} /> Atualizar</button>
+                    <button className="btn-cancel" onClick={() => setEditingMatchId(null)}>Cancelar</button>
+                  </div>
+                </div>
+              )}
+              {selectedMatchId === match.id && (
+                <div className="live-event-panel glass animate-slide-down">
+                  <LiveMatchControl match={match} />
+                </div>
+              )}
+            </React.Fragment>
+          ))}
+        </div>
 
-            {editingMatchId === match.id && (
-              <div className="admin-form glass animate-slide-down" style={{ margin: '1rem 0' }}>
-                <div className="form-grid">
-                  <div className="form-group">
-                    <label>Equipe A</label>
-                    <select value={formData.team_a_id} onChange={e => setFormData({...formData, team_a_id: e.target.value})}>
-                      {teams
-                        .filter(t => !getBusyTeamIdsForEdit(match.id, parseInt(formData.round)).has(t.id) || t.id === match.team_a_id)
-                        .map(t => <option key={t.id} value={t.id}>{t.name}</option>)
-                      }
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>Equipe B</label>
-                    <select value={formData.team_b_id} onChange={e => setFormData({...formData, team_b_id: e.target.value})}>
-                      {teams
-                        .filter(t => !getBusyTeamIdsForEdit(match.id, parseInt(formData.round)).has(t.id) || t.id === match.team_b_id)
-                        .map(t => <option key={t.id} value={t.id}>{t.name}</option>)
-                      }
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>Data/Hora</label>
-                    <input type="datetime-local" value={formData.match_date} onChange={e => setFormData({...formData, match_date: e.target.value})} />
-                  </div>
-                  <div className="form-group">
-                    <label>Rodada</label>
-                    <input type="number" value={formData.round} onChange={e => setFormData({...formData, round: e.target.value})} />
-                  </div>
+        {/* === HISTÓRICO DE PARTIDAS === */}
+        <div className="admin-list-group" style={{ marginTop: '3rem' }}>
+          <h3 className="list-group-title history"><RotateCcw size={16} /> Histórico de Partidas</h3>
+          {loading ? <p>Carregando...</p> : filteredMatches.filter(m => m.status === 'finalizado').length === 0 ? (
+            <div className="admin-empty-state"><p>Nenhum histórico disponível.</p></div>
+          ) : filteredMatches.filter(m => m.status === 'finalizado').map(match => (
+            <React.Fragment key={match.id}>
+              <div className={`admin-list-item match-admin-card ${match.status} history-item`}>
+                <div className="match-status-info">
+                    <span className={`status-dot ${match.status}`}></span>
+                    <div className="match-info-main">
+                      <strong style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {match.teams_a?.badge_url && <img src={match.teams_a.badge_url} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} />}
+                        <span style={{ opacity: 0.9 }}>{match.teams_a?.name} {match.team_a_score} x {match.team_b_score} {match.teams_b?.name}</span>
+                        {match.teams_b?.badge_url && <img src={match.teams_b.badge_url} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} />}
+                      </strong>
+                      <div className="match-meta-admin">
+                        <span className="round-badge">{match.round}ª Rodada</span>
+                        <span className="match-date">{new Date(match.match_date).toLocaleDateString('pt-BR')}</span>
+                      </div>
+                    </div>
                 </div>
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                  <button className="btn-save" onClick={() => handleUpdateMatch(match.id, formData)}><Save size={18} /> Atualizar Partida</button>
-                  <button className="btn-cancel" onClick={() => setEditingMatchId(null)}>Cancelar</button>
+                <div className="item-actions">
+                  <button className="btn-live-control history" onClick={() => setSelectedMatchId(selectedMatchId === match.id ? null : match.id)}>
+                    {selectedMatchId === match.id ? 'Ocultar Eventos' : 'Gerenciar Eventos'}
+                  </button>
+                  <button className="btn-icon edit" title="Editar Metadados" onClick={() => {
+                      setEditingMatchId(match.id);
+                      setFormData({
+                        team_a_id: match.team_a_id,
+                        team_b_id: match.team_b_id,
+                        match_date: formatDatetimeLocal(match.match_date),
+                        location: match.location,
+                        status: match.status,
+                        round: String(match.round)
+                      });
+                  }}><Settings2 size={16} /></button>
+                  <button className="btn-icon delete" onClick={() => handleDeleteMatch(match.id)} title="Excluir do Histórico"><Trash2 size={16} /></button>
                 </div>
               </div>
-            )}
-            {selectedMatchId === match.id && (
-              <div className="live-event-panel glass animate-slide-down">
-                <LiveMatchControl match={match} />
-              </div>
-            )}
-          </React.Fragment>
-        ))}
+
+              {editingMatchId === match.id && (
+                <div className="admin-form glass animate-slide-down" style={{ margin: '1rem 0' }}>
+                  {/* Reuse same edit form as above */}
+                  <div className="form-grid">
+                    <div className="form-group">
+                      <label>Status</label>
+                      <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as Match['status']})}>
+                         <option value="agendado">Agendado</option>
+                         <option value="ao_vivo">Ao vivo</option>
+                         <option value="finalizado">Finalizado</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Partida / Data</label>
+                      <input type="datetime-local" value={formData.match_date} onChange={e => setFormData({...formData, match_date: e.target.value})} />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '1rem' }}>
+                    <button className="btn-save" onClick={() => handleUpdateMatch(match.id, formData)}><Save size={16} /> Salvar Alterações</button>
+                    <button className="btn-cancel" onClick={() => setEditingMatchId(null)}>Cancelar</button>
+                  </div>
+                </div>
+              )}
+              {selectedMatchId === match.id && (
+                <div className="live-event-panel glass animate-slide-down">
+                  <LiveMatchControl match={match} />
+                </div>
+              )}
+            </React.Fragment>
+          ))}
+        </div>
       </div>
     </div>
   );
