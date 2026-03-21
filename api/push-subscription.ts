@@ -151,7 +151,7 @@ const insertSubscriptionAdaptive = async (
   const p256dh = typeof keys?.p256dh === 'string' ? keys.p256dh : null;
   const auth = typeof keys?.auth === 'string' ? keys.auth : null;
   const preferences = (subscription.preferences || null) as Record<string, unknown> | null;
-  const normalizedUserId = (userId && userId.trim()) || ANONYMOUS_FALLBACK_USER_ID;
+  const normalizedUserId = (userId && userId.trim()) || null;
 
   const payloadVariants: Record<string, unknown>[] = [];
 
