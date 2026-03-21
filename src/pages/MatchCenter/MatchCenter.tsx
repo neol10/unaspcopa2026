@@ -110,27 +110,43 @@ const MatchCenter: React.FC = () => {
     }
   };
 
-  // Lógica do Cronômetro em Tempo Real
+  // Lógica do Cronômetro em Tempo Real (Sincronizado)
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (activeMatch?.status === 'ao_vivo') {
-      interval = setInterval(() => {
-        const start = new Date(activeMatch.match_date).getTime();
-        const now = new Date().getTime();
-        const seconds = Math.floor((now - start) / 1000);
-        
-        if (seconds > 0) {
-          const mins = Math.floor(seconds / 60);
-          const secs = seconds % 60;
+
+    const updateTimer = () => {
+      if (!activeMatch) return;
+
+      if (activeMatch.status === 'ao_vivo') {
+        if (activeMatch.is_timer_running && activeMatch.timer_started_at) {
+          const start = new Date(activeMatch.timer_started_at).getTime();
+          const now = Date.now();
+          const diff = Math.floor((now - start) / 1000);
+          const totalSeconds = activeMatch.timer_offset_seconds + diff;
+          
+          const mins = Math.floor(totalSeconds / 60);
+          const secs = totalSeconds % 60;
           setElapsedTime(`${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`);
         } else {
-          setElapsedTime('00:00');
+          const totalSeconds = activeMatch.timer_offset_seconds || 0;
+          const mins = Math.floor(totalSeconds / 60);
+          const secs = totalSeconds % 60;
+          setElapsedTime(`${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`);
         }
-      }, 1000);
-    } else {
-      setElapsedTime(activeMatch?.status === 'finalizado' ? 'Fim' : 'Pré-jogo');
+      } else {
+        setElapsedTime(activeMatch.status === 'finalizado' ? 'Fim' : 'Pré-jogo');
+      }
+    };
+
+    updateTimer(); // Atualização imediata
+    
+    if (activeMatch?.status === 'ao_vivo' && activeMatch.is_timer_running) {
+      interval = setInterval(updateTimer, 1000);
     }
-    return () => clearInterval(interval);
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, [activeMatch]);
 
   // Histórico H2H

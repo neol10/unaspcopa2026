@@ -1229,23 +1229,80 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [editEventMinute, setEditEventMinute] = useState<number>(0);
 
-  // --- Cronômetro ---
+  // --- Cronômetro Sincronizado (DB) ---
   const [seconds, setSeconds] = useState(0);
-  const [isActive, setIsActive] = useState(false);
+  const isActive = match.is_timer_running;
 
+  // Sincronizar segundos locais com o estado do banco
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
-    if (isActive) {
-      interval = setInterval(() => {
-        setSeconds(s => s + 1);
-      }, 1000);
-    } else {
-      if (interval) clearInterval(interval);
+    
+    const syncTime = () => {
+      if (match.is_timer_running && match.timer_started_at) {
+        const start = new Date(match.timer_started_at).getTime();
+        const now = Date.now();
+        const diff = Math.floor((now - start) / 1000);
+        setSeconds(match.timer_offset_seconds + diff);
+      } else {
+        setSeconds(match.timer_offset_seconds);
+      }
+    };
+
+    syncTime(); // Inicial
+
+    if (match.is_timer_running) {
+      interval = setInterval(syncTime, 1000);
     }
+
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isActive]);
+  }, [match.is_timer_running, match.timer_started_at, match.timer_offset_seconds]);
+
+  const handleStartTimer = async () => {
+    try {
+      const { error } = await supabase.from('matches').update({
+        is_timer_running: true,
+        timer_started_at: new Date().toISOString()
+      }).eq('id', match.id);
+      if (error) throw error;
+    } catch (err: unknown) {
+      toast.error('Erro ao iniciar cronômetro');
+    }
+  };
+
+  const handlePauseTimer = async () => {
+    try {
+      const start = match.timer_started_at ? new Date(match.timer_started_at).getTime() : Date.now();
+      const now = Date.now();
+      const diff = Math.floor((now - start) / 1000);
+      const newOffset = match.timer_offset_seconds + diff;
+
+      const { error } = await supabase.from('matches').update({
+        is_timer_running: false,
+        timer_started_at: null,
+        timer_offset_seconds: newOffset
+      }).eq('id', match.id);
+      if (error) throw error;
+    } catch (err: unknown) {
+      toast.error('Erro ao pausar cronômetro');
+    }
+  };
+
+  const handleResetTimer = async () => {
+    if (!confirm('Zerar o cronômetro?')) return;
+    try {
+      const { error } = await supabase.from('matches').update({
+        is_timer_running: false,
+        timer_started_at: null,
+        timer_offset_seconds: 0
+      }).eq('id', match.id);
+      if (error) throw error;
+      setSeconds(0);
+    } catch (err: unknown) {
+      toast.error('Erro ao zerar cronômetro');
+    }
+  };
 
   const formatTime = (s: number) => {
     const mins = Math.floor(s / 60);
@@ -1281,7 +1338,8 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
       if (e.ctrlKey && (e.code === 'Space' || e.key === ' ')) {
         e.preventDefault();
-        setIsActive(prev => !prev);
+        if (isActive) handlePauseTimer();
+        else handleStartTimer();
         return;
       }
 
@@ -1516,43 +1574,53 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
   return (
     <div className="live-event-panel-wrapper">
-      <div className="live-match-controls-top">
-        <div className="live-score-display">
-          <div className="team-score">
-            <span className="team-name">{match.teams_a?.name || 'Equipe A'}</span>
-            <div className="score-control">
-              <button className="btn-score-adjust" onClick={() => handleManualScore('a', -1)}>-</button>
-              <span className="score">{match.team_a_score}</span>
-              <button className="btn-score-adjust" onClick={() => handleManualScore('a', 1)}>+</button>
-            </div>
+      {/* Placar Profissional Centralizado */}
+      <div className="admin-scoreboard-pro glass">
+        <div className="sb-pro-main">
+          {/* Equipe A */}
+          <div className="sb-pro-team team-a">
+             <div className="sb-pro-score-box">
+                <button className="score-adjust-btn minus" onClick={() => handleManualScore('a', -1)}>-</button>
+                <div className="score-number-display">{match.team_a_score}</div>
+                <button className="score-adjust-btn plus" onClick={() => handleManualScore('a', 1)}>+</button>
+             </div>
+             <span className="sb-pro-team-name">{match.teams_a?.name || 'Equipe A'}</span>
           </div>
-          <span className="divider">×</span>
-          <div className="team-score">
-            <div className="score-control">
-              <button className="btn-score-adjust" onClick={() => handleManualScore('b', -1)}>-</button>
-              <span className="score">{match.team_b_score}</span>
-              <button className="btn-score-adjust" onClick={() => handleManualScore('b', 1)}>+</button>
-            </div>
-            <span className="team-name">{match.teams_b?.name || 'Equipe B'}</span>
+
+          {/* Centro: Cronômetro e VS */}
+          <div className="sb-pro-center">
+             <div className="sb-pro-timer-display glass">
+                <span className={isActive ? 'timer-running' : ''}>{formatTime(seconds)}</span>
+             </div>
+             <div className="sb-pro-timer-controls">
+                <button className={`timer-btn ${isActive ? 'pause' : 'start'}`} 
+                        onClick={() => isActive ? handlePauseTimer() : handleStartTimer()}>
+                  {isActive ? <Pause size={20} /> : <Play size={20} />}
+                  <span>{isActive ? 'PAUSAR' : 'INICIAR'}</span>
+                </button>
+                <button className="timer-btn reset" onClick={handleResetTimer}>
+                  <RotateCcw size={16} />
+                  <span>ZERAR</span>
+                </button>
+             </div>
           </div>
-        </div>
 
-
-        <div className="stopwatch-container">
-          <div className="stopwatch-display">{formatTime(seconds)}</div>
-          <div className="stopwatch-actions">
-            <button className={`btn-stopwatch ${isActive ? 'pause' : 'start'}`} onClick={() => setIsActive(!isActive)}>
-              {isActive ? <><Pause size={14} /> Pausar</> : <><Play size={14} /> Iniciar</>}
-            </button>
-            <button className="btn-stopwatch reset" onClick={() => { setIsActive(false); setSeconds(0); }}>
-              <RotateCcw size={14} /> Zerar
-            </button>
+          {/* Equipe B */}
+          <div className="sb-pro-team team-b">
+             <div className="sb-pro-score-box">
+                <button className="score-adjust-btn minus" onClick={() => handleManualScore('b', -1)}>-</button>
+                <div className="score-number-display">{match.team_b_score}</div>
+                <button className="score-adjust-btn plus" onClick={() => handleManualScore('b', 1)}>+</button>
+             </div>
+             <span className="sb-pro-team-name">{match.teams_b?.name || 'Equipe B'}</span>
           </div>
         </div>
         
-        <button className="btn-undo-last" onClick={undoLastEvent} disabled={events.length === 0}>
-          <RotateCcw size={14} /> DESFAZER ÚLTIMO
-        </button>
+        <div className="sb-pro-footer">
+           <button className="btn-undo-last-pro" onClick={undoLastEvent} disabled={events.length === 0}>
+             <RotateCcw size={14} /> DESFAZER ÚLTIMA AÇÃO
+           </button>
+        </div>
       </div>
 
 

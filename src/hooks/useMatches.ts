@@ -14,6 +14,9 @@ export interface Match {
   round: number;
   match_mvp_player_id?: string | null;
   match_mvp_description?: string | null;
+  timer_started_at?: string | null;
+  timer_offset_seconds: number;
+  is_timer_running: boolean;
   teams_a?: { name: string; badge_url: string };
   teams_b?: { name: string; badge_url: string };
 }
@@ -70,6 +73,9 @@ export const useMatches = (limit?: number) => {
           round,
           match_mvp_player_id,
           match_mvp_description,
+          timer_started_at,
+          timer_offset_seconds,
+          is_timer_running,
           teams_a:team_a_id(name, badge_url),
           teams_b:team_b_id(name, badge_url)
         `)
