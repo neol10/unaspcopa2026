@@ -218,18 +218,29 @@ const MatchCenter: React.FC = () => {
   
   if (!activeMatch) return <div className="empty-state glass">Nenhuma partida programada.</div>;
 
-  // Filtra as partidas para o seletor:
-  // Mostra apenas partidas da mesma rodada e data da partida ativa.
+  // Seletor de partidas:
+  // Para a rodada corrente, mostra unicamente a partida ativa e a próxima agendada da mesma rodada.
   const selectorMatches = useMemo(() => {
     if (!activeMatch) return matches;
     
-    const filtered = matches.filter(m => 
-      m.round === activeMatch.round && m.date === activeMatch.date
+    // Pega todas as partidas da mesma rodada, ordenadas por data/horário
+    const roundMatches = matches
+      .filter(m => m.round === activeMatch.round)
+      .sort((a, b) => {
+        const dateA = a.match_date || a.date || '';
+        const dateB = b.match_date || b.date || '';
+        return dateA.localeCompare(dateB);
+      });
+
+    // Encontra a próxima partida agendada da rodada após a ativa
+    const nextScheduled = roundMatches.find(
+      m => m.id !== activeMatch.id && (m.status === 'agendado' || m.status === 'ao_vivo')
     );
 
-    // Se por acaso a filtragem retornar só o próprio jogo ou ficar muito vazio, 
-    // caímos graciosamente para mostrar todos ou os mais recentes, mas a princípio, isso limpa a lista.
-    return filtered.length > 0 ? filtered : matches;
+    // Retorna: partida ativa + próxima (se houver)
+    const result = [activeMatch];
+    if (nextScheduled) result.push(nextScheduled);
+    return result;
   }, [matches, activeMatch]);
 
   return (
