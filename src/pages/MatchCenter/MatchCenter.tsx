@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMatches } from '../../hooks/useMatches';
 import { useMatchEvents, type MatchEvent } from '../../hooks/useMatchEvents';
 import { usePlayers } from '../../hooks/usePlayers';
@@ -17,8 +18,16 @@ import './MatchCenter.css';
 
 const MatchCenter: React.FC = () => {
   const { matches, loading: matchesLoading, error: matchesError } = useMatches();
+  const [searchParams] = useSearchParams();
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [showGoalOverlay, setShowGoalOverlay] = useState<{ team: string, player: string } | null>(null);
+
+  useEffect(() => {
+    const matchIdFromUrl = searchParams.get('id');
+    if (matchIdFromUrl && !selectedMatchId) {
+      setSelectedMatchId(matchIdFromUrl);
+    }
+  }, [searchParams, selectedMatchId]);
   
   const activeMatch = selectedMatchId 
     ? matches.find(m => m.id === selectedMatchId) 

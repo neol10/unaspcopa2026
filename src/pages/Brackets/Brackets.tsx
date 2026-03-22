@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMatches, Match } from '../../hooks/useMatches';
 import { Trophy, Timer, ChevronRight, ChevronLeft } from 'lucide-react';
 import './Brackets.css';
 
 const Brackets: React.FC = () => {
   const { matches, loading, error, refresh } = useMatches();
+  const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [stuck, setStuck] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -134,7 +136,10 @@ const Brackets: React.FC = () => {
 
     return (
       <div className={`bracket-match ${isKnockout ? 'knockout-item' : ''}`}>
-        <div className="match-box glass">
+        <div 
+          className="match-box glass clickable-match"
+          onClick={() => navigate(`/central-da-partida?id=${match.id}`)}
+        >
           <div className="match-time-tiny">
             {new Date(match.match_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} • {new Date(match.match_date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
           </div>
