@@ -1611,6 +1611,18 @@
   cursor: default;
 }
 
+/* --- Layout Grid Stacking (New Breakpoint) --- */
+@media (max-width: 960px) {
+  .match-layout {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  
+  .match-side {
+    order: 2;
+  }
+}
+
 /* ============================================================ */
 /* RESPONSIVIDADE PWA (CENTRAL DA PARTIDA)                     */
 /* ============================================================ */
@@ -1618,153 +1630,211 @@
 @media (max-width: 768px) {
   .match-center {
     gap: 1.5rem;
+    padding-bottom: 2rem;
   }
 
   .match-selector-bar {
-    padding: 1rem;
-    margin: 0 -0.5rem;
-    border-radius: 0;
+    padding: 1rem 1.25rem;
+    border-radius: 12px;
+    margin: 0;
   }
 
   .selector-list {
     gap: 0.5rem;
+    padding-top: 0.75rem;
   }
 
   .match-pill {
     padding: 0.5rem 1rem;
-    font-size: 0.75rem;
+    font-size: 0.8rem;
   }
 
   .live-scoreboard {
-    padding: 1.5rem 1rem;
+    padding: 2rem 1.5rem;
     gap: 2rem;
   }
 
   .sb-shield {
-    width: 80px;
-    height: 80px;
-    border-radius: 20px;
+    width: 90px;
+    height: 90px;
+    border-radius: 22px;
   }
 
   .sb-team h3 {
-    font-size: 1.1rem;
+    font-size: 1.25rem;
+    margin-top: 0.5rem;
   }
 
   .score-numbers .num {
-    font-size: 4rem;
+    font-size: 4.5rem;
   }
 
   .score-numbers .vs {
-    font-size: 1.2rem;
+    font-size: 1.5rem;
   }
 
   .sb-timer {
-    font-size: 0.8rem;
-    padding: 0.4rem 1rem;
+    font-size: 0.85rem;
+    padding: 0.5rem 1.2rem;
   }
 }
 
 @media (max-width: 480px) {
   .match-center {
-    padding: 0 0.75rem;
+    padding: 0 0.5rem;
+    gap: 1.25rem;
   }
 
   .live-scoreboard {
-    padding: 1.25rem 0.75rem;
-    border-radius: 20px;
+    padding: 1.5rem 1rem;
+    border-radius: var(--radius-lg);
+    gap: 1.5rem;
+  }
+
+  .scoreboard-top {
+    margin-bottom: -0.5rem;
+  }
+
+  .location {
+    font-size: 0.7rem;
   }
 
   .scoreboard-main {
     flex-direction: row;
     justify-content: space-between;
-    gap: 0.25rem;
+    align-items: center;
+    gap: 0.5rem;
   }
 
   .sb-team {
-    gap: 0.75rem;
+    gap: 0.5rem;
   }
 
   .sb-shield {
     width: 65px;
     height: 65px;
-    border-radius: 16px;
+    border-radius: 18px;
   }
 
   .sb-team h3 {
-    font-size: 0.95rem;
-    letter-spacing: -0.5px;
-    max-width: 90px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    font-size: 0.9rem;
+    letter-spacing: -0.3px;
+    max-width: 85px;
   }
 
   .score-numbers {
-    gap: 0.75rem;
+    gap: 0.5rem;
   }
 
   .score-numbers .num {
-    font-size: 3.2rem;
+    font-size: 3rem;
   }
 
   .sb-timer {
     font-size: 0.75rem;
     padding: 0.35rem 0.75rem;
-    margin-top: 0.5rem;
+    margin-top: 0.25rem;
+  }
+  
+  .sb-timer.active {
+    padding: 0.4rem 0.8rem;
   }
 
-  /* Timeline adjustments */
+  /* Timeline improvements */
+  .match-timeline-v2 {
+    padding: 1.25rem 1rem;
+  }
+
   .timeline-v2-list::before {
-    left: 45px;
+    left: 42px;
   }
 
   .t-event {
-    gap: 1rem;
+    gap: 0.75rem;
   }
 
   .t-time {
-    width: 35px;
-    font-size: 0.8rem;
+    width: 30px;
+    font-size: 0.75rem;
   }
 
   .t-icon-box {
-    width: 30px;
-    height: 30px;
+    width: 28px;
+    height: 28px;
   }
 
   .t-content {
-    padding: 0.75rem 1rem;
+    padding: 0.6rem 0.85rem;
+    border-radius: 12px;
   }
 
   .t-content p {
     font-size: 0.85rem;
+    line-height: 1.35;
   }
 
-  /* Fan Zone */
-  .fan-zone {
-    height: 350px;
-    padding: 1rem;
+  /* Widgets and Polls */
+  .poll-titles h3 {
+    font-size: 1rem;
+  }
+  
+  .w-opt-v2 {
+    padding: 0.85rem;
+  }
+  
+  .w-name {
+    font-size: 0.85rem;
   }
 
-  /* Stats cards */
-  .val-a, .val-b {
-    font-size: 1.8rem;
+  .btn-share-result {
+    width: 100%;
+    justify-content: center;
+    padding: 0.75rem;
+    font-size: 0.85rem;
   }
 }
 
 @media (max-width: 360px) {
+  .match-center {
+    padding: 0 0.25rem;
+    gap: 1rem;
+  }
+
+  .live-scoreboard {
+    padding: 1.25rem 0.6rem;
+    gap: 1.25rem;
+  }
+
   .sb-shield {
     width: 55px;
     height: 55px;
+    border-radius: 14px;
   }
 
   .score-numbers .num {
-    font-size: 2.8rem;
+    font-size: 2.6rem;
   }
 
   .sb-team h3 {
-    font-size: 0.85rem;
-    max-width: 75px;
+    font-size: 0.8rem;
+    max-width: 70px;
+  }
+
+  .sb-timer {
+    font-size: 0.7rem;
+    padding: 0.35rem 0.6rem;
+  }
+
+  .t-content {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .t-content p {
+    font-size: 0.8rem;
+  }
+
+  .selector-header-row {
+    margin-bottom: -0.25rem;
   }
 
   .live-status-badge span {
@@ -1772,10 +1842,6 @@
   }
 
   .live-status-badge {
-    padding: 0.25rem 0.4rem;
-  }
-  
-  .match-selector-bar {
-    padding: 0.75rem 0.5rem;
+    padding: 0.2rem 0.4rem;
   }
 }
