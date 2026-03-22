@@ -659,6 +659,7 @@ const MatchCenter: React.FC = () => {
                   </form>
                 ) : (
                   <div className="login-to-comment">
+                    <span style={{ fontSize: '1.1rem' }}>🔒</span>
                     <p>Faça login para participar dos comentários ao vivo!</p>
                   </div>
                 )}

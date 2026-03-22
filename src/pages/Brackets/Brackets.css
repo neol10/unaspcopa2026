@@ -308,7 +308,8 @@
 .group-rounds {
   display: flex;
   gap: 3rem;
-  overflow-x: visible;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Responsive adjustments for Tree */
@@ -387,3 +388,24 @@
     font-size: 0.75rem;
   }
 }
+
+@media (max-width: 640px) {
+  .brackets-page {
+    padding: 1.5rem 0.85rem;
+    gap: 1.25rem;
+  }
+
+  .brackets-header h1 {
+    font-size: 1.65rem;
+    letter-spacing: -0.5px;
+  }
+
+  .brackets-header p {
+    font-size: 0.85rem;
+  }
+
+  .brackets-scroll-container {
+    padding: 1rem 0;
+  }
+}
+

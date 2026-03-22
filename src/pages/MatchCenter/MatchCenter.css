@@ -1313,12 +1313,18 @@
 }
 
 .login-to-comment {
-  text-align: center;
-  padding: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
 }
 
 .login-to-comment p {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: var(--text-dim);
   font-style: italic;
   margin: 0;
