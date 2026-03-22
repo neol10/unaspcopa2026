@@ -42,24 +42,31 @@ self.addEventListener('push', (event) => {
     actions: [{ action: 'open', title: 'Ver Agora 🏆' }],
   };
 
-  // Envia mensagem para abas abertas (foreground notification)
+  // Envia mensagem para abas abertas e decide se mostra notificação nativa
   event.waitUntil(
-    Promise.all([
-      self.registration.showNotification(data.title, options),
-      self.clients.matchAll({ type: 'window' }).then((clients) => {
-        for (const client of clients) {
-          client.postMessage({
-            type: 'PUSH_NOTIFICATION',
-            payload: {
-              title: data.title,
-              body: data.body,
-              url: data.url || '/',
-              icon: data.icon
-            }
-          });
-        }
-      })
-    ])
+    self.clients.matchAll({ type: 'window' }).then((clients) => {
+      const isFocused = clients.some(c => c.focused);
+      
+      // Notifica as abas para mostrarem o Toast (independente de estar focada ou não)
+      for (const client of clients) {
+        client.postMessage({
+          type: 'PUSH_NOTIFICATION',
+          payload: {
+            title: data.title,
+            body: data.body,
+            url: data.url || '/',
+            icon: data.icon,
+            category: (data as any).category
+          }
+        });
+      }
+
+      // Só mostra a notificação nativa do sistema se NÃO houver nenhuma aba focada.
+      // Isso evita o "duplo aviso" (Banner do Windows + Toast do React) relatado pelo usuário.
+      if (!isFocused) {
+        return self.registration.showNotification(data.title, options);
+      }
+    })
   );
 });
 
