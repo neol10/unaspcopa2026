@@ -358,7 +358,8 @@ const Home: React.FC = () => {
             <div className="next-match-info">
               <div className="countdown-label">
                 <Timer size={16} className="animate-pulse" />
-                PRÓXIMO GRANDE JOGO
+                PRÓXIMO GRANDE JOGO <span className="dot">•</span>
+                <span style={{color: 'white', letterSpacing: '1px'}}>{nextMatch.round === 1 ? 'ESTREIA' : `${nextMatch.round}ª RODADA`}</span>
               </div>
               <div className="next-match-teams">
                 <div className="mini-team">
