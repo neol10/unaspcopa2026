@@ -45,9 +45,30 @@ const Brackets = React.lazy(() => import('./pages/Brackets/Brackets'));
 const Admin = React.lazy(() => import('./pages/Admin/Admin'));
 
 const PageLoader = () => (
-  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', flexDirection: 'column', gap: '1rem' }}>
-    <div className="spinner" style={{ width: 40, height: 40, border: '3px solid rgba(255,215,0,0.2)', borderTop: '3px solid #FFD700', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-    <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>Carregando...</p>
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', flexDirection: 'column', gap: '1.5rem' }}>
+    <motion.div
+      animate={{ 
+        scale: [1, 1.05, 1],
+        opacity: [0.7, 1, 0.7],
+        textShadow: [
+          '0 0 0px var(--secondary)',
+          '0 0 15px var(--secondary)',
+          '0 0 0px var(--secondary)'
+        ]
+      }}
+      transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+      style={{
+        display: 'inline-block',
+        color: 'white',
+        textAlign: 'center'
+      }}
+    >
+      <h2 style={{ fontSize: '2rem', fontWeight: 900, margin: 0, letterSpacing: '2px', lineHeight: 1.1, textTransform: 'uppercase' }}>
+        UNASP <br />
+        <span style={{ color: 'var(--secondary)', WebkitTextFillColor: 'var(--secondary)' }}>COPA</span>
+      </h2>
+    </motion.div>
+    <p style={{ color: 'var(--text-dim)', fontSize: '0.8rem', letterSpacing: '1px', textTransform: 'uppercase' }}>Carregando...</p>
   </div>
 );
 

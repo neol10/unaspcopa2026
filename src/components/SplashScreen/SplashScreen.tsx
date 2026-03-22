@@ -1,6 +1,5 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import logo from '../../assets/unasp_logo.png';
 
 const SplashScreen: React.FC = () => {
   return (
@@ -12,22 +11,23 @@ const SplashScreen: React.FC = () => {
         transition={{ duration: 0.5, ease: "easeOut" }}
       >
         <motion.div 
-          className="logo-wrapper"
+          className="text-pulse-wrapper"
           animate={{ 
-            y: [0, -10, 0],
             scale: [1, 1.05, 1],
-            filter: [
-              'drop-shadow(0 0 0px var(--secondary))',
-              'drop-shadow(0 0 20px var(--secondary))',
-              'drop-shadow(0 0 0px var(--secondary))'
+            textShadow: [
+              '0 0 0px var(--secondary)',
+              '0 0 20px var(--secondary)',
+              '0 0 0px var(--secondary)'
             ]
           }}
           transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
         >
-          <img src={logo} alt="Copa UNASP 2026" className="splash-logo" />
+          <h1 className="splash-title">
+            UNASP <br />
+            <span className="gold">COPA</span>
+          </h1>
         </motion.div>
         <div className="splash-text">
-          <h1 className="text-gradient">COPA <span className="gold">2026</span></h1>
           <div className="loading-bar-container">
             <motion.div 
               className="loading-bar"
@@ -63,17 +63,18 @@ const SplashScreen: React.FC = () => {
           gap: 2rem;
         }
 
-        .splash-logo {
-          width: 100px;
-          height: 100px;
-          object-fit: contain;
+        .text-pulse-wrapper {
+          display: inline-block;
+          color: white;
         }
 
-        .splash-text h1 {
-          font-size: 2.5rem;
+        .splash-title {
+          font-size: 3.5rem;
           font-weight: 900;
           margin: 0;
           letter-spacing: 4px;
+          line-height: 1.1;
+          text-transform: uppercase;
         }
 
         .gold {

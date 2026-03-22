@@ -220,16 +220,16 @@ const MatchCenter: React.FC = () => {
   // Filtra as partidas para o seletor:
   // Mostra apenas partidas da mesma rodada e data da partida ativa.
   const selectorMatches = useMemo(() => {
-    if (!activeMatch) return sortedMatches;
+    if (!activeMatch) return matches;
     
-    const filtered = sortedMatches.filter(m => 
+    const filtered = matches.filter(m => 
       m.round === activeMatch.round && m.date === activeMatch.date
     );
 
     // Se por acaso a filtragem retornar só o próprio jogo ou ficar muito vazio, 
     // caímos graciosamente para mostrar todos ou os mais recentes, mas a princípio, isso limpa a lista.
-    return filtered.length > 0 ? filtered : sortedMatches;
-  }, [sortedMatches, activeMatch]);
+    return filtered.length > 0 ? filtered : matches;
+  }, [matches, activeMatch]);
 
   return (
     <div className="match-center responsive-container animate-fade-in">
