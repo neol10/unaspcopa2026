@@ -34,6 +34,7 @@ const MatchCenter: React.FC = () => {
     : matches.find(m => m.status === 'ao_vivo') || matches[0];
 
   const activeMatchRoundText = activeMatch ? String(activeMatch.round ?? '').toLowerCase() : '';
+  const liveMatchId = matches.find(m => m.status === 'ao_vivo')?.id;
 
   const [elapsedTime, setElapsedTime] = useState('00:00');
 
