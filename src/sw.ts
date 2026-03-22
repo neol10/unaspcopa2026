@@ -27,13 +27,28 @@ self.addEventListener('push', (event) => {
     }
   }
 
-  const options: any = {
+  const pushMeta = data as {
+    tag?: string;
+    category?: string;
+    sentAt?: string;
+    url?: string;
+    icon?: string;
+    body?: string;
+    title?: string;
+  };
+
+  const computedTag =
+    pushMeta.tag ||
+    `copa-unasp-${pushMeta.category || 'general'}-${pushMeta.sentAt || Date.now().toString()}`;
+
+  const options: NotificationOptions = {
     body: data.body,
     icon: data.icon || '/icons.svg',
     badge: '/favicon.svg',
     vibrate: [300, 100, 400],
-    tag: (data as any).tag || 'copa-unasp-alert',
-    renotify: true,
+    // Evita colapsar várias notificações no Android usando uma tag fixa.
+    tag: computedTag,
+    renotify: false,
     requireInteraction: false,
     silent: false,
     data: {
@@ -59,7 +74,7 @@ self.addEventListener('push', (event) => {
               body: data.body,
               url: data.url || '/',
               icon: data.icon,
-              category: (data as any).category
+              category: pushMeta.category
             }
           });
         }
@@ -68,10 +83,40 @@ self.addEventListener('push', (event) => {
   );
 });
 
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil((async () => {
+    try {
+      let subscription = event.newSubscription;
+
+      if (!subscription) {
+        const oldKey = event.oldSubscription?.options?.applicationServerKey;
+        if (!oldKey) return;
+
+        subscription = await self.registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: oldKey,
+        });
+      }
+
+      await fetch('/api/push-subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: null,
+          subscription: subscription.toJSON(),
+        }),
+      });
+    } catch {
+      // Sem impacto crítico: a inscrição também é revalidada quando o app abre.
+    }
+  })());
+});
+
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const urlToOpen = new URL((event.notification.data as any).url || '/', self.location.origin).href;
+  const notificationData = (event.notification.data || {}) as { url?: string };
+  const urlToOpen = new URL(notificationData.url || '/', self.location.origin).href;
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
@@ -81,7 +126,7 @@ self.addEventListener('notificationclick', (event) => {
         }
       }
       if (clientList.length > 0 && 'navigate' in clientList[0]) {
-        return clientList[0].navigate(urlToOpen).then((client: any) => client?.focus());
+        return clientList[0].navigate(urlToOpen).then((client) => client?.focus());
       }
       if (self.clients.openWindow) {
         return self.clients.openWindow(urlToOpen);
@@ -116,7 +161,7 @@ registerRoute(
   ({ request }) => request.mode === 'navigate',
   async ({ event }) => {
     try {
-      return await fetch((event as any).request);
+      return await fetch(event.request);
     } catch {
       // Offline (ou rede instável): devolve o app shell do precache.
       const cached = await caches.match('/index.html', { ignoreSearch: true });

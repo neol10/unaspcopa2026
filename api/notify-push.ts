@@ -388,7 +388,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const results = await Promise.all(
       eligibleSubscriptions.map(async (row) => {
         try {
-          await webpush.sendNotification(row.subscription, payload);
+          await webpush.sendNotification(row.subscription, payload, {
+            TTL: 60 * 60 * 12,
+            urgency: 'high',
+          });
           return { success: true };
         } catch (err: unknown) {
           const { statusCode, message } = getErrorInfo(err);
