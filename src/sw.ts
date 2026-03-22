@@ -34,7 +34,7 @@ self.addEventListener('push', (event) => {
     vibrate: [300, 100, 400],
     tag: (data as any).tag || 'copa-unasp-alert',
     renotify: true,
-    requireInteraction: true,
+    requireInteraction: false,
     silent: false,
     data: {
       url: data.url || '/',
@@ -42,33 +42,32 @@ self.addEventListener('push', (event) => {
     actions: [{ action: 'open', title: 'Ver Agora 🏆' }],
   };
 
-  // Envia mensagem para abas abertas e decide se mostra notificação nativa
+  // Sempre mostra a notificação nativa do sistema (garante entrega no Android)
+  // E também envia mensagem para abas abertas mostrarem o Toast interno
   event.waitUntil(
-    self.clients.matchAll({ type: 'window' }).then((clients) => {
-      const isFocused = clients.some(c => c.focused);
-      
-      // Notifica as abas para mostrarem o Toast (independente de estar focada ou não)
-      for (const client of clients) {
-        client.postMessage({
-          type: 'PUSH_NOTIFICATION',
-          payload: {
-            title: data.title,
-            body: data.body,
-            url: data.url || '/',
-            icon: data.icon,
-            category: (data as any).category
-          }
-        });
-      }
+    Promise.all([
+      // 1. Sempre exibe notificação nativa — confiável em background/Android
+      self.registration.showNotification(data.title, options),
 
-      // Só mostra a notificação nativa do sistema se NÃO houver nenhuma aba focada.
-      // Isso evita o "duplo aviso" (Banner do Windows + Toast do React) relatado pelo usuário.
-      if (!isFocused) {
-        return self.registration.showNotification(data.title, options);
-      }
-    })
+      // 2. Notifica abas abertas para mostrarem o Toast do React
+      self.clients.matchAll({ type: 'window' }).then((clients) => {
+        for (const client of clients) {
+          client.postMessage({
+            type: 'PUSH_NOTIFICATION',
+            payload: {
+              title: data.title,
+              body: data.body,
+              url: data.url || '/',
+              icon: data.icon,
+              category: (data as any).category
+            }
+          });
+        }
+      })
+    ])
   );
 });
+
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
