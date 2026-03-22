@@ -1677,7 +1677,7 @@
   .scoreboard-main {
     flex-direction: row;
     justify-content: space-between;
-    gap: 0.5rem;
+    gap: 0.25rem;
   }
 
   .sb-team {
@@ -1693,6 +1693,10 @@
   .sb-team h3 {
     font-size: 0.95rem;
     letter-spacing: -0.5px;
+    max-width: 90px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .score-numbers {
@@ -1760,6 +1764,15 @@
 
   .sb-team h3 {
     font-size: 0.85rem;
+    max-width: 75px;
+  }
+
+  .live-status-badge span {
+    font-size: 0.55rem;
+  }
+
+  .live-status-badge {
+    padding: 0.25rem 0.4rem;
   }
   
   .match-selector-bar {

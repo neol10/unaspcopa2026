@@ -188,6 +188,15 @@
   box-shadow: 0 20px 40px -20px rgba(0, 0, 0, 0.5);
 }
 
+@media (max-width: 768px) {
+  .admin-main-header {
+    padding: 1.5rem 1.25rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1.5rem;
+  }
+}
+
 .admin-brand {
   display: flex;
   align-items: center;
@@ -310,6 +319,26 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
+@media (max-width: 768px) {
+  .section-header {
+    padding: 1rem 1.25rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .section-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .header-title-box {
+    justify-content: space-between;
+    width: 100%;
+  }
+}
+
 .section-header h2 {
   font-size: 1.5rem;
   font-weight: 850;
@@ -374,6 +403,12 @@
   display: grid;
   grid-template-columns: 1fr;
   gap: 1.25rem;
+}
+
+@media (max-width: 768px) {
+  .admin-list {
+    padding: 1.25rem;
+  }
 }
 
 .admin-list-sections {
@@ -545,10 +580,24 @@
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
 }
 
+@media (max-width: 768px) {
+  .admin-form {
+    padding: 1.5rem 1.25rem;
+    gap: 1.5rem;
+  }
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 1.5rem;
+}
+
+@media (max-width: 600px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
 }
 
 .form-group {
@@ -2562,25 +2611,38 @@
   .admin-list,
   .admin-form,
   .client-errors-body {
-    padding-left: 0.7rem;
-    padding-right: 0.7rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .admin-form {
+    padding: 1rem 0.75rem;
   }
 
   .section-header h2 {
-    font-size: 1.05rem;
+    font-size: 0.95rem;
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .btn-add,
   .btn-save,
   .btn-cancel {
-    padding: 0.62rem 0.78rem;
-    font-size: 0.72rem;
-    letter-spacing: 0.4px;
+    padding: 0.5rem 0.7rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.3px;
   }
 
   .admin-list-item {
-    padding: 0.65rem;
+    padding: 0.8rem 0.6rem;
     border-radius: 12px;
+    gap: 0.75rem;
+  }
+
+  .item-info strong {
+    font-size: 0.9rem;
   }
 
   .player-search-row {
@@ -2591,6 +2653,15 @@
   .item-stats-mini {
     gap: 0.65rem;
     font-size: 0.74rem;
+  }
+
+  .group-badge-admin {
+    font-size: 0.65rem;
+    padding: 0.15rem 0.4rem;
+  }
+
+  .leader-info {
+    font-size: 0.65rem;
   }
 }
 
