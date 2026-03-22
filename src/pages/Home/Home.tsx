@@ -12,7 +12,7 @@ import type { Match } from '../../hooks/useMatches';
 import { useTournamentConfig } from '../../hooks/useTournamentConfig';
 import { Star, Goal, Handshake } from 'lucide-react';
 import { useRankings } from '../../hooks/useRankings';
-
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const Home: React.FC = () => {
@@ -22,7 +22,7 @@ const Home: React.FC = () => {
   const { matches } = useMatches();
   const navigate = useNavigate();
   const { activePoll, loading: pollLoading, error: pollError, hasVoted, submitVote, refresh: refreshPoll } = usePolls();
-  const { scorers, assistants, galeraRank, loading: rankingsLoading } = useRankings();
+  const { scorers, assistants, galeraRank, loading: rankingsLoading, refresh: refreshRankings } = useRankings();
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [selectedNews, setSelectedNews] = useState<News | null>(null);
   
@@ -137,8 +137,32 @@ const Home: React.FC = () => {
     return news.map(item => item.title).filter(Boolean).slice(0, 6);
   }, [news]);
 
+  const { containerRef, isPulling, pullDistance, isRefreshing } = usePullToRefresh({
+    onRefresh: async () => {
+      await Promise.all([
+        refreshNews(),
+        refreshPoll(),
+        refreshRankings(),
+      ]);
+    }
+  });
+
   return (
-    <div className="home-page-v2 animate-fade-in">
+    <div className="home-page-v2 animate-fade-in" ref={containerRef} style={{ overflowY: 'auto', height: '100%' }}>
+      {/* Pull To Refresh Indicator */}
+      {(isPulling || isRefreshing) && (
+        <div className="pull-to-refresh-indicator" style={{ height: `${Math.max(40, pullDistance)}px` }}>
+          {isRefreshing ? (
+            <>
+              <div className="pull-spinner"></div>
+              <span>Atualizando...</span>
+            </>
+          ) : (
+             <span>{pullDistance > 60 ? 'Solte para atualizar' : 'Puxe para atualizar'}</span>
+          )}
+        </div>
+      )}
+
       {/* Widget Ao Vivo Flutuante - Premium */}
       <AnimatePresence>
         {liveMatch && (

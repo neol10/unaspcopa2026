@@ -13,6 +13,7 @@ import type { Poll, PollOption } from '../../hooks/usePolls';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { withTimeout } from '../../lib/withTimeout';
 import { toast } from 'react-hot-toast';
+import { useConfirm } from '../../hooks/useConfirm';
 import './Admin.css';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -172,6 +173,7 @@ const getErrorMessage = (err: unknown, fallback: string = 'Ocorreu um erro') => 
 const Admin: React.FC = () => {
   const { user, role, loading: authLoading } = useAuthContext();
   const [activeTab, setActiveTab] = useState<'matches' | 'teams' | 'players' | 'news' | 'tournament' | 'polls' | 'notifications' | 'errors'>('matches');
+  const { confirm: confirmAction, ConfirmElement } = useConfirm();
   
   if (authLoading) return <div className="admin-loading-state glass"><div className="spinner"></div><p>Verificando credenciais...</p></div>;
 
@@ -882,7 +884,11 @@ const MatchManagement = () => {
   };
 
   const handleDeleteMatch = async (id: string) => {
-    if (!confirm('ATENÇÃO: Apagar esta partida removerá permanentemente todos os eventos e REVERTERÁ as estatísticas dos jogadores (gols, cartões e assistências). Deseja continuar?')) return;
+    if (!(await confirmAction({
+      title: 'Excluir Partida',
+      description: 'ATENÇÃO: Apagar esta partida removerá permanentemente todos os eventos e REVERTERÁ as estatísticas dos jogadores (gols, cartões e assistências). Deseja continuar?',
+      variant: 'danger'
+    }))) return;
     
     const loadingToast = toast.loading('Calculando reversão de estatísticas e excluindo...');
     try {
@@ -1391,7 +1397,11 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   };
 
   const handleIntervalo = async () => {
-    if (!confirm('Iniciar INTERVALO? O tempo será pausado e registrado.')) return;
+    if (!(await confirmAction({
+      title: 'Iniciar Intervalo',
+      description: 'O tempo será pausado e o intervalo será registrado. Deseja iniciar o intervalo?',
+      variant: 'warning'
+    }))) return;
     try {
       const start = match.timer_started_at ? new Date(match.timer_started_at).getTime() : Date.now();
       const now = Date.now();
@@ -3277,7 +3287,11 @@ const PollManagement = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Excluir enquete?')) return;
+    if (!(await confirmAction({
+      title: 'Excluir Enquete',
+      description: 'Tem certeza que deseja excluir esta enquete permanentemente?',
+      variant: 'danger'
+    }))) return;
     try {
       const { error } = await supabase.from('polls').delete().eq('id', id);
       if (error) throw error;
@@ -3673,7 +3687,11 @@ const GlobalPlayerManagement = () => {
   };
 
   const handleDeletePlayer = async (playerId: string) => {
-    if (!confirm('Excluir atleta?')) return;
+    if (!(await confirmAction({
+      title: 'Excluir Atleta',
+      description: 'Tem certeza que deseja excluir este atleta permanentemente?',
+      variant: 'danger'
+    }))) return;
     const loadingToast = toast.loading('Excluindo atleta...');
     try {
       const playerToDelete = allPlayers.find((player) => player.id === playerId);
@@ -3949,6 +3967,8 @@ const GlobalPlayerManagement = () => {
         </div>,
         document.body
       )}
+
+      {ConfirmElement}
     </div>
   );
 };

@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import './Standings.css';
 import { Shield, Info, LayoutGrid, List, Trophy } from 'lucide-react';
 import { useStandings } from '../../hooks/useStandings';
-import Skeleton from '../../components/Skeleton/Skeleton';
+import Skeleton, { SkeletonStandingsRow } from '../../components/Skeleton/Skeleton';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 
 const Standings: React.FC = () => {
   const { standings, loading, error, refresh, paused } = useStandings();
@@ -39,8 +40,14 @@ const Standings: React.FC = () => {
     );
   }
 
+  const { containerRef, isPulling, pullDistance, isRefreshing } = usePullToRefresh({
+    onRefresh: async () => {
+      await refresh();
+    }
+  });
+
   if (loading && standings.length === 0) return (
-    <div className="standings-container animate-fade-in">
+    <div className="standings-container animate-fade-in" style={{ overflowY: 'auto', height: '100%' }}>
       <header className="standings-header">
         <div className="header-info">
           <Skeleton width="200px" height="40px" className="mb-2" />
@@ -49,8 +56,8 @@ const Standings: React.FC = () => {
       </header>
       <div className="group-section">
         <Skeleton width="150px" height="24px" className="mb-4" />
-        <div className="table-container glass">
-          <Skeleton width="100%" height="300px" />
+        <div className="table-container glass" style={{ display: 'flex', flexDirection: 'column' }}>
+          {[1, 2, 3, 4, 5].map(i => <SkeletonStandingsRow key={i} />)}
         </div>
       </div>
     </div>
@@ -91,7 +98,21 @@ const Standings: React.FC = () => {
   };
 
   return (
-    <div className="standings-container animate-fade-in">
+    <div className="standings-container animate-fade-in" ref={containerRef} style={{ overflowY: 'auto', height: '100%' }}>
+      {/* Pull To Refresh Indicator */}
+      {(isPulling || isRefreshing) && (
+        <div className="pull-to-refresh-indicator" style={{ height: `${Math.max(40, pullDistance)}px` }}>
+          {isRefreshing ? (
+            <>
+              <div className="pull-spinner"></div>
+              <span>Atualizando...</span>
+            </>
+          ) : (
+             <span>{pullDistance > 60 ? 'Solte para atualizar' : 'Puxe para atualizar'}</span>
+          )}
+        </div>
+      )}
+
       <header className="standings-header">
         <div className="header-info">
           <h1 className="text-gradient">Classificação</h1>

@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import ShareCard, { useShareCard } from '../../components/ShareCard/ShareCard';
 import { useMatchWinnerVoting } from '../../hooks/useMatchWinnerVoting';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import './MatchCenter.css';
 
 const MatchCenter: React.FC = () => {
@@ -191,8 +192,18 @@ const MatchCenter: React.FC = () => {
     }
   };
 
-    if (matchesLoading && matches.length === 0) return (
-    <div className="match-center animate-fade-in" style={{ padding: '2rem' }}>
+  const { containerRef, isPulling, pullDistance, isRefreshing } = usePullToRefresh({
+    onRefresh: async () => {
+      await Promise.all([
+        refreshMatches(),
+        refreshEvents(),
+        refreshRoundMvp()
+      ]);
+    }
+  });
+
+  if (matchesLoading && matches.length === 0) return (
+    <div className="match-center animate-fade-in" style={{ padding: '2rem', overflowY: 'auto', height: '100%' }}>
        <Skeleton width="100%" height="80px" borderRadius="16px" className="mb-4" />
        <div className="match-layout">
           <div className="match-primary">
@@ -244,7 +255,21 @@ const MatchCenter: React.FC = () => {
   }, [matches, activeMatch]);
 
   return (
-    <div className="match-center responsive-container animate-fade-in">
+    <div className="match-center responsive-container animate-fade-in" ref={containerRef} style={{ overflowY: 'auto', height: '100%' }}>
+      {/* Pull To Refresh Indicator */}
+      {(isPulling || isRefreshing) && (
+        <div className="pull-to-refresh-indicator" style={{ height: `${Math.max(40, pullDistance)}px` }}>
+          {isRefreshing ? (
+            <>
+              <div className="pull-spinner"></div>
+              <span>Atualizando...</span>
+            </>
+          ) : (
+             <span>{pullDistance > 60 ? 'Solte para atualizar' : 'Puxe para atualizar'}</span>
+          )}
+        </div>
+      )}
+
       {/* Live Match Notification Toast */}
       <AnimatePresence>
         {liveMatchId && liveMatchId !== activeMatch?.id && (

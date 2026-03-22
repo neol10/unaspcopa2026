@@ -4,7 +4,8 @@ import './Rankings.css';
 import { useRankings, RankingPlayer } from '../../hooks/useRankings';
 import { Trophy, Activity, ShieldAlert, Zap, User } from 'lucide-react';
 import PlayerProfileModal from '../Players/PlayerProfileModal';
-import Skeleton from '../../components/Skeleton/Skeleton';
+import Skeleton, { SkeletonRankingRow } from '../../components/Skeleton/Skeleton';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 
 const Rankings: React.FC = () => {
   const { scorers, assistants, goalkeepers, disciplined, roundMvps, availableRounds, loading, error, refresh } = useRankings();
@@ -61,8 +62,14 @@ const Rankings: React.FC = () => {
     );
   }
 
+  const { containerRef, isPulling, pullDistance, isRefreshing } = usePullToRefresh({
+    onRefresh: async () => {
+      await refresh();
+    }
+  });
+
   if (loading && scorers.length === 0) return (
-    <div className="rankings-container animate-fade-in">
+    <div className="rankings-container animate-fade-in" style={{ overflowY: 'auto', height: '100%' }}>
       <header className="rankings-header">
         <div className="header-info">
           <Skeleton width="200px" height="40px" className="mb-2" />
@@ -74,8 +81,22 @@ const Rankings: React.FC = () => {
         <Skeleton width="100%" height="200px" borderRadius="16px" />
       </div>
       <div className="rankings-grid">
-        <Skeleton width="100%" height="400px" />
-        <Skeleton width="100%" height="400px" />
+        <div className="rank-panel glass">
+          <div className="panel-header">
+            <Skeleton width="150px" height="24px" />
+          </div>
+          <div className="rank-rows">
+            {[1, 2, 3].map(i => <SkeletonRankingRow key={i} />)}
+          </div>
+        </div>
+        <div className="rank-panel glass">
+          <div className="panel-header">
+            <Skeleton width="150px" height="24px" />
+          </div>
+          <div className="rank-rows">
+            {[1, 2, 3].map(i => <SkeletonRankingRow key={i} />)}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -92,7 +113,21 @@ const Rankings: React.FC = () => {
   ];
 
   return (
-    <div className="rankings-container animate-fade-in">
+    <div className="rankings-container animate-fade-in" ref={containerRef} style={{ overflowY: 'auto', height: '100%' }}>
+      {/* Pull To Refresh Indicator */}
+      {(isPulling || isRefreshing) && (
+        <div className="pull-to-refresh-indicator" style={{ height: `${Math.max(40, pullDistance)}px` }}>
+          {isRefreshing ? (
+            <>
+              <div className="pull-spinner"></div>
+              <span>Atualizando...</span>
+            </>
+          ) : (
+             <span>{pullDistance > 60 ? 'Solte para atualizar' : 'Puxe para atualizar'}</span>
+          )}
+        </div>
+      )}
+
       <header className="rankings-header">
         <div className="header-info">
           <h1 className="text-gradient">Rankings & Stats</h1>
