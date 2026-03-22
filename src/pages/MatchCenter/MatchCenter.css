@@ -1611,6 +1611,15 @@
   cursor: default;
 }
 
+/* Utilities for Responsive Display */
+.desktop-only { display: block; }
+.mobile-only { display: none; }
+
+@media (max-width: 768px) {
+  .desktop-only { display: none; }
+  .mobile-only { display: block; }
+}
+
 /* --- Layout Grid Stacking (New Breakpoint) --- */
 @media (max-width: 960px) {
   .match-layout {
@@ -1634,9 +1643,25 @@
   }
 
   .match-selector-bar {
-    padding: 1rem 1.25rem;
+    padding: 0.85rem 1rem;
     border-radius: 12px;
     margin: 0;
+    gap: 0.75rem;
+  }
+
+  .mobile-selector-container {
+    width: 100%;
+  }
+
+  .match-select-mobile {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-light);
+    color: var(--text-main);
+    padding: 0.6rem 0.75rem;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 700;
   }
 
   .selector-list {
@@ -1686,58 +1711,86 @@
   }
 
   .live-scoreboard {
-    padding: 1.5rem 1rem;
-    border-radius: var(--radius-lg);
-    gap: 1.5rem;
+    padding: 1.25rem 0.85rem;
+    border-radius: 20px;
+    gap: 1rem;
   }
 
   .scoreboard-top {
-    margin-bottom: -0.5rem;
+    margin-bottom: -0.75rem;
   }
 
   .location {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
+    opacity: 0.6;
+  }
+
+  .match-badge {
+    padding: 0.25rem 0.6rem;
+    font-size: 0.65rem;
   }
 
   .scoreboard-main {
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.25rem;
   }
 
   .sb-team {
-    gap: 0.5rem;
+    gap: 0.4rem;
   }
 
   .sb-shield {
-    width: 65px;
-    height: 65px;
-    border-radius: 18px;
+    width: 55px;
+    height: 55px;
+    border-radius: 15px;
   }
 
   .sb-team h3 {
-    font-size: 0.9rem;
-    letter-spacing: -0.3px;
-    max-width: 85px;
+    font-size: 0.85rem;
+    letter-spacing: -0.2px;
+    max-width: 80px;
   }
 
   .score-numbers {
-    gap: 0.5rem;
+    gap: 0.4rem;
   }
 
   .score-numbers .num {
-    font-size: 3rem;
+    font-size: 2.4rem;
+  }
+
+  .score-numbers .vs {
+    font-size: 1.2rem;
   }
 
   .sb-timer {
-    font-size: 0.75rem;
-    padding: 0.35rem 0.75rem;
-    margin-top: 0.25rem;
+    font-size: 0.7rem;
+    padding: 0.3rem 0.6rem;
+    margin-top: 0.1rem;
   }
   
   .sb-timer.active {
-    padding: 0.4rem 0.8rem;
+    padding: 0.4rem 0.7rem;
+  }
+
+  .scoreboard-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem !important;
+  }
+
+  .btn-share-result {
+    padding: 0.6rem 0.5rem;
+    font-size: 0.75rem;
+    gap: 0.4rem;
+    border-radius: 10px;
+  }
+
+  .btn-share-result svg {
+    width: 14px;
+    height: 14px;
   }
 
   /* Timeline improvements */
@@ -1796,33 +1849,33 @@
 
 @media (max-width: 360px) {
   .match-center {
-    padding: 0 0.25rem;
-    gap: 1rem;
+    padding: 0 0.2rem;
+    gap: 0.75rem;
   }
 
   .live-scoreboard {
-    padding: 1.25rem 0.6rem;
-    gap: 1.25rem;
+    padding: 1rem 0.5rem;
+    gap: 0.75rem;
   }
 
   .sb-shield {
-    width: 55px;
-    height: 55px;
-    border-radius: 14px;
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
   }
 
   .score-numbers .num {
-    font-size: 2.6rem;
+    font-size: 2rem;
   }
 
   .sb-team h3 {
-    font-size: 0.8rem;
-    max-width: 70px;
+    font-size: 0.75rem;
+    max-width: 65px;
   }
 
   .sb-timer {
-    font-size: 0.7rem;
-    padding: 0.35rem 0.6rem;
+    font-size: 0.65rem;
+    padding: 0.2rem 0.6rem;
   }
 
   .t-content {
@@ -1830,18 +1883,19 @@
   }
 
   .t-content p {
-    font-size: 0.8rem;
+    font-size: 0.78rem;
   }
 
   .selector-header-row {
-    margin-bottom: -0.25rem;
+    margin-bottom: -0.35rem;
   }
 
   .live-status-badge span {
-    font-size: 0.55rem;
+    font-size: 0.5rem;
   }
 
   .live-status-badge {
-    padding: 0.2rem 0.4rem;
+    padding: 0.15rem 0.4rem;
+    gap: 0.3rem;
   }
 }

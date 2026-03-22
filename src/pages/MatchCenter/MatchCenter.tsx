@@ -267,14 +267,33 @@ const MatchCenter: React.FC = () => {
         <div className="selector-header-row">
           <div className="selector-title">
             <Zap size={16} color="var(--secondary)" />
-            Rodada Atual
+            <span className="desktop-only">Rodada Atual</span>
+            <span className="mobile-only">Partidas</span>
           </div>
           <div className="live-status-badge">
             <div className="pulse-dot"></div>
-            <span>Sincronização Ativa</span>
+            <span>Auto-Sync</span>
           </div>
         </div>
-        <div className="selector-list">
+
+        {/* Mobile Dropdown Selector */}
+        <div className="mobile-selector-container mobile-only">
+          <select 
+            className="match-select-mobile"
+            value={activeMatch.id}
+            onChange={(e) => setSelectedMatchId(e.target.value)}
+          >
+            {matches.map(m => (
+              <option key={m.id} value={m.id}>
+                {m.status === 'ao_vivo' ? '🔴 ' : ''}
+                {m.teams_a?.name.substring(0,10)} x {m.teams_b?.name.substring(0,10)}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Desktop Pills Selector */}
+        <div className="selector-list desktop-only">
           {matches.map(m => (
             <button 
               key={m.id} 
