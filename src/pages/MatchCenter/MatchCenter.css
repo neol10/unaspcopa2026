@@ -1674,6 +1674,11 @@
     font-weight: 700;
   }
 
+  .match-select-mobile option {
+    background-color: #0f172a; /* Slate 900 para garantir constraste */
+    color: #ffffff;
+  }
+
   .selector-list {
     gap: 0.5rem;
     padding-top: 0.75rem;
