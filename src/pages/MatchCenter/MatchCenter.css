@@ -1640,6 +1640,16 @@
   .match-center {
     gap: 1.5rem;
     padding-bottom: 2rem;
+    width: 100%;
+    max-width: 100vw;
+    box-sizing: border-box;
+    overflow-x: hidden;
+  }
+  
+  .match-primary, .match-side {
+    width: 100%;
+    max-width: 100vw;
+    box-sizing: border-box;
   }
 
   .match-selector-bar {
@@ -1708,6 +1718,25 @@
   .match-center {
     padding: 0 0.5rem;
     gap: 1.25rem;
+    overflow-x: hidden;
+    width: 100vw;
+  }
+  
+  .comment-input-area {
+    padding: 1rem 0.75rem;
+  }
+  
+  .comment-form {
+    gap: 0.5rem;
+  }
+  
+  .comment-form input {
+    padding: 0.6rem 0.8rem;
+    font-size: 0.8rem;
+  }
+
+  .standings-impact-widget {
+    padding: 1rem 0.75rem;
   }
 
   .live-scoreboard {

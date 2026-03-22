@@ -217,8 +217,44 @@ const MatchCenter: React.FC = () => {
   
   if (!activeMatch) return <div className="empty-state glass">Nenhuma partida programada.</div>;
 
+  // Filtra as partidas para o seletor:
+  // Mostra apenas partidas da mesma rodada e data da partida ativa.
+  const selectorMatches = useMemo(() => {
+    if (!activeMatch) return sortedMatches;
+    
+    const filtered = sortedMatches.filter(m => 
+      m.round === activeMatch.round && m.date === activeMatch.date
+    );
+
+    // Se por acaso a filtragem retornar só o próprio jogo ou ficar muito vazio, 
+    // caímos graciosamente para mostrar todos ou os mais recentes, mas a princípio, isso limpa a lista.
+    return filtered.length > 0 ? filtered : sortedMatches;
+  }, [sortedMatches, activeMatch]);
+
   return (
-    <div className="match-center animate-fade-in">
+    <div className="match-center responsive-container animate-fade-in">
+      {/* Live Match Notification Toast */}
+      <AnimatePresence>
+        {liveMatchId && liveMatchId !== activeMatch?.id && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="live-match-toast glass"
+          >
+            <div className="pulse-indicator"></div>
+            <div className="toast-content">
+              <strong>Novo jogo ao vivo detectado!</strong>
+              <button 
+                className="btn-toast-switch"
+                onClick={() => setSelectedMatchId(liveMatchId)}
+              >
+                Assistir
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Premium Goal Overlay */}
       <AnimatePresence>
         {showGoalOverlay && (
@@ -283,7 +319,7 @@ const MatchCenter: React.FC = () => {
             value={activeMatch.id}
             onChange={(e) => setSelectedMatchId(e.target.value)}
           >
-            {matches.map(m => (
+            {selectorMatches.map(m => (
               <option key={m.id} value={m.id}>
                 {m.status === 'ao_vivo' ? '🔴 ' : ''}
                 {m.teams_a?.name.substring(0,10)} x {m.teams_b?.name.substring(0,10)}
@@ -294,7 +330,7 @@ const MatchCenter: React.FC = () => {
 
         {/* Desktop Pills Selector */}
         <div className="selector-list desktop-only">
-          {matches.map(m => (
+          {selectorMatches.map(m => (
             <button 
               key={m.id} 
               className={`match-pill ${activeMatch.id === m.id ? 'active' : ''}`}
