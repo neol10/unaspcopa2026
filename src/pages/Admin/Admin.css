@@ -2940,10 +2940,19 @@
   }
 
   .item-actions {
-    justify-content: flex-end;
-    flex-wrap: wrap;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
     border-top: 1px solid rgba(255, 255, 255, 0.05);
     padding-top: 0.75rem;
+    width: 100%;
+  }
+
+  .item-actions > * {
+    flex: 0 0 auto;
   }
 
   /* Event controls */
@@ -2994,11 +3003,19 @@
   /* Item actions */
   .item-actions {
     gap: 0.5rem;
+    padding-bottom: 0.35rem;
   }
 
   .btn-live-control {
     font-size: 0.7rem;
     padding: 0.5rem 0.8rem;
+    white-space: nowrap;
+  }
+
+  .btn-live-phase {
+    font-size: 0.68rem;
+    padding: 0.45rem 0.55rem;
+    white-space: nowrap;
   }
 
   /* Player form */
@@ -3037,6 +3054,262 @@
 
   .player-actions {
     opacity: 1;
+  }
+}
+
+@media (max-width: 360px) {
+  .item-actions {
+    gap: 0.4rem;
+  }
+
+  .btn-icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .btn-live-control {
+    font-size: 0.66rem;
+    padding: 0.45rem 0.65rem;
+    letter-spacing: 0.5px;
+  }
+
+  .btn-live-phase {
+    font-size: 0.64rem;
+    padding: 0.4rem 0.5rem;
+  }
+}
+
+/* Live control hardening for small screens */
+@media (max-width: 768px) {
+  .live-event-panel,
+  .live-event-panel-wrapper,
+  .teams-lanes,
+  .lane,
+  .event-controls-row,
+  .recent-events-undo,
+  .mvp-selection-admin {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .event-selector {
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  .event-selector button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .goal-type-selector {
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .goal-type-btns {
+    flex-wrap: nowrap;
+  }
+
+  .live-score-display {
+    width: 100%;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .live-score-display .team-score {
+    min-width: 0;
+  }
+
+  .live-score-display .team-name,
+  .team-score .team-name {
+    max-width: 100px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .undo-info {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+
+  .undo-info .p-name,
+  .undo-info .ev-comment {
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 480px) {
+  .live-event-panel-wrapper {
+    padding: 0.6rem;
+  }
+
+  .event-selector {
+    padding: 0.35rem;
+    gap: 0.4rem;
+    border-radius: 12px;
+  }
+
+  .event-selector button {
+    padding: 0.55rem 0.8rem;
+    font-size: 0.72rem;
+    gap: 0.35rem;
+  }
+
+  .goal-type-selector {
+    padding: 0.6rem;
+    gap: 0.6rem;
+  }
+
+  .goal-type-btns button {
+    padding: 0.35rem 0.65rem;
+    font-size: 0.7rem;
+  }
+
+  .live-match-controls-top {
+    padding: 0.85rem;
+  }
+
+  .stopwatch-display {
+    font-size: 2.1rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .live-match-controls-top {
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    background: rgba(4, 10, 28, 0.95);
+    backdrop-filter: blur(8px);
+    border-radius: 12px;
+    margin-bottom: 0.7rem;
+    padding: 0.7rem;
+  }
+
+  .stopwatch-container {
+    order: -1;
+    padding: 0.75rem 0.9rem;
+  }
+
+  .stopwatch-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem;
+  }
+
+  .btn-stopwatch {
+    min-height: 42px;
+    justify-content: center;
+  }
+
+  .btn-stopwatch.reset {
+    grid-column: 1 / -1;
+  }
+
+  .live-score-display {
+    align-items: stretch;
+  }
+
+  .score-control {
+    gap: 0.35rem;
+    padding: 0.2rem 0.35rem;
+  }
+
+  .btn-score-adjust {
+    width: 32px;
+    height: 32px;
+    font-size: 1.05rem;
+  }
+
+  .team-score .score {
+    font-size: 3rem;
+  }
+
+  .event-selector,
+  .goal-type-selector {
+    scroll-snap-type: x proximity;
+  }
+
+  .event-selector button,
+  .goal-type-btns button {
+    min-height: 38px;
+    scroll-snap-align: start;
+  }
+
+  .btn-undo-last {
+    min-height: 40px;
+    letter-spacing: 0.4px;
+  }
+
+  /* Ultra-compact mode: keep primary actions visible and reduce secondary labels */
+  .goal-type-selector label,
+  .undo-tip,
+  .roster-label {
+    display: none;
+  }
+
+  .lane h5 {
+    font-size: 0.75rem;
+    letter-spacing: 1px;
+  }
+
+  .event-selector button {
+    font-size: 0;
+    padding: 0.5rem 0.55rem;
+    gap: 0.3rem;
+  }
+
+  .event-selector button svg {
+    margin: 0;
+  }
+
+  .event-selector button::after {
+    font-size: 0.6rem;
+    font-weight: 900;
+    letter-spacing: 0.35px;
+  }
+
+  .event-selector button:nth-child(1)::after { content: 'GOL'; }
+  .event-selector button:nth-child(2)::after { content: 'AMA'; }
+  .event-selector button:nth-child(3)::after { content: 'VER'; }
+  .event-selector button:nth-child(4)::after { content: 'SUB'; }
+  .event-selector button:nth-child(5)::after { content: 'MOM'; }
+  .event-selector button:nth-child(6)::after { content: 'TXT'; }
+
+  .goal-type-btns button {
+    font-size: 0;
+    padding: 0.35rem 0.55rem;
+  }
+
+  .goal-type-btns button::after {
+    font-size: 0.62rem;
+    font-weight: 800;
+  }
+
+  .goal-type-btns button:nth-child(1)::after { content: 'NOR'; }
+  .goal-type-btns button:nth-child(2)::after { content: 'PEN'; }
+  .goal-type-btns button:nth-child(3)::after { content: 'CON'; }
+
+  .btn-undo-last {
+    font-size: 0;
+    gap: 0.35rem;
+  }
+
+  .btn-undo-last::after {
+    content: 'DESFAZER';
+    font-size: 0.64rem;
+    font-weight: 800;
+    letter-spacing: 0.45px;
   }
 }
 

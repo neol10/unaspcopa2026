@@ -169,6 +169,27 @@ const getErrorMessage = (err: unknown, fallback: string = 'Ocorreu um erro') => 
   return fallback;
 };
 
+const getPostgresCode = (err: unknown): string | null => {
+  if (typeof (err as { code?: unknown })?.code === 'string') return String((err as { code: string }).code);
+  return null;
+};
+
+const getDeleteMatchErrorMessage = (err: unknown): string => {
+  const code = getPostgresCode(err);
+  const details = typeof (err as { details?: unknown })?.details === 'string'
+    ? String((err as { details: string }).details)
+    : '';
+
+  if (code === '23503') {
+    const table = details.match(/table\s+"([^"]+)"/i)?.[1];
+    if (table) return `Nao foi possivel excluir: existem registros vinculados em ${table}.`;
+    return 'Nao foi possivel excluir: a partida ainda possui registros vinculados.';
+  }
+
+  if (code === '42501') return 'Sem permissao para excluir esta partida.';
+  return getErrorMessage(err, 'Erro ao excluir partida');
+};
+
 
 const Admin: React.FC = () => {
   const { user, role, loading: authLoading } = useAuthContext();
@@ -926,7 +947,18 @@ const MatchManagement = () => {
         }
       }
 
-      // 3. Excluir a partida (o cascade delete no banco cuidará dos eventos)
+      // 3. Limpar dependencias da partida para evitar erro de FK no historico
+      const [winnerVotesDelete, mvpVotesDelete, eventsDelete] = await Promise.all([
+        supabase.from('match_winner_votes').delete().eq('match_id', id),
+        supabase.from('match_mvp_votes').delete().eq('match_id', id),
+        supabase.from('match_events').delete().eq('match_id', id),
+      ]);
+
+      if (winnerVotesDelete.error && winnerVotesDelete.error.code !== '42P01') throw winnerVotesDelete.error;
+      if (mvpVotesDelete.error && mvpVotesDelete.error.code !== '42P01') throw mvpVotesDelete.error;
+      if (eventsDelete.error && eventsDelete.error.code !== '42P01') throw eventsDelete.error;
+
+      // 4. Excluir a partida apos limpar os relacionamentos
       const { error } = await withTimeout(
         supabase.from('matches').delete().eq('id', id),
         30000,
@@ -939,7 +971,7 @@ const MatchManagement = () => {
       toast.success('Partida excluída e estatísticas revertidas!', { id: loadingToast });
     } catch (err: unknown) {
       console.error('Delete match error:', err);
-      toast.error(getErrorMessage(err, 'Erro ao excluir partida'), { id: loadingToast });
+      toast.error(getDeleteMatchErrorMessage(err), { id: loadingToast });
     }
   };
 
@@ -1139,7 +1171,7 @@ const MatchManagement = () => {
                 <div className="match-status-info">
                     <span className={`status-dot ${match.status}`}></span>
                     <div className="match-info-main">
-                      <strong style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <strong style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                         {match.teams_a?.badge_url ? (
                           <img src={match.teams_a.badge_url} alt="" style={{ width: 24, height: 24, objectFit: 'contain' }} />
                         ) : (

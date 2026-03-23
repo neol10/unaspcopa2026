@@ -280,7 +280,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </main>
         <footer className="footer">
           <p>&copy; 2026 Copa Unasp - Realização Unasp</p>
-          <p className="developer-credit">Desenvolvido por <span className="dev-name">Neo Lucca</span></p>
+          <p className="developer-credit">Desenvolvido por <span className="dev-name">NEO LUCCA</span> e <span className="dev-name">ROBSON</span></p>
         </footer>
       </div>
 
