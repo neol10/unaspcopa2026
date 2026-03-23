@@ -18,7 +18,7 @@ import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import './MatchCenter.css';
 
 const MatchCenter: React.FC = () => {
-  const { matches, loading: matchesLoading, error: matchesError } = useMatches();
+  const { matches, loading: matchesLoading, error: matchesError, refresh: refreshMatches } = useMatches();
   const [searchParams] = useSearchParams();
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [showGoalOverlay, setShowGoalOverlay] = useState<{ team: string, player: string } | null>(null);
@@ -238,8 +238,8 @@ const MatchCenter: React.FC = () => {
     const roundMatches = matches
       .filter(m => m.round === activeMatch.round)
       .sort((a, b) => {
-        const dateA = a.match_date || a.date || '';
-        const dateB = b.match_date || b.date || '';
+        const dateA = a.match_date || '';
+        const dateB = b.match_date || '';
         return dateA.localeCompare(dateB);
       });
 
@@ -414,9 +414,13 @@ const MatchCenter: React.FC = () => {
                   <span className="vs">:</span>
                   <span className="num">{activeMatch.team_b_score}</span>
                 </div>
-                <div className="sb-timer active">
-                  <Timer size={14} className={activeMatch.status === 'ao_vivo' ? 'animate-pulse' : ''} />
-                  <span>{elapsedTime}</span>
+                <div className={`sb-timer active ${activeMatch.status === 'ao_vivo' && !activeMatch.is_timer_running ? 'paused' : ''}`}>
+                  <Timer size={14} className={activeMatch.status === 'ao_vivo' && activeMatch.is_timer_running ? 'animate-pulse' : ''} />
+                  <span>
+                    {activeMatch.status === 'ao_vivo' && !activeMatch.is_timer_running 
+                      ? (events.some(e => e.event_type === 'comentario' && e.commentary?.includes('Fim do 1º Tempo')) ? 'INTERVALO' : 'PAUSADO') 
+                      : elapsedTime}
+                  </span>
                 </div>
               </div>
 

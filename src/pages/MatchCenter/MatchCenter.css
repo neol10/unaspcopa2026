@@ -555,6 +555,13 @@
   box-shadow: 0 0 20px rgba(255, 45, 45, 0.2);
 }
 
+.sb-timer.paused {
+  background: rgba(251, 191, 36, 0.15);
+  color: var(--secondary);
+  border-color: rgba(251, 191, 36, 0.3);
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.15);
+}
+
 .animate-pulse {
   animation: pulse 1.5s infinite;
 }

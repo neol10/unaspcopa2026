@@ -43,12 +43,12 @@ self.addEventListener('push', (event) => {
 
   const options: NotificationOptions = {
     body: data.body,
-    icon: data.icon || '/icons.svg',
-    badge: '/favicon.svg',
+    icon: data.icon ? data.icon : new URL('/icon-192.png', self.location.origin).href,
+    badge: new URL('/favicon.svg', self.location.origin).href,
     vibrate: [300, 100, 400],
     // Evita colapsar várias notificações no Android usando uma tag fixa.
     tag: computedTag,
-    renotify: false,
+    renotify: true,
     requireInteraction: false,
     silent: false,
     data: {

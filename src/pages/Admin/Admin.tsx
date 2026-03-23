@@ -911,9 +911,9 @@ const MatchManagement = () => {
       variant: 'danger'
     }))) return;
     
-    const loadingToast = toast.loading('Calculando reversão de estatísticas e excluindo...');
+    const loadingToast = toast.loading('Processando reversão e exclusão...');
     try {
-      // 1. Buscar todos os eventos desta partida que afetam estatísticas de jogadores
+      // 1. Buscar todos os eventos desta partida em uma única chamada
       const { data: events, error: eventsError } = await supabase
         .from('match_events')
         .select('event_type, player_id, assistant_id')
@@ -921,47 +921,62 @@ const MatchManagement = () => {
 
       if (eventsError) throw eventsError;
 
-      // 2. Reverter estatísticas de cada jogador afetado
+      // 2. Agrupar as reversões por jogador para otimizar as chamadas ao banco
       if (events && events.length > 0) {
-        for (const event of events) {
-          // Reverter Gols e Assistências
-          if (event.event_type === 'gol' && event.player_id) {
-            const { data: p } = await supabase.from('players').select('goals_count').eq('id', event.player_id).single();
-            await supabase.from('players').update({ goals_count: Math.max(0, (p?.goals_count || 0) - 1) }).eq('id', event.player_id);
-            
-            if (event.assistant_id) {
-              const { data: ast } = await supabase.from('players').select('assists').eq('id', event.assistant_id).single();
-              await supabase.from('players').update({ assists: Math.max(0, (ast?.assists || 0) - 1) }).eq('id', event.assistant_id);
-            }
+        const deltas: Record<string, { goals: number; assists: number; yellows: number; reds: number }> = {};
+        
+        events.forEach(event => {
+          if (event.player_id) {
+            if (!deltas[event.player_id]) deltas[event.player_id] = { goals: 0, assists: 0, yellows: 0, reds: 0 };
+            if (event.event_type === 'gol') deltas[event.player_id].goals += 1;
+            else if (event.event_type === 'amarelo') deltas[event.player_id].yellows += 1;
+            else if (event.event_type === 'vermelho') deltas[event.player_id].reds += 1;
           }
-          // Reverter Cartão Amarelo
-          else if (event.event_type === 'amarelo' && event.player_id) {
-            const { data: p } = await supabase.from('players').select('yellow_cards').eq('id', event.player_id).single();
-            await supabase.from('players').update({ yellow_cards: Math.max(0, (p?.yellow_cards || 0) - 1) }).eq('id', event.player_id);
+          if (event.assistant_id) {
+            if (!deltas[event.assistant_id]) deltas[event.assistant_id] = { goals: 0, assists: 0, yellows: 0, reds: 0 };
+            deltas[event.assistant_id].assists += 1;
           }
-          // Reverter Cartão Vermelho
-          else if (event.event_type === 'vermelho' && event.player_id) {
-            const { data: p } = await supabase.from('players').select('red_cards').eq('id', event.player_id).single();
-            await supabase.from('players').update({ red_cards: Math.max(0, (p?.red_cards || 0) - 1) }).eq('id', event.player_id);
+        });
+
+        const playerIds = Object.keys(deltas);
+        if (playerIds.length > 0) {
+          // Buscar todos os jogadores afetados de uma vez
+          const { data: playersData, error: playersError } = await supabase
+            .from('players')
+            .select('id, goals_count, assists, yellow_cards, red_cards')
+            .in('id', playerIds);
+
+          if (playersError) throw playersError;
+
+          // Executar atualizações em paralelo (Promise.all) em vez de um loop sequencial com await
+          if (playersData) {
+            await Promise.all(playersData.map(p => {
+              const d = deltas[p.id];
+              return supabase.from('players').update({
+                goals_count: Math.max(0, (p.goals_count || 0) - d.goals),
+                assists: Math.max(0, (p.assists || 0) - d.assists),
+                yellow_cards: Math.max(0, (p.yellow_cards || 0) - d.yellows),
+                red_cards: Math.max(0, (p.red_cards || 0) - d.reds)
+              }).eq('id', p.id);
+            }));
           }
         }
       }
 
-      // 3. Limpar dependencias da partida para evitar erro de FK no historico
-      const [winnerVotesDelete, mvpVotesDelete, eventsDelete] = await Promise.all([
+      // 3. Limpar dependencias da partida (Votações e Eventos)
+      await Promise.all([
         supabase.from('match_winner_votes').delete().eq('match_id', id),
         supabase.from('match_mvp_votes').delete().eq('match_id', id),
         supabase.from('match_events').delete().eq('match_id', id),
-      ]);
+      ]).catch(err => {
+        // Ignorar erros de tabela inexistente (42P01) mas logar outros
+        if (err?.code !== '42P01') console.warn('Clean sub-tables warn:', err);
+      });
 
-      if (winnerVotesDelete.error && winnerVotesDelete.error.code !== '42P01') throw winnerVotesDelete.error;
-      if (mvpVotesDelete.error && mvpVotesDelete.error.code !== '42P01') throw mvpVotesDelete.error;
-      if (eventsDelete.error && eventsDelete.error.code !== '42P01') throw eventsDelete.error;
-
-      // 4. Excluir a partida apos limpar os relacionamentos
+      // 4. Excluir a partida com timeout de segurança
       const { error } = await withTimeout(
         supabase.from('matches').delete().eq('id', id),
-        30000,
+        20000,
         'Tempo limite ao excluir partida'
       );
       if (error) throw error;
@@ -1404,22 +1419,24 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       const diff = Math.floor((now - start) / 1000);
       const newOffset = match.timer_offset_seconds + diff;
 
+      // Se já estava pausado, não atualizamos o offset novamente para não acumular erro
+      const finalOffset = match.is_timer_running ? newOffset : match.timer_offset_seconds;
+
       const { error } = await supabase.from('matches').update({
         is_timer_running: false,
         timer_started_at: null,
-        timer_offset_seconds: newOffset
+        timer_offset_seconds: finalOffset
       }).eq('id', match.id);
       
       if (error) throw error;
 
       if (isTechnical) {
-        // Log de Pausa Técnica
         await supabase.from('match_events').insert({
           match_id: match.id,
-          type: 'comentario',
-          minute: Math.floor(newOffset / 60),
-          description: 'Pausa Técnica',
-          assistant_id: null
+          event_type: 'comentario',
+          minute: Math.floor(finalOffset / 60),
+          commentary: '⏱️ Pausa Técnica',
+          player_id: null
         });
         toast.success('Pausa Técnica registrada');
       }
@@ -1431,7 +1448,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   const handleIntervalo = async () => {
     if (!(await confirmAction({
       title: 'Iniciar Intervalo',
-      description: 'O tempo será pausado e o intervalo será registrado. Deseja iniciar o intervalo?',
+      description: 'O tempo será pausado e o fim do 1º tempo será registrado.',
       variant: 'warning'
     }))) return;
     try {
@@ -1448,10 +1465,10 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
       await supabase.from('match_events').insert({
         match_id: match.id,
-        type: 'comentario',
+        event_type: 'comentario',
         minute: Math.floor(newOffset / 60),
-        description: 'Fim do 1º Tempo',
-        assistant_id: null
+        commentary: '🏁 Fim do 1º Tempo',
+        player_id: null
       });
 
       toast.success('Intervalo Iniciado');
@@ -1462,16 +1479,9 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
   const handleRetomar = async () => {
     try {
-      // Verificar se foi intervalo (último evento de comentário)
-      const { data: lastEvents } = await supabase
-        .from('match_events')
-        .select('*')
-        .eq('match_id', match.id)
-        .eq('type', 'comentario')
-        .order('id', { ascending: false })
-        .limit(1);
-
-      const isPostInterval = lastEvents?.[0]?.description === 'Fim do 1º Tempo';
+      // Verificar se o último evento foi fim do 1º tempo para mudar a mensagem
+      const isPostInterval = events.some(e => e.event_type === 'comentario' && e.commentary?.includes('Fim do 1º Tempo'));
+      const alreadyResumedStage2 = events.some(e => e.event_type === 'comentario' && e.commentary?.includes('Início do 2º Tempo'));
 
       const { error } = await supabase.from('matches').update({
         is_timer_running: true,
@@ -1480,14 +1490,17 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
       if (error) throw error;
 
-      if (isPostInterval) {
+      if (isPostInterval && !alreadyResumedStage2) {
         await supabase.from('match_events').insert({
           match_id: match.id,
-          type: 'comentario',
+          event_type: 'comentario',
           minute: Math.floor(match.timer_offset_seconds / 60),
-          description: 'Retornamos ao segundo tempo',
-          assistant_id: null
+          commentary: '⚽ Início do 2º Tempo',
+          player_id: null
         });
+        toast.success('Segundo tempo iniciado!');
+      } else {
+        toast.success('Cronômetro retomado');
       }
     } catch (err: unknown) {
       toast.error('Erro ao retomar cronômetro');
@@ -1762,23 +1775,103 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
     removeEvent(lastEvent);
   };
 
+  const [goalWizard, setGoalWizard] = useState<{ team: 'a' | 'b', open: boolean }>({ team: 'a', open: false });
+
   const handleManualScore = async (team: 'a' | 'b', increment: number) => {
-    try {
-      const currentScore = team === 'a' ? (match.team_a_score || 0) : (match.team_b_score || 0);
-      const newScoreValue = Math.max(0, currentScore + increment);
-      const updateData = team === 'a' ? { team_a_score: newScoreValue } : { team_b_score: newScoreValue };
-      
-      const { error } = await supabase.from('matches').update(updateData).eq('id', match.id);
-      if (error) throw error;
-      toast.success(`Placar ${team === 'a' ? 'A' : 'B'} ajustado!`);
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err, 'Erro ao ajustar placar'));
+    if (increment > 0) {
+      setGoalWizard({ team, open: true });
+      setEventType('gol'); // Pré-selecionar gol
+    } else {
+      try {
+        const currentScore = team === 'a' ? (match.team_a_score || 0) : (match.team_b_score || 0);
+        const newScoreValue = Math.max(0, currentScore + increment);
+        const updateData = team === 'a' ? { team_a_score: newScoreValue } : { team_b_score: newScoreValue };
+        
+        await supabase.from('matches').update(updateData).eq('id', match.id);
+        toast.success(`Placar ${team === 'a' ? 'A' : 'B'} ajustado!`);
+      } catch (err: unknown) {
+        toast.error('Erro ao ajustar placar');
+      }
     }
   };
 
+  const handleGoalWizardSubmit = async (playerId: string, goalTypeVal: 'normal' | 'penalti' | 'contra', assistantIdVal: string) => {
+    try {
+      setGoalType(goalTypeVal);
+      setAssistantId(assistantIdVal);
+      await addEvent(playerId, goalWizard.team);
+      setGoalWizard({ ...goalWizard, open: false });
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   return (
     <div className="live-event-panel-wrapper">
+      {/* Goal Wizard Modal */}
+      <AnimatePresence>
+        {goalWizard.open && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="modal-overlay-admin"
+            onClick={() => setGoalWizard({ ...goalWizard, open: false })}
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="goal-wizard-modal glass"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="wizard-header">
+                <h3>⚽ Registrar Gol - {goalWizard.team === 'a' ? (match.teams_a?.name) : (match.teams_b?.name)}</h3>
+                <button className="btn-close-wizard" onClick={() => setGoalWizard({ ...goalWizard, open: false })}>×</button>
+              </div>
+              
+              <div className="wizard-body">
+                <div className="form-group">
+                  <label>Quem fez o gol?</label>
+                  <div className="player-grid-wizard">
+                    {(goalWizard.team === 'a' ? playersA : playersB).map(p => (
+                      <button 
+                        key={p.id} 
+                        className={`p-wizard-btn ${onFieldA.includes(p.id) || onFieldB.includes(p.id) ? 'on-field' : ''}`}
+                        onClick={() => handleGoalWizardSubmit(p.id, goalType, assistantId)}
+                      >
+                        <span className="p-num">{p.number}</span>
+                        <span className="p-name">{p.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="wizard-footer-controls">
+                  <div className="form-group">
+                    <label>Assistência (Opcional)</label>
+                    <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
+                      <option value="">Ninguém</option>
+                      {(goalWizard.team === 'a' ? playersA : playersB)
+                        .map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  
+                  <div className="form-group">
+                    <label>Tipo</label>
+                    <div className="goal-type-btns">
+                      <button className={goalType === 'normal' ? 'active' : ''} onClick={() => setGoalType('normal')}>Normal</button>
+                      <button className={goalType === 'penalti' ? 'active' : ''} onClick={() => setGoalType('penalti')}>Pênalti</button>
+                      <button className={goalType === 'contra' ? 'active red' : ''} onClick={() => setGoalType('contra')}>Contra</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Placar Profissional Centralizado */}
       <div className="admin-scoreboard-pro glass">
         <div className="sb-pro-main">
@@ -1909,7 +2002,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                   <label>SAI (OUT)</label>
                   <select value={playerOutId} onChange={e => { setPlayerOutId(e.target.value); setAssistantId(''); }}>
                     <option value="">Selecione...</option>
-                    {playersA.map(p => <option key={`out-a-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
+                    {playersA.filter(p => onFieldA.includes(p.id)).map(p => <option key={`out-a-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
                   </select>
                 </div>
                 <div className="form-group-mini">
@@ -1922,7 +2015,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                 <button 
                   className="btn-confirm-sub" 
                   onClick={() => addEvent(playerOutId, 'a')}
-                  disabled={!playerOutId || !assistantId || !playersA.some(p => p.id === playerOutId)}
+                  disabled={!playerOutId || !assistantId}
                 >
                   Substituir
                 </button>
@@ -1937,7 +2030,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                   <label>SAI (OUT)</label>
                   <select value={playerOutId} onChange={e => { setPlayerOutId(e.target.value); setAssistantId(''); }}>
                     <option value="">Selecione...</option>
-                    {playersB.map(p => <option key={`out-b-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
+                    {playersB.filter(p => onFieldB.includes(p.id)).map(p => <option key={`out-b-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
                   </select>
                 </div>
                 <div className="form-group-mini">
@@ -1950,7 +2043,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                 <button 
                   className="btn-confirm-sub btn-team-b" 
                   onClick={() => addEvent(playerOutId, 'b')}
-                  disabled={!playerOutId || !assistantId || !playersB.some(p => p.id === playerOutId)}
+                  disabled={!playerOutId || !assistantId}
                 >
                   Substituir
                 </button>

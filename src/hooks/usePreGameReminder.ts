@@ -72,13 +72,13 @@ export const usePreGameReminder = (
 
         await registration.showNotification('⏰ Jogo em 15 minutos', {
           body: `${teamA} x ${teamB} começa em breve.`,
-          icon: '/favicon.svg',
-          badge: '/favicon.svg',
+          icon: new URL('/icon-192.png', window.location.origin).href,
+          badge: new URL('/favicon.svg', window.location.origin).href,
           tag: `pregame-${match.id}`,
           renotify: true,
           data: { url: '/jogos' },
           actions: [{ action: 'open', title: 'Ver jogos' }],
-        });
+        } as any);
 
         markReminded(match);
       }
