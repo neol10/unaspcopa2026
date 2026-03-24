@@ -2107,6 +2107,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           <div className="roster-section">
             <span className="roster-label"><Zap size={12} /> Em Campo</span>
             <div className="admin-player-btns">
+              {(playersB || []).filter(p => onFieldB.includes(p.id)).map(p => (
                 <button 
                   key={p.id} 
                   onClick={() => eventType === 'gol' ? setGoalWizard({ team: 'b', open: true, pId: p.id }) : addEvent(p.id, 'b')} 
@@ -2116,6 +2117,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                   <span className="p-name">{p.name.split(' ')[0]}</span>
                   <ChevronDown size={10} className="btn-status-toggle" onClick={(e) => { e.stopPropagation(); togglePlayerStatus(p.id, 'b'); }} />
                 </button>
+              ))}
             </div>
           </div>
 
