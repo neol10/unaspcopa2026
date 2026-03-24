@@ -859,8 +859,10 @@ const MatchManagement = () => {
       void refresh();
       invalidateCompetitionData();
       toast.success('Partida criada com sucesso!');
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err, 'Erro ao criar partida'));
+    } catch (err: any) {
+      const code = err?.code ? ` (código: ${err.code})` : '';
+      const details = err?.message || err?.details || '';
+      toast.error(`Erro ao criar partida${code}: ${details || getErrorMessage(err, '')}`);
     } finally {
       setIsSubmittingMatch(false);
     }
@@ -988,9 +990,11 @@ const MatchManagement = () => {
       void refresh();
       invalidateCompetitionData();
       toast.success('Partida excluída e estatísticas revertidas!', { id: loadingToast });
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error('Delete match error:', err);
-      toast.error(getDeleteMatchErrorMessage(err), { id: loadingToast });
+      const code = err?.code ? ` (código: ${err.code})` : '';
+      const details = err?.message || err?.details || '';
+      toast.error(`Erro ao excluir partida${code}: ${details || getDeleteMatchErrorMessage(err)}`, { id: loadingToast });
     }
   };
 
@@ -1436,15 +1440,9 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       
       if (error) throw error;
 
+      // Simplificado: Pausa técnica agora apenas para o tempo, sem registrar evento automático
       if (isTechnical) {
-        await supabase.from('match_events').insert({
-          match_id: match.id,
-          event_type: 'comentario',
-          minute: Math.floor(finalOffset / 60),
-          commentary: '⏱️ Pausa Técnica',
-          player_id: null
-        });
-        toast.success('Pausa Técnica registrada');
+        toast.success('Tempo pausado');
       }
     } catch (err: unknown) {
       toast.error('Erro ao pausar cronômetro');
@@ -1784,11 +1782,11 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
     removeEvent(lastEvent);
   };
 
-  const [goalWizard, setGoalWizard] = useState<{ team: 'a' | 'b', open: boolean, pId?: string }>({ team: 'a', open: false });
+  const [goalWizard, setGoalWizard] = useState<{ team: 'a' | 'b', open: boolean, pId?: string, isSimple?: boolean }>({ team: 'a', open: false });
 
   const handleManualScore = async (team: 'a' | 'b', increment: number) => {
     if (increment > 0) {
-      setGoalWizard({ team, open: true });
+      setGoalWizard({ team, open: true, isSimple: true });
       setEventType('gol'); // Pré-selecionar gol
     } else {
       try {
@@ -1845,7 +1843,13 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                       <button 
                         key={p.id} 
                         className={`p-wizard-btn ${onFieldA.includes(p.id) || onFieldB.includes(p.id) ? 'on-field' : ''} ${goalWizard.pId === p.id ? 'pre-selected' : ''}`}
-                        onClick={() => handleGoalWizardSubmit(p.id, goalType, assistantId)}
+                        onClick={() => {
+                          if (goalWizard.isSimple) {
+                            handleGoalWizardSubmit(p.id, 'normal', ''); // Submissão imediata no modo simples
+                          } else {
+                            handleGoalWizardSubmit(p.id, goalType, assistantId);
+                          }
+                        }}
                       >
                         <span className="p-num">{p.number}</span>
                         <span className="p-name">{p.name}</span>
@@ -1855,25 +1859,27 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                   </div>
                 </div>
 
-                <div className="wizard-footer-controls">
-                  <div className="form-group">
-                    <label>Assistência (Opcional)</label>
-                    <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
-                      <option value="">Ninguém</option>
-                      {((goalWizard.team === 'a' ? playersA : playersB) || [])
-                        .map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                  </div>
-                  
-                  <div className="form-group">
-                    <label>Tipo</label>
-                    <div className="goal-type-btns">
-                      <button className={goalType === 'normal' ? 'active' : ''} onClick={() => setGoalType('normal')}>Normal</button>
-                      <button className={goalType === 'penalti' ? 'active' : ''} onClick={() => setGoalType('penalti')}>Pênalti</button>
-                      <button className={goalType === 'contra' ? 'active red' : ''} onClick={() => setGoalType('contra')}>Contra</button>
+                {!goalWizard.isSimple && (
+                  <div className="wizard-footer-controls">
+                    <div className="form-group">
+                      <label>Assistência (Opcional)</label>
+                      <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
+                        <option value="">Ninguém</option>
+                        {((goalWizard.team === 'a' ? playersA : playersB) || [])
+                          .map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                    </div>
+                    
+                    <div className="form-group">
+                      <label>Tipo</label>
+                      <div className="goal-type-btns">
+                        <button className={goalType === 'normal' ? 'active' : ''} onClick={() => setGoalType('normal')}>Normal</button>
+                        <button className={goalType === 'penalti' ? 'active' : ''} onClick={() => setGoalType('penalti')}>Pênalti</button>
+                        <button className={goalType === 'contra' ? 'active red' : ''} onClick={() => setGoalType('contra')}>Contra</button>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             </motion.div>
           </motion.div>
@@ -2071,7 +2077,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
               {(playersA || []).filter(p => onFieldA.includes(p.id)).map(p => (
                 <button 
                   key={p.id} 
-                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: 'a', open: true, pId: p.id }) : addEvent(p.id, 'a')} 
+                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: 'a', open: true, pId: p.id, isSimple: false }) : addEvent(p.id, 'a')} 
                   className="p-btn active-field"
                 >
                   <span className="p-num">{p.number}</span>
@@ -2088,7 +2094,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
               {(playersA || []).filter(p => !onFieldA.includes(p.id)).map(p => (
                 <button 
                   key={p.id} 
-                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: 'a', open: true, pId: p.id }) : togglePlayerStatus(p.id, 'a')} 
+                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: 'a', open: true, pId: p.id, isSimple: false }) : togglePlayerStatus(p.id, 'a')} 
                   className="p-btn bench"
                 >
                   <span className="p-num">{p.number}</span>
@@ -2110,7 +2116,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
               {(playersB || []).filter(p => onFieldB.includes(p.id)).map(p => (
                 <button 
                   key={p.id} 
-                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: 'b', open: true, pId: p.id }) : addEvent(p.id, 'b')} 
+                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: 'b', open: true, pId: p.id, isSimple: false }) : addEvent(p.id, 'b')} 
                   className="p-btn active-field"
                 >
                   <span className="p-num">{p.number}</span>
@@ -2127,7 +2133,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
               {(playersB || []).filter(p => !onFieldB.includes(p.id)).map(p => (
                 <button 
                   key={p.id} 
-                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: 'b', open: true, pId: p.id }) : togglePlayerStatus(p.id, 'b')} 
+                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: 'b', open: true, pId: p.id, isSimple: false }) : togglePlayerStatus(p.id, 'b')} 
                   className="p-btn bench"
                 >
                   <span className="p-num">{p.number}</span>
