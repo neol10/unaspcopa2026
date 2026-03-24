@@ -9,7 +9,7 @@ import { useNews, type News } from '../../hooks/useNews';
 import { useMatches, type Match } from '../../hooks/useMatches';
 import { useMatchEvents, type MatchEvent } from '../../hooks/useMatchEvents';
 import { useTournamentConfig, type TournamentConfig } from '../../hooks/useTournamentConfig';
-import type { Poll, PollOption } from '../../hooks/usePolls';
+import { usePolls, type Poll, type PollOption } from '../../hooks/usePolls';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { withTimeout } from '../../lib/withTimeout';
 import { toast } from 'react-hot-toast';
