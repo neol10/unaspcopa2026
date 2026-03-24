@@ -3564,7 +3564,7 @@ const GlobalPlayerManagement = () => {
   const [isAdding, setIsAdding] = useState(false);
   const [isSubmittingGlobalPlayer, setIsSubmittingGlobalPlayer] = useState(false);
   const { teams } = useTeams();
-  const { players: allPlayers, loading, refresh: refreshPlayers, removePlayerFromCache } = usePlayers();
+  const { players: allPlayers, loading, refresh: refreshPlayers } = usePlayers();
   const { confirm: confirmAction, ConfirmElement } = useConfirm();
   const [isUpdatingGlobalPlayer, setIsUpdatingGlobalPlayer] = useState(false);
   const [editingGlobalPlayerId, setEditingGlobalPlayerId] = useState<string | null>(null);
