@@ -1372,6 +1372,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   const { confirm: confirmAction, ConfirmElement } = useConfirm();
   const [eventType, setEventType] = useState<'gol' | 'amarelo' | 'vermelho' | 'substituicao' | 'comentario' | 'momento'>('gol');
   const [showGoalDetails, setShowGoalDetails] = useState(false);
+  const [isSwapped, setIsSwapped] = useState(false);
   const [goalType, setGoalType] = useState<'normal' | 'penalti' | 'contra'>('normal');
   const [selectedMinute, setSelectedMinute] = useState<number>(0);
   const [assistantId, setAssistantId] = useState<string>('');
@@ -1786,8 +1787,11 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   const [goalWizard, setGoalWizard] = useState<{ team: 'a' | 'b', open: boolean, pId?: string, isSimple?: boolean }>({ team: 'a', open: false });
 
   const handleManualScore = async (team: 'a' | 'b', increment: number) => {
+    // Se estiver trocado, 'a' no botão da esquerda na verdade refere-se ao que está visualmente na esquerda
+    const effectiveTeam = team; 
+    
     if (increment > 0) {
-      setGoalWizard({ team, open: true, isSimple: true });
+      setGoalWizard({ team: effectiveTeam, open: true, isSimple: true, pId: undefined });
       setEventType('gol'); // Pré-selecionar gol
     } else {
       try {
@@ -1912,15 +1916,21 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
       {/* Placar Profissional Centralizado */}
       <div className="admin-scoreboard-pro glass">
+        <div className="sb-pro-header">
+          <button className="btn-swap-sides" onClick={() => setIsSwapped(!isSwapped)} title="Trocar lados do placar">
+            <ArrowRightLeft size={14} /> Inverter Lados do Placar
+          </button>
+        </div>
+
         <div className="sb-pro-main">
-          {/* Equipe A */}
-          <div className="sb-pro-team team-a">
+          {/* Lado Esquerdo */}
+          <div className={`sb-pro-team ${isSwapped ? 'team-b' : 'team-a'}`}>
              <div className="sb-pro-score-box">
-                <button className="score-adjust-btn minus" onClick={() => handleManualScore('a', -1)}>-</button>
-                <div className="score-number-display">{match.team_a_score}</div>
-                <button className="score-adjust-btn plus" onClick={() => handleManualScore('a', 1)}>+</button>
+                <button className="score-adjust-btn minus" onClick={() => handleManualScore(isSwapped ? 'b' : 'a', -1)}>-</button>
+                <div className="score-number-display">{isSwapped ? match.team_b_score : match.team_a_score}</div>
+                <button className="score-adjust-btn plus" onClick={() => handleManualScore(isSwapped ? 'b' : 'a', 1)}>+</button>
              </div>
-             <span className="sb-pro-team-name">{match.teams_a?.name || 'Equipe A'}</span>
+             <span className="sb-pro-team-name">{isSwapped ? (match.teams_b?.name || 'Equipe B') : (match.teams_a?.name || 'Equipe A')}</span>
           </div>
 
           {/* Centro: Cronômetro e VS */}
@@ -1928,7 +1938,8 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
              <div className="sb-pro-timer-display glass">
                 <span className={isActive ? 'timer-running' : ''}>{formatTime(seconds)}</span>
              </div>
-              <div className="sb-pro-timer-controls">
+             {/* ... controles omitidos para brevidade se não mudarem ... */}
+             <div className="sb-pro-timer-controls">
                 {!match.is_timer_running ? (
                   <button className="timer-btn start" onClick={handleRetomar}>
                     <Play size={16} /> RETOMAR
@@ -1949,14 +1960,14 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
               </div>
           </div>
 
-          {/* Equipe B */}
-          <div className="sb-pro-team team-b">
+          {/* Lado Direito */}
+          <div className={`sb-pro-team ${isSwapped ? 'team-a' : 'team-b'}`}>
              <div className="sb-pro-score-box">
-                <button className="score-adjust-btn minus" onClick={() => handleManualScore('b', -1)}>-</button>
-                <div className="score-number-display">{match.team_b_score}</div>
-                <button className="score-adjust-btn plus" onClick={() => handleManualScore('b', 1)}>+</button>
+                <button className="score-adjust-btn minus" onClick={() => handleManualScore(isSwapped ? 'a' : 'b', -1)}>-</button>
+                <div className="score-number-display">{isSwapped ? match.team_a_score : match.team_b_score}</div>
+                <button className="score-adjust-btn plus" onClick={() => handleManualScore(isSwapped ? 'a' : 'b', 1)}>+</button>
              </div>
-             <span className="sb-pro-team-name">{match.teams_b?.name || 'Equipe B'}</span>
+             <span className="sb-pro-team-name">{isSwapped ? (match.teams_a?.name || 'Equipe A') : (match.teams_b?.name || 'Equipe B')}</span>
           </div>
         </div>
         
@@ -2032,27 +2043,27 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
         {eventType === 'substituicao' && (
           <div className="substitution-grid-admin">
-            {/* Equipe A */}
-            <div className="sub-team-box glass">
-              <span className="sub-team-title">{match.teams_a?.name}</span>
+            {/* Lado Esquerdo */}
+            <div className={`sub-team-box glass ${isSwapped ? 'btn-team-b' : 'btn-team-a'}`}>
+              <span className="sub-team-title">{isSwapped ? match.teams_b?.name : match.teams_a?.name}</span>
               <div className="sub-controls">
                 <div className="form-group-mini">
                   <label>SAI (OUT)</label>
                   <select value={playerOutId} onChange={e => { setPlayerOutId(e.target.value); setAssistantId(''); }}>
                     <option value="">Selecione...</option>
-                    {(playersA || []).filter(p => onFieldA.includes(p.id)).map(p => <option key={`out-a-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
+                    {((isSwapped ? playersB : playersA) || []).filter(p => (isSwapped ? onFieldB : onFieldA).includes(p.id)).map(p => <option key={`out-l-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
                   </select>
                 </div>
                 <div className="form-group-mini">
                   <label>ENTRA (IN)</label>
                   <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
                     <option value="">Selecione...</option>
-                    {(playersA || []).filter(p => !onFieldA.includes(p.id)).map(p => <option key={`in-a-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
+                    {((isSwapped ? playersB : playersA) || []).filter(p => !(isSwapped ? onFieldB : onFieldA).includes(p.id)).map(p => <option key={`in-l-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
                   </select>
                 </div>
                 <button 
-                  className="btn-confirm-sub" 
-                  onClick={() => addEvent(playerOutId, 'a')}
+                  className={`btn-confirm-sub ${isSwapped ? 'btn-team-b' : 'btn-team-a'}`}
+                  onClick={() => addEvent(playerOutId, isSwapped ? 'b' : 'a')}
                   disabled={!playerOutId || !assistantId}
                 >
                   Substituir
@@ -2060,27 +2071,27 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
               </div>
             </div>
 
-            {/* Equipe B */}
-            <div className="sub-team-box glass">
-              <span className="sub-team-title">{match.teams_b?.name}</span>
+            {/* Lado Direito */}
+            <div className={`sub-team-box glass ${isSwapped ? 'btn-team-a' : 'btn-team-b'}`}>
+              <span className="sub-team-title">{isSwapped ? match.teams_a?.name : match.teams_b?.name}</span>
               <div className="sub-controls">
                 <div className="form-group-mini">
                   <label>SAI (OUT)</label>
                   <select value={playerOutId} onChange={e => { setPlayerOutId(e.target.value); setAssistantId(''); }}>
                     <option value="">Selecione...</option>
-                    {(playersB || []).filter(p => onFieldB.includes(p.id)).map(p => <option key={`out-b-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
+                    {((isSwapped ? playersA : playersB) || []).filter(p => (isSwapped ? onFieldA : onFieldB).includes(p.id)).map(p => <option key={`out-r-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
                   </select>
                 </div>
                 <div className="form-group-mini">
                   <label>ENTRA (IN)</label>
                   <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
                     <option value="">Selecione...</option>
-                    {(playersB || []).filter(p => !onFieldB.includes(p.id)).map(p => <option key={`in-b-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
+                    {((isSwapped ? playersA : playersB) || []).filter(p => !(isSwapped ? onFieldA : onFieldB).includes(p.id)).map(p => <option key={`in-r-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
                   </select>
                 </div>
                 <button 
-                  className="btn-confirm-sub btn-team-b" 
-                  onClick={() => addEvent(playerOutId, 'b')}
+                  className={`btn-confirm-sub ${isSwapped ? 'btn-team-a' : 'btn-team-b'}`}
+                  onClick={() => addEvent(playerOutId, isSwapped ? 'a' : 'b')}
                   disabled={!playerOutId || !assistantId}
                 >
                   Substituir
@@ -2092,21 +2103,22 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       </div>
         
       <div className={`teams-lanes event-selector-active-${eventType}`}>
+        {/* Lado Esquerdo */}
         <div className="lane">
-          <h5>{match.teams_a?.name || 'Equipe A'}</h5>
+          <h5>{isSwapped ? (match.teams_b?.name || 'Equipe B') : (match.teams_a?.name || 'Equipe A')}</h5>
           
           <div className="roster-section">
             <span className="roster-label"><Zap size={12} /> Em Campo</span>
             <div className="admin-player-btns">
-              {(playersA || []).filter(p => onFieldA.includes(p.id)).map(p => (
+              {((isSwapped ? playersB : playersA) || []).filter(p => (isSwapped ? onFieldB : onFieldA).includes(p.id)).map(p => (
                 <button 
                   key={p.id} 
-                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: 'a', open: true, pId: p.id, isSimple: false }) : addEvent(p.id, 'a')} 
+                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: isSwapped ? 'b' : 'a', open: true, pId: p.id, isSimple: false }) : addEvent(p.id, isSwapped ? 'b' : 'a')} 
                   className="p-btn active-field"
                 >
                   <span className="p-num">{p.number}</span>
                   <span className="p-name">{p.name.split(' ')[0]}</span>
-                  <ChevronDown size={10} className="btn-status-toggle" onClick={(e) => { e.stopPropagation(); togglePlayerStatus(p.id, 'a'); }} />
+                  <ChevronDown size={10} className="btn-status-toggle" onClick={(e) => { e.stopPropagation(); togglePlayerStatus(p.id, isSwapped ? 'b' : 'a'); }} />
                 </button>
               ))}
             </div>
@@ -2115,10 +2127,10 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           <div className="roster-section">
             <span className="roster-label"><Users size={12} /> Banco</span>
             <div className="admin-player-btns">
-              {(playersA || []).filter(p => !onFieldA.includes(p.id)).map(p => (
+              {((isSwapped ? playersB : playersA) || []).filter(p => !(isSwapped ? onFieldB : onFieldA).includes(p.id)).map(p => (
                 <button 
                   key={p.id} 
-                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: 'a', open: true, pId: p.id, isSimple: false }) : togglePlayerStatus(p.id, 'a')} 
+                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: isSwapped ? 'b' : 'a', open: true, pId: p.id, isSimple: false }) : togglePlayerStatus(p.id, isSwapped ? 'b' : 'a')} 
                   className="p-btn bench"
                 >
                   <span className="p-num">{p.number}</span>
@@ -2131,21 +2143,22 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
         <div className="divider-vertical"></div>
 
+        {/* Lado Direito */}
         <div className="lane">
-          <h5>{match.teams_b?.name || 'Equipe B'}</h5>
+          <h5>{isSwapped ? (match.teams_a?.name || 'Equipe A') : (match.teams_b?.name || 'Equipe B')}</h5>
           
           <div className="roster-section">
             <span className="roster-label"><Zap size={12} /> Em Campo</span>
             <div className="admin-player-btns">
-              {(playersB || []).filter(p => onFieldB.includes(p.id)).map(p => (
+              {((isSwapped ? playersA : playersB) || []).filter(p => (isSwapped ? onFieldA : onFieldB).includes(p.id)).map(p => (
                 <button 
                   key={p.id} 
-                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: 'b', open: true, pId: p.id, isSimple: false }) : addEvent(p.id, 'b')} 
+                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: isSwapped ? 'a' : 'b', open: true, pId: p.id, isSimple: false }) : addEvent(p.id, isSwapped ? 'a' : 'b')} 
                   className="p-btn active-field"
                 >
                   <span className="p-num">{p.number}</span>
                   <span className="p-name">{p.name.split(' ')[0]}</span>
-                  <ChevronDown size={10} className="btn-status-toggle" onClick={(e) => { e.stopPropagation(); togglePlayerStatus(p.id, 'b'); }} />
+                  <ChevronDown size={10} className="btn-status-toggle" onClick={(e) => { e.stopPropagation(); togglePlayerStatus(p.id, isSwapped ? 'a' : 'b'); }} />
                 </button>
               ))}
             </div>
@@ -2154,10 +2167,10 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           <div className="roster-section">
             <span className="roster-label"><Users size={12} /> Banco</span>
             <div className="admin-player-btns">
-              {(playersB || []).filter(p => !onFieldB.includes(p.id)).map(p => (
+              {((isSwapped ? playersA : playersB) || []).filter(p => !(isSwapped ? onFieldA : onFieldB).includes(p.id)).map(p => (
                 <button 
                   key={p.id} 
-                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: 'b', open: true, pId: p.id, isSimple: false }) : togglePlayerStatus(p.id, 'b')} 
+                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: isSwapped ? 'a' : 'b', open: true, pId: p.id, isSimple: false }) : togglePlayerStatus(p.id, isSwapped ? 'a' : 'b')} 
                   className="p-btn bench"
                 >
                   <span className="p-num">{p.number}</span>
