@@ -50,7 +50,21 @@
 }
 
 .brackets-scroll-container::-webkit-scrollbar {
-  display: none; /* Chrome, Safari and Opera */
+  height: 6px;
+}
+
+.brackets-scroll-container::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+}
+
+.brackets-scroll-container::-webkit-scrollbar-thumb {
+  background: var(--secondary-border);
+  border-radius: 10px;
+}
+
+.brackets-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: var(--secondary);
 }
 
 .brackets-scroll-container.dragging {
@@ -60,7 +74,7 @@
 
 .brackets-scroll-content {
   display: inline-flex;
-  gap: 3rem;
+  gap: 2.5rem;
   padding: 0 4rem;
   min-width: 100%;
 }
@@ -70,8 +84,8 @@
   display: flex;
   flex-direction: column;
   gap: 2rem;
-  min-width: 320px;
-  max-width: 320px;
+  min-width: 300px;
+  max-width: 300px;
 }
 
 .round-title {
@@ -245,7 +259,7 @@
   display: flex;
   flex-direction: column;
   justify-content: space-around;
-  min-width: 320px;
+  min-width: 300px;
   gap: 1.5rem;
 }
 
@@ -425,8 +439,18 @@
 
 @media (max-width: 640px) {
   .brackets-page {
-    padding: 1.5rem 0.85rem;
+    padding: 1.5rem 0.5rem;
     gap: 1.25rem;
+  }
+
+  .brackets-scroll-content {
+    gap: 1.5rem;
+    padding: 0 1rem;
+  }
+
+  .bracket-round, .knockout-column {
+    min-width: 280px;
+    max-width: 280px;
   }
 
   .brackets-header h1 {

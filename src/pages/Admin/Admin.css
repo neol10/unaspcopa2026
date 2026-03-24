@@ -3333,13 +3333,21 @@
 }
 
 .goal-wizard-modal {
-  width: 100%;
+  width: 95%;
   max-width: 500px;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
+  background: linear-gradient(135deg, rgba(20, 20, 25, 0.95) 0%, rgba(10, 10, 15, 0.98) 100%);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 24px;
-  padding: 2rem;
+  padding: 1.5rem;
   box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(20px);
+}
+
+@media (max-width: 640px) {
+  .goal-wizard-modal {
+    padding: 1.25rem;
+    border-radius: 20px;
+  }
 }
 
 .wizard-header {
@@ -3372,24 +3380,31 @@
 
 .player-grid-wizard {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  gap: 0.75rem;
-  max-height: 300px;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 0.6rem;
+  max-height: 40vh;
   overflow-y: auto;
   padding-right: 0.5rem;
 }
 
+@media (max-width: 640px) {
+  .player-grid-wizard {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  }
+}
+
 .p-wizard-btn {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
+  gap: 0.4rem;
+  padding: 0.6rem;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 12px;
   color: var(--text-dim);
   transition: all 0.2s;
-  text-align: left;
+  text-align: center;
 }
 
 .p-wizard-btn:hover {
@@ -3421,12 +3436,18 @@
 }
 
 .wizard-footer-controls {
-  margin-top: 2rem;
+  margin-top: 1.5rem;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
+  gap: 1rem;
   padding-top: 1.5rem;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+@media (max-width: 480px) {
+  .wizard-footer-controls {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Substitution UI Polish */
