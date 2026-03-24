@@ -14,6 +14,7 @@ import { useAuthContext } from '../../contexts/AuthContext';
 import { withTimeout } from '../../lib/withTimeout';
 import { toast } from 'react-hot-toast';
 import { useConfirm } from '../../hooks/useConfirm';
+import { AnimatePresence, motion } from 'framer-motion';
 import './Admin.css';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
