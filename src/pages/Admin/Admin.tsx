@@ -1371,6 +1371,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   const { events, refresh: refreshEvents } = useMatchEvents(match.id);
   const { confirm: confirmAction, ConfirmElement } = useConfirm();
   const [eventType, setEventType] = useState<'gol' | 'amarelo' | 'vermelho' | 'substituicao' | 'comentario' | 'momento'>('gol');
+  const [showGoalDetails, setShowGoalDetails] = useState(false);
   const [goalType, setGoalType] = useState<'normal' | 'penalti' | 'contra'>('normal');
   const [selectedMinute, setSelectedMinute] = useState<number>(0);
   const [assistantId, setAssistantId] = useState<string>('');
@@ -1831,7 +1832,12 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
               onClick={e => e.stopPropagation()}
             >
               <div className="wizard-header">
-                <h3>⚽ Registrar Gol - {goalWizard.team === 'a' ? (match.teams_a?.name) : (match.teams_b?.name)}</h3>
+                <div className="wizard-header-main">
+                  <h3>⚽ Registrar Gol - {goalWizard.team === 'a' ? (match.teams_a?.name) : (match.teams_b?.name)}</h3>
+                  <div className="wizard-clock-info">
+                    <Timer size={14} /> {formatTime(seconds)}
+                  </div>
+                </div>
                 <button className="btn-close-wizard" onClick={() => setGoalWizard({ ...goalWizard, open: false })}>×</button>
               </div>
               
@@ -1859,7 +1865,13 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                   </div>
                 </div>
 
-                {!goalWizard.isSimple && (
+                {goalWizard.isSimple && (
+                  <button className="btn-toggle-details" onClick={() => setShowGoalDetails(!showGoalDetails)}>
+                    {showGoalDetails ? 'Ocultar Detalhes' : 'Adicionar Assistência/Tipo'}
+                  </button>
+                )}
+
+                {(showGoalDetails || !goalWizard.isSimple) && (
                   <div className="wizard-footer-controls">
                     <div className="form-group">
                       <label>Assistência (Opcional)</label>

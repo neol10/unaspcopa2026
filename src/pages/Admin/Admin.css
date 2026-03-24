@@ -3358,10 +3358,26 @@
 }
 
 .wizard-header h3 {
-  font-size: 1.25rem;
+  font-size: 1.1rem;
   font-weight: 850;
   color: #fff;
   margin: 0;
+}
+
+.wizard-header-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.wizard-clock-info {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--secondary);
+  font-weight: 700;
+  opacity: 0.8;
 }
 
 .btn-close-wizard {
@@ -3430,6 +3446,29 @@
   background: rgba(251, 191, 36, 0.3);
 }
 
+.p-wizard-btn .p-name {
+  font-size: 0.75rem;
+  line-height: 1.2;
+}
+
+.btn-toggle-details {
+  width: 100%;
+  margin-top: 1.25rem;
+  padding: 0.6rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-toggle-details:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--secondary);
+  color: #fff;
 .p-wizard-btn .p-num {
   font-weight: 900;
   color: var(--secondary);
