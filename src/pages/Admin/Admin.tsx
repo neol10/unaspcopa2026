@@ -1844,17 +1844,15 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
               <div className="wizard-body">
                 <div className="form-group">
                   <label>Quem fez o gol?</label>
-                  <div className="player-grid-wizard">
+                  <div className="player-grid-wizard" style={{ 
+                    justifyContent: (goalWizard.team === 'a' ? playersA : playersB)?.length <= 3 ? 'center' : 'start' 
+                  }}>
                     {((goalWizard.team === 'a' ? playersA : playersB) || []).map(p => (
                       <button 
                         key={p.id} 
                         className={`p-wizard-btn ${onFieldA.includes(p.id) || onFieldB.includes(p.id) ? 'on-field' : ''} ${goalWizard.pId === p.id ? 'pre-selected' : ''}`}
                         onClick={() => {
-                          if (goalWizard.isSimple) {
-                            handleGoalWizardSubmit(p.id, 'normal', ''); // Submissão imediata no modo simples
-                          } else {
-                            handleGoalWizardSubmit(p.id, goalType, assistantId);
-                          }
+                          setGoalWizard({ ...goalWizard, pId: p.id });
                         }}
                       >
                         <span className="p-num">{p.number}</span>
@@ -1865,14 +1863,8 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                   </div>
                 </div>
 
-                {goalWizard.isSimple && (
-                  <button className="btn-toggle-details" onClick={() => setShowGoalDetails(!showGoalDetails)}>
-                    {showGoalDetails ? 'Ocultar Detalhes' : 'Adicionar Assistência/Tipo'}
-                  </button>
-                )}
-
                 {(showGoalDetails || !goalWizard.isSimple) && (
-                  <div className="wizard-footer-controls">
+                  <div className="wizard-details-expanded">
                     <div className="form-group">
                       <label>Assistência (Opcional)</label>
                       <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
@@ -1883,8 +1875,8 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                     </div>
                     
                     <div className="form-group">
-                      <label>Tipo</label>
-                      <div className="goal-type-btns">
+                      <label>Tipo de Gol</label>
+                      <div className="goal-type-btns-mini">
                         <button className={goalType === 'normal' ? 'active' : ''} onClick={() => setGoalType('normal')}>Normal</button>
                         <button className={goalType === 'penalti' ? 'active' : ''} onClick={() => setGoalType('penalti')}>Pênalti</button>
                         <button className={goalType === 'contra' ? 'active red' : ''} onClick={() => setGoalType('contra')}>Contra</button>
@@ -1892,6 +1884,26 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                     </div>
                   </div>
                 )}
+
+                <div className="wizard-actions">
+                  <button 
+                    className={`btn-confirm-wizard ${goalWizard.pId ? 'active' : ''}`}
+                    disabled={!goalWizard.pId}
+                    onClick={() => {
+                      if (goalWizard.pId) {
+                        handleGoalWizardSubmit(goalWizard.pId, goalType, assistantId);
+                      }
+                    }}
+                  >
+                    {goalWizard.pId ? 'REGISTRAR GOL' : 'Selecione o Jogador'}
+                  </button>
+                  
+                  {goalWizard.isSimple && (
+                    <button className="btn-toggle-details-flat" onClick={() => setShowGoalDetails(!showGoalDetails)}>
+                      {showGoalDetails ? 'Ocultar Detalhes' : 'Adicionar Assistência/Tipo'}
+                    </button>
+                  )}
+                </div>
               </div>
             </motion.div>
           </motion.div>
