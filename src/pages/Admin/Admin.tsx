@@ -194,7 +194,6 @@ const getDeleteMatchErrorMessage = (err: unknown): string => {
 const Admin: React.FC = () => {
   const { user, role, loading: authLoading } = useAuthContext();
   const [activeTab, setActiveTab] = useState<'matches' | 'teams' | 'players' | 'news' | 'tournament' | 'polls' | 'notifications' | 'errors'>('matches');
-  const { confirm: confirmAction, ConfirmElement } = useConfirm();
   
   if (authLoading) return <div className="admin-loading-state glass"><div className="spinner"></div><p>Verificando credenciais...</p></div>;
 
@@ -782,6 +781,7 @@ const MatchManagement = () => {
   const { matches, loading, refresh } = useMatches();
   const { teams } = useTeams();
   const queryClient = useQueryClient();
+  const { confirm: confirmAction, ConfirmElement } = useConfirm();
   const [isAdding, setIsAdding] = useState(false);
   const [isSubmittingMatch, setIsSubmittingMatch] = useState(false);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
@@ -1352,14 +1352,16 @@ const MatchManagement = () => {
           ))}
         </div>
       </div>
+      {ConfirmElement}
     </div>
   );
-}
+};
 
 const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   const { players: playersA } = usePlayers(match.team_a_id);
   const { players: playersB } = usePlayers(match.team_b_id);
   const { events, refresh: refreshEvents } = useMatchEvents(match.id);
+  const { confirm: confirmAction, ConfirmElement } = useConfirm();
   const [eventType, setEventType] = useState<'gol' | 'amarelo' | 'vermelho' | 'substituicao' | 'comentario' | 'momento'>('gol');
   const [goalType, setGoalType] = useState<'normal' | 'penalti' | 'contra'>('normal');
   const [selectedMinute, setSelectedMinute] = useState<number>(0);
@@ -1582,9 +1584,11 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
     }
   };
 
-  const addEvent = async (playerId: string, team: 'a' | 'b') => {
+  const addEvent = async (playerId: string, team: 'a' | 'b', overrides?: { goalType?: string, assistantId?: string }) => {
     try {
       const eventMinute = selectedMinute > 0 ? selectedMinute : Math.floor(seconds / 60) || 1;
+      const finalGoalType = overrides?.goalType || goalType;
+      const finalAssistantId = overrides?.assistantId || assistantId;
 
       type InsertMatchEvent = {
         match_id: string;
@@ -1593,6 +1597,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         player_id: string | null;
         assistant_id?: string | null;
         commentary?: string;
+        metadata?: any;
       };
 
       const eventData: InsertMatchEvent = {
@@ -1609,17 +1614,18 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       }
 
       if (eventType === 'gol') {
-        eventData.commentary = goalType === 'normal' ? '' : `[${goalType.toUpperCase()}]`;
-        if (assistantId) eventData.assistant_id = assistantId;
+        eventData.commentary = finalGoalType === 'normal' ? '' : `[${finalGoalType.toUpperCase()}]`;
+        if (finalAssistantId) eventData.assistant_id = finalAssistantId;
+        eventData.metadata = { goal_type: finalGoalType };
       }
       
-      if (eventType === 'substituicao' && assistantId) {
-        eventData.assistant_id = assistantId; // IN
+      if (eventType === 'substituicao' && finalAssistantId) {
+        eventData.assistant_id = finalAssistantId; // IN
         // Lógica de troca automática de status
         if (team === 'a') {
-          setOnFieldA(prev => prev.filter(id => id !== playerId).concat(assistantId));
+          setOnFieldA(prev => prev.filter(id => id !== playerId).concat(finalAssistantId));
         } else {
-          setOnFieldB(prev => prev.filter(id => id !== playerId).concat(assistantId));
+          setOnFieldB(prev => prev.filter(id => id !== playerId).concat(finalAssistantId));
         }
       }
 
@@ -1632,21 +1638,21 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       
       if (eventType === 'gol') {
         let newScore = {};
-        if (goalType === 'contra') {
-          newScore = team === 'a' ? { team_b_score: match.team_b_score + 1 } : { team_a_score: (match.team_a_score || 0) + 1 };
+        if (finalGoalType === 'contra') {
+          newScore = team === 'a' ? { team_b_score: (match.team_b_score || 0) + 1 } : { team_a_score: (match.team_a_score || 0) + 1 };
         } else {
           newScore = team === 'a' ? { team_a_score: (match.team_a_score || 0) + 1 } : { team_b_score: (match.team_b_score || 0) + 1 };
         }
         await supabase.from('matches').update(newScore).eq('id', match.id);
       }
       
-      if (eventType === 'gol' && goalType !== 'contra') {
+      if (eventType === 'gol' && finalGoalType !== 'contra') {
         const { data: p } = await supabase.from('players').select('goals_count').eq('id', playerId).single();
         await supabase.from('players').update({ goals_count: (p?.goals_count || 0) + 1 }).eq('id', playerId);
         
-        if (assistantId) {
-          const { data: ast } = await supabase.from('players').select('assists').eq('id', assistantId).single();
-          await supabase.from('players').update({ assists: (ast?.assists || 0) + 1 }).eq('id', assistantId);
+        if (finalAssistantId) {
+          const { data: ast } = await supabase.from('players').select('assists').eq('id', finalAssistantId).single();
+          await supabase.from('players').update({ assists: (ast?.assists || 0) + 1 }).eq('id', finalAssistantId);
         }
       } else if (eventType === 'amarelo') {
         const { data: p } = await supabase.from('players').select('yellow_cards').eq('id', playerId).single();
@@ -1670,8 +1676,8 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         let title = '⚽ GOOOOOOL!';
         let body = `Gol de ${player?.name || 'alguém'} para o ${teamName}!`;
         
-        if (goalType === 'penalti') body = `[PÊNALTI] ${body}`;
-        if (goalType === 'contra') {
+        if (finalGoalType === 'penalti') body = `[PÊNALTI] ${body}`;
+        if (finalGoalType === 'contra') {
           title = '⚽ GOL CONTRA!';
           body = `Gol contra de ${player?.name}!`;
         }
@@ -1775,7 +1781,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
     removeEvent(lastEvent);
   };
 
-  const [goalWizard, setGoalWizard] = useState<{ team: 'a' | 'b', open: boolean }>({ team: 'a', open: false });
+  const [goalWizard, setGoalWizard] = useState<{ team: 'a' | 'b', open: boolean, pId?: string }>({ team: 'a', open: false });
 
   const handleManualScore = async (team: 'a' | 'b', increment: number) => {
     if (increment > 0) {
@@ -1797,9 +1803,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
   const handleGoalWizardSubmit = async (playerId: string, goalTypeVal: 'normal' | 'penalti' | 'contra', assistantIdVal: string) => {
     try {
-      setGoalType(goalTypeVal);
-      setAssistantId(assistantIdVal);
-      await addEvent(playerId, goalWizard.team);
+      await addEvent(playerId, goalWizard.team, { goalType: goalTypeVal, assistantId: assistantIdVal });
       setGoalWizard({ ...goalWizard, open: false });
     } catch (err) {
       console.error(err);
@@ -1837,11 +1841,12 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                     {(goalWizard.team === 'a' ? playersA : playersB).map(p => (
                       <button 
                         key={p.id} 
-                        className={`p-wizard-btn ${onFieldA.includes(p.id) || onFieldB.includes(p.id) ? 'on-field' : ''}`}
+                        className={`p-wizard-btn ${onFieldA.includes(p.id) || onFieldB.includes(p.id) ? 'on-field' : ''} ${goalWizard.pId === p.id ? 'pre-selected' : ''}`}
                         onClick={() => handleGoalWizardSubmit(p.id, goalType, assistantId)}
                       >
                         <span className="p-num">{p.number}</span>
                         <span className="p-name">{p.name}</span>
+                        {goalWizard.pId === p.id && <Zap size={10} style={{ color: 'var(--secondary)' }} />}
                       </button>
                     ))}
                   </div>
@@ -2061,7 +2066,11 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
             <span className="roster-label"><Zap size={12} /> Em Campo</span>
             <div className="admin-player-btns">
               {playersA.filter(p => onFieldA.includes(p.id)).map(p => (
-                <button key={p.id} onClick={() => addEvent(p.id, 'a')} className="p-btn active-field">
+                <button 
+                  key={p.id} 
+                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: 'a', open: true, pId: p.id }) : addEvent(p.id, 'a')} 
+                  className="p-btn active-field"
+                >
                   <span className="p-num">{p.number}</span>
                   <span className="p-name">{p.name.split(' ')[0]}</span>
                   <ChevronDown size={10} className="btn-status-toggle" onClick={(e) => { e.stopPropagation(); togglePlayerStatus(p.id, 'a'); }} />
@@ -2074,7 +2083,11 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
             <span className="roster-label"><Users size={12} /> Banco</span>
             <div className="admin-player-btns">
               {playersA.filter(p => !onFieldA.includes(p.id)).map(p => (
-                <button key={p.id} onClick={() => togglePlayerStatus(p.id, 'a')} className="p-btn bench">
+                <button 
+                  key={p.id} 
+                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: 'a', open: true, pId: p.id }) : togglePlayerStatus(p.id, 'a')} 
+                  className="p-btn bench"
+                >
                   <span className="p-num">{p.number}</span>
                   <span className="p-name">{p.name.split(' ')[0]}</span>
                 </button>
@@ -2091,13 +2104,15 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           <div className="roster-section">
             <span className="roster-label"><Zap size={12} /> Em Campo</span>
             <div className="admin-player-btns">
-              {playersB.filter(p => onFieldB.includes(p.id)).map(p => (
-                <button key={p.id} onClick={() => addEvent(p.id, 'b')} className="p-btn active-field">
+                <button 
+                  key={p.id} 
+                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: 'b', open: true, pId: p.id }) : addEvent(p.id, 'b')} 
+                  className="p-btn active-field"
+                >
                   <span className="p-num">{p.number}</span>
                   <span className="p-name">{p.name.split(' ')[0]}</span>
                   <ChevronDown size={10} className="btn-status-toggle" onClick={(e) => { e.stopPropagation(); togglePlayerStatus(p.id, 'b'); }} />
                 </button>
-              ))}
             </div>
           </div>
 
@@ -2105,7 +2120,11 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
             <span className="roster-label"><Users size={12} /> Banco</span>
             <div className="admin-player-btns">
               {playersB.filter(p => !onFieldB.includes(p.id)).map(p => (
-                <button key={p.id} onClick={() => togglePlayerStatus(p.id, 'b')} className="p-btn bench">
+                <button 
+                  key={p.id} 
+                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: 'b', open: true, pId: p.id }) : togglePlayerStatus(p.id, 'b')} 
+                  className="p-btn bench"
+                >
                   <span className="p-num">{p.number}</span>
                   <span className="p-name">{p.name.split(' ')[0]}</span>
                 </button>
@@ -2279,9 +2298,10 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           {mvpSaved ? <><CheckCircle size={18} /> Salvo!</> : <><Save size={18} /> Salvar Craque do Jogo</>}
         </button>
       </div>
+      {ConfirmElement}
     </div>
   );
-}
+};
 
 const TeamManagement = () => {
   const { teams, loading, refresh } = useTeams();
@@ -3149,7 +3169,7 @@ const NewsManagement = () => {
               )}
             </div>
           ))}
-          {news.length === 0 && <p className="empty-msg">Nenhuma notícia publicada.</p>}
+          {news.length === 0 && !loading && <p className="empty-msg">Nenhuma notícia publicada.</p>}
         </div>
       )}
     </div>
@@ -3300,10 +3320,11 @@ const TournamentManagement = () => {
 };
 
 const PollManagement = () => {
+  const { polls, loading, refresh } = usePolls();
+  const { confirm: confirmAction, ConfirmElement } = useConfirm();
+  const queryClient = useQueryClient();
   type PollFormData = { question: string; options: string[] };
 
-  const [polls, setPolls] = useState<Poll[]>([]);
-  const [loading, setLoading] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [editingPollId, setEditingPollId] = useState<string | null>(null);
   const [formData, setFormData] = useState<PollFormData>({ 
@@ -3533,6 +3554,7 @@ const PollManagement = () => {
         ))}
         {polls.length === 0 && !loading && <p className="empty-msg">Nenhuma enquete cadastrada.</p>}
       </div>
+      {ConfirmElement}
     </div>
   );
 };
@@ -3541,12 +3563,13 @@ const GlobalPlayerManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [isSubmittingGlobalPlayer, setIsSubmittingGlobalPlayer] = useState(false);
+  const { teams } = useTeams();
+  const { players: allPlayers, loading, refresh: refreshPlayers, removePlayerFromCache } = usePlayers();
+  const { confirm: confirmAction, ConfirmElement } = useConfirm();
   const [isUpdatingGlobalPlayer, setIsUpdatingGlobalPlayer] = useState(false);
   const [editingGlobalPlayerId, setEditingGlobalPlayerId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const queryClient = useQueryClient();
-  const { teams } = useTeams();
-  const { players: allPlayers, loading } = usePlayers();
   
   const [formData, setFormData] = useState({ 
     name: '', number: '', position: 'Ala', team_id: '', photo_url: '', bio: '',

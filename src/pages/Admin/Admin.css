@@ -3404,6 +3404,17 @@
   border-color: rgba(34, 197, 94, 0.2);
 }
 
+.p-wizard-btn.pre-selected {
+  background: rgba(251, 191, 36, 0.2);
+  border-color: var(--secondary);
+  box-shadow: 0 0 15px rgba(251, 191, 36, 0.2);
+  transform: scale(1.02);
+}
+
+.p-wizard-btn.pre-selected:hover {
+  background: rgba(251, 191, 36, 0.3);
+}
+
 .p-wizard-btn .p-num {
   font-weight: 900;
   color: var(--secondary);

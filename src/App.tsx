@@ -91,7 +91,7 @@ const ForceRefresh = () => {
     }
 
     // Versão da aplicação para controle de cache
-    const APP_VERSION = '1.0.4';
+    const APP_VERSION = '1.0.5';
     const currentVersion = localStorage.getItem('app_version');
 
     if (currentVersion !== APP_VERSION) {
