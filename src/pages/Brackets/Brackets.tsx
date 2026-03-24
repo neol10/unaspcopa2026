@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMatches, Match } from '../../hooks/useMatches';
-import { Trophy, Timer, ChevronRight, ChevronLeft } from 'lucide-react';
+import { useTournamentConfig } from '../../hooks/useTournamentConfig';
+import { Trophy, Timer, ChevronRight, ChevronLeft, Target } from 'lucide-react';
 import './Brackets.css';
 
 const Brackets: React.FC = () => {
@@ -13,15 +14,44 @@ const Brackets: React.FC = () => {
   const [startX, setStartX] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
 
+  const { config } = useTournamentConfig();
+  const [hasScrolled, setHasScrolled] = useState(false);
+
   useEffect(() => {
     if (!loading) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStuck(false);
       return;
     }
     const id = setTimeout(() => setStuck(true), 15000);
     return () => clearTimeout(id);
   }, [loading]);
+
+  // Auto-scroll para a rodada atual
+  useEffect(() => {
+    if (!loading && matches.length > 0 && config && !hasScrolled) {
+      const timer = setTimeout(() => {
+        let targetId = '';
+        if (config.current_phase === 'grupos') {
+          targetId = `phase-${config.current_round}`;
+        } else {
+          // Busca nos rounds carregados um que contenha a fase atual
+          const targetRound = sortedRounds.find(r => 
+            r.toLowerCase().includes(config.current_phase.toLowerCase()) ||
+            (config.current_phase === 'semifinal' && r.toLowerCase().includes('semi'))
+          );
+          if (targetRound) {
+            targetId = `phase-${targetRound.toLowerCase().replace(/\s+/g, '-')}`;
+          }
+        }
+
+        if (targetId) {
+          scrollToPhase(targetId);
+          setHasScrolled(true);
+        }
+      }, 500); // Pequeno delay para garantir que o DOM renderizou
+      return () => clearTimeout(timer);
+    }
+  }, [loading, matches, config, hasScrolled]);
 
   const formatRoundName = (name: string) => {
     if (/^\d+$/.test(name)) return `${name}ª Rodada`;
@@ -231,23 +261,30 @@ const Brackets: React.FC = () => {
           {knockoutRounds.length > 0 && (
             <div className="knockout-tree-container">
               <div className="knockout-columns">
-                {knockoutRounds.map((roundName) => (
-                  <div 
-                    key={roundName} 
-                    id={`phase-${roundName.toLowerCase().replace(/\s+/g, '-')}`}
-                    className={`knockout-column phase-${roundName.toLowerCase().replace(/\s+/g, '-')}`}
-                  >
-                    <h3 className="round-title knockout-title">
-                      <span className="round-dot"></span>
-                      {roundName}
-                    </h3>
-                    <div className="round-matches knockout-matches">
-                      {roundsMap[roundName].map(m => (
-                        <MatchBox key={m.id} match={m} isKnockout />
-                      ))}
+                {knockoutRounds.map((roundName) => {
+                  const isCurrent = config.current_phase !== 'grupos' && (
+                    roundName.toLowerCase().includes(config.current_phase.toLowerCase()) ||
+                    (config.current_phase === 'semifinal' && roundName.toLowerCase().includes('semi'))
+                  );
+                  return (
+                    <div 
+                      key={roundName} 
+                      id={`phase-${roundName.toLowerCase().replace(/\s+/g, '-')}`}
+                      className={`knockout-column phase-${roundName.toLowerCase().replace(/\s+/g, '-')} ${isCurrent ? 'current-round-highlight' : ''}`}
+                    >
+                      <h3 className="round-title knockout-title">
+                        <span className="round-dot"></span>
+                        {roundName}
+                        {isCurrent && <span className="current-label"><Target size={12} /> Atual</span>}
+                      </h3>
+                      <div className="round-matches knockout-matches">
+                        {roundsMap[roundName].map(m => (
+                          <MatchBox key={m.id} match={m} isKnockout />
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -256,19 +293,27 @@ const Brackets: React.FC = () => {
           {groupRounds.length > 0 && (
             <div className="group-stage-container">
               <div className="group-rounds">
-                {groupRounds.map((roundName) => (
-                  <div key={roundName} className="bracket-round">
-                    <h3 className="round-title">
-                      <span className="round-dot"></span>
-                      {formatRoundName(roundName)}
-                    </h3>
-                    <div className="round-matches">
-                      {roundsMap[roundName].map(m => (
-                        <MatchBox key={m.id} match={m} />
-                      ))}
+                {groupRounds.map((roundName) => {
+                  const isCurrent = config.current_phase === 'grupos' && String(config.current_round) === roundName;
+                  return (
+                    <div 
+                      key={roundName} 
+                      id={`phase-${roundName}`}
+                      className={`bracket-round ${isCurrent ? 'current-round-highlight' : ''}`}
+                    >
+                      <h3 className="round-title">
+                        <span className="round-dot"></span>
+                        {formatRoundName(roundName)}
+                        {isCurrent && <span className="current-label"><Target size={12} /> Atual</span>}
+                      </h3>
+                      <div className="round-matches">
+                        {roundsMap[roundName].map(m => (
+                          <MatchBox key={m.id} match={m} />
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

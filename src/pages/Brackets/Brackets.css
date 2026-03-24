@@ -112,6 +112,40 @@
   gap: 1.5rem;
 }
 
+/* Highlight for current round */
+.current-round-highlight {
+  position: relative;
+}
+
+.current-round-highlight .round-title {
+  color: var(--secondary);
+}
+
+.current-round-highlight .round-title::after {
+  width: 100%;
+  box-shadow: 0 0 10px var(--secondary-glow);
+}
+
+.current-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--secondary);
+  color: var(--bg-main);
+  font-size: 0.65rem;
+  padding: 2px 8px;
+  border-radius: 100px;
+  margin-left: auto;
+  letter-spacing: 0;
+  animation: pulse-border 2s infinite;
+}
+
+@keyframes pulse-border {
+  0% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.4); }
+  70% { box-shadow: 0 0 0 6px rgba(251, 191, 36, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
+}
+
 /* Match Cards */
 .match-box {
   background: rgba(255, 255, 255, 0.03);
