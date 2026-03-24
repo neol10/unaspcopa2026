@@ -208,6 +208,7 @@ const Admin: React.FC = () => {
   }
 
   const isAdmin = role === 'admin';
+  const { ConfirmElement } = useConfirm();
 
   return (
     <div className="admin-container animate-fade-in">
@@ -304,6 +305,7 @@ const Admin: React.FC = () => {
             {activeTab === 'notifications' && <NotificationBroadcast />}
             {activeTab === 'errors' && <ClientErrorsPanel />}
           </main>
+          {ConfirmElement}
         </>
       )}
     </div>
