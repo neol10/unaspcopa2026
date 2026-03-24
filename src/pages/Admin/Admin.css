@@ -2670,9 +2670,9 @@
 /* ============================================================ */
 
 .admin-scoreboard-pro {
-  background: rgba(15, 23, 42, 0.8) !important;
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(15, 23, 42, 0.85) !important;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 24px;
   padding: 2rem;
   margin-bottom: 2.5rem;
@@ -2680,8 +2680,8 @@
 }
 
 .admin-scoreboard-pro.glass {
-  background: rgba(15, 23, 42, 0.8) !important;
-  backdrop-filter: blur(20px);
+  background: rgba(15, 23, 42, 0.9) !important;
+  backdrop-filter: blur(10px);
 }
 
 .sb-pro-main {
@@ -2845,6 +2845,68 @@
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   justify-content: center;
+}
+
+/* Responsividade do Placar Admin */
+@media (max-width: 768px) {
+  .admin-scoreboard-pro {
+    padding: 1.5rem 1rem;
+    border-radius: 20px;
+    margin-bottom: 1.5rem;
+  }
+
+  .sb-pro-main {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .sb-pro-center {
+    order: -1; /* Cronômetro no topo no mobile */
+    gap: 1rem;
+  }
+
+  .sb-pro-timer-display {
+    font-size: 2.2rem;
+    padding: 0.75rem 1.5rem;
+  }
+
+  .score-number-display {
+    font-size: 3.2rem;
+    min-width: 60px;
+  }
+
+  .sb-pro-score-box {
+    padding: 0.5rem 0.75rem;
+    gap: 1rem;
+  }
+
+  .timer-btn {
+    padding: 0.6rem 1rem;
+    font-size: 0.7rem;
+    border-radius: 10px;
+  }
+
+  .sb-pro-team {
+    flex-direction: row;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0 0.5rem;
+  }
+
+  .sb-pro-team-name {
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+    text-align: right;
+    max-width: 120px;
+  }
+
+  .team-a {
+    flex-direction: row-reverse;
+  }
+
+  .team-a .sb-pro-team-name {
+    text-align: left;
+  }
 }
 
 .btn-undo-last-pro {
@@ -3334,13 +3396,13 @@
 
 .goal-wizard-modal {
   width: 95%;
-  max-width: 500px;
-  background: linear-gradient(135deg, rgba(20, 20, 25, 0.95) 0%, rgba(10, 10, 15, 0.98) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  max-width: 440px;
+  background: rgba(15, 23, 42, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 24px;
   padding: 1.5rem;
-  box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(20px);
+  box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
 }
 
 @media (max-width: 640px) {
@@ -3454,21 +3516,25 @@
 .btn-toggle-details {
   width: 100%;
   margin-top: 1.25rem;
-  padding: 0.6rem;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px dashed rgba(255, 255, 255, 0.2);
-  border-radius: 10px;
-  color: var(--text-dim);
-  font-size: 0.7rem;
-  font-weight: 700;
+  padding: 0.75rem;
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+  border-radius: 12px;
+  color: var(--secondary);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .btn-toggle-details:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(251, 191, 36, 0.15);
   border-color: var(--secondary);
   color: #fff;
+}
+
 .p-wizard-btn .p-num {
   font-weight: 900;
   color: var(--secondary);
