@@ -821,11 +821,6 @@ const MatchManagement = () => {
     return acc;
   }, {});
 
-  const busyTeamIdsInRound = new Set(
-    (matches || [])
-      .filter(m => m.round === formData.round && m.id !== selectedMatchId)
-      .flatMap(m => [m.team_a_id, m.team_b_id])
-  );
 
   const handleCreateMatch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1080,7 +1075,7 @@ const MatchManagement = () => {
 
   // Times ocupados na rodada selecionada (Nova Partida)
   const busyTeamIdsInRound = new Set(
-    matches
+    (matches || [])
       .filter(m => m.round === (parseInt(formData.round) || 1))
       .flatMap(m => [m.team_a_id, m.team_b_id])
   );
@@ -1088,7 +1083,7 @@ const MatchManagement = () => {
   // Times ocupados na rodada da partida sendo editada (Ignorando a própria partida)
   const getBusyTeamIdsForEdit = (matchId: string, round: number) => {
     return new Set(
-      matches
+      (matches || [])
         .filter(m => m.id !== matchId && m.round === round)
         .flatMap(m => [m.team_a_id, m.team_b_id])
     );
@@ -1864,7 +1859,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                     <label>Assistência (Opcional)</label>
                     <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
                       <option value="">Ninguém</option>
-                      {(goalWizard.team === 'a' ? playersA : playersB)
+                      {((goalWizard.team === 'a' ? playersA : playersB) || [])
                         .map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </div>
@@ -3910,7 +3905,7 @@ const GlobalPlayerManagement = () => {
               <label>Equipe</label>
               <select required value={formData.team_id} onChange={e => setFormData({...formData, team_id: e.target.value})}>
                 <option value="">Selecione a equipe...</option>
-                {teams.sort((a,b) => a.name.localeCompare(b.name)).map(t => (
+                {[...(teams || [])].sort((a,b) => a.name.localeCompare(b.name)).map(t => (
                   <option key={t.id} value={t.id}>{t.name} ({t.group || 'S/G'})</option>
                 ))}
               </select>
@@ -4042,7 +4037,7 @@ const GlobalPlayerManagement = () => {
                   <label>Equipe</label>
                   <select required value={editFormData.team_id} onChange={e => setEditFormData({ ...editFormData, team_id: e.target.value })}>
                     <option value="">Selecione a equipe...</option>
-                    {[...teams].sort((a, b) => a.name.localeCompare(b.name)).map(t => (
+                    {[...(teams || [])].sort((a, b) => a.name.localeCompare(b.name)).map(t => (
                       <option key={t.id} value={t.id}>{t.name} ({t.group || 'S/G'})</option>
                     ))}
                   </select>
