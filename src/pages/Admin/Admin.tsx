@@ -600,7 +600,7 @@ const NotificationBroadcast = () => {
           <label>Segmentar por Time (Opcional)</label>
           <select value={targetTeamId} onChange={(e) => setTargetTeamId(e.target.value)}>
             <option value="">Todos os times</option>
-            {teams.map((team) => (
+            {(teams || []).map((team) => (
               <option key={team.id} value={team.id}>{team.name}</option>
             ))}
           </select>
@@ -742,7 +742,7 @@ const ClientErrorsPanel = () => {
           </div>
         ) : (
           <div className="client-errors-list">
-            {items.map((it) => (
+            {(items || []).map((it) => (
               <div key={it.id} className="client-error-item glass">
                 <div className="client-error-head">
                   <strong>{it.source}</strong>
@@ -814,12 +814,18 @@ const MatchManagement = () => {
   };
 
   // Agrupar equipes por grupo
-  const groupedTeams = teams.reduce<Record<string, Team[]>>((acc, team) => {
-    const groupName = team.group || 'Sem Grupo';
-    if (!acc[groupName]) acc[groupName] = [];
-    acc[groupName].push(team);
+  const groupedTeams = (teams || []).reduce<Record<string, Team[]>>((acc, team) => {
+    const group = team.group || 'Sem Grupo';
+    if (!acc[group]) acc[group] = [];
+    acc[group].push(team);
     return acc;
   }, {});
+
+  const busyTeamIdsInRound = new Set(
+    (matches || [])
+      .filter(m => m.round === formData.round && m.id !== selectedMatchId)
+      .flatMap(m => [m.team_a_id, m.team_b_id])
+  );
 
   const handleCreateMatch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -952,7 +958,7 @@ const MatchManagement = () => {
 
           // Executar atualizações em paralelo (Promise.all) em vez de um loop sequencial com await
           if (playersData) {
-            await Promise.all(playersData.map(p => {
+            await Promise.all((playersData || []).map(p => {
               const d = deltas[p.id];
               return supabase.from('players').update({
                 goals_count: Math.max(0, (p.goals_count || 0) - d.goals),
@@ -1066,7 +1072,7 @@ const MatchManagement = () => {
     }
   };
 
-  const filteredMatches = matches.filter(m => 
+  const filteredMatches = (matches || []).filter(m => 
     m.teams_a?.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     m.teams_b?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     String(m.round).includes(searchTerm)
@@ -1120,11 +1126,11 @@ const MatchManagement = () => {
                 <select required value={formData.team_a_id} onChange={e => setFormData({...formData, team_a_id: e.target.value})}>
                   <option value="">Selecione...</option>
                   {Object.keys(groupedTeams).sort().map(group => {
-                    const availableTeamsInGroup = groupedTeams[group].filter((t) => !busyTeamIdsInRound.has(t.id) || t.id === formData.team_a_id);
+                    const availableTeamsInGroup = (groupedTeams[group] || []).filter((t) => !busyTeamIdsInRound.has(t.id) || t.id === formData.team_a_id);
                     if (availableTeamsInGroup.length === 0) return null;
                     return (
                       <optgroup key={group} label={`Grupo ${group}`}>
-                        {availableTeamsInGroup.sort((a, b) => a.name.localeCompare(b.name)).map((t) => (
+                        {(availableTeamsInGroup || []).sort((a, b) => a.name.localeCompare(b.name)).map((t) => (
                           <option key={t.id} value={t.id} disabled={formData.team_b_id === t.id}>{t.name}</option>
                         ))}
                       </optgroup>
@@ -1137,11 +1143,11 @@ const MatchManagement = () => {
                 <select required value={formData.team_b_id} onChange={e => setFormData({...formData, team_b_id: e.target.value})}>
                   <option value="">Selecione...</option>
                   {Object.keys(groupedTeams).sort().map(group => {
-                    const availableTeamsInGroup = groupedTeams[group].filter((t) => !busyTeamIdsInRound.has(t.id) || t.id === formData.team_b_id);
+                    const availableTeamsInGroup = (groupedTeams[group] || []).filter((t) => !busyTeamIdsInRound.has(t.id) || t.id === formData.team_b_id);
                     if (availableTeamsInGroup.length === 0) return null;
                     return (
                       <optgroup key={group} label={`Grupo ${group}`}>
-                        {availableTeamsInGroup.sort((a, b) => a.name.localeCompare(b.name)).map((t) => (
+                        {(availableTeamsInGroup || []).sort((a, b) => a.name.localeCompare(b.name)).map((t) => (
                           <option key={t.id} value={t.id} disabled={formData.team_a_id === t.id}>{t.name}</option>
                         ))}
                       </optgroup>
@@ -1180,9 +1186,9 @@ const MatchManagement = () => {
         {/* === PARTIDAS ATIVAS / AGENDADAS === */}
         <div className="admin-list-group">
           <h3 className="list-group-title"><Clock size={16} /> Partidas Ativas / Agendadas</h3>
-          {loading ? <p>Carregando...</p> : filteredMatches.filter(m => m.status !== 'finalizado').length === 0 ? (
+          {loading ? <p>Carregando...</p> : (filteredMatches || []).filter(m => m.status !== 'finalizado').length === 0 ? (
             <div className="admin-empty-state"><p>Nenhuma partida agendada.</p></div>
-          ) : filteredMatches.filter(m => m.status !== 'finalizado').map(match => (
+          ) : (filteredMatches || []).filter(m => m.status !== 'finalizado').map(match => (
             <React.Fragment key={match.id}>
               <div className={`admin-list-item match-admin-card ${match.status}`}>
                 <div className="match-status-info">
@@ -1284,9 +1290,9 @@ const MatchManagement = () => {
         {/* === HISTÓRICO DE PARTIDAS === */}
         <div className="admin-list-group" style={{ marginTop: '3rem' }}>
           <h3 className="list-group-title history"><RotateCcw size={16} /> Histórico de Partidas</h3>
-          {loading ? <p>Carregando...</p> : filteredMatches.filter(m => m.status === 'finalizado').length === 0 ? (
+          {loading ? <p>Carregando...</p> : (filteredMatches || []).filter(m => m.status === 'finalizado').length === 0 ? (
             <div className="admin-empty-state"><p>Nenhum histórico disponível.</p></div>
-          ) : filteredMatches.filter(m => m.status === 'finalizado').map(match => (
+          ) : (filteredMatches || []).filter(m => m.status === 'finalizado').map(match => (
             <React.Fragment key={match.id}>
               <div className={`admin-list-item match-admin-card ${match.status} history-item`}>
                 <div className="match-status-info">
@@ -1536,13 +1542,12 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   const [onFieldA, setOnFieldA] = useState<string[]>([]);
   const [onFieldB, setOnFieldB] = useState<string[]>([]);
 
-  // Inicializar quem está em campo (pode ser baseado em quem já tem eventos ou um padrão)
   useEffect(() => {
-    if (playersA.length > 0 && onFieldA.length === 0) {
-      setOnFieldA(playersA.slice(0, 5).map(p => p.id)); // Sugestão inicial: primeiros 5
+    if ((playersA || []).length > 0 && onFieldA.length === 0) {
+      setOnFieldA((playersA || []).slice(0, 5).map(p => p.id)); 
     }
-    if (playersB.length > 0 && onFieldB.length === 0) {
-      setOnFieldB(playersB.slice(0, 5).map(p => p.id));
+    if ((playersB || []).length > 0 && onFieldB.length === 0) {
+      setOnFieldB((playersB || []).slice(0, 5).map(p => p.id));
     }
   }, [playersA, playersB, onFieldA.length, onFieldB.length]);
 
@@ -1840,7 +1845,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                 <div className="form-group">
                   <label>Quem fez o gol?</label>
                   <div className="player-grid-wizard">
-                    {(goalWizard.team === 'a' ? playersA : playersB).map(p => (
+                    {((goalWizard.team === 'a' ? playersA : playersB) || []).map(p => (
                       <button 
                         key={p.id} 
                         className={`p-wizard-btn ${onFieldA.includes(p.id) || onFieldB.includes(p.id) ? 'on-field' : ''} ${goalWizard.pId === p.id ? 'pre-selected' : ''}`}
@@ -1980,7 +1985,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
             <label>Assistência</label>
             <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
               <option value="">Ninguém</option>
-              {[...playersA, ...playersB].map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {[...(playersA || []), ...(playersB || [])].map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
         )}
@@ -2009,14 +2014,14 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                   <label>SAI (OUT)</label>
                   <select value={playerOutId} onChange={e => { setPlayerOutId(e.target.value); setAssistantId(''); }}>
                     <option value="">Selecione...</option>
-                    {playersA.filter(p => onFieldA.includes(p.id)).map(p => <option key={`out-a-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
+                    {(playersA || []).filter(p => onFieldA.includes(p.id)).map(p => <option key={`out-a-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
                   </select>
                 </div>
                 <div className="form-group-mini">
                   <label>ENTRA (IN)</label>
                   <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
                     <option value="">Selecione...</option>
-                    {playersA.filter(p => !onFieldA.includes(p.id)).map(p => <option key={`in-a-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
+                    {(playersA || []).filter(p => !onFieldA.includes(p.id)).map(p => <option key={`in-a-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
                   </select>
                 </div>
                 <button 
@@ -2037,14 +2042,14 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                   <label>SAI (OUT)</label>
                   <select value={playerOutId} onChange={e => { setPlayerOutId(e.target.value); setAssistantId(''); }}>
                     <option value="">Selecione...</option>
-                    {playersB.filter(p => onFieldB.includes(p.id)).map(p => <option key={`out-b-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
+                    {(playersB || []).filter(p => onFieldB.includes(p.id)).map(p => <option key={`out-b-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
                   </select>
                 </div>
                 <div className="form-group-mini">
                   <label>ENTRA (IN)</label>
                   <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
                     <option value="">Selecione...</option>
-                    {playersB.filter(p => !onFieldB.includes(p.id)).map(p => <option key={`in-b-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
+                    {(playersB || []).filter(p => !onFieldB.includes(p.id)).map(p => <option key={`in-b-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
                   </select>
                 </div>
                 <button 
@@ -2067,7 +2072,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           <div className="roster-section">
             <span className="roster-label"><Zap size={12} /> Em Campo</span>
             <div className="admin-player-btns">
-              {playersA.filter(p => onFieldA.includes(p.id)).map(p => (
+              {(playersA || []).filter(p => onFieldA.includes(p.id)).map(p => (
                 <button 
                   key={p.id} 
                   onClick={() => eventType === 'gol' ? setGoalWizard({ team: 'a', open: true, pId: p.id }) : addEvent(p.id, 'a')} 
@@ -2084,7 +2089,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           <div className="roster-section">
             <span className="roster-label"><Users size={12} /> Banco</span>
             <div className="admin-player-btns">
-              {playersA.filter(p => !onFieldA.includes(p.id)).map(p => (
+              {(playersA || []).filter(p => !onFieldA.includes(p.id)).map(p => (
                 <button 
                   key={p.id} 
                   onClick={() => eventType === 'gol' ? setGoalWizard({ team: 'a', open: true, pId: p.id }) : togglePlayerStatus(p.id, 'a')} 
@@ -2121,7 +2126,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           <div className="roster-section">
             <span className="roster-label"><Users size={12} /> Banco</span>
             <div className="admin-player-btns">
-              {playersB.filter(p => !onFieldB.includes(p.id)).map(p => (
+              {(playersB || []).filter(p => !onFieldB.includes(p.id)).map(p => (
                 <button 
                   key={p.id} 
                   onClick={() => eventType === 'gol' ? setGoalWizard({ team: 'b', open: true, pId: p.id }) : togglePlayerStatus(p.id, 'b')} 
@@ -2142,7 +2147,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           <span className="undo-tip">Clique no minuto para editar o tempo</span>
         </div>
         <div className="undo-list">
-          {events.slice(0, 8).map(event => (
+          {(events || []).slice(0, 8).map(event => (
             <div key={event.id} className="undo-item-container">
               <div className={`undo-item animate-slide-up ${editingEventId === event.id ? 'editing' : ''}`}>
                 <div className="undo-info">
@@ -2257,12 +2262,12 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
               <option value="">Selecione o craque...</option>
               {playersA.length > 0 && (
                 <optgroup label={match.teams_a?.name}>
-                  {playersA.map(p => <option key={p.id} value={p.id}>{p.number}. {p.name}</option>)}
+                  {(playersA || []).map(p => <option key={p.id} value={p.id}>{p.number}. {p.name}</option>)}
                 </optgroup>
               )}
               {playersB.length > 0 && (
                 <optgroup label={match.teams_b?.name}>
-                  {playersB.map(p => <option key={p.id} value={p.id}>{p.number}. {p.name}</option>)}
+                  {(playersB || []).map(p => <option key={p.id} value={p.id}>{p.number}. {p.name}</option>)}
                 </optgroup>
               )}
             </select>
@@ -2497,7 +2502,7 @@ const TeamManagement = () => {
 
       {loading ? <p>Carregando...</p> : (
         <div className="admin-list">
-          {teams.map(team => (
+          {(teams || []).map(team => (
             <React.Fragment key={team.id}>
               <div className="admin-list-item">
                 <div className="item-main" onClick={() => setExpandedTeamId(expandedTeamId === team.id ? null : team.id)} style={{cursor: 'pointer'}}>
@@ -2830,7 +2835,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
             <p>Clique em "Novo Atleta" para adicionar.</p>
           </div>
         ) : (
-          players.map(p => (
+          (players || []).map(p => (
             <div key={p.id} className="player-admin-row-wrapper">
               <div className="player-row">
                 <div className="player-number-badge">{p.number}</div>
@@ -3119,7 +3124,7 @@ const NewsManagement = () => {
         </div>
       ) : (
         <div className="admin-list">
-          {news.map(item => (
+          {(news || []).map(item => (
             <div key={item.id} className="admin-list-item-wrapper">
               <div className="admin-list-item">
                 <div className="item-main">
@@ -3322,7 +3327,8 @@ const TournamentManagement = () => {
 };
 
 const PollManagement = () => {
-  const { polls, loading, refresh } = usePolls();
+  const [polls, setPolls] = useState<Poll[]>([]);
+  const [loading, setLoading] = useState(true);
   const { confirm: confirmAction, ConfirmElement } = useConfirm();
   const queryClient = useQueryClient();
   type PollFormData = { question: string; options: string[] };
@@ -3504,14 +3510,16 @@ const PollManagement = () => {
       )}
 
       <div className="admin-list">
-        {loading ? <p>Carregando...</p> : polls.map(poll => (
+        {loading ? (
+          <div className="loading-box"><p>Carregando enquetes...</p></div>
+        ) : (polls || []).map(poll => (
           <React.Fragment key={poll.id}>
             <div className={`admin-list-item poll-item ${poll.active ? 'active-poll' : ''}`}>
               <div className="item-main">
                 <Shield size={24} className={poll.active ? 'icon-active' : 'icon-subtle'} />
                 <div className="item-info">
                   <strong>{poll.question}</strong>
-                  <span>{poll.options.length} opções • Total: {poll.options.reduce((acc: number, o: PollOption) => acc + o.votes, 0)} votos</span>
+                  <span>{(poll.options || []).length} opções • Total: {(poll.options || []).reduce((acc: number, o: PollOption) => acc + o.votes, 0)} votos</span>
                 </div>
               </div>
               <div className="item-actions">
@@ -3523,7 +3531,7 @@ const PollManagement = () => {
                 </button>
                 <button className="btn-icon edit" onClick={() => {
                   setEditingPollId(poll.id);
-                  setFormData({ question: poll.question, options: poll.options.map((o) => o.text) });
+                  setFormData({ question: poll.question, options: (poll.options || []).map((o) => o.text) });
                 }}><Settings2 size={18} /></button>
                 <button className="btn-icon delete" onClick={() => handleDelete(poll.id)}><Trash2 size={18} /></button>
               </div>
@@ -3554,7 +3562,7 @@ const PollManagement = () => {
             )}
           </React.Fragment>
         ))}
-        {polls.length === 0 && !loading && <p className="empty-msg">Nenhuma enquete cadastrada.</p>}
+        {(!polls || polls.length === 0) && !loading && <p className="empty-msg">Nenhuma enquete cadastrada.</p>}
       </div>
       {ConfirmElement}
     </div>
@@ -3865,7 +3873,7 @@ const GlobalPlayerManagement = () => {
   };
 
   const filteredPlayers = React.useMemo(() => {
-    return allPlayers.filter(p => 
+    return (allPlayers || []).filter(p => 
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (p.teams?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -3985,7 +3993,7 @@ const GlobalPlayerManagement = () => {
             <p>Buscando Atletas no Banco de Dados...</p>
           </div>
         ) : (
-          filteredPlayers.map(p => (
+          (filteredPlayers || []).map(p => (
             <React.Fragment key={p.id}>
               <div className="admin-list-item player-search-row">
                 <div className="item-main">
