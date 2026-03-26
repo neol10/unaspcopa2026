@@ -69,7 +69,7 @@ body {
     radial-gradient(circle at 95% 5%, rgba(228, 0, 43, 0.08) 0%, transparent 45%),    /* Red glow */
     radial-gradient(circle at 50% 95%, rgba(0, 169, 224, 0.08) 0%, transparent 45%),  /* Blue glow */
     radial-gradient(circle at 50% 50%, rgba(255, 215, 0, 0.03) 0%, transparent 70%);  /* Gold ambient */
-  background-attachment: fixed;
+  background-attachment: scroll;
   color: var(--text-main);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;

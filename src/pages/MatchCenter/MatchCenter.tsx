@@ -203,7 +203,7 @@ const MatchCenter: React.FC = () => {
   });
 
   if (matchesLoading && matches.length === 0) return (
-    <div className="match-center animate-fade-in" style={{ padding: '2rem', overflowY: 'auto', height: '100%' }}>
+    <div className="match-center animate-fade-in" style={{ padding: '2rem' }}>
        <Skeleton width="100%" height="80px" borderRadius="16px" className="mb-4" />
        <div className="match-layout">
           <div className="match-primary">
@@ -255,7 +255,7 @@ const MatchCenter: React.FC = () => {
   }, [matches, activeMatch]);
 
   return (
-    <div className="match-center responsive-container animate-fade-in" ref={containerRef} style={{ overflowY: 'auto', height: '100%' }}>
+    <div className="match-center responsive-container animate-fade-in" ref={containerRef}>
       {/* Pull To Refresh Indicator */}
       {(isPulling || isRefreshing) && (
         <div className="pull-to-refresh-indicator" style={{ height: `${Math.max(40, pullDistance)}px` }}>
