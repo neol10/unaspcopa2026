@@ -1848,9 +1848,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
               <div className="wizard-body">
                 <div className="form-group">
                   <label>Quem fez o gol?</label>
-                  <div className="player-grid-wizard" style={{ 
-                    justifyContent: (goalWizard.team === 'a' ? playersA : playersB)?.length <= 3 ? 'center' : 'start' 
-                  }}>
+                  <div className="player-grid-wizard">
                     {((goalWizard.team === 'a' ? playersA : playersB) || []).map(p => (
                       <button 
                         key={p.id} 

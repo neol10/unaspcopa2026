@@ -120,7 +120,6 @@
   gap: 2rem;
 }
 
-/* Live Scoreboard */
 .live-scoreboard {
   padding: 3rem;
   border-radius: var(--radius-lg);
@@ -129,6 +128,14 @@
   gap: 3rem;
   background: radial-gradient(circle at center, rgba(0, 176, 255, 0.05) 0%, transparent 70%);
 }
+
+@media (max-width: 768px) {
+  .live-scoreboard {
+    padding: 1.5rem;
+    gap: 1.5rem;
+  }
+}
+
 
 .scoreboard-top {
   display: flex;
@@ -633,6 +640,7 @@
   font-weight: 700;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.8rem;
   transition: var(--transition-fast);
 }
@@ -641,6 +649,16 @@
   background: var(--secondary);
   color: black;
   transform: translateY(-2px);
+}
+
+@media (max-width: 768px) {
+  .scoreboard-actions {
+    flex-direction: column !important;
+    width: 100%;
+  }
+  .btn-share-result {
+    width: 100%;
+  }
 }
 
 /* Match Card Export Template (Square 1080x1080) */

@@ -3504,11 +3504,12 @@
 
 .player-grid-wizard {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   gap: 0.6rem;
   max-height: 40vh;
   overflow-y: auto;
   padding-right: 0.5rem;
+  align-content: start;
 }
 
 @media (max-width: 640px) {

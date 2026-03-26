@@ -29,7 +29,7 @@ export function useConfirm() {
 
   const ConfirmElement = config ? (
     <ConfirmModal
-      isOpen={!!config}
+      open={!!config}
       title={config.title}
       description={config.description}
       variant={config.variant || 'danger'}
