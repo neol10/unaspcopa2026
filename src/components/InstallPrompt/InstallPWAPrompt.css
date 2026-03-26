@@ -154,7 +154,7 @@
 /* ---- Android Install Banner ---- */
 .pwa-android-banner {
   position: fixed;
-  bottom: 80px; /* above mobile nav bar */
+  bottom: 16px;
   left: 1rem;
   right: 1rem;
   z-index: 9998;

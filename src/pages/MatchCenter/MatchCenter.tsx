@@ -202,6 +202,30 @@ const MatchCenter: React.FC = () => {
     }
   });
 
+  // IMPORTANT: This hook must stay HERE, before any conditional returns, to satisfy React's rules of hooks.
+  const selectorMatches = useMemo(() => {
+    if (!activeMatch) return matches;
+    
+    // Pega todas as partidas da mesma rodada, ordenadas por data/horário
+    const roundMatches = matches
+      .filter(m => m.round === activeMatch.round)
+      .sort((a, b) => {
+        const dateA = a.match_date || '';
+        const dateB = b.match_date || '';
+        return dateA.localeCompare(dateB);
+      });
+
+    // Encontra a próxima partida agendada da rodada após a ativa
+    const nextScheduled = roundMatches.find(
+      m => m.id !== activeMatch.id && (m.status === 'agendado' || m.status === 'ao_vivo')
+    );
+
+    // Retorna: partida ativa + próxima (se houver)
+    const result = [activeMatch];
+    if (nextScheduled) result.push(nextScheduled);
+    return result;
+  }, [matches, activeMatch]);
+
   if (matchesLoading && matches.length === 0) return (
     <div className="match-center animate-fade-in" style={{ padding: '2rem' }}>
        <Skeleton width="100%" height="80px" borderRadius="16px" className="mb-4" />
@@ -227,32 +251,6 @@ const MatchCenter: React.FC = () => {
     );
   }
   
-  if (!activeMatch) return <div className="empty-state glass">Nenhuma partida programada.</div>;
-
-  // Seletor de partidas:
-  // Para a rodada corrente, mostra unicamente a partida ativa e a próxima agendada da mesma rodada.
-  const selectorMatches = useMemo(() => {
-    if (!activeMatch) return matches;
-    
-    // Pega todas as partidas da mesma rodada, ordenadas por data/horário
-    const roundMatches = matches
-      .filter(m => m.round === activeMatch.round)
-      .sort((a, b) => {
-        const dateA = a.match_date || '';
-        const dateB = b.match_date || '';
-        return dateA.localeCompare(dateB);
-      });
-
-    // Encontra a próxima partida agendada da rodada após a ativa
-    const nextScheduled = roundMatches.find(
-      m => m.id !== activeMatch.id && (m.status === 'agendado' || m.status === 'ao_vivo')
-    );
-
-    // Retorna: partida ativa + próxima (se houver)
-    const result = [activeMatch];
-    if (nextScheduled) result.push(nextScheduled);
-    return result;
-  }, [matches, activeMatch]);
 
   return (
     <div className="match-center responsive-container animate-fade-in" ref={containerRef}>
@@ -381,7 +379,13 @@ const MatchCenter: React.FC = () => {
       </div>
 
       <div className="match-layout">
-        <div className="match-primary">
+        {!activeMatch ? (
+          <div className="match-primary">
+            <div className="empty-state glass">Nenhuma partida programada.</div>
+          </div>
+        ) : (
+          <>
+            <div className="match-primary">
           {/* Scoreboard */}
           <section className="live-scoreboard glass">
             <div className="scoreboard-top">
@@ -791,8 +795,9 @@ const MatchCenter: React.FC = () => {
                 </div>
               )) : <p className="empty-h2h">Primeiro encontro oficial.</p>}
             </div>
-          </div>
-        </aside>
+          </aside>
+        </>
+        )}
       </div>
     </div>
   );
