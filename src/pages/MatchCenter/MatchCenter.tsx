@@ -615,8 +615,8 @@ const MatchCenter: React.FC = () => {
                     Tentar novamente
                   </button>
                 </div>
-              ) : events.length > 0 ? (
-                events.map((event) => (
+              ) : events.filter(e => e.event_type !== 'comentario' && e.event_type !== 'momento').length > 0 ? (
+                events.filter(e => e.event_type !== 'comentario' && e.event_type !== 'momento').map((event) => (
                   <div key={event.id} className="t-event animate-fade-in">
                     <div className="t-time">{event.minute}'</div>
                     <div className="t-icon-box">
@@ -624,7 +624,6 @@ const MatchCenter: React.FC = () => {
                       {event.event_type === 'amarelo' && <div className="card-yellow"></div>}
                       {event.event_type === 'vermelho' && <div className="card-red"></div>}
                       {event.event_type === 'substituicao' && <ArrowRightLeft size={14} color="#fff" />}
-                      {(event.event_type === 'comentario' || event.event_type === 'momento') && <Zap size={14} color="var(--accent-blue)" />}
                     </div>
                     <div className="t-content glass">
                       <div className="t-header">
@@ -633,7 +632,7 @@ const MatchCenter: React.FC = () => {
                            event.event_type === 'amarelo' ? 'Cartão Amarelo' :
                            event.event_type === 'vermelho' ? 'Cartão Vermelho' :
                            event.event_type === 'substituicao' ? 'Substituição' :
-                           event.event_type === 'momento' ? 'Momento' : 'Informação'}
+                           'Informação'}
                         </span>
                       </div>
                       <p>
@@ -649,7 +648,6 @@ const MatchCenter: React.FC = () => {
                             Entra: {players.find(p => p.id === event.assistant_id)?.name}
                           </span>
                         )}
-                        {(event.event_type === 'comentario' || event.event_type === 'momento') && event.commentary}
                       </p>
                     </div>
                   </div>
