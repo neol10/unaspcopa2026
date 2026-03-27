@@ -14,6 +14,7 @@ import { useAuthContext } from '../../contexts/AuthContext';
 import { withTimeout } from '../../lib/withTimeout';
 import { toast } from 'react-hot-toast';
 import { getSuspensionFromCards } from '../../lib/discipline';
+import { emitGoalOverlay } from '../../lib/goalOverlay';
 import { useConfirm } from '../../hooks/useConfirm';
 import { AnimatePresence, motion } from 'framer-motion';
 import './Admin.css';
@@ -1754,6 +1755,8 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         const teamName = team === 'a' ? (match.teams_a?.name || 'Equipe A') : (match.teams_b?.name || 'Equipe B');
         let title = '⚽ GOOOOOOL!';
         let body = `Gol de ${player?.name || 'alguém'} para o ${teamName}!`;
+
+        emitGoalOverlay({ team: teamName, player: player?.name || 'Jogador' });
         
         if (finalGoalType === 'penalti') body = `[PÊNALTI] ${body}`;
         if (finalGoalType === 'contra') {

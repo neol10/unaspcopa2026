@@ -14,6 +14,7 @@ import { Star, Goal, Handshake } from 'lucide-react';
 import { useRankings } from '../../hooks/useRankings';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { motion, AnimatePresence } from 'framer-motion';
+import { emitGoalOverlay } from '../../lib/goalOverlay';
 
 const Home: React.FC = () => {
   const { config } = useTournamentConfig();
@@ -38,11 +39,20 @@ const Home: React.FC = () => {
   const liveMatch = useMemo<Match | null>(() => matches.find(m => m.status === 'ao_vivo') || null, [matches]);
   const { events: liveEvents } = useMatchEvents(liveMatch?.id || '');
   const latestLiveEvent = liveEvents?.[0];
+  const [lastOverlayEventId, setLastOverlayEventId] = useState<string | null>(null);
 
   const topTeams = standings.slice(0, 3);
   const totalVotes = activePoll?.options.reduce((acc, opt) => acc + opt.votes, 0) || 0;
 
   useEffect(() => {
+    if (!latestLiveEvent || latestLiveEvent.event_type !== 'gol') return;
+    if (latestLiveEvent.id && latestLiveEvent.id === lastOverlayEventId) return;
+
+    // Home doesn't have the full players list here; use match context.
+    const matchup = liveMatch ? `${liveMatch.teams_a?.name || 'Equipe A'} x ${liveMatch.teams_b?.name || 'Equipe B'}` : 'GOL!';
+    emitGoalOverlay({ team: matchup, player: latestLiveEvent.players?.name || 'Jogador' });
+    setLastOverlayEventId(latestLiveEvent.id || null);
+
     if (!nextMatch) return;
 
     const interval = setInterval(() => {
@@ -61,7 +71,7 @@ const Home: React.FC = () => {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [nextMatch]);
+  }, [latestLiveEvent, lastOverlayEventId, liveMatch, nextMatch]);
 
   const formatNewsDate = (value?: string) => {
     if (!value) return '';
