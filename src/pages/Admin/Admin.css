@@ -1,3 +1,32 @@
+.users-list-table {
+  margin-top: 1.5rem;
+  overflow-x: auto;
+}
+.users-list-table table {
+  width: 100%;
+  border-collapse: collapse;
+  background: transparent;
+}
+.users-list-table th, .users-list-table td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid #ececec22;
+}
+.users-list-table th {
+  background: #f8fafc11;
+  font-weight: 700;
+  color: var(--primary);
+}
+.users-list-table tr:last-child td {
+  border-bottom: none;
+}
+.users-list-table td {
+  font-size: 1rem;
+  color: var(--text-main);
+}
+.users-list-table td span {
+  color: #aaa;
+}
 .admin-container {
   display: flex;
   flex-direction: column;
@@ -3439,6 +3468,71 @@
   z-index: 1000;
   padding: 1rem;
 }
+
+/* User Management Styles */
+.user-profile-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.user-avatar-mini {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  color: var(--secondary);
+}
+
+.user-avatar-mini img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.user-info-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.user-name {
+  font-weight: 600;
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+.user-id {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.4);
+  font-family: monospace;
+}
+
+.role-badge {
+  padding: 0.2rem 0.6rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.role-badge.admin {
+  background: rgba(255, 171, 0, 0.15);
+  color: #ffab00;
+  border: 1px solid rgba(255, 171, 0, 0.3);
+}
+
+.role-badge.user {
+  background: rgba(0, 184, 217, 0.15);
+  color: #00b8d9;
+  border: 1px solid rgba(0, 184, 217, 0.3);
+}
+
 
 .goal-wizard-modal {
   width: 95%;

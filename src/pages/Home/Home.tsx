@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useAuthContext } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import './Home.css';
 import { Trophy, Bell, ArrowRight, Zap, Shield, Vote, Timer, Calendar, X } from 'lucide-react';
@@ -23,6 +24,8 @@ const Home: React.FC = () => {
   const { matches } = useMatches();
   const navigate = useNavigate();
   const { activePoll, loading: pollLoading, error: pollError, hasVoted, submitVote, refresh: refreshPoll } = usePolls();
+  const { user } = useAuthContext();
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const { scorers, assistants, galeraRank, loading: rankingsLoading, refresh: refreshRankings } = useRankings();
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [selectedNews, setSelectedNews] = useState<News | null>(null);
@@ -635,12 +638,29 @@ const Home: React.FC = () => {
                       <button 
                         className="btn-vote-now" 
                         disabled={!selectedOption} 
-                        onClick={() => selectedOption && submitVote(selectedOption)}
+                        onClick={() => {
+                          if (!user) {
+                            setShowAuthModal(true);
+                          } else if (selectedOption) {
+                            submitVote(selectedOption);
+                          }
+                        }}
                         style={{ opacity: selectedOption ? 1 : 0.5, marginTop: '1rem' }}
                       >
                          Registrar Meu Voto
                       </button>
                     )}
+                          {showAuthModal && (
+                            <div className="modal-auth-overlay" onClick={() => setShowAuthModal(false)}>
+                              <div className="modal-auth-content" onClick={e => e.stopPropagation()}>
+                                <h3 style={{marginBottom: 16}}>Faça login para votar</h3>
+                                <div style={{marginBottom: 16}}>
+                                  <span>É necessário estar logado para participar da votação.</span>
+                                </div>
+                                <button className="btn-login" onClick={() => setShowAuthModal(false)} style={{marginBottom: 16}}>Fechar</button>
+                              </div>
+                            </div>
+                          )}
                     {hasVoted && (
                       <p style={{textAlign: 'center', marginTop: '10px', fontSize: '0.9rem', color: 'var(--text-muted)'}}>
                         Voto registrado! Total de votos: {totalVotes}

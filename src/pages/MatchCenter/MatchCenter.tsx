@@ -7,6 +7,7 @@ import { useMvpVoting } from '../../hooks/useMvpVoting';
 import Skeleton from '../../components/Skeleton/Skeleton';
 import { useTournamentConfig } from '../../hooks/useTournamentConfig';
 import { useAuthContext } from '../../contexts/AuthContext';
+import AuthModal from '../../components/Auth/AuthModal';
 import { useStandings } from '../../hooks/useStandings';
 import { supabase } from '../../lib/supabase';
 import { Shield, Timer, Award, Zap, History, Download, Trophy, ArrowRightLeft, TrendingUp, HelpCircle, Copy } from 'lucide-react';
@@ -74,6 +75,7 @@ const MatchCenter: React.FC = () => {
 
   const { events, loading: eventsLoading, error: eventsError, refresh: refreshEvents } = useMatchEvents(activeMatch?.id || '', handleNewEvent);
   const { user } = useAuthContext();
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const { config } = useTournamentConfig();
   const { voteCounts: roundVotes, userVote: roundUserVote, vote: castRoundVote, loading: roundMvpLoading, error: roundMvpError, refresh: refreshRoundMvp } = useMvpVoting(String(config.current_round));
   
@@ -94,7 +96,11 @@ const MatchCenter: React.FC = () => {
 
   const handleSendComment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !newComment.trim() || !activeMatch) return;
+    if (!user) {
+      toast.error('Faça login para comentar!');
+      return;
+    }
+    if (!newComment.trim() || !activeMatch) return;
 
     setIsSendingComment(true);
     try {
@@ -481,6 +487,10 @@ const MatchCenter: React.FC = () => {
                   <button 
                     className={`w-opt-v2 ${winnerUserVote === 'team_a' ? 'selected' : ''}`}
                     onClick={() => {
+                      if (!user) {
+                        setShowAuthModal(true);
+                        return;
+                      }
                       if (navigator.vibrate) navigator.vibrate(50);
                       castWinnerVote('team_a');
                     }}
@@ -512,6 +522,10 @@ const MatchCenter: React.FC = () => {
                     <button 
                       className={`w-opt-v2 draw ${winnerUserVote === 'draw' ? 'selected' : ''}`}
                       onClick={() => {
+                        if (!user) {
+                          setShowAuthModal(true);
+                          return;
+                        }
                         if (navigator.vibrate) navigator.vibrate(50);
                         castWinnerVote('draw');
                       }}
@@ -540,6 +554,10 @@ const MatchCenter: React.FC = () => {
                   <button 
                     className={`w-opt-v2 ${winnerUserVote === 'team_b' ? 'selected' : ''}`}
                     onClick={() => {
+                      if (!user) {
+                        setShowAuthModal(true);
+                        return;
+                      }
                       if (navigator.vibrate) navigator.vibrate(50);
                       castWinnerVote('team_b');
                     }}
@@ -754,30 +772,44 @@ const MatchCenter: React.FC = () => {
                       <span className="count">{mvp.vote_count}</span>
                       <span className="label">votos</span>
                     </div>
-                    {!roundUserVote && user && (
-                      <button className="btn-vote-mini" onClick={() => castRoundVote(mvp.player_id)}>votar</button>
-                    )}
+                      {!roundUserVote && (
+                        <button className="btn-vote-mini" onClick={() => {
+                          if (!user) {
+                            setShowAuthModal(true);
+                            return;
+                          }
+                          castRoundVote(mvp.player_id);
+                        }}>votar</button>
+                      )}
                   </div>
                 ))
-              ) : (
-                <p className="empty-msg">Nenhum voto computado nesta rodada.</p>
-              )}
-            </div>
-            {!user && <p className="login-to-vote-msg">Faça login para votar!</p>}
-          </div>
-
-          <div className="h2h-history glass">
-            <div className="side-header">
-              <History size={18} color="var(--accent-blue)" />
-              <h3>Histórico do Confronto</h3>
-            </div>
-            <div className="h2h-list">
-              {h2hMatches.length > 0 ? h2hMatches.map(m => (
-                <div key={m.id} className="h2h-item">
-                  <span className="h2h-date">{new Date(m.match_date).toLocaleDateString('pt-BR')}</span>
-                  <div className="h2h-score-row">
-                    <span>{m.teams_a?.name.substring(0,3)}</span>
-                    <div className="h2h-result">{m.team_a_score} - {m.team_b_score}</div>
+                {user ? (
+                  <form className="comment-form" onSubmit={handleSendComment}>
+                    <input 
+                      type="text" 
+                      placeholder="Escreva um comentário..." 
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      disabled={isSendingComment}
+                    />
+                    <button type="submit" disabled={isSendingComment || !newComment.trim()}>
+                      {isSendingComment ? <div className="spinner-mini"></div> : <Zap size={16} />}
+                    </button>
+                  </form>
+                ) : (
+                  <div className="login-to-comment">
+                    <button className="btn-login" onClick={() => setShowAuthModal(true)}>
+                      Faça login para participar dos comentários ao vivo!
+                    </button>
+                  </div>
+                )}
+                          {showAuthModal && (
+                            <div className="modal-auth-overlay" onClick={() => setShowAuthModal(false)}>
+                              <div className="modal-auth-content" onClick={e => e.stopPropagation()}>
+                                <AuthModal onClose={() => setShowAuthModal(false)} />
+                              </div>
+                            </div>
+                          )}
                     <span>{m.teams_b?.name.substring(0,3)}</span>
                   </div>
                 </div>
