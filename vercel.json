@@ -1,9 +1,8 @@
 {
-  "routes": [
-    { "handle": "filesystem" },
-    { "src": "/assets/(.*)", "dest": "/assets/$1" },
-    { "src": "/sw\.js", "dest": "/sw.js" },
-    { "src": "/manifest\.webmanifest", "dest": "/manifest.webmanifest" },
-    { "src": "/(.*)", "dest": "/index.html" }
+  "rewrites": [
+    { "source": "/assets/:path*", "destination": "/assets/:path*" },
+    { "source": "/sw.js", "destination": "/sw.js" },
+    { "source": "/manifest.webmanifest", "destination": "/manifest.webmanifest" },
+    { "source": "/:path*", "destination": "/index.html" }
   ]
 }
