@@ -11,8 +11,10 @@ import { usePreGameReminder } from '../../hooks/usePreGameReminder';
 import { AutoRefreshStatus } from '../AutoRefreshStatus/AutoRefreshStatus';
 import AuthModal from '../Auth/AuthModal';
 import IOSInstallPrompt from '../PWA/IOSInstallPrompt';
+import { AnimatePresence, motion } from 'framer-motion';
 import logo from '../../assets/unasp_logo.png';
 import { prefetchRouteIntent } from '../../lib/routePrefetch';
+import { onGoalOverlay, type GoalOverlayPayload } from '../../lib/goalOverlay';
 import './Layout.css';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -25,6 +27,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [showPushPrefs, setShowPushPrefs] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+  const [goalOverlay, setGoalOverlay] = useState<GoalOverlayPayload | null>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
@@ -56,6 +59,14 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     };
   }, []);
 
+  useEffect(() => {
+    const unsub = onGoalOverlay((payload) => {
+      setGoalOverlay(payload);
+      window.setTimeout(() => setGoalOverlay(null), 5000);
+    });
+    return () => unsub();
+  }, []);
+
   usePreGameReminder(matches, isSubscribed, {
     preGameReminder: preferences.preGameReminder,
     favoriteTeamId: preferences.favoriteTeamId,
@@ -63,6 +74,49 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   return (
     <div className="app-container">
+      {/* Global Premium Goal Overlay */}
+      <AnimatePresence>
+        {goalOverlay && (
+          <motion.div
+            className="goal-overlay-premium"
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.5 }}
+            transition={{ type: 'spring', damping: 12 }}
+          >
+            <motion.div
+              className="goal-announcement"
+              animate={{ y: [0, -20, 0] }}
+              transition={{ repeat: Infinity, duration: 2 }}
+            >
+              <div className="goal-icon-container">
+                <span className="goal-ball-emoji">⚽</span>
+              </div>
+              <h1 className="goal-text">GOOOOOOOL!</h1>
+              <div className="goal-details">
+                <span className="goal-team">{goalOverlay.team}</span>
+                <span className="goal-player">{goalOverlay.player}</span>
+              </div>
+            </motion.div>
+            <div className="confetti-container">
+              {[...Array(14)].map((_, i) => (
+                <motion.div
+                  key={i}
+                  className="confetti-piece"
+                  initial={{ y: -100, x: Math.random() * 400 - 200, opacity: 1 }}
+                  animate={{ y: 800, rotate: 360 }}
+                  transition={{ duration: Math.random() * 2 + 1, repeat: Infinity }}
+                  style={{
+                    backgroundColor: i % 2 === 0 ? 'var(--secondary)' : 'var(--primary)',
+                    left: `${Math.random() * 100}%`,
+                  }}
+                />
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <aside className={`sidebar ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-content">
           <div className="sidebar-header">

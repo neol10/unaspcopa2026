@@ -15,13 +15,13 @@ import toast from 'react-hot-toast';
 import ShareCard, { useShareCard } from '../../components/ShareCard/ShareCard';
 import { useMatchWinnerVoting } from '../../hooks/useMatchWinnerVoting';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
+import { emitGoalOverlay } from '../../lib/goalOverlay';
 import './MatchCenter.css';
 
 const MatchCenter: React.FC = () => {
   const { matches, loading: matchesLoading, error: matchesError, refresh: refreshMatches } = useMatches();
   const [searchParams] = useSearchParams();
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
-  const [showGoalOverlay, setShowGoalOverlay] = useState<{ team: string, player: string } | null>(null);
 
   useEffect(() => {
     const matchIdFromUrl = searchParams.get('id');
@@ -54,9 +54,8 @@ const MatchCenter: React.FC = () => {
         
       toast.success(`⚽ GOOOOL! ${playerName}`);
       
-      // Trigger Premium Overlay
-      setShowGoalOverlay({ team: teamName || 'GOL!', player: playerName });
-      setTimeout(() => setShowGoalOverlay(null), 5000);
+      // Trigger Global Premium Overlay
+      emitGoalOverlay({ team: teamName || 'GOL!', player: playerName });
 
     } else if (event.event_type === 'amarelo') {
       toast(`🟨 Cartão Amarelo para ${event.players?.name || ''}`, { icon: '🟨' });
@@ -311,49 +310,6 @@ const MatchCenter: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
-      {/* Premium Goal Overlay */}
-      <AnimatePresence>
-        {showGoalOverlay && (
-          <motion.div 
-            className="goal-overlay-premium"
-            initial={{ opacity: 0, scale: 0.5 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 1.5 }}
-            transition={{ type: "spring", damping: 12 }}
-          >
-            <motion.div 
-              className="goal-announcement"
-              animate={{ y: [0, -20, 0] }}
-              transition={{ repeat: Infinity, duration: 2 }}
-            >
-              <div className="goal-icon-container">
-                <span className="goal-ball-emoji">⚽</span>
-              </div>
-              <h1 className="goal-text">GOOOOOOOL!</h1>
-              <div className="goal-details">
-                <span className="goal-team">{showGoalOverlay.team}</span>
-                <span className="goal-player">{showGoalOverlay.player}</span>
-              </div>
-            </motion.div>
-            <div className="confetti-container">
-              {[...Array(14)].map((_, i) => (
-                <motion.div 
-                  key={i}
-                  className="confetti-piece"
-                  initial={{ y: -100, x: Math.random() * 400 - 200, opacity: 1 }}
-                  animate={{ y: 800, rotate: 360 }}
-                  transition={{ duration: Math.random() * 2 + 1, repeat: Infinity }}
-                  style={{ 
-                    backgroundColor: i % 2 === 0 ? 'var(--secondary)' : 'var(--primary)',
-                    left: `${Math.random() * 100}%`
-                  }}
-                />
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Seletor de Partidas */}
       <div className="match-selector-bar glass">
         <div className="selector-header-row">
