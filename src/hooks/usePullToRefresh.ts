@@ -11,23 +11,30 @@ export function usePullToRefresh({ onRefresh, threshold = 70, disabled = false }
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const startYRef = useRef<number | null>(null);
+  const isAtTopRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const handleTouchStart = useCallback((e: TouchEvent) => {
     if (disabled || isRefreshing) return;
     const scrollTop = containerRef.current?.scrollTop ?? window.scrollY;
-    if (scrollTop <= 0) {
+    const atTop = scrollTop <= 0;
+    isAtTopRef.current = atTop;
+    if (atTop) {
       startYRef.current = e.touches[0].clientY;
+    } else {
+      startYRef.current = null;
     }
   }, [disabled, isRefreshing]);
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
     if (startYRef.current === null || disabled || isRefreshing) return;
+    if (!isAtTopRef.current) return;
     const delta = e.touches[0].clientY - startYRef.current;
     if (delta > 0) {
       setPullDistance(Math.min(delta * 0.5, threshold * 1.5));
       setIsPulling(true);
-      if (delta > 10) e.preventDefault();
+      // Prevent default only when the user is clearly pulling down from the very top.
+      if (delta > 16) e.preventDefault();
     }
   }, [disabled, isRefreshing, threshold]);
 
@@ -45,6 +52,7 @@ export function usePullToRefresh({ onRefresh, threshold = 70, disabled = false }
     setIsPulling(false);
     setPullDistance(0);
     startYRef.current = null;
+    isAtTopRef.current = false;
   }, [isPulling, pullDistance, threshold, onRefresh]);
 
   useEffect(() => {
