@@ -1409,6 +1409,10 @@
   justify-content: center;
   color: white;
   pointer-events: none;
+  padding: max(16px, env(safe-area-inset-top))
+    max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
 }
 
 .goal-announcement {
@@ -1452,6 +1456,8 @@
   flex-direction: column;
   align-items: center;
   gap: 1.5rem;
+  max-height: calc(100vh - 32px);
+  justify-content: center;
 }
 
 .goal-details {
@@ -1461,15 +1467,18 @@
 }
 
 .goal-team {
-  font-size: 1.8rem;
+  font-size: clamp(1.05rem, 4.8vw, 1.8rem);
   font-weight: 800;
   color: #fff;
+  opacity: 0.95;
 }
 
 .goal-player {
-  font-size: 1.4rem;
+  font-size: clamp(0.95rem, 4vw, 1.4rem);
   color: var(--secondary);
   font-style: italic;
+  word-break: break-word;
+  max-width: 90vw;
 }
 
 .confetti-container {
@@ -1487,6 +1496,23 @@
   width: 12px;
   height: 12px;
   border-radius: 2px;
+  opacity: 0.9;
+}
+
+@media (max-width: 480px) {
+  .goal-announcement {
+    gap: 1rem;
+  }
+  .confetti-piece {
+    width: 10px;
+    height: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .goal-ball-emoji {
+    animation: none;
+  }
 }
 
 /* Standings Impact Widget */

@@ -336,7 +336,7 @@ const MatchCenter: React.FC = () => {
               </div>
             </motion.div>
             <div className="confetti-container">
-              {[...Array(20)].map((_, i) => (
+              {[...Array(14)].map((_, i) => (
                 <motion.div 
                   key={i}
                   className="confetti-piece"
