@@ -6,6 +6,8 @@ export interface MatchEvent {
   id: string;
   match_id: string;
   player_id: string | null;
+  user_id?: string | null;
+  author_name?: string | null;
   event_type: 'gol' | 'amarelo' | 'vermelho' | 'falta' | 'substituicao' | 'comentario' | 'momento';
   minute: number;
   assistant_id?: string | null;
@@ -49,7 +51,7 @@ export const useMatchEvents = (matchId: string, onNewEvent?: (event: MatchEvent)
       if (!matchId) return [];
       const { data, error } = await supabase
         .from('match_events')
-        .select('id, match_id, player_id, event_type, minute, assistant_id, commentary, created_at')
+        .select('id, match_id, player_id, user_id, author_name, event_type, minute, assistant_id, commentary, created_at')
         .eq('match_id', matchId)
         .order('minute', { ascending: false })
         .order('created_at', { ascending: false });

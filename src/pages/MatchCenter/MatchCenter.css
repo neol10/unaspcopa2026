@@ -181,6 +181,32 @@
 .scoreboard-main {
   display: flex;
   justify-content: space-around;
+.comment-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.comment-author {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--text-dim);
+}
+.comment-delete {
+  margin-left: auto;
+  font-size: 0.78rem;
+  font-weight: 800;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  color: var(--text-dim);
+  padding: 6px 10px;
+  border-radius: 10px;
+}
+.comment-delete:hover {
+  color: var(--text-main);
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.04);
+}
   align-items: center;
 }
 

@@ -99,12 +99,15 @@ const MatchCenter: React.FC = () => {
 
     setIsSendingComment(true);
     try {
+      const authorName = String(user.user_metadata?.name || user.email?.split('@')[0] || 'Torcedor');
       const { error } = await supabase.from('match_events').insert({
         match_id: activeMatch.id,
         event_type: 'comentario',
         commentary: newComment.trim(),
         minute: elapsedTime === 'Fim' || elapsedTime === 'Pré-jogo' ? 0 : parseInt(elapsedTime.split(':')[0]) || 0,
-        player_id: null
+        player_id: null,
+        user_id: user.id,
+        author_name: authorName,
       });
 
       if (error) throw error;
@@ -118,6 +121,24 @@ const MatchCenter: React.FC = () => {
       toast.error(message ? `Erro ao enviar comentário: ${message}` : 'Erro ao enviar comentário');
     } finally {
       setIsSendingComment(false);
+    }
+  };
+
+  const canDeleteComment = (ev: MatchEvent) => {
+    if (!user) return false;
+    if (role === 'admin') return true;
+    return !!ev.user_id && ev.user_id === user.id;
+  };
+
+  const deleteComment = async (ev: MatchEvent) => {
+    if (!canDeleteComment(ev)) return;
+    try {
+      const { error } = await supabase.from('match_events').delete().eq('id', ev.id);
+      if (error) throw error;
+      toast.success('Comentário excluído.');
+    } catch (err: unknown) {
+      const message = typeof (err as { message?: unknown })?.message === 'string' ? String((err as any).message) : null;
+      toast.error(message ? `Erro ao excluir: ${message}` : 'Erro ao excluir comentário');
     }
   };
 
@@ -665,7 +686,20 @@ const MatchCenter: React.FC = () => {
               <div className="feed-content">
                 {events.filter(e => e.event_type === 'comentario' || e.event_type === 'momento').map(ev => (
                   <div key={ev.id} className="comment-bubble animate-slide-up">
-                    <span className="comment-time">{ev.minute}'</span>
+                    <div className="comment-meta">
+                      <span className="comment-time">{ev.minute}'</span>
+                      <span className="comment-author">{ev.author_name || 'Torcedor'}</span>
+                      {canDeleteComment(ev) && (
+                        <button
+                          type="button"
+                          className="comment-delete"
+                          onClick={() => void deleteComment(ev)}
+                          title="Excluir comentário"
+                        >
+                          Excluir
+                        </button>
+                      )}
+                    </div>
                     <p className="commentary-text">{ev.commentary}</p>
                   </div>
                 ))}
