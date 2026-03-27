@@ -17,25 +17,26 @@
   inset: -30vh -20vw;
   pointer-events: none;
   z-index: -1;
-  opacity: 0.35;
+  opacity: 0.75;
   transform: translateZ(0);
 }
 
 .brackets-page::before {
   background:
-    radial-gradient(600px 420px at 18% 18%, rgba(251, 191, 36, 0.12), transparent 60%),
-    radial-gradient(520px 380px at 82% 26%, rgba(99, 102, 241, 0.10), transparent 62%),
-    radial-gradient(720px 520px at 62% 88%, rgba(251, 191, 36, 0.06), transparent 65%);
-  filter: blur(10px);
+    radial-gradient(700px 520px at 14% 16%, rgba(251, 191, 36, 0.28), transparent 62%),
+    radial-gradient(620px 460px at 86% 22%, rgba(99, 102, 241, 0.22), transparent 64%),
+    radial-gradient(820px 620px at 62% 92%, rgba(251, 191, 36, 0.18), transparent 68%);
+  filter: blur(6px) saturate(1.15);
+  mix-blend-mode: screen;
 }
 
 .brackets-page::after {
   inset: -25vh -15vw;
   background:
-    radial-gradient(520px 360px at 30% 78%, rgba(255, 255, 255, 0.04), transparent 62%),
-    radial-gradient(640px 420px at 74% 70%, rgba(251, 191, 36, 0.05), transparent 68%);
+    radial-gradient(560px 400px at 28% 78%, rgba(255, 255, 255, 0.08), transparent 64%),
+    radial-gradient(720px 520px at 78% 74%, rgba(251, 191, 36, 0.16), transparent 70%);
   mix-blend-mode: screen;
-  filter: blur(14px);
+  filter: blur(8px) saturate(1.1);
 }
 
 @media (prefers-reduced-motion: reduce) {
