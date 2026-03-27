@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 
@@ -19,6 +19,12 @@ type EventRow = Omit<MatchEvent, 'players'> & { created_at?: string };
 
 export const useMatchEvents = (matchId: string, onNewEvent?: (event: MatchEvent) => void) => {
   const queryClient = useQueryClient();
+  const onNewEventRef = useRef(onNewEvent);
+  
+  // Atualiza o ref sempre que a função mudar, sem disparar efeitos
+  useEffect(() => {
+    onNewEventRef.current = onNewEvent;
+  }, [onNewEvent]);
   const cacheKey = `match_events_cache_v1_${matchId || 'none'}`;
 
   const loadCachedEvents = () => {
@@ -92,17 +98,17 @@ export const useMatchEvents = (matchId: string, onNewEvent?: (event: MatchEvent)
         table: 'match_events', 
         filter: `match_id=eq.${matchId}` 
       }, (payload) => {
-        if (payload.eventType === 'INSERT' && onNewEvent) {
+        if (payload.eventType === 'INSERT' && onNewEventRef.current) {
           const eventData = payload.new as EventRow;
           if (eventData.player_id) {
             supabase.from('players').select('name').eq('id', eventData.player_id).single().then(({ data }) => {
-              onNewEvent({
+              onNewEventRef.current?.({
                 ...eventData,
                 players: { name: String(data?.name || 'Atleta') },
               } as MatchEvent);
             });
           } else {
-            onNewEvent(eventData as MatchEvent);
+            onNewEventRef.current?.(eventData as MatchEvent);
           }
         }
         queryClient.invalidateQueries({ queryKey: ['match_events', matchId] });
@@ -112,7 +118,7 @@ export const useMatchEvents = (matchId: string, onNewEvent?: (event: MatchEvent)
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [matchId, queryClient, onNewEvent]);
+  }, [matchId, queryClient]);
 
   return { 
     events: query.data || [], 

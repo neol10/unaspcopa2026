@@ -16,10 +16,15 @@ export const useAuth = () => {
         ? String((err as { message: string }).message)
         : '';
     const lower = msg.toLowerCase();
+    
+    // Se o refresh token sumiu, é um erro fatal de sessão, não um "abort" ignorável,
+    // mas queremos tratar para não poluir o console ou travar em loading.
     return (
       lower.includes('aborterror')
       || lower.includes("lock broken by another request with the 'steal' option")
       || lower.includes('request was aborted')
+      || lower.includes('refresh token not found')
+      || lower.includes('invalid refresh token')
     );
   };
 

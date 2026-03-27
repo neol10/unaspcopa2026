@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMatches } from '../../hooks/useMatches';
 import { useMatchEvents, type MatchEvent } from '../../hooks/useMatchEvents';

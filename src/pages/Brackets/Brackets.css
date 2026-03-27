@@ -9,69 +9,38 @@
   isolation: isolate;
 }
 
-/* Subtle background effects (safe: no layout/JS changes) */
+/* Optimized background effects - Reduced complexity for better mobile performance */
 .brackets-page::before,
 .brackets-page::after {
   content: '';
   position: absolute;
-  inset: -30vh -20vw;
+  inset: 0;
   pointer-events: none;
   z-index: -1;
-  opacity: 0.75;
-  transform: translateZ(0);
+  opacity: 0.4;
+  will-change: transform, opacity;
 }
 
 .brackets-page::before {
-  background:
-    conic-gradient(from 210deg at 22% 10%,
-      transparent 0 10deg,
-      rgba(251, 191, 36, 0.18) 10deg 18deg,
-      transparent 18deg 34deg,
-      rgba(99, 102, 241, 0.14) 34deg 42deg,
-      transparent 42deg 360deg
-    ),
-    conic-gradient(from 160deg at 78% 18%,
-      transparent 0 16deg,
-      rgba(99, 102, 241, 0.16) 16deg 24deg,
-      transparent 24deg 44deg,
-      rgba(251, 191, 36, 0.14) 44deg 52deg,
-      transparent 52deg 360deg
-    ),
-    radial-gradient(820px 620px at 60% 92%, rgba(251, 191, 36, 0.18), transparent 68%);
-  filter: blur(10px) saturate(1.2);
-  mix-blend-mode: screen;
-  animation: brackets-showlights 16s ease-in-out infinite alternate;
+  background: radial-gradient(circle at 20% 20%, rgba(251, 191, 36, 0.15) 0%, transparent 50%),
+              radial-gradient(circle at 80% 80%, rgba(99, 102, 241, 0.1) 0%, transparent 50%);
+  animation: brackets-glow-pulse 10s ease-in-out infinite alternate;
 }
 
 .brackets-page::after {
-  inset: -25vh -15vw;
-  background:
-    radial-gradient(560px 400px at 28% 78%, rgba(255, 255, 255, 0.08), transparent 64%),
-    radial-gradient(720px 520px at 78% 74%, rgba(251, 191, 36, 0.16), transparent 70%);
-  mix-blend-mode: screen;
-  filter: blur(8px) saturate(1.1);
-  animation: brackets-showlights 22s ease-in-out infinite alternate-reverse;
+  background: radial-gradient(circle at 70% 20%, rgba(255, 255, 255, 0.05) 0%, transparent 40%);
+  animation: brackets-glow-pulse 15s ease-in-out infinite alternate-reverse;
 }
 
-@keyframes brackets-showlights {
-  0% {
-    transform: translate3d(0, 0, 0) rotate(-2deg) scale(1);
-    opacity: 0.65;
-  }
-  50% {
-    transform: translate3d(2vw, -1vh, 0) rotate(1.5deg) scale(1.02);
-    opacity: 0.85;
-  }
-  100% {
-    transform: translate3d(-2vw, 1vh, 0) rotate(3deg) scale(1.03);
-    opacity: 0.75;
-  }
+@keyframes brackets-glow-pulse {
+  0% { transform: scale(1); opacity: 0.3; }
+  100% { transform: scale(1.1); opacity: 0.5; }
 }
 
 /* Extra sparkle at page start (no JS): a brief stronger glow */
 .brackets-page::before {
   animation:
-    brackets-showlights 16s ease-in-out infinite alternate,
+    brackets-glow-pulse 10s ease-in-out infinite alternate,
     brackets-showlights-intro 1.2s ease-out 1;
 }
 

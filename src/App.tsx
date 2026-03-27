@@ -91,7 +91,7 @@ const ForceRefresh = () => {
     }
 
     // Versão da aplicação para controle de cache
-    const APP_VERSION = '1.0.5';
+    const APP_VERSION = '1.0.6';
     const currentVersion = localStorage.getItem('app_version');
 
     if (currentVersion !== APP_VERSION) {
@@ -104,7 +104,23 @@ const ForceRefresh = () => {
           console.log('Service Worker unregister failed: ', err);
         });
       }
-      // Não limpar o localStorage completo pois apaga o token de sessão do Supabase!
+      
+      // Limpa caches específicos que podem travar a UI com dados velhos/vazios
+      // sem apagar o token de sessão do Supabase (localStorage.getItem('copa-unasp-auth')).
+      const keysToClear = [
+        'copa_unasp_cache_matches_all',
+        'copa_unasp_cache_news_3',
+        'standings_cache_v1',
+        'copa_unasp_role_' // prefixo
+      ];
+      
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && keysToClear.some(k => key.startsWith(k))) {
+          localStorage.removeItem(key);
+        }
+      }
+
       sessionStorage.clear();
       localStorage.setItem('app_version', APP_VERSION);
       window.location.reload();

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMatches, Match } from '../../hooks/useMatches';
 import { useTournamentConfig } from '../../hooks/useTournamentConfig';
@@ -26,19 +26,23 @@ const Brackets: React.FC = () => {
     return () => clearTimeout(id);
   }, [loading]);
 
-  // Agrupa partidas por 'round' dinamicamente
-  const roundsMap = matches.reduce((acc, m) => {
-    const roundName = String(m.round || 'Rodada Geral');
-    if (!acc[roundName]) acc[roundName] = [];
-    acc[roundName].push(m);
-    return acc;
-  }, {} as Record<string, Match[]>);
+  // Agrupa partidas por 'round' dinamicamente - MEMOIZED
+  const roundsMap = useMemo(() => {
+    return matches.reduce((acc, m) => {
+      const roundName = String(m.round || 'Rodada Geral');
+      if (!acc[roundName]) acc[roundName] = [];
+      acc[roundName].push(m);
+      return acc;
+    }, {} as Record<string, Match[]>);
+  }, [matches]);
 
-  const sortedRounds = Object.keys(roundsMap).sort((a, b) => {
-    const dateA = new Date(roundsMap[a][0].match_date).getTime();
-    const dateB = new Date(roundsMap[b][0].match_date).getTime();
-    return dateA - dateB;
-  });
+  const sortedRounds = useMemo(() => {
+    return Object.keys(roundsMap).sort((a, b) => {
+      const dateA = new Date(roundsMap[a][0].match_date).getTime();
+      const dateB = new Date(roundsMap[b][0].match_date).getTime();
+      return dateA - dateB;
+    });
+  }, [roundsMap]);
 
   // Auto-scroll para a rodada atual
   useEffect(() => {
@@ -73,12 +77,18 @@ const Brackets: React.FC = () => {
     return name.charAt(0).toUpperCase() + name.slice(1);
   };
 
-  // Distinguir entre Fase de Grupos e Mata-Mata
-  const finalPhases = ['quartas', 'semis', 'semi', 'final', 'decisão', 'terceiro'];
-  const knockoutRounds = sortedRounds.filter(r => 
-    finalPhases.some(p => r.toLowerCase().includes(p))
-  );
-  const groupRounds = sortedRounds.filter(r => !knockoutRounds.includes(r));
+  // Distinguir entre Fase de Grupos e Mata-Mata - MEMOIZED
+  const finalPhases = useMemo(() => ['quartas', 'semis', 'semi', 'final', 'decisão', 'terceiro'], []);
+  
+  const knockoutRounds = useMemo(() => {
+    return sortedRounds.filter(r => 
+      finalPhases.some(p => r.toLowerCase().includes(p))
+    );
+  }, [sortedRounds, finalPhases]);
+
+  const groupRounds = useMemo(() => {
+    return sortedRounds.filter(r => !knockoutRounds.includes(r));
+  }, [sortedRounds, knockoutRounds]);
 
   // Lógica de Mouse Drag
   const handleMouseDown = (e: React.MouseEvent) => {

@@ -84,7 +84,10 @@ export const useMatches = (limit?: number) => {
       if (limit) q = q.limit(limit);
 
       const { data, error } = await q;
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase Matches Error:', error);
+        throw error;
+      }
       return (data as Match[]) || [];
     },
     staleTime: 1000 * 60 * 10, // 10 min
