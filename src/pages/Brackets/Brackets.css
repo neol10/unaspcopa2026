@@ -68,6 +68,24 @@
   }
 }
 
+/* Extra sparkle at page start (no JS): a brief stronger glow */
+.brackets-page::before {
+  animation:
+    brackets-showlights 16s ease-in-out infinite alternate,
+    brackets-showlights-intro 1.2s ease-out 1;
+}
+
+@keyframes brackets-showlights-intro {
+  0% {
+    opacity: 1;
+    filter: blur(8px) saturate(1.35);
+  }
+  100% {
+    opacity: 0.75;
+    filter: blur(10px) saturate(1.2);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .brackets-page::before,
   .brackets-page::after {
