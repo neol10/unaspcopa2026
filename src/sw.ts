@@ -14,7 +14,7 @@ self.addEventListener('push', (event) => {
   let data = {
     title: 'Copa UNASP',
     body: 'Nova atualização imperdível do torneio!',
-    icon: '/icons.svg',
+    icon: '/icon-192.png', 
     url: '/'
   };
 
@@ -23,6 +23,7 @@ self.addEventListener('push', (event) => {
       const parsedData = event.data.json();
       data = { ...data, ...parsedData };
     } catch (e) {
+      console.warn('SW: Falha ao parsear JSON do Push, usando texto puro.', e);
       data.body = event.data.text() || data.body;
     }
   }
@@ -39,26 +40,26 @@ self.addEventListener('push', (event) => {
 
   const computedTag =
     pushMeta.tag ||
-    `copa-unasp-${pushMeta.category || 'general'}-${pushMeta.sentAt || Date.now().toString()}`;
+    `copa-unasp-${pushMeta.category || 'general'}-${pushMeta.sentAt || Date.now()}`;
 
   const options: NotificationOptions = {
     body: data.body,
-    icon: data.icon ? data.icon : new URL('/icon-192.png', self.location.origin).href,
-    badge: new URL('/favicon.svg', self.location.origin).href,
-    vibrate: [300, 100, 400],
-    // Evita colapsar várias notificações no Android usando uma tag fixa.
+    icon: data.icon && data.icon.startsWith('http') ? data.icon : new URL('/icon-192.png', self.location.origin).href,
+    badge: new URL('/icon-192.png', self.location.origin).href, // Badge deve ser PNG para melhor suporte Android
+    vibrate: [200, 100, 200, 100, 200, 100, 400] as number[],
+    // Evita colapsar várias notificações no Android usando uma tag única se necessário, 
+    // ou agrupa pela mesma categoria.
     tag: computedTag,
     renotify: true,
-    requireInteraction: false,
+    requireInteraction: true, // Garante visibilidade no Android 13+
     silent: false,
     data: {
       url: data.url || '/',
     },
     actions: [{ action: 'open', title: 'Ver Agora 🏆' }],
-  };
+  } as NotificationOptions;
 
   // Sempre mostra a notificação nativa do sistema (garante entrega no Android)
-  // E também envia mensagem para abas abertas mostrarem o Toast interno
   event.waitUntil(
     Promise.all([
       // 1. Sempre exibe notificação nativa — confiável em background/Android
@@ -159,9 +160,9 @@ cleanupOutdatedCaches();
 // que causaria 404 de assets e "loading" infinito no F5.
 registerRoute(
   ({ request }) => request.mode === 'navigate',
-  async ({ event }) => {
+  async ({ request }) => {
     try {
-      return await fetch(event.request);
+      return await fetch(request);
     } catch {
       // Offline (ou rede instável): devolve o app shell do precache.
       const cached = await caches.match('/index.html', { ignoreSearch: true });

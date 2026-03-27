@@ -83,7 +83,7 @@ export const useMatchWinnerVoting = (matchId: string) => {
       return result;
     },
     enabled: !!matchId,
-    initialData: cachedData || { votes: { team_a: 0, draw: 0, team_b: 0, total: 0 }, userVote: null },
+    initialData: cachedData || undefined,
     initialDataUpdatedAt: cached?.ts,
     placeholderData: (prev) => prev,
   });

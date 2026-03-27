@@ -19,14 +19,26 @@ export interface Player {
 
 type PlayerRow = Player & { teams?: { name: string } };
 
+const normalizeImageSrc = (value: string | null | undefined) => {
+  const raw = (value || '').trim();
+  if (!raw) return '';
+  if (raw.startsWith('data:') || raw.startsWith('blob:')) return raw;
+  try {
+    return encodeURI(raw);
+  } catch {
+    return raw;
+  }
+};
+
 export const usePlayers = (teamId?: string) => {
   const queryClient = useQueryClient();
-  const cacheKey = `copa_unasp_cache_players_${teamId || 'all'}`;
+  const cacheKey = `players_cache_v1_${teamId || 'all'}`;
 
-  const loadCache = () => {
+  const loadCachedPlayers = () => {
+    if (typeof window === 'undefined') return null;
     try {
       const raw = localStorage.getItem(cacheKey);
-      if (!raw) return null as null | { ts: number; data: PlayerRow[] };
+      if (!raw) return null;
       const parsed = JSON.parse(raw) as { ts: number; data: PlayerRow[] };
       if (!parsed?.ts || !Array.isArray(parsed.data)) return null;
       return parsed;
@@ -35,20 +47,11 @@ export const usePlayers = (teamId?: string) => {
     }
   };
 
-  const saveCache = (data: PlayerRow[], ts: number) => {
-    try {
-      localStorage.setItem(cacheKey, JSON.stringify({ ts, data }));
-    } catch {
-      // ignore
-    }
-  };
-
-  const cached = loadCache();
+  const cached = loadCachedPlayers();
 
   const friendlyError = (raw: string | undefined) => {
     if (!raw) return null;
     if (raw.includes('Request timeout')) return 'Tempo limite ao carregar jogadores';
-    if (raw.includes('Tempo limite')) return 'Tempo limite ao carregar jogadores';
     if (raw.toLowerCase().includes('abort')) return 'Tempo limite ao carregar jogadores';
     return raw;
   };
@@ -60,22 +63,31 @@ export const usePlayers = (teamId?: string) => {
       if (teamId) q = q.eq('team_id', teamId);
       const { data, error } = await q.order('name');
       if (error) throw error;
-      return (data as PlayerRow[]) || [];
+      const rows = (data as PlayerRow[]) || [];
+      return rows.map((player) => ({
+        ...player,
+        photo_url: normalizeImageSrc(player.photo_url),
+      }));
     },
     staleTime: 1000 * 60 * 10, // 10 min
     gcTime: 1000 * 60 * 30,    // 30 min
     refetchOnReconnect: true,
     networkMode: 'online',
-    initialData: cached?.data,
+    initialData: cached?.data || undefined,
     initialDataUpdatedAt: cached?.ts,
-    placeholderData: (previousData) => previousData,
+    placeholderData: (prev) => prev,
   });
 
   useEffect(() => {
     if (query.status === 'success' && Array.isArray(query.data) && query.data.length > 0) {
-      saveCache(query.data, Date.now());
+      if (typeof window === 'undefined') return;
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data: query.data }));
+      } catch {
+        // noop
+      }
     }
-  }, [query.status, query.data]);
+  }, [cacheKey, query.status, query.data]);
 
   useEffect(() => {
     // Optionally subscribe to players changes
@@ -98,7 +110,10 @@ export const usePlayers = (teamId?: string) => {
   }, [teamId, queryClient]);
 
   return { 
-    players: query.data || [], 
+    players: (query.data || []).map((player) => ({
+      ...player,
+      photo_url: normalizeImageSrc(player.photo_url),
+    })), 
     loading: query.isLoading && query.data === undefined, 
     error: friendlyError(query.error?.message), 
     refresh: query.refetch 

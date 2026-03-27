@@ -351,7 +351,7 @@ const MatchCenter: React.FC = () => {
         <div className="mobile-selector-container mobile-only">
           <select 
             className="match-select-mobile"
-            value={activeMatch.id}
+            value={activeMatch?.id}
             onChange={(e) => setSelectedMatchId(e.target.value)}
           >
             {selectorMatches.map(m => (
@@ -368,7 +368,7 @@ const MatchCenter: React.FC = () => {
           {selectorMatches.map(m => (
             <button 
               key={m.id} 
-              className={`match-pill ${activeMatch.id === m.id ? 'active' : ''}`}
+              className={`match-pill ${activeMatch?.id === m.id ? 'active' : ''}`}
               onClick={() => setSelectedMatchId(m.id)}
             >
               <span className="pill-teams">{m.teams_a?.name.substring(0,3)} x {m.teams_b?.name.substring(0,3)}</span>
@@ -795,11 +795,12 @@ const MatchCenter: React.FC = () => {
                 </div>
               )) : <p className="empty-h2h">Primeiro encontro oficial.</p>}
             </div>
-          </aside>
-        </>
-        )}
-      </div>
-    </div>
+          </div>
+        </aside>
+      </>
+    )}
+  </div>
+</div>
   );
 };
 

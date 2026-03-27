@@ -4,6 +4,7 @@ import { usePlayers, Player } from '../../hooks/usePlayers';
 import { useTeams } from '../../hooks/useTeams';
 import { Shield, ChevronLeft, User, Search, Users, Goal, Footprints } from 'lucide-react';
 import PlayerProfileModal from './PlayerProfileModal';
+import { getSuspensionFromCards } from '../../lib/discipline';
 import './Players.css';
 
 const Players: React.FC = () => {
@@ -133,7 +134,7 @@ const Players: React.FC = () => {
             )}
           </div>
           <div className="profile-info-group">
-            <h1>{isGlobalView ? 'Hub de Atletas' : resolvedTeamName}</h1>
+            <h1>{isGlobalView ? 'Central de Atletas' : resolvedTeamName}</h1>
             <div className="profile-tags">
                {isGlobalView ? (
                  <span className="profile-tag group">Copa Unasp 2026</span>
@@ -261,7 +262,7 @@ const Players: React.FC = () => {
                         <span>C/V</span>
                     </div>
                     <div className="p-cards">
-                      {(player.red_cards > 0 || player.yellow_cards >= 3) && (
+                      {getSuspensionFromCards(player).isSuspended && (
                         <span className="p-suspension-badge">SUSPENSO</span>
                       )}
                     </div>

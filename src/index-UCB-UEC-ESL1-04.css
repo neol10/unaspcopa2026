@@ -1,6 +1,6 @@
 :root {
   /* Color Palette - Official World Cup 2026 Shades */
-  --primary: #E4002B; /* Official Red - Higher Contrast */
+  --primary: #ffffff;
   --secondary: #FFD700; /* Trophy Gold */
   --gold-main: #FFD700;
   --gold-glow: rgba(255, 215, 0, 0.4);
@@ -69,23 +69,13 @@ body {
     radial-gradient(circle at 95% 5%, rgba(228, 0, 43, 0.08) 0%, transparent 45%),    /* Red glow */
     radial-gradient(circle at 50% 95%, rgba(0, 169, 224, 0.08) 0%, transparent 45%),  /* Blue glow */
     radial-gradient(circle at 50% 50%, rgba(255, 215, 0, 0.03) 0%, transparent 70%);  /* Gold ambient */
-  background-attachment: scroll;
+  background-attachment: fixed;
   color: var(--text-main);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
   margin: 0;
-  overflow-x: hidden; /* Prevent horizontal shift */
-  overflow-y: scroll;
   transition: background-color 0.4s ease, color 0.4s ease;
-  width: 100%;
-  position: relative;
-}
-
-#root {
-  overflow-x: hidden;
-  width: 100%;
-  min-height: 100vh;
 }
 
 [data-theme='light'] body {
@@ -120,8 +110,6 @@ button {
 
 html {
   scroll-behavior: smooth;
-  width: 100%;
-  -webkit-text-size-adjust: 100%;
 }
 
 ::selection {

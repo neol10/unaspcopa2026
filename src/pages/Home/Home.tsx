@@ -291,7 +291,7 @@ const Home: React.FC = () => {
           </h1>
           
           <p className="hero-desc-v2">
-            Viva a intensidade do futsal universitário. Resultados ao vivo, 
+            Viva a intensidade do futsal. Resultados ao vivo,
             estatísticas detalhadas e a cobertura completa do maior torneio do Unasp.
           </p>
           
@@ -342,7 +342,7 @@ const Home: React.FC = () => {
               <div className="highlight-card glass" onClick={() => navigate('/rankings')}>
                 <div className="highlight-icon art-assist"><Handshake size={20} /></div>
                 <div className="highlight-info">
-                  <span className="highlight-label">Garçom</span>
+                  <span className="highlight-label">Assistência</span>
                   <div className="highlight-player">
                     <strong>{assistants[0].name}</strong>
                     <span>{assistants[0].team_name}</span>

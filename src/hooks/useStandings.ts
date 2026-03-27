@@ -149,7 +149,7 @@ export const useStandings = () => {
       saveCachedStandings(finalResult);
       return finalResult;
     },
-    initialData: cached?.data ?? [],
+    initialData: cached?.data || undefined,
     initialDataUpdatedAt: cached?.ts,
     placeholderData: (prev) => prev,
     staleTime: 1000 * 60 * 2, // 2 min

@@ -26,6 +26,20 @@ const Brackets: React.FC = () => {
     return () => clearTimeout(id);
   }, [loading]);
 
+  // Agrupa partidas por 'round' dinamicamente
+  const roundsMap = matches.reduce((acc, m) => {
+    const roundName = String(m.round || 'Rodada Geral');
+    if (!acc[roundName]) acc[roundName] = [];
+    acc[roundName].push(m);
+    return acc;
+  }, {} as Record<string, Match[]>);
+
+  const sortedRounds = Object.keys(roundsMap).sort((a, b) => {
+    const dateA = new Date(roundsMap[a][0].match_date).getTime();
+    const dateB = new Date(roundsMap[b][0].match_date).getTime();
+    return dateA - dateB;
+  });
+
   // Auto-scroll para a rodada atual
   useEffect(() => {
     if (!loading && matches.length > 0 && config && !hasScrolled) {
@@ -48,30 +62,16 @@ const Brackets: React.FC = () => {
           scrollToPhase(targetId);
           setHasScrolled(true);
         }
-      }, 500); // Pequeno delay para garantir que o DOM renderizou
+      }, 500); 
       return () => clearTimeout(timer);
     }
-  }, [loading, matches, config, hasScrolled]);
+  }, [loading, matches, config, hasScrolled, sortedRounds]);
 
   const formatRoundName = (name: string) => {
     if (/^\d+$/.test(name)) return `${name}ª Rodada`;
     if (name.toLowerCase().includes('rodada')) return name;
     return name.charAt(0).toUpperCase() + name.slice(1);
   };
-
-  // Agrupa partidas por 'round' dinamicamente
-  const roundsMap = matches.reduce((acc, m) => {
-    const roundName = String(m.round || 'Rodada Geral');
-    if (!acc[roundName]) acc[roundName] = [];
-    acc[roundName].push(m);
-    return acc;
-  }, {} as Record<string, Match[]>);
-
-  const sortedRounds = Object.keys(roundsMap).sort((a, b) => {
-    const dateA = new Date(roundsMap[a][0].match_date).getTime();
-    const dateB = new Date(roundsMap[b][0].match_date).getTime();
-    return dateA - dateB;
-  });
 
   // Distinguir entre Fase de Grupos e Mata-Mata
   const finalPhases = ['quartas', 'semis', 'semi', 'final', 'decisão', 'terceiro'];
@@ -88,7 +88,6 @@ const Brackets: React.FC = () => {
     setScrollLeft(scrollRef.current.scrollLeft);
   };
 
-  // Lógica de Touch Drag
   const handleTouchStart = (e: React.TouchEvent) => {
     if (!scrollRef.current) return;
     setIsDragging(true);
@@ -122,9 +121,100 @@ const Brackets: React.FC = () => {
     const element = document.getElementById(`phase-${phase.toLowerCase().replace(/\s+/g, '-')}`);
     if (element && scrollRef.current) {
       const container = scrollRef.current;
-      const offset = element.offsetLeft - 64; // Adjust for padding
+      const offset = element.offsetLeft - 64; 
       container.scrollTo({ left: offset, behavior: 'smooth' });
     }
+  };
+
+  const MatchSkeleton = () => (
+    <div className="match-skeleton">
+      <div className="skeleton-item skeleton-date"></div>
+      <div className="skeleton-row">
+        <div className="skeleton-team">
+          <div className="skeleton-item skeleton-badge"></div>
+          <div className="skeleton-item skeleton-name"></div>
+        </div>
+        <div className="skeleton-item skeleton-score"></div>
+      </div>
+      <div className="skeleton-row">
+        <div className="skeleton-team">
+          <div className="skeleton-item skeleton-badge"></div>
+          <div className="skeleton-item skeleton-name"></div>
+        </div>
+        <div className="skeleton-item skeleton-score"></div>
+      </div>
+    </div>
+  );
+
+  const RoundSkeleton = () => (
+    <div className="bracket-round">
+      <div className="skeleton-item" style={{ height: '24px', width: '60%', marginBottom: '1rem' }}></div>
+      <div className="round-matches">
+        {[1, 2, 3, 4].map(i => <MatchSkeleton key={i} />)}
+      </div>
+    </div>
+  );
+
+  const MatchBox: React.FC<{ match: Match; isKnockout?: boolean }> = ({ match, isKnockout }) => {
+    const isTeamAWinner = match.status === 'finalizado' && match.team_a_score > match.team_b_score;
+    const isTeamBWinner = match.status === 'finalizado' && match.team_b_score > match.team_a_score;
+
+    const getStatusLabel = () => {
+      if (match.status === 'ao_vivo') return <span className="live-badge-mini">AO VIVO</span>;
+      if (match.status === 'finalizado') return <span className="finished-label">FIM</span>;
+      return <span className="scheduled-label">PREVISTO</span>;
+    };
+
+    return (
+      <div className={`bracket-match ${isKnockout ? 'knockout-item' : ''}`}>
+        <div 
+          className="match-box glass clickable-match"
+          onClick={() => navigate(`/central-da-partida?id=${match.id}`)}
+        >
+          <div className="match-header-row" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem', alignItems: 'center' }}>
+            <div className="match-time-tiny" style={{ marginBottom: 0 }}>
+              {new Date(match.match_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} • {new Date(match.match_date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+            </div>
+            {getStatusLabel()}
+          </div>
+          
+          <div className={`match-team ${isTeamAWinner ? 'winner' : ''}`}>
+            <div className="team-info">
+              {match.teams_a?.badge_url ? (
+                <img 
+                  src={match.teams_a.badge_url} 
+                  alt="" 
+                  className="team-badge-mini" 
+                  width="28" 
+                  height="28" 
+                  loading="lazy" 
+                />
+              ) : <div className="team-badge-mini" style={{width: 28, height: 28, background: 'rgba(255,255,255,0.05)', borderRadius: '50%'}}></div>}
+              <span>{match.teams_a?.name || 'A definir'}</span>
+            </div>
+            <div className="team-score">{match.status !== 'agendado' ? match.team_a_score : '-'}</div>
+          </div>
+          
+          <div className={`match-team ${isTeamBWinner ? 'winner' : ''}`}>
+            <div className="team-info">
+              {match.teams_b?.badge_url ? (
+                <img 
+                  src={match.teams_b.badge_url} 
+                  alt="" 
+                  className="team-badge-mini" 
+                  width="28" 
+                  height="28" 
+                  loading="lazy" 
+                />
+              ) : <div className="team-badge-mini" style={{width: 28, height: 28, background: 'rgba(255,255,255,0.05)', borderRadius: '50%'}}></div>}
+              <span>{match.teams_b?.name || 'A definir'}</span>
+            </div>
+            <div className="team-score">{match.status !== 'agendado' ? match.team_b_score : '-'}</div>
+          </div>
+        </div>
+        {isKnockout && <div className="bracket-connectors"></div>}
+      </div>
+    );
   };
 
   if ((stuck || (!navigator.onLine && loading)) && matches.length === 0) {
@@ -147,7 +237,24 @@ const Brackets: React.FC = () => {
     );
   }
 
-  if (loading && matches.length === 0) return <div className="loading-state">Carregando Jogos...</div>;
+  if (loading && matches.length === 0) {
+    return (
+      <div className="brackets-page animate-fade-in">
+        <header className="brackets-header">
+          <div className="header-icon-box">
+             <Trophy size={32} color="var(--secondary)" />
+          </div>
+          <h1 className="text-gradient uppercase">Tabela do Torneio</h1>
+          <p className="text-muted">Acompanhe o caminho rumo ao título</p>
+        </header>
+        <div className="brackets-scroll-container">
+          <div className="brackets-scroll-content">
+            {[1, 2, 3].map(i => <RoundSkeleton key={i} />)}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (error && matches.length === 0) {
     return (
@@ -159,58 +266,6 @@ const Brackets: React.FC = () => {
       </div>
     );
   }
-
-  const MatchBox: React.FC<{ match: Match; isKnockout?: boolean }> = ({ match, isKnockout }) => {
-    const isTeamAWinner = match.status === 'finalizado' && match.team_a_score > match.team_b_score;
-    const isTeamBWinner = match.status === 'finalizado' && match.team_b_score > match.team_a_score;
-
-    return (
-      <div className={`bracket-match ${isKnockout ? 'knockout-item' : ''}`}>
-        <div 
-          className="match-box glass clickable-match"
-          onClick={() => navigate(`/central-da-partida?id=${match.id}`)}
-        >
-          <div className="match-time-tiny">
-            {new Date(match.match_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} • {new Date(match.match_date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-          </div>
-          <div className={`match-team ${isTeamAWinner ? 'winner' : ''}`}>
-            <div className="team-info">
-              {match.teams_a?.badge_url && (
-                <img 
-                  src={match.teams_a.badge_url} 
-                  alt="" 
-                  className="team-badge-mini" 
-                  width="16" 
-                  height="16" 
-                  loading="lazy" 
-                />
-              )}
-              <span>{match.teams_a?.name || 'A definir'}</span>
-            </div>
-            <div className="team-score">{match.status !== 'agendado' ? match.team_a_score : '-'}</div>
-          </div>
-          <div className={`match-team ${isTeamBWinner ? 'winner' : ''}`}>
-            <div className="team-info">
-              {match.teams_b?.badge_url && (
-                <img 
-                  src={match.teams_b.badge_url} 
-                  alt="" 
-                  className="team-badge-mini" 
-                  width="16" 
-                  height="16" 
-                  loading="lazy" 
-                />
-              )}
-              <span>{match.teams_b?.name || 'A definir'}</span>
-            </div>
-            <div className="team-score">{match.status !== 'agendado' ? match.team_b_score : '-'}</div>
-          </div>
-          {match.status === 'ao_vivo' && <div className="live-badge-mini">AO VIVO</div>}
-        </div>
-        {isKnockout && <div className="bracket-connectors"></div>}
-      </div>
-    );
-  };
 
   return (
     <div className="brackets-page animate-fade-in">
@@ -298,7 +353,7 @@ const Brackets: React.FC = () => {
                   return (
                     <div 
                       key={roundName} 
-                      id={`phase-${roundName}`}
+                      id={`phase-${roundName.toLowerCase().replace(/\s+/g, '-')}`}
                       className={`bracket-round ${isCurrent ? 'current-round-highlight' : ''}`}
                     >
                       <h3 className="round-title">

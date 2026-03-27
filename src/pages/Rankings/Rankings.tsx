@@ -318,7 +318,7 @@ const Rankings: React.FC = () => {
         <section className="rank-panel glass">
           <div className="panel-header">
             <Zap size={20} color="var(--accent-blue)" />
-            <h3>Garçons da Copa</h3>
+            <h3>Assistências da Copa</h3>
           </div>
           <div className="rank-rows">
             {assistants.map((p, i) => (

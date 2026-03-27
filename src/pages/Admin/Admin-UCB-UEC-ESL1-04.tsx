@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { supabase, supabaseStorage } from '../../lib/supabase';
-import { Trophy, Users, Calendar, Plus, Save, Trash2, Shield, ChevronDown, ChevronUp, Newspaper, CheckCircle, Play, Camera, Search, Settings2, Vote, ShieldAlert, Bell, Star, CreditCard, Target, Square, ArrowRightLeft, MessageSquare, Zap, Clock, Pause, RotateCcw, Coffee, Timer } from 'lucide-react';
+import { Trophy, Users, Calendar, Plus, Save, Trash2, Shield, ChevronDown, ChevronUp, Newspaper, CheckCircle, Play, Camera, Search, Settings2, Vote, ShieldAlert, Bell, Star, CreditCard, Target, Square, ArrowRightLeft, MessageSquare, Zap, Clock, Pause, RotateCcw } from 'lucide-react';
 import { useTeams, type Team } from '../../hooks/useTeams';
 import { usePlayers } from '../../hooks/usePlayers';
 import { useQueryClient } from '@tanstack/react-query';
@@ -9,20 +8,11 @@ import { useNews, type News } from '../../hooks/useNews';
 import { useMatches, type Match } from '../../hooks/useMatches';
 import { useMatchEvents, type MatchEvent } from '../../hooks/useMatchEvents';
 import { useTournamentConfig, type TournamentConfig } from '../../hooks/useTournamentConfig';
-import { usePolls, type Poll, type PollOption } from '../../hooks/usePolls';
+import type { Poll, PollOption } from '../../hooks/usePolls';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { withTimeout } from '../../lib/withTimeout';
 import { toast } from 'react-hot-toast';
-import { getSuspensionFromCards } from '../../lib/discipline';
-import { useConfirm } from '../../hooks/useConfirm';
-import { AnimatePresence, motion } from 'framer-motion';
 import './Admin.css';
-
-type PlayerDisciplineRow = {
-  id: string;
-  suspension_games?: number | null;
-  last_suspension_match_id?: string | null;
-};
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -177,27 +167,6 @@ const getErrorMessage = (err: unknown, fallback: string = 'Ocorreu um erro') => 
   return fallback;
 };
 
-const getPostgresCode = (err: unknown): string | null => {
-  if (typeof (err as { code?: unknown })?.code === 'string') return String((err as { code: string }).code);
-  return null;
-};
-
-const getDeleteMatchErrorMessage = (err: unknown): string => {
-  const code = getPostgresCode(err);
-  const details = typeof (err as { details?: unknown })?.details === 'string'
-    ? String((err as { details: string }).details)
-    : '';
-
-  if (code === '23503') {
-    const table = details.match(/table\s+"([^"]+)"/i)?.[1];
-    if (table) return `Nao foi possivel excluir: existem registros vinculados em ${table}.`;
-    return 'Nao foi possivel excluir: a partida ainda possui registros vinculados.';
-  }
-
-  if (code === '42501') return 'Sem permissao para excluir esta partida.';
-  return getErrorMessage(err, 'Erro ao excluir partida');
-};
-
 
 const Admin: React.FC = () => {
   const { user, role, loading: authLoading } = useAuthContext();
@@ -216,7 +185,6 @@ const Admin: React.FC = () => {
   }
 
   const isAdmin = role === 'admin';
-  const { ConfirmElement } = useConfirm();
 
   return (
     <div className="admin-container animate-fade-in">
@@ -313,7 +281,6 @@ const Admin: React.FC = () => {
             {activeTab === 'notifications' && <NotificationBroadcast />}
             {activeTab === 'errors' && <ClientErrorsPanel />}
           </main>
-          {ConfirmElement}
         </>
       )}
     </div>
@@ -321,191 +288,23 @@ const Admin: React.FC = () => {
 };
 
 // --- Helpers ---
-type PushSendOptions = {
-  url?: string;
-  category?: 'live' | 'results' | 'news' | 'polls' | 'standings' | 'general';
-  important?: boolean;
-  teamIds?: string[];
-};
-
-let lastPushErrorMessage = '';
-
-const resolvePushApiEndpoint = () => {
-  const raw = (import.meta.env.VITE_PUSH_API_URL as string | undefined)?.trim();
-  const host = typeof window !== 'undefined' ? window.location.hostname : '';
-  const isLocal = host === 'localhost' || host === '127.0.0.1';
-
-  // Em localhost, forçamos rota relativa para usar proxy do Vite e evitar CORS.
-  if (isLocal) return '/api/notify-push';
-
-  if (raw) {
-    return raw.includes('notify-push')
-      ? raw
-      : `${raw.replace(/\/$/, '')}/api/notify-push`;
-  }
-
-  // Fallback padrão: funciona em produção (Vercel) e também em localhost via vercel dev/proxy.
-  return '/api/notify-push';
-};
-
-const buildPushEndpointCandidates = (endpoint: string) => {
-  return [endpoint];
-};
-
-const sendPushNotification = async (title: string, body: string, options: PushSendOptions | string = '/'): Promise<boolean> => {
-  lastPushErrorMessage = '';
-  const safeTitle = String(title || '').trim();
-  const safeBody = String(body || '').trim();
-
-  if (!safeTitle || !safeBody) {
-    lastPushErrorMessage = 'Payload inválido: título/corpo vazios.';
-    console.error(lastPushErrorMessage);
-    return false;
-  }
-
-  const payload = typeof options === 'string'
-    ? { title: safeTitle, body: safeBody, message: safeBody, url: options }
-    : {
-        title: safeTitle,
-        body: safeBody,
-        message: safeBody,
-        url: options.url || '/',
-        category: options.category || 'general',
-        important: Boolean(options.important),
-        teamIds: options.teamIds || [],
-        team_ids: options.teamIds || [],
-      };
-
-  const endpoint = resolvePushApiEndpoint();
-
+const sendPushNotification = async (title: string, body: string, url: string = '/') => {
   try {
-    const endpoints = buildPushEndpointCandidates(endpoint);
-    let lastStatus = 0;
-    let lastDetail = '';
-
-    for (const candidate of endpoints) {
-      const response = await fetch(candidate, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...payload, sound: 'default' }),
-      });
-
-      if (response.ok) {
-        const contentType = response.headers.get('content-type') || '';
-        // Em localhost com Vite sem proxy, /api/* pode devolver HTML do index com 200.
-        if (contentType.includes('text/html')) {
-          lastStatus = 502;
-          lastDetail = 'Resposta HTML recebida no endpoint de push (provavel dev server sem proxy/api).';
-          continue;
-        }
-
-        const bodyJson = await response.json().catch(() => ({} as Record<string, unknown>));
-        const apiMessage = typeof bodyJson.message === 'string' ? bodyJson.message : '';
-        const apiResults = Array.isArray(bodyJson.results)
-          ? (bodyJson.results as Array<{ success?: boolean; error?: string; statusCode?: number }>)
-          : [];
-
-        if (apiMessage.toLowerCase().includes('no subscriptions')) {
-          lastPushErrorMessage = 'Nenhum dispositivo inscrito para receber push.';
-          lastStatus = 200;
-          lastDetail = apiMessage;
-          continue;
-        }
-
-        if (apiMessage.toLowerCase().includes('no eligible subscriptions')) {
-          lastPushErrorMessage = 'Nenhum inscrito elegível para este alerta (filtros atuais).';
-          lastStatus = 200;
-          lastDetail = apiMessage;
-          continue;
-        }
-
-        if (apiResults.length > 0) {
-          const successCount = apiResults.filter((r) => r.success).length;
-          if (successCount === 0) {
-            const firstFail = apiResults.find((r) => !r.success);
-            lastPushErrorMessage = firstFail?.error
-              ? `Nenhum push entregue. Detalhe: ${firstFail.error}`
-              : 'Nenhum push foi entregue para os inscritos.';
-            lastStatus = firstFail?.statusCode || 200;
-            lastDetail = lastPushErrorMessage;
-            continue;
-          }
-        }
-
-        lastPushErrorMessage = '';
-        return true;
-      }
-
-      lastStatus = response.status;
-      const rawDetail = await response.text().catch(() => '');
-      lastDetail = rawDetail;
-
-      if (response.status === 404) {
-        const fallbackCandidates = endpoint.includes('notify-push')
-          ? [endpoint.replace('notify-push', 'notify_push')]
-          : endpoint.includes('notify_push')
-            ? [endpoint.replace('notify_push', 'notify-push')]
-            : [];
-
-        for (const fallback of fallbackCandidates) {
-          const fallbackResp = await fetch(fallback, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...payload, sound: 'default' }),
-          });
-
-          if (fallbackResp.ok) return true;
-
-          lastStatus = fallbackResp.status;
-          lastDetail = await fallbackResp.text().catch(() => '');
-        }
-      }
-
-      // Tenta próximo candidato mesmo para 4xx para cobrir diferenças de rota/contrato.
-      if (response.status >= 500) {
-        console.error(`Push endpoint returned ${response.status}: ${lastDetail}`);
-      }
-    }
-
-    if (lastStatus && lastStatus !== 200) {
-      if (lastStatus === 400) {
-        lastPushErrorMessage = `API retornou 400. Detalhe: ${lastDetail || 'requisição inválida'}`;
-      } else if (lastStatus === 401) {
-        lastPushErrorMessage = 'API de push sem permissão (401). Verifique variáveis do backend no deploy.';
-      } else if (lastStatus === 403) {
-        const low = String(lastDetail || '').toLowerCase();
-        if (low.includes('unexpected response code') || low.includes('nenhum push entregue')) {
-          lastPushErrorMessage = 'Inscrições push antigas/inválidas detectadas. Desative e ative as notificações no dispositivo para reinscrever.';
-        } else {
-          lastPushErrorMessage = 'API de push sem permissão (403). Verifique variáveis do backend no deploy.';
-        }
-      } else if (lastStatus === 404) {
-        lastPushErrorMessage = 'Endpoint de push não encontrado (404).';
-      } else if (lastStatus === 502) {
-        lastPushErrorMessage = 'No dev local, /api/notify-push está retornando HTML. Use vercel dev ou configure VITE_PUSH_API_URL com URL absoluta.';
-      } else {
-        lastPushErrorMessage = `Falha no endpoint de push (${lastStatus}).`;
-      }
-      console.error(`Push endpoint returned ${lastStatus}: ${lastDetail}`);
-    }
-
-    return false;
+    await fetch('/api/notify-push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, body, url, sound: 'default' }),
+    });
   } catch (err) {
-    lastPushErrorMessage = 'Falha de rede ao chamar endpoint de push.';
     console.error('Push notification error:', err);
-    return false;
   }
 };
 
 // --- Alertas Push em Massa ---
 const NotificationBroadcast = () => {
-  const { teams } = useTeams();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [url, setUrl] = useState('/');
-  const [category, setCategory] = useState<PushSendOptions['category']>('general');
-  const [important, setImportant] = useState(false);
-  const [targetTeamId, setTargetTeamId] = useState('');
   const [sending, setSending] = useState(false);
 
   const handleBroadcast = async (e: React.FormEvent) => {
@@ -514,34 +313,11 @@ const NotificationBroadcast = () => {
     
     setSending(true);
     try {
-      const sent = await sendPushNotification(title, body, {
-        url,
-        category,
-        important,
-        teamIds: targetTeamId ? [targetTeamId] : [],
-      });
-
-      if (!sent) {
-        const msg = lastPushErrorMessage || 'Não foi possível enviar o push.';
-        const isNoSubscribers =
-          msg.toLowerCase().includes('nenhum dispositivo inscrito') ||
-          msg.toLowerCase().includes('nenhum inscrito elegível');
-
-        if (isNoSubscribers) {
-          toast.error(msg);
-          return;
-        }
-
-        throw new Error(msg);
-      }
-
+      await sendPushNotification(title, body, url);
       toast.success('Alerta push enviado para todos os inscritos! 📢');
       setTitle('');
       setBody('');
       setUrl('/');
-      setCategory('general');
-      setImportant(false);
-      setTargetTeamId('');
     } catch (err: unknown) {
       const message =
         typeof (err as { message?: unknown })?.message === 'string'
@@ -591,37 +367,6 @@ const NotificationBroadcast = () => {
           />
           <small>Caminho para onde o usuário será levado ao clicar.</small>
         </div>
-
-        <div className="form-group">
-          <label>Categoria do Alerta</label>
-          <select value={category} onChange={(e) => setCategory(e.target.value as PushSendOptions['category'])}>
-            <option value="general">Geral</option>
-            <option value="live">Ao vivo (gols e lances)</option>
-            <option value="results">Resultados</option>
-            <option value="news">Notícias</option>
-            <option value="polls">Enquetes</option>
-            <option value="standings">Classificação</option>
-          </select>
-        </div>
-
-        <div className="form-group">
-          <label>Segmentar por Time (Opcional)</label>
-          <select value={targetTeamId} onChange={(e) => setTargetTeamId(e.target.value)}>
-            <option value="">Todos os times</option>
-            {(teams || []).map((team) => (
-              <option key={team.id} value={team.id}>{team.name}</option>
-            ))}
-          </select>
-          <small>Quando selecionado, envia só para quem escolheu esse time como favorito.</small>
-        </div>
-
-        <div className="form-group" style={{ marginTop: '-0.25rem' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-            <input type="checkbox" checked={important} onChange={(e) => setImportant(e.target.checked)} />
-            Marcar como alerta importante
-          </label>
-          <small>Usuários com modo "apenas importantes" só recebem alertas com esta opção ativa.</small>
-        </div>
         
         <button type="submit" className="btn-save" disabled={sending}>
           <Bell size={18} /> {sending ? 'Enviando...' : 'Disparar Alerta Agora'}
@@ -664,7 +409,7 @@ const formatDateTime = (value: string) => {
 const isClientErrorsUnavailable = (err: unknown) => {
   const raw = err as { code?: unknown; message?: unknown; details?: unknown; status?: unknown };
   const code = typeof raw?.code === 'string' ? raw.code : '';
-  const status = typeof raw?.status === 'number' ? raw.status : null;
+  const status = typeof raw?.status === 'number' ? raw.status : 0;
   const message = typeof raw?.message === 'string' ? raw.message.toLowerCase() : '';
   const details = typeof raw?.details === 'string' ? raw.details.toLowerCase() : '';
 
@@ -675,8 +420,6 @@ const isClientErrorsUnavailable = (err: unknown) => {
     message.includes('permission denied') ||
     message.includes('row-level security') ||
     message.includes('does not exist') ||
-    message.includes('schema cache') ||
-    message.includes('could not find the table') ||
     details.includes('row-level security')
   );
 };
@@ -699,7 +442,6 @@ const ClientErrorsPanel = () => {
       if (error) throw error;
       setItems((data || []) as ClientErrorRow[]);
     } catch (err: unknown) {
-      const unavailable = isClientErrorsUnavailable(err);
       if (!isClientErrorsUnavailable(err)) {
         console.error('Error loading client_errors:', err);
       }
@@ -707,12 +449,8 @@ const ClientErrorsPanel = () => {
         typeof (err as { message?: unknown })?.message === 'string'
           ? String((err as { message: string }).message)
           : 'Falha ao carregar erros';
-      setLoadError(
-        unavailable
-          ? 'Observabilidade não configurada neste ambiente (tabela client_errors ausente ou sem permissão).'
-          : msg,
-      );
-      if (!unavailable) {
+      setLoadError(msg);
+      if (!isClientErrorsUnavailable(err)) {
         toast.error(msg);
       }
     } finally {
@@ -750,7 +488,7 @@ const ClientErrorsPanel = () => {
           </div>
         ) : (
           <div className="client-errors-list">
-            {(items || []).map((it) => (
+            {items.map((it) => (
               <div key={it.id} className="client-error-item glass">
                 <div className="client-error-head">
                   <strong>{it.source}</strong>
@@ -791,7 +529,6 @@ const MatchManagement = () => {
   const { matches, loading, refresh } = useMatches();
   const { teams } = useTeams();
   const queryClient = useQueryClient();
-  const { confirm: confirmAction, ConfirmElement } = useConfirm();
   const [isAdding, setIsAdding] = useState(false);
   const [isSubmittingMatch, setIsSubmittingMatch] = useState(false);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
@@ -822,13 +559,12 @@ const MatchManagement = () => {
   };
 
   // Agrupar equipes por grupo
-  const groupedTeams = (teams || []).reduce<Record<string, Team[]>>((acc, team) => {
-    const group = team.group || 'Sem Grupo';
-    if (!acc[group]) acc[group] = [];
-    acc[group].push(team);
+  const groupedTeams = teams.reduce<Record<string, Team[]>>((acc, team) => {
+    const groupName = team.group || 'Sem Grupo';
+    if (!acc[groupName]) acc[groupName] = [];
+    acc[groupName].push(team);
     return acc;
   }, {});
-
 
   const handleCreateMatch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -866,10 +602,8 @@ const MatchManagement = () => {
       void refresh();
       invalidateCompetitionData();
       toast.success('Partida criada com sucesso!');
-    } catch (err: any) {
-      const code = err?.code ? ` (código: ${err.code})` : '';
-      const details = err?.message || err?.details || '';
-      toast.error(`Erro ao criar partida${code}: ${details || getErrorMessage(err, '')}`);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao criar partida'));
     } finally {
       setIsSubmittingMatch(false);
     }
@@ -883,87 +617,20 @@ const MatchManagement = () => {
         'Tempo limite ao atualizar status'
       );
       if (error) throw error;
-
-      const processDisciplineForFinishedMatch = async () => {
-        if (!match) return;
-
-        // Idempotência: se essa partida já foi processada para disciplina, não faz nada.
-        // (Usamos players.last_suspension_match_id como marcador simples por jogador.)
-        const { data: disciplineRows, error: disciplineErr } = await supabase
-          .from('players')
-          .select('id, suspension_games, last_suspension_match_id')
-          .in('team_id', [match.team_a_id, match.team_b_id]);
-        if (disciplineErr) throw disciplineErr;
-
-        const rows = (disciplineRows as PlayerDisciplineRow[]) || [];
-        const alreadyProcessedCount = rows.filter((r) => r.last_suspension_match_id === match.id).length;
-        if (alreadyProcessedCount > 0) return;
-
-        // Eventos do jogo: contamos cartões por jogador
-        const { data: events, error: eventsErr } = await supabase
-          .from('match_events')
-          .select('event_type, player_id')
-          .eq('match_id', match.id)
-          .in('event_type', ['amarelo', 'vermelho']);
-        if (eventsErr) throw eventsErr;
-
-        const byPlayer: Record<string, { yellows: number; reds: number }> = {};
-        (events || []).forEach((e: any) => {
-          const pid = e.player_id as string | null;
-          if (!pid) return;
-          if (!byPlayer[pid]) byPlayer[pid] = { yellows: 0, reds: 0 };
-          if (e.event_type === 'amarelo') byPlayer[pid].yellows += 1;
-          if (e.event_type === 'vermelho') byPlayer[pid].reds += 1;
-        });
-
-        // 1) Cumpre suspensões pendentes (decrementa 1) para jogadores dos times que participaram.
-        // 2) Aplica novas suspensões com base nos cartões deste jogo.
-        // Tudo em updates por jogador (simples e suficiente pro volume atual).
-        const updates = rows.map(async (p) => {
-          const currentSusp = Math.max(0, Number(p.suspension_games || 0));
-          const servedSusp = currentSusp > 0 ? currentSusp - 1 : 0;
-
-          const inc = byPlayer[p.id]
-            ? getSuspensionFromCards({ yellow_cards: byPlayer[p.id].yellows, red_cards: byPlayer[p.id].reds }).suspendedGames
-            : 0;
-
-          const nextSusp = servedSusp + inc;
-          return supabase
-            .from('players')
-            .update({
-              suspension_games: nextSusp,
-              last_suspension_match_id: match.id,
-            })
-            .eq('id', p.id);
-        });
-
-        await Promise.all(updates);
-      };
       
       if (status === 'ao_vivo' && match) {
         sendPushNotification(
           '🍿 Jogo Iniciado!', 
           `${match.teams_a?.name || 'Equipe A'} vs ${match.teams_b?.name || 'Equipe B'} acaba de começar!`,
-          {
-            url: '/central-da-partida',
-            category: 'live',
-            important: true,
-            teamIds: [match.team_a_id, match.team_b_id],
-          }
+          '/central-da-partida'
         );
       }
 
       if (status === 'finalizado' && match) {
-        await processDisciplineForFinishedMatch();
         sendPushNotification(
           '🏁 Partida Finalizada!', 
           `Placar Final: ${match.teams_a?.name || 'Equipe A'} ${match.team_a_score} x ${match.team_b_score} ${match.teams_b?.name || 'Equipe B'}`,
-          {
-            url: '/central-da-partida',
-            category: 'results',
-            important: true,
-            teamIds: [match.team_a_id, match.team_b_id],
-          }
+          '/central-da-partida'
         );
       }
       
@@ -975,133 +642,36 @@ const MatchManagement = () => {
   };
 
   const handleDeleteMatch = async (id: string) => {
-    if (!(await confirmAction({
-      title: 'Excluir Partida',
-      description: 'ATENÇÃO: Apagar esta partida removerá permanentemente todos os eventos e REVERTERÁ as estatísticas dos jogadores (gols, cartões e assistências). Deseja continuar?',
-      variant: 'danger'
-    }))) return;
-
-    // Atualização Otimista: Remove da lista local instantaneamente
-    queryClient.setQueryData(['matches', 'all'], (old: Match[] | undefined) => 
-      old ? old.filter(m => m.id !== id) : []
-    );
+    if (!confirm('Apagar partida?')) return;
     
-    const loadingToast = toast.loading('Processando reversão e exclusão...');
+    // Atualização Otimista: Removemos da lista local imediatamente
+    const previousMatches = queryClient.getQueryData<Match[]>(['matches', 'all']);
+    if (previousMatches) {
+      queryClient.setQueryData(['matches', 'all'], previousMatches.filter(m => m.id !== id));
+    }
+
+    const loadingToast = toast.loading('Excluindo partida...');
     try {
-      // 1. Buscar todos os eventos desta partida em uma única chamada
-      const { data: events, error: eventsError } = await supabase
-        .from('match_events')
-        .select('event_type, player_id, assistant_id')
-        .eq('match_id', id);
-
-      if (eventsError) throw eventsError;
-
-      // 2. Agrupar as reversões por jogador para otimizar as chamadas ao banco
-      if (events && events.length > 0) {
-        const deltas: Record<string, { goals: number; assists: number; yellows: number; reds: number }> = {};
-        
-        events.forEach(event => {
-          if (event.player_id) {
-            if (!deltas[event.player_id]) deltas[event.player_id] = { goals: 0, assists: 0, yellows: 0, reds: 0 };
-            if (event.event_type === 'gol') deltas[event.player_id].goals += 1;
-            else if (event.event_type === 'amarelo') deltas[event.player_id].yellows += 1;
-            else if (event.event_type === 'vermelho') deltas[event.player_id].reds += 1;
-          }
-          if (event.assistant_id) {
-            if (!deltas[event.assistant_id]) deltas[event.assistant_id] = { goals: 0, assists: 0, yellows: 0, reds: 0 };
-            deltas[event.assistant_id].assists += 1;
-          }
-        });
-
-        const playerIds = Object.keys(deltas);
-        if (playerIds.length > 0) {
-          // Buscar todos os jogadores afetados de uma vez
-          const { data: playersData, error: playersError } = await supabase
-            .from('players')
-            .select('id, goals_count, assists, yellow_cards, red_cards')
-            .in('id', playerIds);
-
-          if (playersError) throw playersError;
-
-          // Executar atualizações em paralelo (Promise.all) em vez de um loop sequencial com await
-          if (playersData) {
-            await Promise.all((playersData || []).map(p => {
-              const d = deltas[p.id];
-              return supabase.from('players').update({
-                goals_count: Math.max(0, (p.goals_count || 0) - d.goals),
-                assists: Math.max(0, (p.assists || 0) - d.assists),
-                yellow_cards: Math.max(0, (p.yellow_cards || 0) - d.yellows),
-                red_cards: Math.max(0, (p.red_cards || 0) - d.reds)
-              }).eq('id', p.id);
-            }));
-          }
-        }
-      }
-
-      // 3. Limpar dependencias da partida (Votações e Eventos)
-      await Promise.all([
-        supabase.from('match_winner_votes').delete().eq('match_id', id),
-        supabase.from('match_mvp_votes').delete().eq('match_id', id),
-        supabase.from('match_events').delete().eq('match_id', id),
-      ]).catch(err => {
-        // Ignorar erros de tabela inexistente (42P01) mas logar outros
-        if (err?.code !== '42P01') console.warn('Clean sub-tables warn:', err);
-      });
-
-      // 4. Excluir a partida com timeout de segurança
       const { error } = await withTimeout(
         supabase.from('matches').delete().eq('id', id),
-        20000,
+        30000,
         'Tempo limite ao excluir partida'
       );
       if (error) throw error;
       
-      void refresh();
+      // Invalida para garantir que tudo está sincronizado (standings, etc)
       invalidateCompetitionData();
-      toast.success('Partida excluída e estatísticas revertidas!', { id: loadingToast });
-    } catch (err: any) {
-      console.error('Delete match error:', err);
-      const code = err?.code ? ` (código: ${err.code})` : '';
-      const details = err?.message || err?.details || '';
-      toast.error(`Erro ao excluir partida${code}: ${details || getDeleteMatchErrorMessage(err)}`, { id: loadingToast });
+      toast.success('Partida excluída!', { id: loadingToast });
+    } catch (err: unknown) {
+      // Reverte em caso de erro
+      if (previousMatches) {
+        queryClient.setQueryData(['matches', 'all'], previousMatches);
+      }
+      toast.error(getErrorMessage(err, 'Erro ao excluir partida'), { id: loadingToast });
     }
   };
 
   const [editingMatchId, setEditingMatchId] = useState<string | null>(null);
-
-  const sendLivePhaseNotification = (match: Match, phase: 'pausa' | 'intervalo' | 'retomada') => {
-    const teamA = match.teams_a?.name || 'Equipe A';
-    const teamB = match.teams_b?.name || 'Equipe B';
-
-    if (phase === 'pausa') {
-      sendPushNotification('⏸️ Jogo Pausado', `${teamA} x ${teamB} está em pausa técnica.`, {
-        url: '/central-da-partida',
-        category: 'live',
-        teamIds: [match.team_a_id, match.team_b_id],
-      });
-      toast.success('Alerta de pausa enviado.');
-      return;
-    }
-
-    if (phase === 'intervalo') {
-      sendPushNotification('🕒 Intervalo de Jogo', `${teamA} x ${teamB} foi para o intervalo.`, {
-        url: '/central-da-partida',
-        category: 'live',
-        important: true,
-        teamIds: [match.team_a_id, match.team_b_id],
-      });
-      toast.success('Alerta de intervalo enviado.');
-      return;
-    }
-
-    sendPushNotification('▶️ Bola Rolando de Novo', `${teamA} x ${teamB} voltou para o segundo tempo.`, {
-      url: '/central-da-partida',
-      category: 'live',
-      important: true,
-      teamIds: [match.team_a_id, match.team_b_id],
-    });
-    toast.success('Alerta de retomada enviado.');
-  };
 
   const handleUpdateMatch = async (id: string, data: MatchFormData) => {
     // Validação: Impedir que o mesmo time jogue duas vezes na mesma rodada (ignorando a própria partida sendo editada)
@@ -1141,7 +711,7 @@ const MatchManagement = () => {
     }
   };
 
-  const filteredMatches = (matches || []).filter(m => 
+  const filteredMatches = matches.filter(m => 
     m.teams_a?.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     m.teams_b?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     String(m.round).includes(searchTerm)
@@ -1149,7 +719,7 @@ const MatchManagement = () => {
 
   // Times ocupados na rodada selecionada (Nova Partida)
   const busyTeamIdsInRound = new Set(
-    (matches || [])
+    matches
       .filter(m => m.round === (parseInt(formData.round) || 1))
       .flatMap(m => [m.team_a_id, m.team_b_id])
   );
@@ -1157,7 +727,7 @@ const MatchManagement = () => {
   // Times ocupados na rodada da partida sendo editada (Ignorando a própria partida)
   const getBusyTeamIdsForEdit = (matchId: string, round: number) => {
     return new Set(
-      (matches || [])
+      matches
         .filter(m => m.id !== matchId && m.round === round)
         .flatMap(m => [m.team_a_id, m.team_b_id])
     );
@@ -1173,14 +743,7 @@ const MatchManagement = () => {
           </button>
           <button 
             className="btn-test-push" 
-            onClick={async () => {
-              const sent = await sendPushNotification('🔔 Teste de Alerta', 'Se você recebeu isso, as notificações estão funcionando! 🚀');
-              if (sent) {
-                toast.success('Teste de push enviado com sucesso.');
-              } else {
-                toast.error('Falha ao enviar push de teste. Verifique o endpoint configurado.');
-              }
-            }}
+            onClick={() => sendPushNotification('🔔 Teste de Alerta', 'Se você recebeu isso, as notificações estão funcionando! 🚀')}
           >
             <Bell size={18} /> Testar Notificações
           </button>
@@ -1195,11 +758,11 @@ const MatchManagement = () => {
                 <select required value={formData.team_a_id} onChange={e => setFormData({...formData, team_a_id: e.target.value})}>
                   <option value="">Selecione...</option>
                   {Object.keys(groupedTeams).sort().map(group => {
-                    const availableTeamsInGroup = (groupedTeams[group] || []).filter((t) => !busyTeamIdsInRound.has(t.id) || t.id === formData.team_a_id);
+                    const availableTeamsInGroup = groupedTeams[group].filter((t) => !busyTeamIdsInRound.has(t.id) || t.id === formData.team_a_id);
                     if (availableTeamsInGroup.length === 0) return null;
                     return (
                       <optgroup key={group} label={`Grupo ${group}`}>
-                        {(availableTeamsInGroup || []).sort((a, b) => a.name.localeCompare(b.name)).map((t) => (
+                        {availableTeamsInGroup.sort((a, b) => a.name.localeCompare(b.name)).map((t) => (
                           <option key={t.id} value={t.id} disabled={formData.team_b_id === t.id}>{t.name}</option>
                         ))}
                       </optgroup>
@@ -1212,11 +775,11 @@ const MatchManagement = () => {
                 <select required value={formData.team_b_id} onChange={e => setFormData({...formData, team_b_id: e.target.value})}>
                   <option value="">Selecione...</option>
                   {Object.keys(groupedTeams).sort().map(group => {
-                    const availableTeamsInGroup = (groupedTeams[group] || []).filter((t) => !busyTeamIdsInRound.has(t.id) || t.id === formData.team_b_id);
+                    const availableTeamsInGroup = groupedTeams[group].filter((t) => !busyTeamIdsInRound.has(t.id) || t.id === formData.team_b_id);
                     if (availableTeamsInGroup.length === 0) return null;
                     return (
                       <optgroup key={group} label={`Grupo ${group}`}>
-                        {(availableTeamsInGroup || []).sort((a, b) => a.name.localeCompare(b.name)).map((t) => (
+                        {availableTeamsInGroup.sort((a, b) => a.name.localeCompare(b.name)).map((t) => (
                           <option key={t.id} value={t.id} disabled={formData.team_a_id === t.id}>{t.name}</option>
                         ))}
                       </optgroup>
@@ -1251,197 +814,130 @@ const MatchManagement = () => {
         </div>
       </div>
 
-      <div className="admin-list-sections">
-        {/* === PARTIDAS ATIVAS / AGENDADAS === */}
-        <div className="admin-list-group">
-          <h3 className="list-group-title"><Clock size={16} /> Partidas Ativas / Agendadas</h3>
-          {loading ? <p>Carregando...</p> : (filteredMatches || []).filter(m => m.status !== 'finalizado').length === 0 ? (
-            <div className="admin-empty-state"><p>Nenhuma partida agendada.</p></div>
-          ) : (filteredMatches || []).filter(m => m.status !== 'finalizado').map(match => (
-            <React.Fragment key={match.id}>
-              <div className={`admin-list-item match-admin-card ${match.status}`}>
-                <div className="match-status-info">
-                    <span className={`status-dot ${match.status}`}></span>
-                    <div className="match-info-main">
-                      <strong style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                        {match.teams_a?.badge_url ? (
-                          <img src={match.teams_a.badge_url} alt="" style={{ width: 24, height: 24, objectFit: 'contain' }} />
-                        ) : (
-                          <Shield size={20} />
-                        )}
-                        <span>{match.teams_a?.name} {match.team_a_score} x {match.team_b_score} {match.teams_b?.name}</span>
-                        {match.teams_b?.badge_url ? (
-                          <img src={match.teams_b.badge_url} alt="" style={{ width: 24, height: 24, objectFit: 'contain' }} />
-                        ) : (
-                          <Shield size={20} />
-                        )}
-                      </strong>
-                      <div className="match-meta-admin">
-                        <span className="round-badge">{match.round}ª Rodada</span>
-                        <span className="match-date">{new Date(match.match_date).toLocaleString('pt-BR')}</span>
-                      </div>
+      <div className="admin-list">
+        {loading ? <p>Carregando...</p> : filteredMatches.map(match => (
+          <React.Fragment key={match.id}>
+            <div className={`admin-list-item match-admin-card ${match.status}`}>
+              <div className="match-status-info">
+                  <span className={`status-dot ${match.status}`}></span>
+                  <div className="match-info-main">
+                    <strong style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {match.teams_a?.badge_url ? (
+                        <img src={match.teams_a.badge_url} alt="" style={{ width: 24, height: 24, objectFit: 'contain' }} />
+                      ) : (
+                        <Shield size={20} />
+                      )}
+                      <span>{match.teams_a?.name} {match.team_a_score} x {match.team_b_score} {match.teams_b?.name}</span>
+                      {match.teams_b?.badge_url ? (
+                        <img src={match.teams_b.badge_url} alt="" style={{ width: 24, height: 24, objectFit: 'contain' }} />
+                      ) : (
+                        <Shield size={20} />
+                      )}
+                    </strong>
+                    <div className="match-meta-admin">
+                      <span className="round-badge">{match.round}</span>
+                      <span className="match-date">{new Date(match.match_date).toLocaleString('pt-BR')}</span>
                     </div>
+                  </div>
+              </div>
+              <div className="item-actions">
+                {match.status === 'agendado' && (
+                  <>
+                    <button className="btn-icon edit" title="Editar Partida" onClick={() => {
+                       setEditingMatchId(match.id);
+                       setFormData({
+                         team_a_id: match.team_a_id,
+                         team_b_id: match.team_b_id,
+                         match_date: formatDatetimeLocal(match.match_date),
+                         location: match.location,
+                         status: match.status,
+                         round: String(match.round)
+                       });
+                    }}><Settings2 size={18} /></button>
+                    <button className="btn-icon play" title="Começar Jogo" onClick={() => updateStatus(match.id, 'ao_vivo', match)}><Play size={18} /></button>
+                  </>
+                )}
+                {match.status === 'ao_vivo' && (
+                  <>
+                    <button className="btn-live-control" onClick={() => setSelectedMatchId(selectedMatchId === match.id ? null : match.id)}>
+                      {selectedMatchId === match.id ? 'Fechar Painel' : 'Lançar Eventos'}
+                    </button>
+                    <button className="btn-icon finish" title="Finalizar Jogo" onClick={() => updateStatus(match.id, 'finalizado', match)}><CheckCircle size={18} /></button>
+                  </>
+                )}
+                {match.status === 'finalizado' && (
+                   <>
+                     <button className="btn-icon edit" title="Editar Resultado/Meta" onClick={() => {
+                        setEditingMatchId(match.id);
+                        setFormData({
+                          team_a_id: match.team_a_id,
+                          team_b_id: match.team_b_id,
+                          match_date: formatDatetimeLocal(match.match_date),
+                          location: match.location,
+                          status: match.status,
+                          round: String(match.round)
+                        });
+                     }}><Settings2 size={18} /></button>
+                     <span className="final-label">Finalizado</span>
+                   </>
+                )}
+                <button className="btn-icon delete" onClick={() => handleDeleteMatch(match.id)}><Trash2 size={18} /></button>
+              </div>
+            </div>
+
+            {editingMatchId === match.id && (
+              <div className="admin-form glass animate-slide-down" style={{ margin: '1rem 0' }}>
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label>Equipe A</label>
+                    <select value={formData.team_a_id} onChange={e => setFormData({...formData, team_a_id: e.target.value})}>
+                      {teams
+                        .filter(t => !getBusyTeamIdsForEdit(match.id, parseInt(formData.round)).has(t.id) || t.id === match.team_a_id)
+                        .map(t => <option key={t.id} value={t.id}>{t.name}</option>)
+                      }
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Equipe B</label>
+                    <select value={formData.team_b_id} onChange={e => setFormData({...formData, team_b_id: e.target.value})}>
+                      {teams
+                        .filter(t => !getBusyTeamIdsForEdit(match.id, parseInt(formData.round)).has(t.id) || t.id === match.team_b_id)
+                        .map(t => <option key={t.id} value={t.id}>{t.name}</option>)
+                      }
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Data/Hora</label>
+                    <input type="datetime-local" value={formData.match_date} onChange={e => setFormData({...formData, match_date: e.target.value})} />
+                  </div>
+                  <div className="form-group">
+                    <label>Rodada</label>
+                    <input type="number" value={formData.round} onChange={e => setFormData({...formData, round: e.target.value})} />
+                  </div>
                 </div>
-                <div className="item-actions">
-                  {match.status === 'agendado' && (
-                    <>
-                      <button className="btn-icon edit" title="Editar Partida" onClick={() => {
-                         setEditingMatchId(match.id);
-                         setFormData({
-                           team_a_id: match.team_a_id,
-                           team_b_id: match.team_b_id,
-                           match_date: formatDatetimeLocal(match.match_date),
-                           location: match.location,
-                           status: match.status,
-                           round: String(match.round)
-                         });
-                      }}><Settings2 size={18} /></button>
-                      <button className="btn-icon play" title="Começar Jogo" onClick={() => updateStatus(match.id, 'ao_vivo', match)}><Play size={18} /></button>
-                    </>
-                  )}
-                  {match.status === 'ao_vivo' && (
-                    <>
-                      <button className="btn-live-control" onClick={() => setSelectedMatchId(selectedMatchId === match.id ? null : match.id)}>
-                        {selectedMatchId === match.id ? 'Fechar Painel' : 'Gerenciar (AO VIVO)'}
-                      </button>
-                      <button className="btn-icon finish" title="Finalizar Jogo" onClick={() => updateStatus(match.id, 'finalizado', match)}><CheckCircle size={18} /></button>
-                    </>
-                  )}
-                  <button className="btn-icon delete" onClick={() => handleDeleteMatch(match.id)} title="Excluir Partida"><Trash2 size={18} /></button>
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                  <button className="btn-save" onClick={() => handleUpdateMatch(match.id, formData)}><Save size={18} /> Atualizar Partida</button>
+                  <button className="btn-cancel" onClick={() => setEditingMatchId(null)}>Cancelar</button>
                 </div>
               </div>
-
-              {editingMatchId === match.id && (
-                <div className="admin-form glass animate-slide-down" style={{ margin: '1rem 0' }}>
-                  <div className="form-grid">
-                    <div className="form-group">
-                      <label>Equipe A</label>
-                      <select value={formData.team_a_id} onChange={e => setFormData({...formData, team_a_id: e.target.value})}>
-                        {teams
-                          .filter(t => !getBusyTeamIdsForEdit(match.id, parseInt(formData.round)).has(t.id) || t.id === match.team_a_id)
-                          .map(t => <option key={t.id} value={t.id}>{t.name}</option>)
-                        }
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label>Equipe B</label>
-                      <select value={formData.team_b_id} onChange={e => setFormData({...formData, team_b_id: e.target.value})}>
-                        {teams
-                          .filter(t => !getBusyTeamIdsForEdit(match.id, parseInt(formData.round)).has(t.id) || t.id === match.team_b_id)
-                          .map(t => <option key={t.id} value={t.id}>{t.name}</option>)
-                        }
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label>Data/Hora</label>
-                      <input type="datetime-local" value={formData.match_date} onChange={e => setFormData({...formData, match_date: e.target.value})} />
-                    </div>
-                    <div className="form-group">
-                      <label>Rodada</label>
-                      <input type="number" value={formData.round} onChange={e => setFormData({...formData, round: e.target.value})} />
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '1rem' }}>
-                    <button className="btn-save" onClick={() => handleUpdateMatch(match.id, formData)}><Save size={18} /> Atualizar</button>
-                    <button className="btn-cancel" onClick={() => setEditingMatchId(null)}>Cancelar</button>
-                  </div>
-                </div>
-              )}
-              {selectedMatchId === match.id && (
-                <div className="live-event-panel glass animate-slide-down">
-                  <LiveMatchControl match={match} />
-                </div>
-              )}
-            </React.Fragment>
-          ))}
-        </div>
-
-        {/* === HISTÓRICO DE PARTIDAS === */}
-        <div className="admin-list-group" style={{ marginTop: '3rem' }}>
-          <h3 className="list-group-title history"><RotateCcw size={16} /> Histórico de Partidas</h3>
-          {loading ? <p>Carregando...</p> : (filteredMatches || []).filter(m => m.status === 'finalizado').length === 0 ? (
-            <div className="admin-empty-state"><p>Nenhum histórico disponível.</p></div>
-          ) : (filteredMatches || []).filter(m => m.status === 'finalizado').map(match => (
-            <React.Fragment key={match.id}>
-              <div className={`admin-list-item match-admin-card ${match.status} history-item`}>
-                <div className="match-status-info">
-                    <span className={`status-dot ${match.status}`}></span>
-                    <div className="match-info-main">
-                      <strong style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {match.teams_a?.badge_url && <img src={match.teams_a.badge_url} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} />}
-                        <span style={{ opacity: 0.9 }}>{match.teams_a?.name} {match.team_a_score} x {match.team_b_score} {match.teams_b?.name}</span>
-                        {match.teams_b?.badge_url && <img src={match.teams_b.badge_url} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} />}
-                      </strong>
-                      <div className="match-meta-admin">
-                        <span className="round-badge">{match.round}ª Rodada</span>
-                        <span className="match-date">{new Date(match.match_date).toLocaleDateString('pt-BR')}</span>
-                      </div>
-                    </div>
-                </div>
-                <div className="item-actions">
-                  <button className="btn-live-control history" onClick={() => setSelectedMatchId(selectedMatchId === match.id ? null : match.id)}>
-                    {selectedMatchId === match.id ? 'Ocultar Eventos' : 'Gerenciar Eventos'}
-                  </button>
-                  <button className="btn-icon edit" title="Editar Metadados" onClick={() => {
-                      setEditingMatchId(match.id);
-                      setFormData({
-                        team_a_id: match.team_a_id,
-                        team_b_id: match.team_b_id,
-                        match_date: formatDatetimeLocal(match.match_date),
-                        location: match.location,
-                        status: match.status,
-                        round: String(match.round)
-                      });
-                  }}><Settings2 size={16} /></button>
-                  <button className="btn-icon delete" onClick={() => handleDeleteMatch(match.id)} title="Excluir do Histórico"><Trash2 size={16} /></button>
-                </div>
+            )}
+            {selectedMatchId === match.id && (
+              <div className="live-event-panel glass animate-slide-down">
+                <LiveMatchControl match={match} />
               </div>
-
-              {editingMatchId === match.id && (
-                <div className="admin-form glass animate-slide-down" style={{ margin: '1rem 0' }}>
-                  {/* Reuse same edit form as above */}
-                  <div className="form-grid">
-                    <div className="form-group">
-                      <label>Status</label>
-                      <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as Match['status']})}>
-                         <option value="agendado">Agendado</option>
-                         <option value="ao_vivo">Ao vivo</option>
-                         <option value="finalizado">Finalizado</option>
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label>Partida / Data</label>
-                      <input type="datetime-local" value={formData.match_date} onChange={e => setFormData({...formData, match_date: e.target.value})} />
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '1rem' }}>
-                    <button className="btn-save" onClick={() => handleUpdateMatch(match.id, formData)}><Save size={16} /> Salvar Alterações</button>
-                    <button className="btn-cancel" onClick={() => setEditingMatchId(null)}>Cancelar</button>
-                  </div>
-                </div>
-              )}
-              {selectedMatchId === match.id && (
-                <div className="live-event-panel glass animate-slide-down">
-                  <LiveMatchControl match={match} />
-                </div>
-              )}
-            </React.Fragment>
-          ))}
-        </div>
+            )}
+          </React.Fragment>
+        ))}
       </div>
-      {ConfirmElement}
     </div>
   );
-};
+}
 
 const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   const { players: playersA } = usePlayers(match.team_a_id);
   const { players: playersB } = usePlayers(match.team_b_id);
   const { events, refresh: refreshEvents } = useMatchEvents(match.id);
-  const { confirm: confirmAction, ConfirmElement } = useConfirm();
   const [eventType, setEventType] = useState<'gol' | 'amarelo' | 'vermelho' | 'substituicao' | 'comentario' | 'momento'>('gol');
-  const [showGoalDetails, setShowGoalDetails] = useState(false);
-  const [isSwapped, setIsSwapped] = useState(false);
   const [goalType, setGoalType] = useState<'normal' | 'penalti' | 'contra'>('normal');
   const [selectedMinute, setSelectedMinute] = useState<number>(0);
   const [assistantId, setAssistantId] = useState<string>('');
@@ -1455,147 +951,23 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [editEventMinute, setEditEventMinute] = useState<number>(0);
 
-  // --- Cronômetro Sincronizado (DB) ---
+  // --- Cronômetro ---
   const [seconds, setSeconds] = useState(0);
-  const isActive = match.is_timer_running;
+  const [isActive, setIsActive] = useState(false);
 
-  // Sincronizar segundos locais com o estado do banco (com Fresh Fetch no mount)
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
-    
-    const syncTime = async (isInitial = false) => {
-      let currentMatch = match;
-      
-      // No mount inicial, buscamos o estado mais fresco do DB para evitar cache estático
-      if (isInitial) {
-        const { data } = await supabase.from('matches').select('*').eq('id', match.id).single();
-        if (data) currentMatch = data;
-      }
-
-      if (currentMatch.is_timer_running && currentMatch.timer_started_at) {
-        const start = new Date(currentMatch.timer_started_at).getTime();
-        const now = Date.now();
-        const diff = Math.floor((now - start) / 1000);
-        setSeconds(currentMatch.timer_offset_seconds + diff);
-      } else {
-        setSeconds(currentMatch.timer_offset_seconds || 0);
-      }
-    };
-
-    syncTime(true); // Inicial e Fresco
-
-    if (match.is_timer_running) {
-      interval = setInterval(() => syncTime(false), 1000);
+    if (isActive) {
+      interval = setInterval(() => {
+        setSeconds(s => s + 1);
+      }, 1000);
+    } else {
+      if (interval) clearInterval(interval);
     }
-
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [match.is_timer_running, match.timer_started_at, match.timer_offset_seconds, match.id]);
-
-  const handlePauseTimer = async (isTechnical = false) => {
-    try {
-      const start = match.timer_started_at ? new Date(match.timer_started_at).getTime() : Date.now();
-      const now = Date.now();
-      const diff = Math.floor((now - start) / 1000);
-      const newOffset = match.timer_offset_seconds + diff;
-
-      // Se já estava pausado, não atualizamos o offset novamente para não acumular erro
-      const finalOffset = match.is_timer_running ? newOffset : match.timer_offset_seconds;
-
-      const { error } = await supabase.from('matches').update({
-        is_timer_running: false,
-        timer_started_at: null,
-        timer_offset_seconds: finalOffset
-      }).eq('id', match.id);
-      
-      if (error) throw error;
-
-      // Simplificado: Pausa técnica agora apenas para o tempo, sem registrar evento automático
-      if (isTechnical) {
-        toast.success('Tempo pausado');
-      }
-    } catch (err: unknown) {
-      toast.error('Erro ao pausar cronômetro');
-    }
-  };
-
-  const handleIntervalo = async () => {
-    if (!(await confirmAction({
-      title: 'Iniciar Intervalo',
-      description: 'O tempo será pausado e o fim do 1º tempo será registrado.',
-      variant: 'warning'
-    }))) return;
-    try {
-      const start = match.timer_started_at ? new Date(match.timer_started_at).getTime() : Date.now();
-      const now = Date.now();
-      const diff = Math.floor((now - start) / 1000);
-      const newOffset = match.timer_offset_seconds + diff;
-
-      await supabase.from('matches').update({
-        is_timer_running: false,
-        timer_started_at: null,
-        timer_offset_seconds: newOffset
-      }).eq('id', match.id);
-
-      await supabase.from('match_events').insert({
-        match_id: match.id,
-        event_type: 'comentario',
-        minute: Math.floor(newOffset / 60),
-        commentary: '🏁 Fim do 1º Tempo',
-        player_id: null
-      });
-
-      toast.success('Intervalo Iniciado');
-    } catch (err: unknown) {
-      toast.error('Erro ao iniciar intervalo');
-    }
-  };
-
-  const handleRetomar = async () => {
-    try {
-      // Verificar se o último evento foi fim do 1º tempo para mudar a mensagem
-      const isPostInterval = events.some(e => e.event_type === 'comentario' && e.commentary?.includes('Fim do 1º Tempo'));
-      const alreadyResumedStage2 = events.some(e => e.event_type === 'comentario' && e.commentary?.includes('Início do 2º Tempo'));
-
-      const { error } = await supabase.from('matches').update({
-        is_timer_running: true,
-        timer_started_at: new Date().toISOString()
-      }).eq('id', match.id);
-
-      if (error) throw error;
-
-      if (isPostInterval && !alreadyResumedStage2) {
-        await supabase.from('match_events').insert({
-          match_id: match.id,
-          event_type: 'comentario',
-          minute: Math.floor(match.timer_offset_seconds / 60),
-          commentary: '⚽ Início do 2º Tempo',
-          player_id: null
-        });
-        toast.success('Segundo tempo iniciado!');
-      } else {
-        toast.success('Cronômetro retomado');
-      }
-    } catch (err: unknown) {
-      toast.error('Erro ao retomar cronômetro');
-    }
-  };
-
-  const handleResetTimer = async () => {
-    if (!confirm('Zerar o cronômetro?')) return;
-    try {
-      const { error } = await supabase.from('matches').update({
-        is_timer_running: false,
-        timer_started_at: null,
-        timer_offset_seconds: 0
-      }).eq('id', match.id);
-      if (error) throw error;
-      setSeconds(0);
-    } catch (err: unknown) {
-      toast.error('Erro ao zerar cronômetro');
-    }
-  };
+  }, [isActive]);
 
   const formatTime = (s: number) => {
     const mins = Math.floor(s / 60);
@@ -1607,12 +979,13 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   const [onFieldA, setOnFieldA] = useState<string[]>([]);
   const [onFieldB, setOnFieldB] = useState<string[]>([]);
 
+  // Inicializar quem está em campo (pode ser baseado em quem já tem eventos ou um padrão)
   useEffect(() => {
-    if ((playersA || []).length > 0 && onFieldA.length === 0) {
-      setOnFieldA((playersA || []).slice(0, 5).map(p => p.id)); 
+    if (playersA.length > 0 && onFieldA.length === 0) {
+      setOnFieldA(playersA.slice(0, 5).map(p => p.id)); // Sugestão inicial: primeiros 5
     }
-    if ((playersB || []).length > 0 && onFieldB.length === 0) {
-      setOnFieldB((playersB || []).slice(0, 5).map(p => p.id));
+    if (playersB.length > 0 && onFieldB.length === 0) {
+      setOnFieldB(playersB.slice(0, 5).map(p => p.id));
     }
   }, [playersA, playersB, onFieldA.length, onFieldB.length]);
 
@@ -1630,8 +1003,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
       if (e.ctrlKey && (e.code === 'Space' || e.key === ' ')) {
         e.preventDefault();
-        if (isActive) handlePauseTimer(false); // Pausa normal via atalho
-        else handleRetomar();
+        setIsActive(prev => !prev);
         return;
       }
 
@@ -1649,13 +1021,6 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   }, []);
 
   const togglePlayerStatus = (playerId: string, team: 'a' | 'b') => {
-    const player = (team === 'a' ? playersA : playersB).find((p) => p.id === playerId);
-    const suspensionGames = Math.max(0, Number((player as any)?.suspension_games ?? 0));
-    const isSuspended = suspensionGames > 0 || (player ? getSuspensionFromCards(player).isSuspended : false);
-    if (player && isSuspended) {
-      toast.error('Jogador suspenso por cartões (cumpre 1 jogo).');
-      return;
-    }
     if (team === 'a') {
       setOnFieldA(prev => prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId]);
     } else {
@@ -1663,11 +1028,9 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
     }
   };
 
-  const addEvent = async (playerId: string, team: 'a' | 'b', overrides?: { goalType?: string, assistantId?: string }) => {
+  const addEvent = async (playerId: string, team: 'a' | 'b') => {
     try {
       const eventMinute = selectedMinute > 0 ? selectedMinute : Math.floor(seconds / 60) || 1;
-      const finalGoalType = overrides?.goalType || goalType;
-      const finalAssistantId = overrides?.assistantId || assistantId;
 
       type InsertMatchEvent = {
         match_id: string;
@@ -1676,7 +1039,6 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         player_id: string | null;
         assistant_id?: string | null;
         commentary?: string;
-        metadata?: any;
       };
 
       const eventData: InsertMatchEvent = {
@@ -1693,18 +1055,17 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       }
 
       if (eventType === 'gol') {
-        eventData.commentary = finalGoalType === 'normal' ? '' : `[${finalGoalType.toUpperCase()}]`;
-        if (finalAssistantId) eventData.assistant_id = finalAssistantId;
-        eventData.metadata = { goal_type: finalGoalType };
+        eventData.commentary = goalType === 'normal' ? '' : `[${goalType.toUpperCase()}]`;
+        if (assistantId) eventData.assistant_id = assistantId;
       }
       
-      if (eventType === 'substituicao' && finalAssistantId) {
-        eventData.assistant_id = finalAssistantId; // IN
+      if (eventType === 'substituicao' && assistantId) {
+        eventData.assistant_id = assistantId; // IN
         // Lógica de troca automática de status
         if (team === 'a') {
-          setOnFieldA(prev => prev.filter(id => id !== playerId).concat(finalAssistantId));
+          setOnFieldA(prev => prev.filter(id => id !== playerId).concat(assistantId));
         } else {
-          setOnFieldB(prev => prev.filter(id => id !== playerId).concat(finalAssistantId));
+          setOnFieldB(prev => prev.filter(id => id !== playerId).concat(assistantId));
         }
       }
 
@@ -1717,21 +1078,21 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       
       if (eventType === 'gol') {
         let newScore = {};
-        if (finalGoalType === 'contra') {
-          newScore = team === 'a' ? { team_b_score: (match.team_b_score || 0) + 1 } : { team_a_score: (match.team_a_score || 0) + 1 };
+        if (goalType === 'contra') {
+          newScore = team === 'a' ? { team_b_score: match.team_b_score + 1 } : { team_a_score: (match.team_a_score || 0) + 1 };
         } else {
           newScore = team === 'a' ? { team_a_score: (match.team_a_score || 0) + 1 } : { team_b_score: (match.team_b_score || 0) + 1 };
         }
         await supabase.from('matches').update(newScore).eq('id', match.id);
       }
       
-      if (eventType === 'gol' && finalGoalType !== 'contra') {
+      if (eventType === 'gol' && goalType !== 'contra') {
         const { data: p } = await supabase.from('players').select('goals_count').eq('id', playerId).single();
         await supabase.from('players').update({ goals_count: (p?.goals_count || 0) + 1 }).eq('id', playerId);
         
-        if (finalAssistantId) {
-          const { data: ast } = await supabase.from('players').select('assists').eq('id', finalAssistantId).single();
-          await supabase.from('players').update({ assists: (ast?.assists || 0) + 1 }).eq('id', finalAssistantId);
+        if (assistantId) {
+          const { data: ast } = await supabase.from('players').select('assists').eq('id', assistantId).single();
+          await supabase.from('players').update({ assists: (ast?.assists || 0) + 1 }).eq('id', assistantId);
         }
       } else if (eventType === 'amarelo') {
         const { data: p } = await supabase.from('players').select('yellow_cards').eq('id', playerId).single();
@@ -1755,30 +1116,20 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         let title = '⚽ GOOOOOOL!';
         let body = `Gol de ${player?.name || 'alguém'} para o ${teamName}!`;
         
-        if (finalGoalType === 'penalti') body = `[PÊNALTI] ${body}`;
-        if (finalGoalType === 'contra') {
+        if (goalType === 'penalti') body = `[PÊNALTI] ${body}`;
+        if (goalType === 'contra') {
           title = '⚽ GOL CONTRA!';
           body = `Gol contra de ${player?.name}!`;
         }
 
-        sendPushNotification(title, body, {
-          url: '/central-da-partida',
-          category: 'live',
-          important: true,
-          teamIds: [match.team_a_id, match.team_b_id],
-        });
+        sendPushNotification(title, body, '/central-da-partida');
       } else if (eventType === 'amarelo' || eventType === 'vermelho') {
         const player = [...playersA, ...playersB].find(p => p.id === playerId);
         const teamName = team === 'a' ? (match.teams_a?.name || 'Equipe A') : (match.teams_b?.name || 'Equipe B');
         sendPushNotification(
           eventType === 'amarelo' ? '🟨 Cartão Amarelo' : '🟥 Cartão Vermelho',
           `${player?.name} (${teamName}) ${eventMinute}'`,
-          {
-            url: '/central-da-partida',
-            category: 'live',
-            important: eventType === 'vermelho',
-            teamIds: [match.team_a_id, match.team_b_id],
-          }
+          '/central-da-partida'
         );
       } else if (eventType === 'substituicao') {
         const pOut = [...playersA, ...playersB].find(p => p.id === playerId);
@@ -1787,25 +1138,12 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         sendPushNotification(
           '🔄 Substituição',
           `${teamName}: Sai ${pOut?.name}, Entra ${pIn?.name}`,
-          {
-            url: '/central-da-partida',
-            category: 'live',
-            teamIds: [match.team_a_id, match.team_b_id],
-          }
+          '/central-da-partida'
         );
       } else if (eventType === 'comentario') {
-        sendPushNotification('📝 Atualização', commentaryText, {
-          url: '/central-da-partida',
-          category: 'live',
-          teamIds: [match.team_a_id, match.team_b_id],
-        });
+        sendPushNotification('📝 Atualização', commentaryText, '/central-da-partida');
       } else if (eventType === 'momento') {
-        sendPushNotification('🔥 Momento da Partida', commentaryText, {
-          url: '/central-da-partida',
-          category: 'live',
-          important: true,
-          teamIds: [match.team_a_id, match.team_b_id],
-        });
+        sendPushNotification('🔥 Momento da Partida', commentaryText, '/central-da-partida');
       }
       
       // Feedback visual rápido
@@ -1860,196 +1198,60 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
     removeEvent(lastEvent);
   };
 
-  const [goalWizard, setGoalWizard] = useState<{ team: 'a' | 'b', open: boolean, pId?: string, isSimple?: boolean }>({ team: 'a', open: false });
-
   const handleManualScore = async (team: 'a' | 'b', increment: number) => {
-    // Se estiver trocado, 'a' no botão da esquerda na verdade refere-se ao que está visualmente na esquerda
-    const effectiveTeam = team; 
-    
-    if (increment > 0) {
-      setGoalWizard({ team: effectiveTeam, open: true, isSimple: true, pId: undefined });
-      setEventType('gol'); // Pré-selecionar gol
-    } else {
-      try {
-        const currentScore = team === 'a' ? (match.team_a_score || 0) : (match.team_b_score || 0);
-        const newScoreValue = Math.max(0, currentScore + increment);
-        const updateData = team === 'a' ? { team_a_score: newScoreValue } : { team_b_score: newScoreValue };
-        
-        await supabase.from('matches').update(updateData).eq('id', match.id);
-        toast.success(`Placar ${team === 'a' ? 'A' : 'B'} ajustado!`);
-      } catch (err: unknown) {
-        toast.error('Erro ao ajustar placar');
-      }
+    try {
+      const currentScore = team === 'a' ? (match.team_a_score || 0) : (match.team_b_score || 0);
+      const newScoreValue = Math.max(0, currentScore + increment);
+      const updateData = team === 'a' ? { team_a_score: newScoreValue } : { team_b_score: newScoreValue };
+      
+      const { error } = await supabase.from('matches').update(updateData).eq('id', match.id);
+      if (error) throw error;
+      toast.success(`Placar ${team === 'a' ? 'A' : 'B'} ajustado!`);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao ajustar placar'));
     }
   };
 
-  const handleGoalWizardSubmit = async (playerId: string, goalTypeVal: 'normal' | 'penalti' | 'contra', assistantIdVal: string) => {
-    try {
-      await addEvent(playerId, goalWizard.team, { goalType: goalTypeVal, assistantId: assistantIdVal });
-      setGoalWizard({ ...goalWizard, open: false });
-    } catch (err) {
-      console.error(err);
-    }
-  };
 
   return (
     <div className="live-event-panel-wrapper">
-      {/* Goal Wizard Modal */}
-      <AnimatePresence>
-        {goalWizard.open && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="modal-overlay-admin"
-            onClick={() => setGoalWizard({ ...goalWizard, open: false })}
-          >
-            <motion.div 
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="goal-wizard-modal glass"
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="wizard-header">
-                <div className="wizard-header-main">
-                  <h3>⚽ Registrar Gol - {goalWizard.team === 'a' ? (match.teams_a?.name) : (match.teams_b?.name)}</h3>
-                  <div className="wizard-clock-info">
-                    <Timer size={14} /> {formatTime(seconds)}
-                  </div>
-                </div>
-                <button className="btn-close-wizard" onClick={() => setGoalWizard({ ...goalWizard, open: false })}>×</button>
-              </div>
-              
-              <div className="wizard-body">
-                <div className="form-group">
-                  <label>Quem fez o gol?</label>
-                  <div className="player-grid-wizard">
-                    {((goalWizard.team === 'a' ? playersA : playersB) || []).map(p => (
-                      <button 
-                        key={p.id} 
-                        className={`p-wizard-btn ${onFieldA.includes(p.id) || onFieldB.includes(p.id) ? 'on-field' : ''} ${goalWizard.pId === p.id ? 'pre-selected' : ''}`}
-                        onClick={() => {
-                          setGoalWizard({ ...goalWizard, pId: p.id });
-                        }}
-                      >
-                        <span className="p-num">{p.number}</span>
-                        <span className="p-name">{p.name}</span>
-                        {goalWizard.pId === p.id && <Zap size={10} style={{ color: 'var(--secondary)' }} />}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {(showGoalDetails || !goalWizard.isSimple) && (
-                  <div className="wizard-details-expanded">
-                    <div className="form-group">
-                      <label>Assistência (Opcional)</label>
-                      <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
-                        <option value="">Ninguém</option>
-                        {((goalWizard.team === 'a' ? playersA : playersB) || [])
-                          .map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                      </select>
-                    </div>
-                    
-                    <div className="form-group">
-                      <label>Tipo de Gol</label>
-                      <div className="goal-type-btns-mini">
-                        <button className={goalType === 'normal' ? 'active' : ''} onClick={() => setGoalType('normal')}>Normal</button>
-                        <button className={goalType === 'penalti' ? 'active' : ''} onClick={() => setGoalType('penalti')}>Pênalti</button>
-                        <button className={goalType === 'contra' ? 'active red' : ''} onClick={() => setGoalType('contra')}>Contra</button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="wizard-actions">
-                  <button 
-                    className={`btn-confirm-wizard ${goalWizard.pId ? 'active' : ''}`}
-                    disabled={!goalWizard.pId}
-                    onClick={() => {
-                      if (goalWizard.pId) {
-                        handleGoalWizardSubmit(goalWizard.pId, goalType, assistantId);
-                      }
-                    }}
-                  >
-                    {goalWizard.pId ? 'REGISTRAR GOL' : 'Selecione o Jogador'}
-                  </button>
-                  
-                  {goalWizard.isSimple && (
-                    <button className="btn-toggle-details-flat" onClick={() => setShowGoalDetails(!showGoalDetails)}>
-                      {showGoalDetails ? 'Ocultar Detalhes' : 'Adicionar Assistência/Tipo'}
-                    </button>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Placar Profissional Centralizado */}
-      <div className="admin-scoreboard-pro glass">
-        <div className="sb-pro-header">
-          <button className="btn-swap-sides" onClick={() => setIsSwapped(!isSwapped)} title="Trocar lados do placar">
-            <ArrowRightLeft size={14} /> Inverter Lados do Placar
-          </button>
+      <div className="live-match-controls-top">
+        <div className="live-score-display">
+          <div className="team-score">
+            <span className="team-name">{match.teams_a?.name || 'Equipe A'}</span>
+            <div className="score-control">
+              <button className="btn-score-adjust" onClick={() => handleManualScore('a', -1)}>-</button>
+              <span className="score">{match.team_a_score}</span>
+              <button className="btn-score-adjust" onClick={() => handleManualScore('a', 1)}>+</button>
+            </div>
+          </div>
+          <span className="divider">×</span>
+          <div className="team-score">
+            <div className="score-control">
+              <button className="btn-score-adjust" onClick={() => handleManualScore('b', -1)}>-</button>
+              <span className="score">{match.team_b_score}</span>
+              <button className="btn-score-adjust" onClick={() => handleManualScore('b', 1)}>+</button>
+            </div>
+            <span className="team-name">{match.teams_b?.name || 'Equipe B'}</span>
+          </div>
         </div>
 
-        <div className="sb-pro-main">
-          {/* Lado Esquerdo */}
-          <div className={`sb-pro-team ${isSwapped ? 'team-b' : 'team-a'}`}>
-             <div className="sb-pro-score-box">
-                <button className="score-adjust-btn minus" onClick={() => handleManualScore(isSwapped ? 'b' : 'a', -1)}>-</button>
-                <div className="score-number-display">{isSwapped ? match.team_b_score : match.team_a_score}</div>
-                <button className="score-adjust-btn plus" onClick={() => handleManualScore(isSwapped ? 'b' : 'a', 1)}>+</button>
-             </div>
-             <span className="sb-pro-team-name">{isSwapped ? (match.teams_b?.name || 'Equipe B') : (match.teams_a?.name || 'Equipe A')}</span>
-          </div>
 
-          {/* Centro: Cronômetro e VS */}
-          <div className="sb-pro-center">
-             <div className="sb-pro-timer-display glass">
-                <span className={isActive ? 'timer-running' : ''}>{formatTime(seconds)}</span>
-             </div>
-             {/* ... controles omitidos para brevidade se não mudarem ... */}
-             <div className="sb-pro-timer-controls">
-                {!match.is_timer_running ? (
-                  <button className="timer-btn start" onClick={handleRetomar}>
-                    <Play size={16} /> RETOMAR
-                  </button>
-                ) : (
-                  <>
-                    <button className="timer-btn pause" onClick={() => handlePauseTimer(true)}>
-                      <Pause size={16} /> PAUSA TÉCNICA
-                    </button>
-                    <button className="timer-btn interval" onClick={handleIntervalo} style={{ background: 'rgba(168, 85, 247, 0.1)', color: '#a855f7', borderColor: 'rgba(168, 85, 247, 0.3)' }}>
-                      <Coffee size={16} /> INTERVALO
-                    </button>
-                  </>
-                )}
-                <button className="timer-btn reset" onClick={handleResetTimer}>
-                  <RotateCcw size={16} /> ZERAR
-                </button>
-              </div>
-          </div>
-
-          {/* Lado Direito */}
-          <div className={`sb-pro-team ${isSwapped ? 'team-a' : 'team-b'}`}>
-             <div className="sb-pro-score-box">
-                <button className="score-adjust-btn minus" onClick={() => handleManualScore(isSwapped ? 'a' : 'b', -1)}>-</button>
-                <div className="score-number-display">{isSwapped ? match.team_a_score : match.team_b_score}</div>
-                <button className="score-adjust-btn plus" onClick={() => handleManualScore(isSwapped ? 'a' : 'b', 1)}>+</button>
-             </div>
-             <span className="sb-pro-team-name">{isSwapped ? (match.teams_a?.name || 'Equipe A') : (match.teams_b?.name || 'Equipe B')}</span>
+        <div className="stopwatch-container">
+          <div className="stopwatch-display">{formatTime(seconds)}</div>
+          <div className="stopwatch-actions">
+            <button className={`btn-stopwatch ${isActive ? 'pause' : 'start'}`} onClick={() => setIsActive(!isActive)}>
+              {isActive ? <><Pause size={14} /> Pausar</> : <><Play size={14} /> Iniciar</>}
+            </button>
+            <button className="btn-stopwatch reset" onClick={() => { setIsActive(false); setSeconds(0); }}>
+              <RotateCcw size={14} /> Zerar
+            </button>
           </div>
         </div>
         
-        <div className="sb-pro-footer">
-           <button className="btn-undo-last-pro" onClick={undoLastEvent} disabled={events.length === 0}>
-             <RotateCcw size={14} /> DESFAZER ÚLTIMA AÇÃO
-           </button>
-        </div>
+        <button className="btn-undo-last" onClick={undoLastEvent} disabled={events.length === 0}>
+          <RotateCcw size={14} /> DESFAZER ÚLTIMO
+        </button>
       </div>
 
 
@@ -2096,7 +1298,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
             <label>Assistência</label>
             <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
               <option value="">Ninguém</option>
-              {[...(playersA || []), ...(playersB || [])].map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {[...playersA, ...playersB].map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
         )}
@@ -2116,83 +1318,48 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         )}
 
         {eventType === 'substituicao' && (
-          <div className="substitution-grid-admin">
-            {/* Lado Esquerdo */}
-            <div className={`sub-team-box glass ${isSwapped ? 'btn-team-b' : 'btn-team-a'}`}>
-              <span className="sub-team-title">{isSwapped ? match.teams_b?.name : match.teams_a?.name}</span>
-              <div className="sub-controls">
-                <div className="form-group-mini">
-                  <label>SAI (OUT)</label>
-                  <select value={playerOutId} onChange={e => { setPlayerOutId(e.target.value); setAssistantId(''); }}>
-                    <option value="">Selecione...</option>
-                    {((isSwapped ? playersB : playersA) || []).filter(p => (isSwapped ? onFieldB : onFieldA).includes(p.id)).map(p => <option key={`out-l-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
-                  </select>
-                </div>
-                <div className="form-group-mini">
-                  <label>ENTRA (IN)</label>
-                  <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
-                    <option value="">Selecione...</option>
-                    {((isSwapped ? playersB : playersA) || []).filter(p => !(isSwapped ? onFieldB : onFieldA).includes(p.id)).map(p => <option key={`in-l-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
-                  </select>
-                </div>
-                <button 
-                  className={`btn-confirm-sub ${isSwapped ? 'btn-team-b' : 'btn-team-a'}`}
-                  onClick={() => addEvent(playerOutId, isSwapped ? 'b' : 'a')}
-                  disabled={!playerOutId || !assistantId}
-                >
-                  Substituir
-                </button>
-              </div>
+          <div className="form-group-full" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+            <div className="form-group-mini" style={{flex: 1}}>
+              <label>Sai do Jogo (OUT):</label>
+              <select value={playerOutId} onChange={e => setPlayerOutId(e.target.value)}>
+                <option value="">Selecione quem sai...</option>
+                {[...playersA, ...playersB].map(p => <option key={`out-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
+              </select>
             </div>
-
-            {/* Lado Direito */}
-            <div className={`sub-team-box glass ${isSwapped ? 'btn-team-a' : 'btn-team-b'}`}>
-              <span className="sub-team-title">{isSwapped ? match.teams_a?.name : match.teams_b?.name}</span>
-              <div className="sub-controls">
-                <div className="form-group-mini">
-                  <label>SAI (OUT)</label>
-                  <select value={playerOutId} onChange={e => { setPlayerOutId(e.target.value); setAssistantId(''); }}>
-                    <option value="">Selecione...</option>
-                    {((isSwapped ? playersA : playersB) || []).filter(p => (isSwapped ? onFieldA : onFieldB).includes(p.id)).map(p => <option key={`out-r-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
-                  </select>
-                </div>
-                <div className="form-group-mini">
-                  <label>ENTRA (IN)</label>
-                  <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
-                    <option value="">Selecione...</option>
-                    {((isSwapped ? playersA : playersB) || []).filter(p => !(isSwapped ? onFieldA : onFieldB).includes(p.id)).map(p => <option key={`in-r-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
-                  </select>
-                </div>
-                <button 
-                  className={`btn-confirm-sub ${isSwapped ? 'btn-team-a' : 'btn-team-b'}`}
-                  onClick={() => addEvent(playerOutId, isSwapped ? 'a' : 'b')}
-                  disabled={!playerOutId || !assistantId}
-                >
-                  Substituir
-                </button>
-              </div>
+            <div className="form-group-mini" style={{flex: 1}}>
+              <label>Entra no Jogo (IN):</label>
+              <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
+                <option value="">Selecione quem entra...</option>
+                {[...playersA, ...playersB].map(p => <option key={`in-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
+              </select>
             </div>
+            <button 
+              className="btn-send-msg" 
+              style={{ width: '100%', marginTop: '0.5rem' }}
+              onClick={() => {
+                const team = playersA.some(p => p.id === playerOutId) ? 'a' : 'b';
+                addEvent(playerOutId, team);
+              }}
+              disabled={!playerOutId || !assistantId}
+            >
+              Registrar Substituição
+            </button>
           </div>
         )}
       </div>
         
       <div className={`teams-lanes event-selector-active-${eventType}`}>
-        {/* Lado Esquerdo */}
         <div className="lane">
-          <h5>{isSwapped ? (match.teams_b?.name || 'Equipe B') : (match.teams_a?.name || 'Equipe A')}</h5>
+          <h5>{match.teams_a?.name || 'Equipe A'}</h5>
           
           <div className="roster-section">
             <span className="roster-label"><Zap size={12} /> Em Campo</span>
             <div className="admin-player-btns">
-              {((isSwapped ? playersB : playersA) || []).filter(p => (isSwapped ? onFieldB : onFieldA).includes(p.id)).map(p => (
-                <button 
-                  key={p.id} 
-                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: isSwapped ? 'b' : 'a', open: true, pId: p.id, isSimple: false }) : addEvent(p.id, isSwapped ? 'b' : 'a')} 
-                  className="p-btn active-field"
-                >
+              {playersA.filter(p => onFieldA.includes(p.id)).map(p => (
+                <button key={p.id} onClick={() => addEvent(p.id, 'a')} className="p-btn active-field">
                   <span className="p-num">{p.number}</span>
                   <span className="p-name">{p.name.split(' ')[0]}</span>
-                  <ChevronDown size={10} className="btn-status-toggle" onClick={(e) => { e.stopPropagation(); togglePlayerStatus(p.id, isSwapped ? 'b' : 'a'); }} />
+                  <ChevronDown size={10} className="btn-status-toggle" onClick={(e) => { e.stopPropagation(); togglePlayerStatus(p.id, 'a'); }} />
                 </button>
               ))}
             </div>
@@ -2201,12 +1368,8 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           <div className="roster-section">
             <span className="roster-label"><Users size={12} /> Banco</span>
             <div className="admin-player-btns">
-              {((isSwapped ? playersB : playersA) || []).filter(p => !(isSwapped ? onFieldB : onFieldA).includes(p.id)).map(p => (
-                <button 
-                  key={p.id} 
-                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: isSwapped ? 'b' : 'a', open: true, pId: p.id, isSimple: false }) : togglePlayerStatus(p.id, isSwapped ? 'b' : 'a')} 
-                  className="p-btn bench"
-                >
+              {playersA.filter(p => !onFieldA.includes(p.id)).map(p => (
+                <button key={p.id} onClick={() => togglePlayerStatus(p.id, 'a')} className="p-btn bench">
                   <span className="p-num">{p.number}</span>
                   <span className="p-name">{p.name.split(' ')[0]}</span>
                 </button>
@@ -2217,22 +1380,17 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
         <div className="divider-vertical"></div>
 
-        {/* Lado Direito */}
         <div className="lane">
-          <h5>{isSwapped ? (match.teams_a?.name || 'Equipe A') : (match.teams_b?.name || 'Equipe B')}</h5>
+          <h5>{match.teams_b?.name || 'Equipe B'}</h5>
           
           <div className="roster-section">
             <span className="roster-label"><Zap size={12} /> Em Campo</span>
             <div className="admin-player-btns">
-              {((isSwapped ? playersA : playersB) || []).filter(p => (isSwapped ? onFieldA : onFieldB).includes(p.id)).map(p => (
-                <button 
-                  key={p.id} 
-                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: isSwapped ? 'a' : 'b', open: true, pId: p.id, isSimple: false }) : addEvent(p.id, isSwapped ? 'a' : 'b')} 
-                  className="p-btn active-field"
-                >
+              {playersB.filter(p => onFieldB.includes(p.id)).map(p => (
+                <button key={p.id} onClick={() => addEvent(p.id, 'b')} className="p-btn active-field">
                   <span className="p-num">{p.number}</span>
                   <span className="p-name">{p.name.split(' ')[0]}</span>
-                  <ChevronDown size={10} className="btn-status-toggle" onClick={(e) => { e.stopPropagation(); togglePlayerStatus(p.id, isSwapped ? 'a' : 'b'); }} />
+                  <ChevronDown size={10} className="btn-status-toggle" onClick={(e) => { e.stopPropagation(); togglePlayerStatus(p.id, 'b'); }} />
                 </button>
               ))}
             </div>
@@ -2241,12 +1399,8 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           <div className="roster-section">
             <span className="roster-label"><Users size={12} /> Banco</span>
             <div className="admin-player-btns">
-              {((isSwapped ? playersA : playersB) || []).filter(p => !(isSwapped ? onFieldA : onFieldB).includes(p.id)).map(p => (
-                <button 
-                  key={p.id} 
-                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: isSwapped ? 'a' : 'b', open: true, pId: p.id, isSimple: false }) : togglePlayerStatus(p.id, isSwapped ? 'a' : 'b')} 
-                  className="p-btn bench"
-                >
+              {playersB.filter(p => !onFieldB.includes(p.id)).map(p => (
+                <button key={p.id} onClick={() => togglePlayerStatus(p.id, 'b')} className="p-btn bench">
                   <span className="p-num">{p.number}</span>
                   <span className="p-name">{p.name.split(' ')[0]}</span>
                 </button>
@@ -2262,7 +1416,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           <span className="undo-tip">Clique no minuto para editar o tempo</span>
         </div>
         <div className="undo-list">
-          {(events || []).slice(0, 8).map(event => (
+          {events.slice(0, 8).map(event => (
             <div key={event.id} className="undo-item-container">
               <div className={`undo-item animate-slide-up ${editingEventId === event.id ? 'editing' : ''}`}>
                 <div className="undo-info">
@@ -2377,12 +1531,12 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
               <option value="">Selecione o craque...</option>
               {playersA.length > 0 && (
                 <optgroup label={match.teams_a?.name}>
-                  {(playersA || []).map(p => <option key={p.id} value={p.id}>{p.number}. {p.name}</option>)}
+                  {playersA.map(p => <option key={p.id} value={p.id}>{p.number}. {p.name}</option>)}
                 </optgroup>
               )}
               {playersB.length > 0 && (
                 <optgroup label={match.teams_b?.name}>
-                  {(playersB || []).map(p => <option key={p.id} value={p.id}>{p.number}. {p.name}</option>)}
+                  {playersB.map(p => <option key={p.id} value={p.id}>{p.number}. {p.name}</option>)}
                 </optgroup>
               )}
             </select>
@@ -2420,10 +1574,9 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           {mvpSaved ? <><CheckCircle size={18} /> Salvo!</> : <><Save size={18} /> Salvar Craque do Jogo</>}
         </button>
       </div>
-      {ConfirmElement}
     </div>
   );
-};
+}
 
 const TeamManagement = () => {
   const { teams, loading, refresh } = useTeams();
@@ -2617,7 +1770,7 @@ const TeamManagement = () => {
 
       {loading ? <p>Carregando...</p> : (
         <div className="admin-list">
-          {(teams || []).map(team => (
+          {teams.map(team => (
             <React.Fragment key={team.id}>
               <div className="admin-list-item">
                 <div className="item-main" onClick={() => setExpandedTeamId(expandedTeamId === team.id ? null : team.id)} style={{cursor: 'pointer'}}>
@@ -2716,15 +1869,6 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
     name: '', number: '', position: 'Ala', photo_url: '', bio: '',
     goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0'
   });
-
-  useEffect(() => {
-    if (!editingPlayerId) return undefined;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [editingPlayerId]);
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -2950,7 +2094,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
             <p>Clique em "Novo Atleta" para adicionar.</p>
           </div>
         ) : (
-          (players || []).map(p => (
+          players.map(p => (
             <div key={p.id} className="player-admin-row-wrapper">
               <div className="player-row">
                 <div className="player-number-badge">{p.number}</div>
@@ -2986,7 +2130,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
         )}
       </div>
 
-      {editingPlayerId && typeof document !== 'undefined' && createPortal(
+      {editingPlayerId && (
         <div className="global-player-edit-modal-backdrop" onClick={() => setEditingPlayerId(null)}>
           <div className="global-player-edit-modal glass" onClick={(e) => e.stopPropagation()}>
             <div className="global-player-edit-modal-header">
@@ -2996,7 +2140,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
               </button>
             </div>
 
-            <form className="admin-form glass global-player-edit-form" onSubmit={(e) => { e.preventDefault(); void handleUpdatePlayer(editingPlayerId); }}>
+            <form className="admin-form glass" onSubmit={(e) => { e.preventDefault(); void handleUpdatePlayer(editingPlayerId); }}>
               <div className="form-grid">
                 <div className="form-group">
                   <label>Nome</label>
@@ -3063,7 +2207,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
                 </div>
               </div>
 
-              <div className="global-player-edit-actions">
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
                 <button type="submit" className="btn-save" disabled={isUpdatingPlayer}>
                   <Save size={16} /> {isUpdatingPlayer ? 'Salvando...' : 'Salvar Alterações'}
                 </button>
@@ -3073,8 +2217,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
               </div>
             </form>
           </div>
-        </div>,
-        document.body
+        </div>
       )}
     </div>
   );
@@ -3082,7 +2225,6 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
 
 const NewsManagement = () => {
   const { news, loading, error, refresh } = useNews();
-  const queryClient = useQueryClient();
   const [isAdding, setIsAdding] = useState(false);
   const [editingNewsId, setEditingNewsId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ title: '', summary: '', content: '', image_url: '' });
@@ -3107,38 +2249,19 @@ const NewsManagement = () => {
   const handleAddNews = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const payload = {
-        ...formData,
-        published_at: new Date().toISOString(),
-      };
-
-      const { data, error } = await supabase
-        .from('news')
-        .insert([payload])
-        .select('*')
-        .single();
+      const { error } = await supabase.from('news').insert([formData]);
       if (error) throw error;
       setFormData({ title: '', summary: '', content: '', image_url: '' });
       setIsAdding(false);
-
-      if (data) {
-        queryClient.setQueryData<News[]>(['news', 'all'], (prev = []) => [data as News, ...prev]);
-      }
-      await queryClient.invalidateQueries({ queryKey: ['news'] });
       
       // Notificar nova notícia
       sendPushNotification(
         '📰 Nova Notícia!', 
         formData.title,
-        {
-          url: '/jogadores',
-          category: 'news',
-          important: true,
-        }
+        '/jogadores' 
       );
       
-      await refresh();
-      toast.success('Notícia publicada com sucesso!');
+      refresh();
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Erro ao publicar notícia'));
     }
@@ -3239,7 +2362,7 @@ const NewsManagement = () => {
         </div>
       ) : (
         <div className="admin-list">
-          {(news || []).map(item => (
+          {news.map(item => (
             <div key={item.id} className="admin-list-item-wrapper">
               <div className="admin-list-item">
                 <div className="item-main">
@@ -3291,7 +2414,7 @@ const NewsManagement = () => {
               )}
             </div>
           ))}
-          {news.length === 0 && !loading && <p className="empty-msg">Nenhuma notícia publicada.</p>}
+          {news.length === 0 && <p className="empty-msg">Nenhuma notícia publicada.</p>}
         </div>
       )}
     </div>
@@ -3442,12 +2565,10 @@ const TournamentManagement = () => {
 };
 
 const PollManagement = () => {
-  const [polls, setPolls] = useState<Poll[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { confirm: confirmAction, ConfirmElement } = useConfirm();
-  const queryClient = useQueryClient();
   type PollFormData = { question: string; options: string[] };
 
+  const [polls, setPolls] = useState<Poll[]>([]);
+  const [loading, setLoading] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [editingPollId, setEditingPollId] = useState<string | null>(null);
   const [formData, setFormData] = useState<PollFormData>({ 
@@ -3541,11 +2662,7 @@ const PollManagement = () => {
         sendPushNotification(
           '🗳️ Nova Enquete!', 
           poll?.question || 'Dê sua opinião no site!',
-          {
-            url: '/',
-            category: 'polls',
-            important: true,
-          }
+          '/'
         );
       }
       
@@ -3556,11 +2673,7 @@ const PollManagement = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!(await confirmAction({
-      title: 'Excluir Enquete',
-      description: 'Tem certeza que deseja excluir esta enquete permanentemente?',
-      variant: 'danger'
-    }))) return;
+    if (!confirm('Excluir enquete?')) return;
     try {
       const { error } = await supabase.from('polls').delete().eq('id', id);
       if (error) throw error;
@@ -3625,16 +2738,14 @@ const PollManagement = () => {
       )}
 
       <div className="admin-list">
-        {loading ? (
-          <div className="loading-box"><p>Carregando enquetes...</p></div>
-        ) : (polls || []).map(poll => (
+        {loading ? <p>Carregando...</p> : polls.map(poll => (
           <React.Fragment key={poll.id}>
             <div className={`admin-list-item poll-item ${poll.active ? 'active-poll' : ''}`}>
               <div className="item-main">
                 <Shield size={24} className={poll.active ? 'icon-active' : 'icon-subtle'} />
                 <div className="item-info">
                   <strong>{poll.question}</strong>
-                  <span>{(poll.options || []).length} opções • Total: {(poll.options || []).reduce((acc: number, o: PollOption) => acc + o.votes, 0)} votos</span>
+                  <span>{poll.options.length} opções • Total: {poll.options.reduce((acc: number, o: PollOption) => acc + o.votes, 0)} votos</span>
                 </div>
               </div>
               <div className="item-actions">
@@ -3646,7 +2757,7 @@ const PollManagement = () => {
                 </button>
                 <button className="btn-icon edit" onClick={() => {
                   setEditingPollId(poll.id);
-                  setFormData({ question: poll.question, options: (poll.options || []).map((o) => o.text) });
+                  setFormData({ question: poll.question, options: poll.options.map((o) => o.text) });
                 }}><Settings2 size={18} /></button>
                 <button className="btn-icon delete" onClick={() => handleDelete(poll.id)}><Trash2 size={18} /></button>
               </div>
@@ -3677,9 +2788,8 @@ const PollManagement = () => {
             )}
           </React.Fragment>
         ))}
-        {(!polls || polls.length === 0) && !loading && <p className="empty-msg">Nenhuma enquete cadastrada.</p>}
+        {polls.length === 0 && !loading && <p className="empty-msg">Nenhuma enquete cadastrada.</p>}
       </div>
-      {ConfirmElement}
     </div>
   );
 };
@@ -3688,13 +2798,12 @@ const GlobalPlayerManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [isSubmittingGlobalPlayer, setIsSubmittingGlobalPlayer] = useState(false);
-  const { teams } = useTeams();
-  const { players: allPlayers, loading, refresh: refreshPlayers } = usePlayers();
-  const { confirm: confirmAction, ConfirmElement } = useConfirm();
   const [isUpdatingGlobalPlayer, setIsUpdatingGlobalPlayer] = useState(false);
   const [editingGlobalPlayerId, setEditingGlobalPlayerId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const queryClient = useQueryClient();
+  const { teams } = useTeams();
+  const { players: allPlayers, loading } = usePlayers();
   
   const [formData, setFormData] = useState({ 
     name: '', number: '', position: 'Ala', team_id: '', photo_url: '', bio: '',
@@ -3705,15 +2814,6 @@ const GlobalPlayerManagement = () => {
     name: '', number: '', position: 'Ala', team_id: '', photo_url: '', bio: '',
     goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0'
   });
-
-  useEffect(() => {
-    if (!editingGlobalPlayerId) return undefined;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [editingGlobalPlayerId]);
 
   const getTeamNameById = (teamId: string) => {
     return teams.find((t) => t.id === teamId)?.name || null;
@@ -3960,11 +3060,7 @@ const GlobalPlayerManagement = () => {
   };
 
   const handleDeletePlayer = async (playerId: string) => {
-    if (!(await confirmAction({
-      title: 'Excluir Atleta',
-      description: 'Tem certeza que deseja excluir este atleta permanentemente?',
-      variant: 'danger'
-    }))) return;
+    if (!confirm('Excluir atleta?')) return;
     const loadingToast = toast.loading('Excluindo atleta...');
     try {
       const playerToDelete = allPlayers.find((player) => player.id === playerId);
@@ -3988,7 +3084,7 @@ const GlobalPlayerManagement = () => {
   };
 
   const filteredPlayers = React.useMemo(() => {
-    return (allPlayers || []).filter(p => 
+    return allPlayers.filter(p => 
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (p.teams?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -4025,7 +3121,7 @@ const GlobalPlayerManagement = () => {
               <label>Equipe</label>
               <select required value={formData.team_id} onChange={e => setFormData({...formData, team_id: e.target.value})}>
                 <option value="">Selecione a equipe...</option>
-                {[...(teams || [])].sort((a,b) => a.name.localeCompare(b.name)).map(t => (
+                {teams.sort((a,b) => a.name.localeCompare(b.name)).map(t => (
                   <option key={t.id} value={t.id}>{t.name} ({t.group || 'S/G'})</option>
                 ))}
               </select>
@@ -4108,11 +3204,11 @@ const GlobalPlayerManagement = () => {
             <p>Buscando Atletas no Banco de Dados...</p>
           </div>
         ) : (
-          (filteredPlayers || []).map(p => (
+          filteredPlayers.map(p => (
             <React.Fragment key={p.id}>
               <div className="admin-list-item player-search-row">
                 <div className="item-main">
-                  <img src={p.photo_url || '/favicon.svg'} alt={p.name} className="player-mini-photo" />
+                  <img src={p.photo_url || 'https://via.placeholder.com/40'} alt={p.name} className="player-mini-photo" />
                   <div className="item-info">
                     <strong>{p.name} (#{p.number})</strong>
                     <span>{p.teams?.name} • {p.position}</span>
@@ -4137,7 +3233,7 @@ const GlobalPlayerManagement = () => {
         {!loading && filteredPlayers.length === 0 && <p className="empty-msg">Nenhum atleta encontrado.</p>}
       </div>
 
-      {editingGlobalPlayerId && typeof document !== 'undefined' && createPortal(
+      {editingGlobalPlayerId && (
         <div className="global-player-edit-modal-backdrop" onClick={() => setEditingGlobalPlayerId(null)}>
           <div className="global-player-edit-modal glass" onClick={(e) => e.stopPropagation()}>
             <div className="global-player-edit-modal-header">
@@ -4147,7 +3243,7 @@ const GlobalPlayerManagement = () => {
               </button>
             </div>
 
-            <form className="admin-form glass global-player-edit-form" onSubmit={handleUpdatePlayer}>
+            <form className="admin-form glass" onSubmit={handleUpdatePlayer}>
               <div className="form-grid">
                 <div className="form-group">
                   <label>Nome do Atleta</label>
@@ -4157,7 +3253,7 @@ const GlobalPlayerManagement = () => {
                   <label>Equipe</label>
                   <select required value={editFormData.team_id} onChange={e => setEditFormData({ ...editFormData, team_id: e.target.value })}>
                     <option value="">Selecione a equipe...</option>
-                    {[...(teams || [])].sort((a, b) => a.name.localeCompare(b.name)).map(t => (
+                    {[...teams].sort((a, b) => a.name.localeCompare(b.name)).map(t => (
                       <option key={t.id} value={t.id}>{t.name} ({t.group || 'S/G'})</option>
                     ))}
                   </select>
@@ -4227,7 +3323,7 @@ const GlobalPlayerManagement = () => {
                 </div>
               </div>
 
-              <div className="global-player-edit-actions">
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
                 <button type="submit" className="btn-save" disabled={isUpdatingGlobalPlayer}>
                   <Save size={16} /> {isUpdatingGlobalPlayer ? 'Salvando...' : 'Salvar Alterações'}
                 </button>
@@ -4237,11 +3333,8 @@ const GlobalPlayerManagement = () => {
               </div>
             </form>
           </div>
-        </div>,
-        document.body
+        </div>
       )}
-
-      {ConfirmElement}
     </div>
   );
 };

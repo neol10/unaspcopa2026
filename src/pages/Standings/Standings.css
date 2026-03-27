@@ -357,14 +357,8 @@
   .header-info h1 { font-size: 2.1rem; }
   .view-toggle button { padding: 0.45rem 0.7rem; font-size: 0.75rem; }
   .table-container { padding: 0.5rem 0.35rem; }
-  .standings-table-new { border-spacing: 0 0.35rem; }
-  .standings-table-new th { padding: 0.75rem 0.35rem; font-size: 0.62rem; }
-  .standings-table-new td { padding: 0.75rem 0.35rem; font-size: 0.78rem; }
+  .standings-table-new { min-width: 600px; } /* Reduzido de 860px para mobile */
   .team-cell { gap: 0.55rem; }
-  .team-shield { width: 28px; height: 28px; border-radius: 8px; }
-  .team-cell strong { font-size: 0.82rem; }
-  .col-name { min-width: 135px; }
-  .legend { gap: 0.8rem; flex-wrap: wrap; }
 
   .table-swipe-hint {
     display: block;

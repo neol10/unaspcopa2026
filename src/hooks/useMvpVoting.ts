@@ -97,7 +97,7 @@ export const useMvpVoting = (round: string) => {
       return result;
     },
     enabled: !!round,
-    initialData: cachedData || { voteCounts: [], userVote: null },
+    initialData: cachedData || undefined,
     initialDataUpdatedAt: cached?.ts,
     placeholderData: (prev) => prev,
   });

@@ -30,13 +30,27 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.75rem;
-  font-size: 0.85rem;
-  font-weight: 700;
+  gap: 1rem;
+  font-size: 0.75rem;
+  font-weight: 850;
   color: var(--secondary);
-  opacity: 0.8;
+  background: rgba(251, 191, 36, 0.05);
+  padding: 0.5rem 1.5rem;
+  border-radius: 100px;
+  margin: 0 auto;
+  border: 1px solid rgba(251, 191, 36, 0.1);
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 2px;
+  width: fit-content;
+}
+
+.scroll-hint svg {
+  animation: slide-hint 1.5s infinite ease-in-out;
+}
+
+@keyframes slide-hint {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(5px); }
 }
 
 /* Scroll Container */
@@ -113,11 +127,27 @@
 }
 
 .round-dot {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   background: var(--secondary);
   border-radius: 50%;
-  box-shadow: 0 0 10px var(--secondary);
+  box-shadow: 0 0 15px var(--secondary-glow);
+  position: relative;
+}
+
+.round-dot::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1px solid var(--secondary);
+  opacity: 0.3;
+  animation: pulse-ring 2s infinite;
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 0.5; }
+  100% { transform: scale(1.5); opacity: 0; }
 }
 
 .round-matches {
@@ -201,12 +231,18 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.5rem 0;
+  padding: 0.6rem 0;
   font-weight: 700;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.match-team:last-child {
+  border-bottom: none;
 }
 
 .match-team.winner span {
   color: var(--secondary);
+  text-shadow: 0 0 10px rgba(251, 191, 36, 0.2);
 }
 
 .team-info {
@@ -216,9 +252,10 @@
 }
 
 .team-badge-mini {
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
 }
 
 .team-score {
@@ -229,16 +266,34 @@
 }
 
 .live-badge-mini {
-  position: absolute;
-  top: 1.25rem;
-  right: 1.25rem;
   background: var(--primary);
   color: white;
   font-size: 0.6rem;
-  font-weight: 900;
-  padding: 2px 6px;
+  font-weight: 950;
+  padding: 2px 8px;
   border-radius: 4px;
-  animation: pulse 2s infinite;
+  animation: pulse-border-red 2s infinite;
+  letter-spacing: 0.5px;
+}
+
+.finished-label {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-dim);
+  font-size: 0.6rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+}
+
+.scheduled-label {
+  background: rgba(251, 191, 36, 0.1);
+  color: var(--secondary);
+  font-size: 0.6rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
 }
 
 /* Knockout Tree Layout */
@@ -466,4 +521,60 @@
     padding: 1rem 0;
   }
 }
+/* Skeleton Loaders */
+.match-skeleton {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 280px;
+  overflow: hidden;
+  position: relative;
+}
 
+.match-skeleton::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0,
+    rgba(255, 255, 255, 0.03) 20%,
+    rgba(255, 255, 255, 0.05) 60%,
+    rgba(255, 255, 255, 0)
+  );
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+
+.skeleton-item {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.skeleton-date { width: 40%; height: 12px; }
+.skeleton-row { display: flex; justify-content: space-between; align-items: center; }
+.skeleton-team { display: flex; align-items: center; gap: 10px; width: 60%; }
+.skeleton-badge { width: 24px; height: 24px; border-radius: 50%; }
+.skeleton-name { height: 16px; flex: 1; }
+.skeleton-score { width: 20px; height: 20px; }
+
+@media (max-width: 480px) {
+  .brackets-page {
+    padding: 1rem 0;
+  }
+  
+  .brackets-header {
+    padding: 0 1rem;
+  }
+}

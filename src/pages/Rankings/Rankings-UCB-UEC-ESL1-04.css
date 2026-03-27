@@ -32,23 +32,13 @@
 
 .scorers-podium.podium-empty {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1.5rem;
+  gap: 0.75rem;
   min-height: 280px;
   color: var(--text-dim);
   font-weight: 700;
   text-align: center;
-  background: rgba(255, 255, 255, 0.01);
-  border: 1px dashed rgba(255, 255, 255, 0.05);
-  border-radius: 20px;
-}
-
-.scorers-podium.podium-empty svg {
-  font-size: 3.5rem;
-  opacity: 0.2;
-  color: var(--secondary);
 }
 
 .round-mvp-highlight {
@@ -231,8 +221,6 @@
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
 }
 
 .panel-header {
@@ -284,7 +272,6 @@
   background: rgba(255, 255, 255, 0.02);
   border-radius: var(--radius-sm);
   transition: var(--transition-fast);
-  min-width: 0; /* Allow shrinking below fixed min-width if parent allows */
 }
 
 .rank-row-item:hover {
@@ -326,12 +313,14 @@
 
 .rank-player {
   flex: 1;
+  min-width: 0; /* Permite que o texto encurte se necessário */
 }
 
 .player-name-wrapper {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
+  overflow: hidden;
 }
 
 .rank-player strong {
@@ -339,6 +328,9 @@
   font-size: 0.95rem;
   color: var(--text-main);
   font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .team-mini-info {
@@ -348,6 +340,9 @@
   font-size: 0.75rem;
   color: var(--text-muted);
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .mini-badge {
@@ -355,14 +350,20 @@
   height: 14px;
   object-fit: contain;
   opacity: 0.8;
+  flex-shrink: 0;
 }
 
 .rank-val {
   font-weight: 900;
   color: var(--text-main);
   background: rgba(255, 255, 255, 0.05);
-  padding: 0.25rem 0.75rem;
-  border-radius: 4px;
+  padding: 0.4rem 0.8rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-align: center;
+  min-width: 60px;
 }
 
 .rank-cards {
@@ -529,73 +530,50 @@
 
 @media (max-width: 768px) {
   .scorers-podium {
-    gap: 0.5rem;
-    padding: 1.5rem 0.5rem;
+    gap: 0.75rem;
+    padding: 1rem 0;
     min-height: auto;
     align-items: flex-end;
-    overflow-x: auto;
-    justify-content: flex-start;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-  
-  .scorers-podium::-webkit-scrollbar {
-    display: none;
   }
   
   .podium-item {
-    min-width: 140px;
-    flex-shrink: 0;
+    max-width: 32%;
   }
   
   .podium-player-box {
     padding: 1rem 0.5rem;
-    border-radius: 16px;
   }
   
   .podium-avatar-wrapper {
-    width: 50px;
-    height: 50px;
+    width: 60px;
+    height: 60px;
   }
   
   .first-place .podium-avatar-wrapper {
-    width: 70px;
-    height: 70px;
+    width: 80px;
+    height: 80px;
   }
   
   .podium-player-name {
-    font-size: 0.85rem;
+    font-size: 0.9rem;
   }
   
   .podium-player-team {
-    font-size: 0.65rem;
+    font-size: 0.7rem;
   }
   
   .podium-stat-bubble {
-    font-size: 0.95rem;
-    padding: 0.35rem 0.75rem;
+    font-size: 1rem;
   }
   
   .first-place .podium-stat-bubble {
-    font-size: 1.1rem;
-  }
-
-  .first-place .podium-player-box {
-    height: 300px;
-  }
-  
-  .second-place .podium-player-box {
-    height: 260px;
-  }
-  
-  .third-place .podium-player-box {
-    height: 230px;
+    font-size: 1.2rem;
   }
 }
 
 @media (max-width: 360px) {
   .rankings-container {
-    gap: 1.25rem;
+    gap: 1.5rem;
     padding-bottom: 1.5rem;
   }
 
@@ -608,20 +586,19 @@
   .rankings-featured-grid,
   .rankings-grid {
     grid-template-columns: 1fr;
-    gap: 1rem;
+    gap: 0.85rem;
     margin-bottom: 1rem;
   }
 
   .round-mvp-highlight,
   .highlight-hero,
   .rank-panel {
-    padding: 1rem 0.8rem;
+    padding: 0.9rem;
     border-radius: 14px;
   }
 
   .scorers-podium {
     gap: 0.45rem;
-    padding: 1rem 0.5rem;
   }
 
   .podium-player-name {
@@ -630,95 +607,5 @@
 
   .podium-player-team {
     font-size: 0.62rem;
-  }
-
-  .rank-row-item {
-    padding: 0.75rem 0.6rem;
-    gap: 0.5rem;
-    min-width: 280px; /* Reduzido de 340px para evitar scroll excessivo */
-  }
-
-  .round-winner-card {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
-    padding: 1rem;
-  }
-
-  .winner-avatar-box {
-    width: 60px;
-    height: 60px;
-  }
-
-  .rank-avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-  }
-
-  .rank-idx {
-    width: 20px;
-    font-size: 0.75rem;
-  }
-
-  .rank-player strong {
-    font-size: 0.82rem;
-    line-height: 1.2;
-  }
-
-  .team-mini-info {
-    font-size: 0.6rem;
-  }
-
-  .mini-badge {
-    width: 12px;
-    height: 12px;
-  }
-
-  .rank-cards {
-    gap: 0.25rem;
-  }
-
-  .p-card-new {
-    width: 18px;
-    height: 24px;
-    font-size: 0.7rem;
-    border-radius: 3px;
-  }
-
-  .rank-val {
-    padding: 0.2rem 0.4rem;
-    font-size: 0.75rem;
-    min-width: 32px;
-    text-align: center;
-  }
-}
-
-@media (max-width: 320px) {
-  .scorers-podium {
-    gap: 0.35rem;
-  }
-
-  .podium-item {
-    min-width: 120px;
-  }
-
-  .podium-player-box {
-    padding: 0.75rem 0.4rem;
-  }
-
-  .rank-row-item {
-    min-width: 310px;
-    padding: 0.6rem 0.5rem;
-  }
-
-  .rank-player strong {
-    font-size: 0.78rem;
-  }
-
-  .stat-summary-pill {
-    padding: 0.4rem 0.8rem;
-    font-size: 0.75rem;
-    gap: 0.5rem;
   }
 }
