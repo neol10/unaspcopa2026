@@ -13,9 +13,28 @@ const Brackets: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [startX, setStartX] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
+  const [activeFilter, setActiveFilter] = useState<'all' | 'live' | 'today' | 'favorite'>('all');
+  const [favoriteTeamId, setFavoriteTeamId] = useState<string | null>(null);
+  const [nowTs, setNowTs] = useState(() => Date.now());
 
   const { config } = useTournamentConfig();
   const [hasScrolled, setHasScrolled] = useState(false);
+
+  useEffect(() => {
+    const id = setInterval(() => setNowTs(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('copa_unasp_push_preferences_v1');
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { favoriteTeamId?: string | null };
+      setFavoriteTeamId(parsed.favoriteTeamId || null);
+    } catch {
+      setFavoriteTeamId(null);
+    }
+  }, []);
 
   useEffect(() => {
     if (!loading) {
@@ -26,15 +45,51 @@ const Brackets: React.FC = () => {
     return () => clearTimeout(id);
   }, [loading]);
 
+  const filteredMatches = useMemo(() => {
+    if (activeFilter === 'all') return matches;
+
+    if (activeFilter === 'live') {
+      return matches.filter((m) => m.status === 'ao_vivo');
+    }
+
+    if (activeFilter === 'today') {
+      return matches.filter((m) => {
+        const date = new Date(m.match_date);
+        const now = new Date();
+        return date.toDateString() === now.toDateString();
+      });
+    }
+
+    if (activeFilter === 'favorite' && favoriteTeamId) {
+      return matches.filter((m) => m.team_a_id === favoriteTeamId || m.team_b_id === favoriteTeamId);
+    }
+
+    return matches;
+  }, [activeFilter, favoriteTeamId, matches]);
+
+  const sortMatches = useCallback((list: Match[]) => {
+    const statusRank = (status: Match['status']) => {
+      if (status === 'ao_vivo') return 0;
+      if (status === 'agendado') return 1;
+      return 2;
+    };
+
+    return [...list].sort((a, b) => {
+      const rankDiff = statusRank(a.status) - statusRank(b.status);
+      if (rankDiff !== 0) return rankDiff;
+      return new Date(a.match_date).getTime() - new Date(b.match_date).getTime();
+    });
+  }, []);
+
   // Agrupa partidas por 'round' dinamicamente - MEMOIZED
   const roundsMap = useMemo(() => {
-    return matches.reduce((acc, m) => {
+    return filteredMatches.reduce((acc, m) => {
       const roundName = String(m.round || 'Rodada Geral');
       if (!acc[roundName]) acc[roundName] = [];
       acc[roundName].push(m);
       return acc;
     }, {} as Record<string, Match[]>);
-  }, [matches]);
+  }, [filteredMatches]);
 
   const sortedRounds = useMemo(() => {
     return Object.keys(roundsMap).sort((a, b) => {
@@ -165,9 +220,29 @@ const Brackets: React.FC = () => {
     </div>
   );
 
-  const MatchBox: React.FC<{ match: Match; isKnockout?: boolean }> = ({ match, isKnockout }) => {
+  const getCountdownLabel = (matchDate: string) => {
+    const diff = new Date(matchDate).getTime() - nowTs;
+    if (diff <= 0) return 'Começa agora';
+    const totalMinutes = Math.floor(diff / 60000);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    if (hours > 0) return `Começa em ${hours}h ${minutes}m`;
+    return `Começa em ${minutes}m`;
+  };
+
+  const getLiveMinutes = (match: Match) => {
+    if (!match.timer_started_at) return Math.floor((match.timer_offset_seconds || 0) / 60);
+    const start = new Date(match.timer_started_at).getTime();
+    const diff = Math.max(0, Math.floor((nowTs - start) / 1000));
+    const totalSeconds = (match.timer_offset_seconds || 0) + diff;
+    return Math.floor(totalSeconds / 60);
+  };
+
+  const MatchBox: React.FC<{ match: Match; isKnockout?: boolean; isCurrentRound?: boolean }> = ({ match, isKnockout, isCurrentRound }) => {
     const isTeamAWinner = match.status === 'finalizado' && match.team_a_score > match.team_b_score;
     const isTeamBWinner = match.status === 'finalizado' && match.team_b_score > match.team_a_score;
+    const liveMinutes = match.status === 'ao_vivo' ? getLiveMinutes(match) : null;
+    const countdown = match.status === 'agendado' ? getCountdownLabel(match.match_date) : null;
 
     const getStatusLabel = () => {
       if (match.status === 'ao_vivo') return <span className="live-badge-mini">AO VIVO</span>;
@@ -176,16 +251,43 @@ const Brackets: React.FC = () => {
     };
 
     return (
-      <div className={`bracket-match ${isKnockout ? 'knockout-item' : ''}`}>
+      <div className={`bracket-match ${isKnockout ? 'knockout-item' : ''} ${isCurrentRound ? 'current-match-highlight' : ''}`}>
         <div 
           className="match-box glass clickable-match"
           onClick={() => navigate(`/central-da-partida?id=${match.id}`)}
         >
+          <div className={`match-status-bar status-${match.status}`}></div>
           <div className="match-header-row" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem', alignItems: 'center' }}>
             <div className="match-time-tiny" style={{ marginBottom: 0 }}>
               {new Date(match.match_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} • {new Date(match.match_date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
             </div>
             {getStatusLabel()}
+          </div>
+
+          <div className="match-preview">
+            <span className="match-meta">{match.location || 'Local a definir'}</span>
+            <span className="match-meta">{match.status === 'agendado' && countdown ? countdown : match.status === 'ao_vivo' && liveMinutes !== null ? `${liveMinutes}' em andamento` : 'Partida encerrada'}</span>
+          </div>
+
+          <div className="match-mini-timeline">
+            {match.status === 'ao_vivo' && (
+              <>
+                <span className="timeline-chip live">AO VIVO</span>
+                <span className="timeline-chip">Min {liveMinutes ?? 0}</span>
+              </>
+            )}
+            {match.status === 'agendado' && countdown && (
+              <>
+                <span className="timeline-chip">EM BREVE</span>
+                <span className="timeline-chip">{countdown}</span>
+              </>
+            )}
+            {match.status === 'finalizado' && (
+              <>
+                <span className="timeline-chip">ENCERRADO</span>
+                <span className="timeline-chip">Placar final</span>
+              </>
+            )}
           </div>
           
           <div className={`match-team ${isTeamAWinner ? 'winner' : ''}`}>
@@ -250,6 +352,7 @@ const Brackets: React.FC = () => {
   if (loading && matches.length === 0) {
     return (
       <div className="brackets-page animate-fade-in">
+        <div className="brackets-showlights" aria-hidden="true"></div>
         <header className="brackets-header">
           <div className="header-icon-box">
              <Trophy size={32} color="var(--secondary)" />
@@ -279,6 +382,7 @@ const Brackets: React.FC = () => {
 
   return (
     <div className="brackets-page animate-fade-in">
+      <div className="brackets-showlights" aria-hidden="true"></div>
       <header className="brackets-header">
         <div className="header-icon-box">
           <Trophy size={32} color="var(--secondary)" />
@@ -286,6 +390,35 @@ const Brackets: React.FC = () => {
         <h1 className="text-gradient uppercase">Tabela do Torneio</h1>
         <p className="text-muted">Acompanhe o caminho rumo ao título</p>
       </header>
+
+      <div className="match-filters">
+        <button
+          className={`filter-chip ${activeFilter === 'all' ? 'active' : ''}`}
+          onClick={() => setActiveFilter('all')}
+        >
+          Todos
+        </button>
+        <button
+          className={`filter-chip ${activeFilter === 'live' ? 'active' : ''}`}
+          onClick={() => setActiveFilter('live')}
+        >
+          Ao vivo
+        </button>
+        <button
+          className={`filter-chip ${activeFilter === 'today' ? 'active' : ''}`}
+          onClick={() => setActiveFilter('today')}
+        >
+          Hoje
+        </button>
+        <button
+          className={`filter-chip ${activeFilter === 'favorite' ? 'active' : ''}`}
+          onClick={() => favoriteTeamId && setActiveFilter('favorite')}
+          disabled={!favoriteTeamId}
+          title={favoriteTeamId ? 'Filtrar pelo time favorito' : 'Defina um time favorito em Preferências de Alertas'}
+        >
+          Meu time
+        </button>
+      </div>
 
       {knockoutRounds.length > 0 && (
         <div className="phase-jump-nav glass">
@@ -343,8 +476,8 @@ const Brackets: React.FC = () => {
                         {isCurrent && <span className="current-label"><Target size={12} /> Atual</span>}
                       </h3>
                       <div className="round-matches knockout-matches">
-                        {roundsMap[roundName].map(m => (
-                          <MatchBox key={m.id} match={m} isKnockout />
+                        {sortMatches(roundsMap[roundName]).map(m => (
+                          <MatchBox key={m.id} match={m} isKnockout isCurrentRound={isCurrent} />
                         ))}
                       </div>
                     </div>
@@ -384,10 +517,10 @@ const Brackets: React.FC = () => {
           )}
           
           {sortedRounds.length === 0 && (
-            <div className="empty-matches">
-              <Timer size={48} className="icon-dim" />
-              <p>Os jogos serão definidos em breve.</p>
-            </div>
+                      <div className="round-matches">
+                        {sortMatches(roundsMap[roundName]).map(m => (
+                          <MatchBox key={m.id} match={m} isCurrentRound={isCurrent} />
+                        ))}
           )}
         </div>
       </div>
