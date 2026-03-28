@@ -452,7 +452,7 @@ const Brackets: React.FC = () => {
                     <div 
                       key={roundName} 
                       id={`phase-${roundName.toLowerCase().replace(/\s+/g, '-')}`}
-                      className={`knockout-column phase-${roundName.toLowerCase().replace(/\s+/g, '-')} ${isCurrent ? 'current-round-highlight' : ''}`}
+                      className={`knockout-column phase-${roundName.toLowerCase().replace(/\s+/g, '-')}`}
                     >
                       <h3 className="round-title knockout-title">
                         <span className="round-dot"></span>
@@ -481,7 +481,7 @@ const Brackets: React.FC = () => {
                     <div 
                       key={roundName} 
                       id={`phase-${roundName.toLowerCase().replace(/\s+/g, '-')}`}
-                      className={`bracket-round ${isCurrent ? 'current-round-highlight' : ''}`}
+                      className="bracket-round"
                     >
                       <h3 className="round-title">
                         <span className="round-dot"></span>
