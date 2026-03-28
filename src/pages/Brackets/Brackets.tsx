@@ -153,13 +153,6 @@ const Brackets: React.FC = () => {
     setScrollLeft(scrollRef.current.scrollLeft);
   };
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (!scrollRef.current) return;
-    setIsDragging(true);
-    setStartX(e.touches[0].pageX - scrollRef.current.offsetLeft);
-    setScrollLeft(scrollRef.current.scrollLeft);
-  };
-
   const handleDragEnd = () => setIsDragging(false);
 
   const handleDragMove = (pageX: number) => {
@@ -173,12 +166,6 @@ const Brackets: React.FC = () => {
     if (isDragging) {
       e.preventDefault();
       handleDragMove(e.pageX);
-    }
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (isDragging) {
-      handleDragMove(e.touches[0].pageX);
     }
   };
 
@@ -238,7 +225,7 @@ const Brackets: React.FC = () => {
     return Math.floor(totalSeconds / 60);
   };
 
-  const MatchBox: React.FC<{ match: Match; isKnockout?: boolean; isCurrentRound?: boolean }> = ({ match, isKnockout, isCurrentRound }) => {
+  const MatchBox: React.FC<{ match: Match; isKnockout?: boolean }> = ({ match, isKnockout }) => {
     const isTeamAWinner = match.status === 'finalizado' && match.team_a_score > match.team_b_score;
     const isTeamBWinner = match.status === 'finalizado' && match.team_b_score > match.team_a_score;
     const liveMinutes = match.status === 'ao_vivo' ? getLiveMinutes(match) : null;
@@ -251,7 +238,7 @@ const Brackets: React.FC = () => {
     };
 
     return (
-      <div className={`bracket-match ${isKnockout ? 'knockout-item' : ''} ${isCurrentRound ? 'current-match-highlight' : ''}`}>
+      <div className={`bracket-match ${isKnockout ? 'knockout-item' : ''}`}>
         <div 
           className="match-box glass clickable-match"
           onClick={() => navigate(`/central-da-partida?id=${match.id}`)}
@@ -450,9 +437,6 @@ const Brackets: React.FC = () => {
         onMouseLeave={handleDragEnd}
         onMouseUp={handleDragEnd}
         onMouseMove={handleMouseMove}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleDragEnd}
-        onTouchMove={handleTouchMove}
       >
         <div className="brackets-scroll-content">
           {/* Seção Mata-Mata (Tree Layout) */}
@@ -477,7 +461,7 @@ const Brackets: React.FC = () => {
                       </h3>
                       <div className="round-matches knockout-matches">
                         {sortMatches(roundsMap[roundName]).map(m => (
-                          <MatchBox key={m.id} match={m} isKnockout isCurrentRound={isCurrent} />
+                          <MatchBox key={m.id} match={m} isKnockout />
                         ))}
                       </div>
                     </div>
