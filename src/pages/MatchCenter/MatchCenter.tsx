@@ -81,60 +81,57 @@ const MatchCenter: React.FC = () => {
   
   const { votes: winnerVotes, userVote: winnerUserVote, vote: castWinnerVote, error: winnerVotesError } = useMatchWinnerVoting(activeMatch?.id || '');
 
-  const getPollQuestion = () => {
-    if (!activeMatch) return 'Quem vence?';
-    const roundStr = String(activeMatch.round).toLowerCase();
-    if (roundStr.includes('final')) return 'Quem levará a taça? 🏆';
-    if (roundStr.includes('semi') || roundStr.includes('quarta') || roundStr.includes('oitava')) return 'Quem passará de fase? 🚀';
-    return 'Quem vence este duelo? ⚽';
-  };
-  
-  const { cardRef, downloadCard } = useShareCard();
-  const [isExporting, setIsExporting] = useState(false);
-  const [newComment, setNewComment] = useState('');
-  const [isSendingComment, setIsSendingComment] = useState(false);
-
-  const handleSendComment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) {
-      toast.error('Faça login para comentar!');
-      return;
-    }
-    if (!newComment.trim() || !activeMatch) return;
-
-    setIsSendingComment(true);
-    try {
-      const authorName = String(user.user_metadata?.name || user.email?.split('@')[0] || 'Torcedor');
-      const { error } = await supabase.from('match_events').insert({
-        match_id: activeMatch.id,
-        event_type: 'comentario',
-        commentary: newComment.trim(),
-        minute: elapsedTime === 'Fim' || elapsedTime === 'Pré-jogo' ? 0 : parseInt(elapsedTime.split(':')[0]) || 0,
-        player_id: null,
-        user_id: user.id,
-        author_name: authorName,
-      });
-
-      if (error) throw error;
-      setNewComment('');
-      toast.success('Comentário enviado!');
-    } catch (err: unknown) {
-      const message =
-        typeof (err as { message?: unknown })?.message === 'string'
-          ? String((err as { message: string }).message)
-          : null;
-      toast.error(message ? `Erro ao enviar comentário: ${message}` : 'Erro ao enviar comentário');
-    } finally {
-      setIsSendingComment(false);
-    }
-  };
-
-  const canDeleteComment = (ev: MatchEvent) => {
-    if (!user) return false;
-    if (role === 'admin') return true;
-    return !!ev.user_id && ev.user_id === user.id;
-  };
-
+                roundVotes.slice(0, 3).map((mvp, idx) => (
+                  <React.Fragment key={mvp.player_id}>
+                    <div className={`mvp-rank-item ${idx === 0 ? 'top-1' : ''}`}>
+                      <div className="rank-number">#{idx + 1}</div>
+                      <div className="rank-info">
+                        <span className="rank-name">{mvp.player_name}</span>
+                        <span className="rank-team">{mvp.team_name}</span>
+                      </div>
+                      <div className="rank-votes">
+                        <span className="count">{mvp.vote_count}</span>
+                        <span className="label">votos</span>
+                      </div>
+                      {!roundUserVote && (
+                        <button className="btn-vote-mini" onClick={() => {
+                          if (!user) {
+                            setShowAuthModal(true);
+                            return;
+                          }
+                          castRoundVote(mvp.player_id);
+                        }}>votar</button>
+                      )}
+                    </div>
+                  </React.Fragment>
+                ))}
+                {user ? (
+                  <form className="comment-form" onSubmit={handleSendComment}>
+                    <input 
+                      type="text" 
+                      placeholder="Escreva um comentário..." 
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      disabled={isSendingComment}
+                    />
+                    <button type="submit" disabled={isSendingComment || !newComment.trim()}>
+                      {isSendingComment ? <div className="spinner-mini"></div> : <Zap size={16} />}
+                    </button>
+                  </form>
+                ) : (
+                  <div className="login-to-comment">
+                    <button className="btn-login" onClick={() => setShowAuthModal(true)}>
+                      Faça login para participar dos comentários ao vivo!
+                    </button>
+                  </div>
+                )}
+                {showAuthModal && (
+                  <div className="modal-auth-overlay" onClick={() => setShowAuthModal(false)}>
+                    <div className="modal-auth-content" onClick={e => e.stopPropagation()}>
+                      <AuthModal onClose={() => setShowAuthModal(false)} />
+                    </div>
+                  </div>
+                )}
   const deleteComment = async (ev: MatchEvent) => {
     if (!canDeleteComment(ev)) return;
     try {
