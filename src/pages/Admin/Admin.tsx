@@ -198,8 +198,7 @@ const Admin: React.FC = () => {
   // --- Listagem de Usuários Logados ---
   type UserProfile = {
     id: string;
-    email: string;
-    name: string | null;
+    email: string | null;
     created_at: string;
   };
 
@@ -214,7 +213,7 @@ const Admin: React.FC = () => {
       try {
         const { data, error } = await supabase
           .from('profiles')
-          .select('id, email, name, created_at')
+          .select('id, email, created_at')
           .order('created_at', { ascending: false });
         if (error) throw error;
         setUsers(data || []);
@@ -253,13 +252,16 @@ const Admin: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {users.map(u => (
-                  <tr key={u.id}>
-                    <td>{u.name || <span style={{color:'#aaa'}}>—</span>}</td>
-                    <td>{u.email}</td>
-                    <td>{new Date(u.created_at).toLocaleString('pt-BR')}</td>
-                  </tr>
-                ))}
+                {users.map(u => {
+                  const displayName = u.email ? u.email.split('@')[0] : null;
+                  return (
+                    <tr key={u.id}>
+                      <td>{displayName || <span style={{color:'#aaa'}}>—</span>}</td>
+                      <td>{u.email || <span style={{color:'#aaa'}}>—</span>}</td>
+                      <td>{new Date(u.created_at).toLocaleString('pt-BR')}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
