@@ -12,6 +12,7 @@ import { AutoRefreshStatus } from '../AutoRefreshStatus/AutoRefreshStatus';
 import AuthModal from '../Auth/AuthModal';
 import IOSInstallPrompt from '../PWA/IOSInstallPrompt';
 import { AnimatePresence, motion } from 'framer-motion';
+import toast from 'react-hot-toast';
 import logo from '../../assets/unasp_logo.png';
 import { prefetchRouteIntent } from '../../lib/routePrefetch';
 import { onGoalOverlay, type GoalOverlayPayload } from '../../lib/goalOverlay';
@@ -38,6 +39,21 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     await signOut();
     navigate('/');
     closeMobileMenu();
+  };
+
+  const handlePushToggle = async () => {
+    if (!user && !isSubscribed) {
+      toast('Faça login para ativar alertas.');
+      setShowAuthModal(true);
+      return;
+    }
+
+    if (isSubscribed) {
+      await unsubscribe();
+      return;
+    }
+
+    await subscribe();
   };
 
   const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -204,7 +220,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             )}
             <button 
               className={`push-toggle ${isSubscribed ? 'subscribed' : ''}`} 
-              onClick={isSubscribed ? unsubscribe : subscribe}
+              onClick={handlePushToggle}
               title={isSubscribed ? 'Desativar Notificações' : 'Ativar Notificações'}
             >
               {isSubscribed ? <Bell size={20} color="var(--secondary)" /> : <BellOff size={20} />}

@@ -262,6 +262,10 @@ export const usePushNotifications = () => {
     try {
       setLoading(true);
 
+      if (!user) {
+        throw new Error('Faça login para ativar alertas.');
+      }
+
       if (!window.isSecureContext) {
         throw new Error('Push requer HTTPS (ou localhost).');
       }

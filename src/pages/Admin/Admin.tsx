@@ -384,7 +384,12 @@ const Admin: React.FC = () => {
             {activeTab === 'news' && <NewsManagement />}
             {activeTab === 'tournament' && <TournamentManagement />}
             {activeTab === 'polls' && <PollManagement />}
-            {activeTab === 'notifications' && <NotificationBroadcast />}
+            {activeTab === 'notifications' && (
+              <>
+                <NotificationBroadcast />
+                <PushSubscribersPanel />
+              </>
+            )}
             {activeTab === 'errors' && <ClientErrorsPanel />}
             {activeTab === 'users' && <UsersPanel />}
           </main>
@@ -711,6 +716,159 @@ const NotificationBroadcast = () => {
           <li>Evite enviar muitos alertas em curto espaço de tempo.</li>
         </ul>
       </div>
+    </div>
+  );
+};
+
+type PushSubscriberRow = {
+  id?: string;
+  user_id: string | null;
+  endpoint?: string | null;
+  created_at?: string | null;
+};
+
+type PushSubscriberView = {
+  key: string;
+  userId: string | null;
+  email: string | null;
+  devices: number;
+  lastCreatedAt: string | null;
+};
+
+const isMissingColumnError = (err: unknown, column: string) => {
+  if (!err || typeof err !== 'object') return false;
+  const message = String((err as { message?: unknown }).message || '').toLowerCase();
+  return message.includes('column') && message.includes(column.toLowerCase());
+};
+
+const PushSubscribersPanel: React.FC = () => {
+  const [subscribers, setSubscribers] = useState<PushSubscriberView[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadSubscribers = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      let data: PushSubscriberRow[] = [];
+      let rows = await supabase
+        .from('push_subscriptions')
+        .select('id, user_id, endpoint, created_at')
+        .order('created_at', { ascending: false });
+
+      if (rows.error && isMissingColumnError(rows.error, 'created_at')) {
+        rows = await supabase
+          .from('push_subscriptions')
+          .select('id, user_id, endpoint');
+      }
+
+      if (rows.error) throw rows.error;
+      data = (rows.data as PushSubscriberRow[]) || [];
+
+      const userIds = Array.from(new Set(data.map((row) => row.user_id).filter(Boolean))) as string[];
+      let profileMap: Record<string, string | null> = {};
+
+      if (userIds.length > 0) {
+        const { data: profiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, email')
+          .in('id', userIds);
+
+        if (profilesError) throw profilesError;
+        profileMap = Object.fromEntries(
+          (profiles || []).map((p) => [String(p.id), typeof p.email === 'string' ? p.email : null])
+        );
+      }
+
+      const grouped = new Map<string, { userId: string | null; endpoints: Set<string>; lastCreatedAt: string | null }>;
+
+      data.forEach((row, idx) => {
+        const endpointKey = row.endpoint || row.id || `row-${idx}`;
+        const groupKey = row.user_id || `anon:${endpointKey}`;
+        const existing = grouped.get(groupKey);
+        const nextCreatedAt = row.created_at || null;
+
+        if (existing) {
+          existing.endpoints.add(endpointKey);
+          if (!existing.lastCreatedAt || (nextCreatedAt && nextCreatedAt > existing.lastCreatedAt)) {
+            existing.lastCreatedAt = nextCreatedAt;
+          }
+          return;
+        }
+
+        grouped.set(groupKey, {
+          userId: row.user_id || null,
+          endpoints: new Set([endpointKey]),
+          lastCreatedAt: nextCreatedAt,
+        });
+      });
+
+      const mapped: PushSubscriberView[] = Array.from(grouped.entries()).map(([key, value]) => ({
+        key,
+        userId: value.userId,
+        email: value.userId ? profileMap[value.userId] || null : null,
+        devices: value.endpoints.size,
+        lastCreatedAt: value.lastCreatedAt || null,
+      }));
+
+      mapped.sort((a, b) => {
+        const aTime = a.lastCreatedAt ? Date.parse(a.lastCreatedAt) : 0;
+        const bTime = b.lastCreatedAt ? Date.parse(b.lastCreatedAt) : 0;
+        if (aTime !== bTime) return bTime - aTime;
+        return b.devices - a.devices;
+      });
+
+      setSubscribers(mapped);
+    } catch (err: any) {
+      setError(err?.message || 'Erro ao carregar inscritos de push');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSubscribers();
+  }, []);
+
+  return (
+    <div className="admin-section glass animate-fade-in">
+      <div className="section-header">
+        <h2>Inscritos em Notificações</h2>
+        <p className="section-subtitle">Quem ativou alertas push e quantos dispositivos estão inscritos.</p>
+        <button className="btn-add" onClick={loadSubscribers} disabled={loading}>
+          <RotateCcw size={18} /> {loading ? 'Atualizando...' : 'Atualizar'}
+        </button>
+      </div>
+
+      {error ? (
+        <div className="admin-empty-state"><p>{error}</p></div>
+      ) : subscribers.length === 0 ? (
+        <div className="admin-empty-state"><p>Nenhum inscrito encontrado.</p></div>
+      ) : (
+        <div className="users-list-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Usuário</th>
+                <th>Email</th>
+                <th>Dispositivos</th>
+                <th>Última Ativação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {subscribers.map((row) => (
+                <tr key={row.key}>
+                  <td>{row.userId ? row.userId.slice(0, 8) : <span style={{ color: '#aaa' }}>Sem login</span>}</td>
+                  <td>{row.email || <span style={{ color: '#aaa' }}>—</span>}</td>
+                  <td>{row.devices}</td>
+                  <td>{row.lastCreatedAt ? new Date(row.lastCreatedAt).toLocaleString('pt-BR') : <span style={{ color: '#aaa' }}>—</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 };
