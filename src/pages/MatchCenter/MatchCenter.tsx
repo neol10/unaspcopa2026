@@ -816,7 +816,6 @@ const MatchCenter: React.FC = () => {
       </>
     )}
   </div>
-</div>
   );
 };
 
