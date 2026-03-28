@@ -74,64 +74,80 @@ const MatchCenter: React.FC = () => {
   };
 
   const { events, loading: eventsLoading, error: eventsError, refresh: refreshEvents } = useMatchEvents(activeMatch?.id || '', handleNewEvent);
-  const { user } = useAuthContext();
+  const { user, role: authRole } = useAuthContext();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const { config } = useTournamentConfig();
   const { voteCounts: roundVotes, userVote: roundUserVote, vote: castRoundVote, loading: roundMvpLoading, error: roundMvpError, refresh: refreshRoundMvp } = useMvpVoting(String(config.current_round));
   
   const { votes: winnerVotes, userVote: winnerUserVote, vote: castWinnerVote, error: winnerVotesError } = useMatchWinnerVoting(activeMatch?.id || '');
+  const { cardRef, downloadCard } = useShareCard();
+  const [isExporting, setIsExporting] = useState(false);
+  const [newComment, setNewComment] = useState('');
+  const [isSendingComment, setIsSendingComment] = useState(false);
 
-                roundVotes.slice(0, 3).map((mvp, idx) => (
-                  <React.Fragment key={mvp.player_id}>
-                    <div className={`mvp-rank-item ${idx === 0 ? 'top-1' : ''}`}>
-                      <div className="rank-number">#{idx + 1}</div>
-                      <div className="rank-info">
-                        <span className="rank-name">{mvp.player_name}</span>
-                        <span className="rank-team">{mvp.team_name}</span>
-                      </div>
-                      <div className="rank-votes">
-                        <span className="count">{mvp.vote_count}</span>
-                        <span className="label">votos</span>
-                      </div>
-                      {!roundUserVote && (
-                        <button className="btn-vote-mini" onClick={() => {
-                          if (!user) {
-                            setShowAuthModal(true);
-                            return;
-                          }
-                          castRoundVote(mvp.player_id);
-                        }}>votar</button>
-                      )}
-                    </div>
-                  </React.Fragment>
-                ))}
-                {user ? (
-                  <form className="comment-form" onSubmit={handleSendComment}>
-                    <input 
-                      type="text" 
-                      placeholder="Escreva um comentário..." 
-                      value={newComment}
-                      onChange={(e) => setNewComment(e.target.value)}
-                      disabled={isSendingComment}
-                    />
-                    <button type="submit" disabled={isSendingComment || !newComment.trim()}>
-                      {isSendingComment ? <div className="spinner-mini"></div> : <Zap size={16} />}
-                    </button>
-                  </form>
-                ) : (
-                  <div className="login-to-comment">
-                    <button className="btn-login" onClick={() => setShowAuthModal(true)}>
-                      Faça login para participar dos comentários ao vivo!
-                    </button>
-                  </div>
-                )}
-                {showAuthModal && (
-                  <div className="modal-auth-overlay" onClick={() => setShowAuthModal(false)}>
-                    <div className="modal-auth-content" onClick={e => e.stopPropagation()}>
-                      <AuthModal onClose={() => setShowAuthModal(false)} />
-                    </div>
-                  </div>
-                )}
+  const getPollQuestion = useCallback(() => {
+    if (!activeMatch) return 'Quem vence?';
+    if (activeMatch.status === 'finalizado') return 'Quem foi o vencedor?';
+    if (activeMatch.status === 'ao_vivo') return 'Quem vence a partida?';
+    return 'Quem vence a partida?';
+  }, [activeMatch]);
+
+  const canDeleteComment = useCallback((ev: MatchEvent) => {
+    if (!user) return false;
+    if (authRole === 'admin') return true;
+    return Boolean(ev.user_id && ev.user_id === user.id);
+  }, [authRole, user]);
+
+  const handleSendComment = useCallback(async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!activeMatch) return;
+
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
+
+    const trimmed = newComment.trim();
+    if (!trimmed) return;
+
+    const minuteFromElapsed = (() => {
+      const parts = elapsedTime.split(':');
+      if (parts.length === 2) {
+        const parsed = Number(parts[0]);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+      return Math.floor((activeMatch.timer_offset_seconds || 0) / 60);
+    })();
+
+    const authorName = String(
+      user.user_metadata?.name
+      || user.user_metadata?.full_name
+      || user.email
+      || 'Torcedor'
+    );
+
+    setIsSendingComment(true);
+    try {
+      const { error } = await supabase.from('match_events').insert({
+        match_id: activeMatch.id,
+        event_type: 'comentario',
+        minute: minuteFromElapsed,
+        commentary: trimmed,
+        user_id: user.id,
+        author_name: authorName
+      });
+      if (error) throw error;
+
+      setNewComment('');
+      refreshEvents();
+      toast.success('Comentário enviado!');
+    } catch (err: unknown) {
+      const message = typeof (err as { message?: unknown })?.message === 'string' ? String((err as any).message) : null;
+      toast.error(message ? `Erro ao enviar: ${message}` : 'Erro ao enviar comentário');
+    } finally {
+      setIsSendingComment(false);
+    }
+  }, [activeMatch, elapsedTime, newComment, refreshEvents, user]);
   const deleteComment = async (ev: MatchEvent) => {
     if (!canDeleteComment(ev)) return;
     try {
@@ -815,6 +831,7 @@ const MatchCenter: React.FC = () => {
         </aside>
       </>
     )}
+  </div>
   </div>
   );
 };
