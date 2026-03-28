@@ -250,7 +250,6 @@ const Brackets: React.FC = () => {
   if (loading && matches.length === 0) {
     return (
       <div className="brackets-page animate-fade-in">
-        <div className="brackets-showlights" aria-hidden="true"></div>
         <header className="brackets-header">
           <div className="header-icon-box">
              <Trophy size={32} color="var(--secondary)" />
@@ -280,7 +279,6 @@ const Brackets: React.FC = () => {
 
   return (
     <div className="brackets-page animate-fade-in">
-      <div className="brackets-showlights" aria-hidden="true"></div>
       <header className="brackets-header">
         <div className="header-icon-box">
           <Trophy size={32} color="var(--secondary)" />
