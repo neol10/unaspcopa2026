@@ -517,10 +517,10 @@ const Brackets: React.FC = () => {
           )}
           
           {sortedRounds.length === 0 && (
-                      <div className="round-matches">
-                        {sortMatches(roundsMap[roundName]).map(m => (
-                          <MatchBox key={m.id} match={m} isCurrentRound={isCurrent} />
-                        ))}
+            <div className="empty-matches">
+              <Target size={32} className="icon-dim" />
+              <p>Nenhuma partida cadastrada ainda.</p>
+            </div>
           )}
         </div>
       </div>
