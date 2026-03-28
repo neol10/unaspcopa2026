@@ -758,59 +758,58 @@ const MatchCenter: React.FC = () => {
                   </button>
                 </div>
               ) : roundVotes.length > 0 ? (
-                roundVotes.slice(0, 3).map((mvp, idx) => (
-                  <div key={mvp.player_id} className={`mvp-rank-item ${idx === 0 ? 'top-1' : ''}`}>
-                    <div className="rank-number">#{idx + 1}</div>
-                    <div className="rank-info">
-                      <span className="rank-name">{mvp.player_name}</span>
-                      <span className="rank-team">{mvp.team_name}</span>
+                <>
+                  {roundVotes.slice(0, 3).map((mvp, idx) => (
+                    <div key={mvp.player_id} className={`mvp-rank-item ${idx === 0 ? 'top-1' : ''}`}>
+                      <div className="rank-number">#{idx + 1}</div>
+                      <div className="rank-info">
+                        <span className="rank-name">{mvp.player_name}</span>
+                        <span className="rank-team">{mvp.team_name}</span>
+                      </div>
+                      <div className="rank-votes">
+                        <span className="count">{mvp.vote_count}</span>
+                        <span className="label">votos</span>
+                      </div>
+                        {!roundUserVote && (
+                          <button className="btn-vote-mini" onClick={() => {
+                            if (!user) {
+                              setShowAuthModal(true);
+                              return;
+                            }
+                            castRoundVote(mvp.player_id);
+                          }}>votar</button>
+                        )}
                     </div>
-                    <div className="rank-votes">
-                      <span className="count">{mvp.vote_count}</span>
-                      <span className="label">votos</span>
+                  ))}
+                  {user ? (
+                    <form className="comment-form" onSubmit={handleSendComment}>
+                      <input 
+                        type="text" 
+                        placeholder="Escreva um comentário..." 
+                        value={newComment}
+                        onChange={(e) => setNewComment(e.target.value)}
+                        disabled={isSendingComment}
+                      />
+                      <button type="submit" disabled={isSendingComment || !newComment.trim()}>
+                        {isSendingComment ? <div className="spinner-mini"></div> : <Zap size={16} />}
+                      </button>
+                    </form>
+                  ) : (
+                    <div className="login-to-comment">
+                      <button className="btn-login" onClick={() => setShowAuthModal(true)}>
+                        Faça login para participar dos comentários ao vivo!
+                      </button>
                     </div>
-                      {!roundUserVote && (
-                        <button className="btn-vote-mini" onClick={() => {
-                          if (!user) {
-                            setShowAuthModal(true);
-                            return;
-                          }
-                          castRoundVote(mvp.player_id);
-                        }}>votar</button>
-                      )}
-                  </div>
-                ))
-                {user ? (
-                  <form className="comment-form" onSubmit={handleSendComment}>
-                    <input 
-                      type="text" 
-                      placeholder="Escreva um comentário..." 
-                      value={newComment}
-                      onChange={(e) => setNewComment(e.target.value)}
-                      disabled={isSendingComment}
-                    />
-                    <button type="submit" disabled={isSendingComment || !newComment.trim()}>
-                      {isSendingComment ? <div className="spinner-mini"></div> : <Zap size={16} />}
-                    </button>
-                  </form>
-                ) : (
-                  <div className="login-to-comment">
-                    <button className="btn-login" onClick={() => setShowAuthModal(true)}>
-                      Faça login para participar dos comentários ao vivo!
-                    </button>
-                  </div>
-                )}
-                          {showAuthModal && (
-                            <div className="modal-auth-overlay" onClick={() => setShowAuthModal(false)}>
-                              <div className="modal-auth-content" onClick={e => e.stopPropagation()}>
-                                <AuthModal onClose={() => setShowAuthModal(false)} />
-                              </div>
-                            </div>
-                          )}
-                    <span>{m.teams_b?.name.substring(0,3)}</span>
-                  </div>
-                </div>
-              )) : <p className="empty-h2h">Primeiro encontro oficial.</p>}
+                  )}
+                  {showAuthModal && (
+                    <div className="modal-auth-overlay" onClick={() => setShowAuthModal(false)}>
+                      <div className="modal-auth-content" onClick={e => e.stopPropagation()}>
+                        <AuthModal onClose={() => setShowAuthModal(false)} />
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : <p className="empty-h2h">Primeiro encontro oficial.</p>}
             </div>
           </div>
         </aside>
