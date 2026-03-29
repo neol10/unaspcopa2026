@@ -1031,6 +1031,17 @@ const MatchManagement = () => {
   const { teams } = useTeams();
   const queryClient = useQueryClient();
   const { confirm: confirmAction, ConfirmElement } = useConfirm();
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (confirmingDeleteId) {
+      const timer = setTimeout(() => {
+        setConfirmingDeleteId(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [confirmingDeleteId]);
+
   const [isAdding, setIsAdding] = useState(false);
   const [isSubmittingMatch, setIsSubmittingMatch] = useState(false);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
@@ -1485,7 +1496,26 @@ const MatchManagement = () => {
                       <button className="btn-icon finish" title="Finalizar Jogo" onClick={() => { vibrate(60); updateStatus(match.id, 'finalizado', match); }}><CheckCircle size={18} /></button>
                     </>
                   )}
-                  <button className="btn-icon delete" onClick={() => { vibrate(80); handleDeleteMatch(match.id); }} title="Excluir Partida"><Trash2 size={18} /></button>
+                  <button 
+                    className={`btn-icon delete ${confirmingDeleteId === match.id ? 'confirming' : ''}`} 
+                    onClick={() => { 
+                      if (confirmingDeleteId === match.id) {
+                        vibrate(100);
+                        setConfirmingDeleteId(null);
+                        handleDeleteMatch(match.id); 
+                      } else {
+                        vibrate(40);
+                        setConfirmingDeleteId(match.id);
+                      }
+                    }} 
+                    title={confirmingDeleteId === match.id ? "Confirmar Exclusão?" : "Excluir Partida"}
+                  >
+                    {confirmingDeleteId === match.id ? (
+                      <span className="confirm-text">EXCLUIR?</span>
+                    ) : (
+                      <Trash2 size={18} />
+                    )}
+                  </button>
                 </div>
               </div>
 

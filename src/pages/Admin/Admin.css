@@ -605,6 +605,32 @@
   box-shadow: 0 5px 15px rgba(239, 68, 68, 0.4); 
 }
 
+/* NOVO: Confirmação Inline */
+.btn-icon.delete.confirming {
+  width: auto !important;
+  min-width: 110px;
+  padding: 0 0.8rem;
+  background: #ef4444 !important;
+  color: #fff !important;
+  border-radius: 12px;
+  transform: scale(1.05);
+  animation: pulse-danger-btn 0.8s infinite alternate cubic-bezier(0.4, 0, 0.2, 1);
+  gap: 0.5rem;
+}
+
+.confirm-text {
+  font-size: 0.7rem;
+  font-weight: 950;
+  letter-spacing: 0.8px;
+  word-break: keep-all;
+  white-space: nowrap;
+}
+
+@keyframes pulse-danger-btn {
+  from { box-shadow: 0 0 10px rgba(239, 68, 68, 0.4); filter: brightness(1); }
+  to { box-shadow: 0 0 25px rgba(239, 68, 68, 0.8); filter: brightness(1.3); }
+}
+
 .btn-icon.play { 
   background: rgba(34, 197, 94, 0.08); 
   border: 1px solid rgba(34, 197, 94, 0.15); 
