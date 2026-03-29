@@ -242,6 +242,15 @@ const Brackets: React.FC = () => {
         <div 
           className="match-box glass clickable-match"
           onClick={() => navigate(`/central-da-partida?id=${match.id}`)}
+          role="button"
+          tabIndex={0}
+          aria-label={`Abrir partida ${match.teams_a?.name || 'Equipe A'} x ${match.teams_b?.name || 'Equipe B'}`}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              navigate(`/central-da-partida?id=${match.id}`);
+            }
+          }}
         >
           <div className={`match-status-bar status-${match.status}`}></div>
           <div className="match-header-row" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem', alignItems: 'center' }}>
@@ -382,18 +391,24 @@ const Brackets: React.FC = () => {
         <button
           className={`filter-chip ${activeFilter === 'all' ? 'active' : ''}`}
           onClick={() => setActiveFilter('all')}
+          type="button"
+          aria-pressed={activeFilter === 'all'}
         >
           Todos
         </button>
         <button
           className={`filter-chip ${activeFilter === 'live' ? 'active' : ''}`}
           onClick={() => setActiveFilter('live')}
+          type="button"
+          aria-pressed={activeFilter === 'live'}
         >
           Ao vivo
         </button>
         <button
           className={`filter-chip ${activeFilter === 'today' ? 'active' : ''}`}
           onClick={() => setActiveFilter('today')}
+          type="button"
+          aria-pressed={activeFilter === 'today'}
         >
           Hoje
         </button>
@@ -402,6 +417,8 @@ const Brackets: React.FC = () => {
           onClick={() => favoriteTeamId && setActiveFilter('favorite')}
           disabled={!favoriteTeamId}
           title={favoriteTeamId ? 'Filtrar pelo time favorito' : 'Defina um time favorito em Preferências de Alertas'}
+          type="button"
+          aria-pressed={activeFilter === 'favorite'}
         >
           Meu time
         </button>
