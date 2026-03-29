@@ -55,10 +55,12 @@ const Home: React.FC = () => {
     const matchup = liveMatch ? `${liveMatch.teams_a?.name || 'Equipe A'} x ${liveMatch.teams_b?.name || 'Equipe B'}` : 'GOL!';
     emitGoalOverlay({ team: matchup, player: latestLiveEvent.players?.name || 'Jogador' });
     setLastOverlayEventId(latestLiveEvent.id || null);
+  }, [latestLiveEvent, lastOverlayEventId, liveMatch]);
 
+  useEffect(() => {
     if (!nextMatch) return;
 
-    const interval = setInterval(() => {
+    const updateCountdown = () => {
       const now = new Date().getTime();
       const target = new Date(nextMatch.match_date).getTime();
       const difference = target - now;
@@ -70,11 +72,16 @@ const Home: React.FC = () => {
           minutes: Math.floor((difference / 1000 / 60) % 60),
           seconds: Math.floor((difference / 1000) % 60)
         });
+        return;
       }
-    }, 1000);
 
+      setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
     return () => clearInterval(interval);
-  }, [latestLiveEvent, lastOverlayEventId, liveMatch, nextMatch]);
+  }, [nextMatch]);
 
   const formatNewsDate = (value?: string) => {
     if (!value) return '';
