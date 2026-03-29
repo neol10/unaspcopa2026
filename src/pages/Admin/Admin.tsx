@@ -1030,7 +1030,6 @@ const MatchManagement = () => {
   const { matches, loading, refresh } = useMatches();
   const { teams } = useTeams();
   const queryClient = useQueryClient();
-  const { confirm: confirmAction, ConfirmElement } = useConfirm();
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -1168,12 +1167,6 @@ const MatchManagement = () => {
   };
 
   const handleDeleteMatch = async (id: string) => {
-    if (!(await confirmAction({
-      title: 'Excluir Partida',
-      description: 'ATENÇÃO: Apagar esta partida removerá permanentemente todos os eventos e REVERTERÁ as estatísticas dos jogadores (gols, cartões e assistências). Deseja continuar?',
-      variant: 'danger'
-    }))) return;
-    
     const loadingToast = toast.loading('Processando reversão e exclusão...');
     try {
       // 1. Buscar todos os eventos desta partida em uma única chamada
@@ -1500,7 +1493,8 @@ const MatchManagement = () => {
                   )}
                   <button 
                     className={`btn-icon delete ${confirmingDeleteId === match.id ? 'confirming' : ''}`} 
-                    onClick={() => { 
+                    onClick={(e) => {
+                      e.stopPropagation();
                       if (confirmingDeleteId === match.id) {
                         vibrate(100);
                         setConfirmingDeleteId(null);
@@ -1510,10 +1504,10 @@ const MatchManagement = () => {
                         setConfirmingDeleteId(match.id);
                       }
                     }} 
-                    title={confirmingDeleteId === match.id ? "Confirmar Exclusão?" : "Excluir Partida"}
+                    title={confirmingDeleteId === match.id ? "Confimar Exclusão" : "Excluir Partida"}
                   >
                     {confirmingDeleteId === match.id ? (
-                      <span className="confirm-text">EXCLUIR?</span>
+                      <span className="confirm-text">CONFIRMAR?</span>
                     ) : (
                       <Trash2 size={18} />
                     )}
@@ -1603,7 +1597,27 @@ const MatchManagement = () => {
                         round: String(match.round)
                       });
                   }}><Settings2 size={16} /></button>
-                  <button className="btn-icon delete" onClick={() => handleDeleteMatch(match.id)} title="Excluir do Histórico"><Trash2 size={16} /></button>
+                  <button 
+                    className={`btn-icon delete ${confirmingDeleteId === match.id ? 'confirming' : ''}`} 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (confirmingDeleteId === match.id) {
+                        vibrate(100);
+                        setConfirmingDeleteId(null);
+                        handleDeleteMatch(match.id); 
+                      } else {
+                        vibrate(40);
+                        setConfirmingDeleteId(match.id);
+                      }
+                    }} 
+                    title={confirmingDeleteId === match.id ? "Confirmar Exclusão" : "Excluir do Histórico"}
+                  >
+                    {confirmingDeleteId === match.id ? (
+                      <span className="confirm-text" style={{ fontSize: '0.7rem' }}>CONFIRMAR?</span>
+                    ) : (
+                      <Trash2 size={16} />
+                    )}
+                  </button>
                 </div>
               </div>
 
@@ -1639,7 +1653,6 @@ const MatchManagement = () => {
           ))}
         </div>
       </div>
-      {ConfirmElement}
     </div>
   );
 };
