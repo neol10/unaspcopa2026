@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase, supabaseStorage } from '../../lib/supabase';
-import { Trophy, Users, Calendar, Plus, Save, Trash2, Shield, ChevronDown, ChevronUp, Newspaper, CheckCircle, Play, Camera, Search, Settings2, Vote, ShieldAlert, Bell, Star, CreditCard, Target, Square, ArrowRightLeft, MessageSquare, Zap, Clock, Pause, RotateCcw, Coffee } from 'lucide-react';
+import { Trophy, Users, Calendar, Plus, Save, Trash2, Shield, ChevronDown, ChevronUp, Newspaper, CheckCircle, Play, Camera, Search, Settings2, Vote, ShieldAlert, Bell, Star, CreditCard, Target, Square, ArrowRightLeft, MessageSquare, Zap, Clock, Pause, RotateCcw, Coffee, Flag } from 'lucide-react';
 import { useTeams, type Team } from '../../hooks/useTeams';
 import { usePlayers } from '../../hooks/usePlayers';
 import { useQueryClient } from '@tanstack/react-query';
@@ -1606,6 +1606,7 @@ const MatchManagement = () => {
 };
 
 const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
+  const queryClient = useQueryClient();
   const { players: playersA } = usePlayers(match.team_a_id);
   const { players: playersB } = usePlayers(match.team_b_id);
   const { events, refresh: refreshEvents } = useMatchEvents(match.id);
@@ -1624,9 +1625,17 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [editEventMinute, setEditEventMinute] = useState<number>(0);
 
+  const updateOptimisticMatch = (updates: Partial<Match>) => {
+    queryClient.setQueryData(['matches', 'all'], (old: Match[] | undefined) => {
+      if (!old) return old;
+      return old.map(m => m.id === match.id ? { ...m, ...updates } : m);
+    });
+  };
+
   // --- Cronômetro Sincronizado (DB) ---
   const [seconds, setSeconds] = useState(0);
   const isActive = match.is_timer_running;
+  const hasStarted = Boolean(match.timer_started_at) || match.timer_offset_seconds > 0;
 
   // Sincronizar segundos locais com o estado do banco (com Fresh Fetch no mount)
   useEffect(() => {
@@ -1672,6 +1681,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       // Se já estava pausado, não atualizamos o offset novamente para não acumular erro
       const finalOffset = match.is_timer_running ? newOffset : match.timer_offset_seconds;
 
+      updateOptimisticMatch({ is_timer_running: false, timer_started_at: null, timer_offset_seconds: finalOffset });
       const { error } = await supabase.from('matches').update({
         is_timer_running: false,
         timer_started_at: null,
@@ -1689,9 +1699,36 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           player_id: null
         });
         toast.success('Pausa Técnica registrada');
+      } else {
+        toast.success('Tempo pausado');
       }
     } catch (err: unknown) {
       toast.error('Erro ao pausar cronômetro');
+    }
+  };
+
+  const handleStartTimer = async () => {
+    try {
+      const { error } = await supabase.from('matches').update({
+        is_timer_running: true,
+        timer_started_at: new Date().toISOString(),
+        status: 'ao_vivo'
+      }).eq('id', match.id);
+
+      if (error) throw error;
+
+      await supabase.from('match_events').insert({
+        match_id: match.id,
+        event_type: 'comentario',
+        minute: Math.max(1, Math.floor(match.timer_offset_seconds / 60) || 1),
+        commentary: '▶️ Início de Jogo',
+        player_id: null
+      });
+
+      toast.success('Partida iniciada');
+      refreshEvents();
+    } catch (err: unknown) {
+      toast.error('Erro ao iniciar partida');
     }
   };
 
@@ -1707,6 +1744,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       const diff = Math.floor((now - start) / 1000);
       const newOffset = match.timer_offset_seconds + diff;
 
+      updateOptimisticMatch({ is_timer_running: false, timer_started_at: null, timer_offset_seconds: newOffset });
       await supabase.from('matches').update({
         is_timer_running: false,
         timer_started_at: null,
@@ -1733,9 +1771,11 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       const isPostInterval = events.some(e => e.event_type === 'comentario' && e.commentary?.includes('Fim do 1º Tempo'));
       const alreadyResumedStage2 = events.some(e => e.event_type === 'comentario' && e.commentary?.includes('Início do 2º Tempo'));
 
+      const nowStr = new Date().toISOString();
+      updateOptimisticMatch({ is_timer_running: true, timer_started_at: nowStr });
       const { error } = await supabase.from('matches').update({
         is_timer_running: true,
-        timer_started_at: new Date().toISOString()
+        timer_started_at: nowStr
       }).eq('id', match.id);
 
       if (error) throw error;
@@ -1757,18 +1797,40 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
     }
   };
 
-  const handleResetTimer = async () => {
-    if (!confirm('Zerar o cronômetro?')) return;
+  const handleEndMatch = async () => {
+    if (!(await confirmAction({
+      title: 'Finalizar Partida',
+      description: 'O cronômetro será pausado e a partida será encerrada.',
+      variant: 'warning'
+    }))) return;
+
     try {
+      const start = match.timer_started_at ? new Date(match.timer_started_at).getTime() : Date.now();
+      const now = Date.now();
+      const diff = Math.floor((now - start) / 1000);
+      const newOffset = match.timer_offset_seconds + diff;
+      const finalOffset = match.is_timer_running ? newOffset : match.timer_offset_seconds;
+
       const { error } = await supabase.from('matches').update({
         is_timer_running: false,
         timer_started_at: null,
-        timer_offset_seconds: 0
+        timer_offset_seconds: finalOffset,
+        status: 'finalizado'
       }).eq('id', match.id);
       if (error) throw error;
-      setSeconds(0);
+
+      await supabase.from('match_events').insert({
+        match_id: match.id,
+        event_type: 'comentario',
+        minute: Math.max(1, Math.floor(finalOffset / 60) || 1),
+        commentary: '🏁 Fim de Jogo',
+        player_id: null
+      });
+
+      toast.success('Partida finalizada');
+      refreshEvents();
     } catch (err: unknown) {
-      toast.error('Erro ao zerar cronômetro');
+      toast.error('Erro ao finalizar partida');
     }
   };
 
@@ -1791,7 +1853,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
     }
   }, [playersA, playersB, onFieldA.length, onFieldB.length]);
 
-  // Atalhos (Admin produtivo): Alt+1..6 troca tipo, Ctrl+Espaço inicia/pausa cronômetro
+  // Atalhos (Admin produtivo): Alt+1..6 troca tipo, Ctrl+Espaço inicia/pausa/retoma cronômetro
   useEffect(() => {
     const shouldIgnore = (target: EventTarget | null) => {
       const el = target as HTMLElement | null;
@@ -1806,7 +1868,8 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       if (e.ctrlKey && (e.code === 'Space' || e.key === ' ')) {
         e.preventDefault();
         if (isActive) handlePauseTimer(false); // Pausa normal via atalho
-        else handleRetomar();
+        else if (hasStarted) handleRetomar();
+        else handleStartTimer();
         return;
       }
 
@@ -1821,7 +1884,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [hasStarted, isActive]);
 
   const togglePlayerStatus = (playerId: string, team: 'a' | 'b') => {
     if (team === 'a') {
@@ -1890,6 +1953,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         } else {
           newScore = team === 'a' ? { team_a_score: (match.team_a_score || 0) + 1 } : { team_b_score: (match.team_b_score || 0) + 1 };
         }
+        updateOptimisticMatch(newScore);
         await supabase.from('matches').update(newScore).eq('id', match.id);
       }
       
@@ -1993,6 +2057,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         const newScore = isTeamA 
           ? { team_a_score: Math.max(0, match.team_a_score - 1) } 
           : { team_b_score: Math.max(0, match.team_b_score - 1) };
+        updateOptimisticMatch(newScore);
         await supabase.from('matches').update(newScore).eq('id', match.id);
         
         const { data: p } = await supabase.from('players').select('goals_count').eq('id', event.player_id).single();
@@ -2040,6 +2105,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         const newScoreValue = Math.max(0, currentScore + increment);
         const updateData = team === 'a' ? { team_a_score: newScoreValue } : { team_b_score: newScoreValue };
         
+        updateOptimisticMatch(updateData);
         await supabase.from('matches').update(updateData).eq('id', match.id);
         toast.success(`Placar ${team === 'a' ? 'A' : 'B'} ajustado!`);
       } catch (err: unknown) {
@@ -2056,6 +2122,54 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       console.error(err);
     }
   };
+
+  const finalStats = useMemo(() => {
+    const stats = {
+      a: {
+        goals: match.team_a_score || 0,
+        assists: 0,
+        yellows: 0,
+        reds: 0,
+        ownGoals: 0
+      },
+      b: {
+        goals: match.team_b_score || 0,
+        assists: 0,
+        yellows: 0,
+        reds: 0,
+        ownGoals: 0
+      }
+    };
+
+    const teamByPlayer = new Map<string, 'a' | 'b'>();
+    (playersA || []).forEach(player => teamByPlayer.set(player.id, 'a'));
+    (playersB || []).forEach(player => teamByPlayer.set(player.id, 'b'));
+
+    (events || []).forEach(event => {
+      if (event.event_type === 'gol') {
+        if (event.commentary?.includes('[CONTRA]') && event.player_id) {
+          const team = teamByPlayer.get(event.player_id);
+          if (team) stats[team].ownGoals += 1;
+        }
+        if (event.assistant_id) {
+          const team = teamByPlayer.get(event.assistant_id);
+          if (team) stats[team].assists += 1;
+        }
+      }
+
+      if (event.event_type === 'amarelo' && event.player_id) {
+        const team = teamByPlayer.get(event.player_id);
+        if (team) stats[team].yellows += 1;
+      }
+
+      if (event.event_type === 'vermelho' && event.player_id) {
+        const team = teamByPlayer.get(event.player_id);
+        if (team) stats[team].reds += 1;
+      }
+    });
+
+    return stats;
+  }, [events, match.team_a_score, match.team_b_score, playersA, playersB]);
 
   return (
     <div className="live-event-panel-wrapper">
@@ -2143,23 +2257,23 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                 <span className={isActive ? 'timer-running' : ''}>{formatTime(seconds)}</span>
              </div>
               <div className="sb-pro-timer-controls">
-                {!match.is_timer_running ? (
-                  <button className="timer-btn start" onClick={handleRetomar}>
-                    <Play size={16} /> RETOMAR
+                  {!match.is_timer_running ? (
+                    <button className="timer-btn start" onClick={hasStarted ? handleRetomar : handleStartTimer} disabled={match.status === 'finalizado'}>
+                      <Play size={16} /> {hasStarted ? 'RETOMAR' : 'COMEÇAR'}
+                    </button>
+                  ) : (
+                    <>
+                      <button className="timer-btn pause" onClick={() => handlePauseTimer(false)}>
+                        <Pause size={16} /> PARAR TEMPO
+                      </button>
+                      <button className="timer-btn interval" onClick={handleIntervalo} style={{ background: 'rgba(168, 85, 247, 0.1)', color: '#a855f7', borderColor: 'rgba(168, 85, 247, 0.3)' }}>
+                        <Coffee size={16} /> FIM DO 1º TEMPO
+                      </button>
+                    </>
+                  )}
+                  <button className="timer-btn end" onClick={handleEndMatch} disabled={match.status === 'finalizado'}>
+                    <Flag size={16} /> FIM DE JOGO
                   </button>
-                ) : (
-                  <>
-                    <button className="timer-btn pause" onClick={() => handlePauseTimer(true)}>
-                      <Pause size={16} /> PAUSA TÉCNICA
-                    </button>
-                    <button className="timer-btn interval" onClick={handleIntervalo} style={{ background: 'rgba(168, 85, 247, 0.1)', color: '#a855f7', borderColor: 'rgba(168, 85, 247, 0.3)' }}>
-                      <Coffee size={16} /> INTERVALO
-                    </button>
-                  </>
-                )}
-                <button className="timer-btn reset" onClick={handleResetTimer}>
-                  <RotateCcw size={16} /> ZERAR
-                </button>
               </div>
           </div>
 
@@ -2439,6 +2553,33 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           {events.length === 0 && <p className="empty-msg">Aguardando o primeiro lance...</p>}
         </div>
       </div>
+
+      {match.status === 'finalizado' && (
+        <div className="final-stats-panel glass">
+          <div className="final-stats-header">
+            <h6>Estatisticas finais</h6>
+            <span className="final-stats-score">{match.team_a_score} x {match.team_b_score}</span>
+          </div>
+          <div className="final-stats-grid">
+            <div className="final-stats-col">
+              <span className="final-stats-team">{match.teams_a?.name || 'Equipe A'}</span>
+              <div className="final-stats-row"><span>Gols</span><strong>{finalStats.a.goals}</strong></div>
+              <div className="final-stats-row"><span>Assistencias</span><strong>{finalStats.a.assists}</strong></div>
+              <div className="final-stats-row"><span>Amarelos</span><strong>{finalStats.a.yellows}</strong></div>
+              <div className="final-stats-row"><span>Vermelhos</span><strong>{finalStats.a.reds}</strong></div>
+              <div className="final-stats-row"><span>Gols contra</span><strong>{finalStats.a.ownGoals}</strong></div>
+            </div>
+            <div className="final-stats-col">
+              <span className="final-stats-team">{match.teams_b?.name || 'Equipe B'}</span>
+              <div className="final-stats-row"><span>Gols</span><strong>{finalStats.b.goals}</strong></div>
+              <div className="final-stats-row"><span>Assistencias</span><strong>{finalStats.b.assists}</strong></div>
+              <div className="final-stats-row"><span>Amarelos</span><strong>{finalStats.b.yellows}</strong></div>
+              <div className="final-stats-row"><span>Vermelhos</span><strong>{finalStats.b.reds}</strong></div>
+              <div className="final-stats-row"><span>Gols contra</span><strong>{finalStats.b.ownGoals}</strong></div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Craque do Jogo - NOVO */}
       <div className="mvp-selection-admin">

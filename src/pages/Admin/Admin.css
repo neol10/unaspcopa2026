@@ -2908,6 +2908,12 @@
   border-color: rgba(168, 85, 247, 0.4) !important;
 }
 
+.timer-btn.end {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
 .timer-btn:hover {
   transform: translateY(-3px);
   filter: brightness(1.3);
@@ -2920,6 +2926,69 @@
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   justify-content: center;
+}
+
+.final-stats-panel {
+  margin-top: 2rem;
+  padding: 1.5rem 2rem;
+  border-radius: 20px;
+  background: rgba(251, 191, 36, 0.06);
+  border: 1px solid rgba(251, 191, 36, 0.15);
+}
+
+.final-stats-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.final-stats-header h6 {
+  font-size: 0.95rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-main);
+}
+
+.final-stats-score {
+  font-size: 1.1rem;
+  font-weight: 900;
+  color: var(--secondary);
+}
+
+.final-stats-grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.final-stats-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.final-stats-team {
+  font-size: 0.85rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  margin-bottom: 0.25rem;
+}
+
+.final-stats-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-main);
 }
 
 /* Responsividade do Placar Admin */
