@@ -76,8 +76,8 @@ export const useMatches = (limit?: number) => {
           timer_started_at,
           timer_offset_seconds,
           is_timer_running,
-          teams_a:team_a_id(name, badge_url),
-          teams_b:team_b_id(name, badge_url)
+          teams_a:teams!team_a_id(name, badge_url),
+          teams_b:teams!team_b_id(name, badge_url)
         `)
         .order('match_date', { ascending: true });
 

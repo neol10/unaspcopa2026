@@ -1329,11 +1329,13 @@ const MatchManagement = () => {
     }
   };
 
-  const filteredMatches = (matches || []).filter(m => 
-    m.teams_a?.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    m.teams_b?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    String(m.round).includes(searchTerm)
-  );
+  const filteredMatches = (matches || []).filter(m => {
+    const s = searchTerm.toLowerCase();
+    const teamA = (m.teams_a?.name || '').toLowerCase();
+    const teamB = (m.teams_b?.name || '').toLowerCase();
+    const round = String(m.round || '');
+    return teamA.includes(s) || teamB.includes(s) || round.includes(s);
+  });
 
   // Times ocupados na rodada selecionada (Nova Partida)
   const busyTeamIdsInRound = new Set(
@@ -1457,11 +1459,11 @@ const MatchManagement = () => {
                         ) : (
                           <Shield size={20} />
                         )}
-                        <span>{match.teams_a?.name} {match.team_a_score} x {match.team_b_score} {match.teams_b?.name}</span>
+                        <span>{(match.teams_a?.name || '---')} {match.team_a_score} x {match.team_b_score} {(match.teams_b?.name || '---')}</span>
                         {match.teams_b?.badge_url ? (
                           <img src={match.teams_b.badge_url} alt="" style={{ width: 24, height: 24, objectFit: 'contain' }} />
                         ) : (
-                          <Shield size={20} />
+                          <Shield size={20} style={{ opacity: 0.5 }} />
                         )}
                       </strong>
                       <div className="match-meta-admin">
