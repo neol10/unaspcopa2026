@@ -39,6 +39,13 @@ const Home: React.FC = () => {
     return scheduled.length > 0 ? scheduled[0] : null;
   }, [matches]);
 
+  const lastFinishedMatch = useMemo<Match | null>(() => {
+    const finished = matches
+      .filter(m => m.status === 'finalizado')
+      .sort((a, b) => new Date(b.match_date).getTime() - new Date(a.match_date).getTime());
+    return finished.length > 0 ? finished[0] : null;
+  }, [matches]);
+
   const liveMatch = useMemo<Match | null>(() => matches.find(m => m.status === 'ao_vivo') || null, [matches]);
   const { events: liveEvents } = useMatchEvents(liveMatch?.id || '');
   const latestLiveEvent = liveEvents?.[0];
@@ -53,7 +60,11 @@ const Home: React.FC = () => {
 
     // Home doesn't have the full players list here; use match context.
     const matchup = liveMatch ? `${liveMatch.teams_a?.name || 'Equipe A'} x ${liveMatch.teams_b?.name || 'Equipe B'}` : 'GOL!';
-    emitGoalOverlay({ team: matchup, player: latestLiveEvent.players?.name || 'Jogador' });
+    emitGoalOverlay({
+      team: matchup,
+      player: latestLiveEvent.players?.name || 'Jogador',
+      playerPhotoUrl: latestLiveEvent.players?.photo_url,
+    });
     setLastOverlayEventId(latestLiveEvent.id || null);
   }, [latestLiveEvent, lastOverlayEventId, liveMatch]);
 
@@ -88,6 +99,13 @@ const Home: React.FC = () => {
     const d = new Date(value);
     if (Number.isNaN(d.getTime())) return '';
     return d.toLocaleDateString('pt-BR');
+  };
+
+  const formatMatchShort = (value?: string | null) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
   };
 
   const newsCards = (() => {
@@ -209,8 +227,8 @@ const Home: React.FC = () => {
                 <span className="ticker-time">{latestLiveEvent.minute}'</span>
                 <span className="ticker-text">
                   {latestLiveEvent.event_type === 'gol' ? '⚽ GOL!' : 
-                   latestLiveEvent.event_type === 'amarelo' ? '🟨 Card' :
-                   latestLiveEvent.event_type === 'vermelho' ? '🟥 Card' : '📢'} {latestLiveEvent.players?.name || ''}
+                   latestLiveEvent.event_type === 'amarelo' ? '🟨 Cartao' :
+                   latestLiveEvent.event_type === 'vermelho' ? '🟥 Cartao' : '📢'} {latestLiveEvent.players?.name || ''}
                 </span>
               </div>
             )}
@@ -325,6 +343,75 @@ const Home: React.FC = () => {
           </div>
         </motion.div>
       </section>
+
+      <motion.section
+        className="day-snapshot-section"
+        initial={{ opacity: 0, y: 24 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.6 }}
+      >
+        <div className="section-head-v2">
+          <Calendar size={22} color="var(--accent-blue)" />
+          <h2>Momentos do dia</h2>
+          <button className="btn-view-all" onClick={() => navigate('/jogos')}>
+            Ver agenda <ArrowRight size={14} />
+          </button>
+        </div>
+
+        <div className="day-snapshot-grid">
+          <div className="snapshot-card glass" onClick={() => navigate('/jogos')}>
+            <span className="snapshot-label">Resultado recente</span>
+            {lastFinishedMatch ? (
+              <>
+                <strong className="snapshot-title">
+                  {lastFinishedMatch.teams_a?.name || 'Equipe A'} x {lastFinishedMatch.teams_b?.name || 'Equipe B'}
+                </strong>
+                <div className="snapshot-score">
+                  <span>{lastFinishedMatch.team_a_score}</span>
+                  <span className="snapshot-sep">:</span>
+                  <span>{lastFinishedMatch.team_b_score}</span>
+                </div>
+                <span className="snapshot-meta">
+                  {formatMatchShort(lastFinishedMatch.match_date)} · {lastFinishedMatch.location || 'Local a definir'}
+                </span>
+              </>
+            ) : (
+              <p className="snapshot-empty">Sem resultados finalizados ainda.</p>
+            )}
+          </div>
+
+          <div className="snapshot-card glass" onClick={() => navigate('/central-da-partida')}>
+            <span className="snapshot-label">Proximo jogo</span>
+            {nextMatch ? (
+              <>
+                <strong className="snapshot-title">
+                  {nextMatch.teams_a?.name || 'Equipe A'} x {nextMatch.teams_b?.name || 'Equipe B'}
+                </strong>
+                <span className="snapshot-meta">
+                  {formatMatchShort(nextMatch.match_date)} · {nextMatch.location || 'Local a definir'}
+                </span>
+                <span className="snapshot-cta">Acompanhar detalhes</span>
+              </>
+            ) : (
+              <p className="snapshot-empty">Agenda em atualizacao.</p>
+            )}
+          </div>
+
+          <div className="snapshot-card glass" onClick={() => navigate('/classificacao')}>
+            <span className="snapshot-label">Lider do momento</span>
+            {topTeams[0] ? (
+              <>
+                <strong className="snapshot-title">{topTeams[0].team_name}</strong>
+                <span className="snapshot-meta">{topTeams[0].points} pts · {topTeams[0].wins} vitorias</span>
+                <span className="snapshot-cta">Ver classificacao</span>
+              </>
+            ) : (
+              <p className="snapshot-empty">Classificacao em breve.</p>
+            )}
+          </div>
+        </div>
+      </motion.section>
 
       {/* Destaques do Campeonato */}
       {!rankingsLoading && (scorers.length > 0 || assistants.length > 0 || galeraRank.length > 0) && (

@@ -1,6 +1,7 @@
 export type GoalOverlayPayload = {
   team: string;
   player: string;
+  playerPhotoUrl?: string;
 };
 
 const EVENT_NAME = 'copaunasp:goal';

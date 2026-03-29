@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Home, Trophy, BarChart2, Users, Settings, Timer, Sun, Moon, Menu, X, LogIn, User, LogOut, Calendar, Bell, BellOff } from 'lucide-react';
@@ -34,6 +34,21 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
 
   const showAdminNav = role === 'admin' || location.pathname.startsWith('/admin');
+
+  const liveMatch = useMemo(() => (matches || []).find((m) => m.status === 'ao_vivo') || null, [matches]);
+  const nextMatch = useMemo(() => {
+    const upcoming = (matches || [])
+      .filter((m) => m.status === 'agendado' && new Date(m.match_date).getTime() > Date.now())
+      .sort((a, b) => new Date(a.match_date).getTime() - new Date(b.match_date).getTime());
+    return upcoming[0] || null;
+  }, [matches]);
+
+  const formatMatchDatetime = (value?: string | null) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -108,6 +123,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               <div className="goal-icon-container">
                 <span className="goal-ball-emoji">⚽</span>
               </div>
+              {goalOverlay.playerPhotoUrl && (
+                <div className="goal-player-photo">
+                  <img src={goalOverlay.playerPhotoUrl} alt={goalOverlay.player} loading="eager" />
+                </div>
+              )}
               <h1 className="goal-text">GOOOOOOOL!</h1>
               <div className="goal-details">
                 <span className="goal-team">{goalOverlay.team}</span>
@@ -344,6 +364,32 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </header>
 
         <div className={`nav-overlay ${isMobileMenuOpen ? 'show' : ''}`} onClick={closeMobileMenu}></div>
+
+        {(liveMatch || nextMatch) && (
+          <div className={`context-bar glass ${liveMatch ? 'is-live' : 'is-next'}`}>
+            <div className="context-left">
+              <span className={`context-pill ${liveMatch ? 'live' : 'next'}`}>
+                {liveMatch ? 'AO VIVO' : 'PROXIMO JOGO'}
+              </span>
+              <div className="context-main">
+                <strong>
+                  {(liveMatch || nextMatch)?.teams_a?.name || 'Equipe A'} x {(liveMatch || nextMatch)?.teams_b?.name || 'Equipe B'}
+                </strong>
+                <span>
+                  {formatMatchDatetime((liveMatch || nextMatch)?.match_date)} · {(liveMatch || nextMatch)?.location || 'Local a definir'}
+                </span>
+              </div>
+            </div>
+            <div className="context-actions">
+              <button
+                className="context-btn"
+                onClick={() => navigate(liveMatch ? '/central-da-partida' : '/jogos')}
+              >
+                {liveMatch ? 'Assistir ao vivo' : 'Ver agenda'}
+              </button>
+            </div>
+          </div>
+        )}
 
         <main className="content">
           {children}

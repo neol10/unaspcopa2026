@@ -1803,6 +1803,11 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       description: 'O cronômetro será pausado e a partida será encerrada.',
       variant: 'warning'
     }))) return;
+    if (!(await confirmAction({
+      title: 'Confirmar Fim de Jogo',
+      description: 'Esta acao encerra a partida e deve ser usada somente ao final. Deseja continuar?',
+      variant: 'warning'
+    }))) return;
 
     try {
       const start = match.timer_started_at ? new Date(match.timer_started_at).getTime() : Date.now();
@@ -1817,6 +1822,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         timer_offset_seconds: finalOffset,
         status: 'finalizado'
       }).eq('id', match.id);
+      updateOptimisticMatch({ is_timer_running: false, timer_started_at: null, timer_offset_seconds: finalOffset, status: 'finalizado' });
       if (error) throw error;
 
       await supabase.from('match_events').insert({
@@ -2171,6 +2177,37 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
     return stats;
   }, [events, match.team_a_score, match.team_b_score, playersA, playersB]);
 
+  const liveStatus = useMemo(() => {
+    if (match.status === 'finalizado') return { label: 'Finalizado', tone: 'final' };
+    if (isActive) return { label: 'Em jogo', tone: 'live' };
+    const endedFirstHalf = events.some(e => e.event_type === 'comentario' && e.commentary?.includes('Fim do 1º Tempo'));
+    const startedSecondHalf = events.some(e => e.event_type === 'comentario' && e.commentary?.includes('Início do 2º Tempo'));
+    if (endedFirstHalf && !startedSecondHalf) return { label: 'Intervalo', tone: 'break' };
+    if (hasStarted) return { label: 'Pausado', tone: 'paused' };
+    return { label: 'Aguardando', tone: 'idle' };
+  }, [events, hasStarted, isActive, match.status]);
+
+  const formatEventSummary = (event?: MatchEvent) => {
+    if (!event) return 'Nenhum lance ainda';
+    if (event.event_type === 'gol') {
+      const suffix = event.commentary?.includes('[CONTRA]')
+        ? ' (contra)'
+        : event.commentary?.includes('[PENALTI]')
+          ? ' (penalti)'
+          : '';
+      return `Gol ${event.players?.name || ''}${suffix}`.trim();
+    }
+    if (event.event_type === 'amarelo') return `Cartao amarelo ${event.players?.name || ''}`.trim();
+    if (event.event_type === 'vermelho') return `Cartao vermelho ${event.players?.name || ''}`.trim();
+    if (event.event_type === 'substituicao') return `Substituicao ${event.players?.name || ''}`.trim();
+    if (event.event_type === 'momento') return event.commentary || 'Momento da partida';
+    if (event.event_type === 'comentario') return event.commentary || 'Comentario';
+    return event.event_type;
+  };
+
+  const lastEvent = events[0];
+  const lastEventSummary = formatEventSummary(lastEvent);
+
   return (
     <div className="live-event-panel-wrapper">
       {/* Goal Wizard Modal */}
@@ -2256,6 +2293,9 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
              <div className="sb-pro-timer-display glass">
                 <span className={isActive ? 'timer-running' : ''}>{formatTime(seconds)}</span>
              </div>
+             <div className={`live-status-badge ${liveStatus.tone}`}>
+              {liveStatus.label}
+             </div>
               <div className="sb-pro-timer-controls">
                   {!match.is_timer_running ? (
                     <button className="timer-btn start" onClick={hasStarted ? handleRetomar : handleStartTimer} disabled={match.status === 'finalizado'}>
@@ -2275,6 +2315,9 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                     <Flag size={16} /> FIM DE JOGO
                   </button>
               </div>
+              <div className="live-shortcuts-tip">
+                Ctrl+Espaco: iniciar/pausar/retomar | Alt+1..6: tipos de evento
+              </div>
           </div>
 
           {/* Equipe B */}
@@ -2290,8 +2333,37 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         
         <div className="sb-pro-footer">
            <button className="btn-undo-last-pro" onClick={undoLastEvent} disabled={events.length === 0}>
-             <RotateCcw size={14} /> DESFAZER ÚLTIMA AÇÃO
+             <RotateCcw size={14} />
+             <span className="btn-undo-text">
+               <span className="btn-undo-title">Desfazer ultima acao</span>
+               <span className="btn-undo-preview">{lastEventSummary}</span>
+             </span>
            </button>
+        </div>
+      </div>
+
+      <div className="live-mini-summary glass">
+        <div className="live-mini-header">
+          <h6>Resumo ao vivo</h6>
+          <span className="live-mini-score">{match.team_a_score} x {match.team_b_score}</span>
+        </div>
+        <div className="live-mini-grid">
+          <div className="live-mini-col">
+            <span className="live-mini-team">{match.teams_a?.name || 'Equipe A'}</span>
+            <div className="live-mini-row"><span>Gols</span><strong>{finalStats.a.goals}</strong></div>
+            <div className="live-mini-row"><span>Assistencias</span><strong>{finalStats.a.assists}</strong></div>
+            <div className="live-mini-row"><span>Amarelos</span><strong>{finalStats.a.yellows}</strong></div>
+            <div className="live-mini-row"><span>Vermelhos</span><strong>{finalStats.a.reds}</strong></div>
+            <div className="live-mini-row"><span>Gols contra</span><strong>{finalStats.a.ownGoals}</strong></div>
+          </div>
+          <div className="live-mini-col">
+            <span className="live-mini-team">{match.teams_b?.name || 'Equipe B'}</span>
+            <div className="live-mini-row"><span>Gols</span><strong>{finalStats.b.goals}</strong></div>
+            <div className="live-mini-row"><span>Assistencias</span><strong>{finalStats.b.assists}</strong></div>
+            <div className="live-mini-row"><span>Amarelos</span><strong>{finalStats.b.yellows}</strong></div>
+            <div className="live-mini-row"><span>Vermelhos</span><strong>{finalStats.b.reds}</strong></div>
+            <div className="live-mini-row"><span>Gols contra</span><strong>{finalStats.b.ownGoals}</strong></div>
+          </div>
         </div>
       </div>
 

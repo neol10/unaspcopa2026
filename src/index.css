@@ -110,6 +110,15 @@ button {
   transition: var(--transition-fast);
 }
 
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
+}
+
 /* FIFA 2026 Brand Streak */
 .fifa-streak {
   height: 4px;

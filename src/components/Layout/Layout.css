@@ -74,6 +74,23 @@
   animation: ball-spin 3s linear infinite;
 }
 
+.goal-player-photo {
+  width: clamp(70px, 16vw, 120px);
+  height: clamp(70px, 16vw, 120px);
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4), 0 0 25px rgba(251, 191, 36, 0.35);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.goal-player-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 @keyframes ball-spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
@@ -507,6 +524,90 @@
   height: 3px;
 }
 
+.context-bar {
+  margin: 1.5rem 3rem 0;
+  padding: 1rem 1.5rem;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(15, 23, 42, 0.6));
+}
+
+.context-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.context-pill {
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  flex-shrink: 0;
+}
+
+.context-pill.live {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.context-pill.next {
+  color: var(--secondary);
+  background: rgba(251, 191, 36, 0.15);
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
+.context-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.context-main strong {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.context-main span {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  font-weight: 700;
+}
+
+.context-actions {
+  display: flex;
+  align-items: center;
+}
+
+.context-btn {
+  background: var(--secondary);
+  color: #0a0a0a;
+  border-radius: 12px;
+  padding: 0.6rem 1.1rem;
+  font-weight: 900;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.context-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(251, 191, 36, 0.3);
+}
+
 .content {
   flex: 1;
   padding: 1.5rem 3rem 3rem;
@@ -568,6 +669,10 @@
   .content {
     padding: 1.25rem 1.5rem 1.75rem;
   }
+
+  .context-bar {
+    margin: 1rem 1.5rem 0;
+  }
 }
 
 @media (max-width: 768px) {
@@ -608,6 +713,21 @@
     padding: 0.65rem 0.75rem 1.5rem;
     max-width: 100vw;
     box-sizing: border-box;
+  }
+
+  .context-bar {
+    margin: 0.75rem 0.75rem 0;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .context-actions {
+    width: 100%;
+  }
+
+  .context-btn {
+    width: 100%;
+    text-align: center;
   }
 
   .mobile-menu-btn {

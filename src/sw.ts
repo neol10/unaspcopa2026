@@ -40,18 +40,16 @@ self.addEventListener('push', (event) => {
 
   const computedTag =
     pushMeta.tag ||
-    `copa-unasp-${pushMeta.category || 'general'}-${pushMeta.sentAt || Date.now()}`;
+    `copa-unasp-${pushMeta.category || 'general'}`; // Removido timestamp para permitir substituição de notificações idênticas/atrasadas
 
   const options: NotificationOptions = {
     body: data.body,
     icon: data.icon && data.icon.startsWith('http') ? data.icon : new URL('/icon-192.png', self.location.origin).href,
-    badge: new URL('/icon-192.png', self.location.origin).href, // Badge deve ser PNG para melhor suporte Android
+    badge: new URL('/icon-192.png', self.location.origin).href,
     vibrate: [200, 100, 200, 100, 200, 100, 400] as number[],
-    // Evita colapsar várias notificações no Android usando uma tag única se necessário, 
-    // ou agrupa pela mesma categoria.
     tag: computedTag,
     renotify: true,
-    requireInteraction: true, // Garante visibilidade no Android 13+
+    requireInteraction: true,
     silent: false,
     data: {
       url: data.url || '/',
@@ -59,28 +57,35 @@ self.addEventListener('push', (event) => {
     actions: [{ action: 'open', title: 'Ver Agora 🏆' }],
   } as NotificationOptions;
 
-  // Sempre mostra a notificação nativa do sistema (garante entrega no Android)
+  // Lógica inteligente: evita "spam" se o usuário já estiver com o app aberto e focado
   event.waitUntil(
-    Promise.all([
-      // 1. Sempre exibe notificação nativa — confiável em background/Android
-      self.registration.showNotification(data.title, options),
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      const isAppFocused = clients.some((c) => c.visibilityState === 'visible');
 
-      // 2. Notifica abas abertas para mostrarem o Toast do React
-      self.clients.matchAll({ type: 'window' }).then((clients) => {
-        for (const client of clients) {
-          client.postMessage({
-            type: 'PUSH_NOTIFICATION',
-            payload: {
-              title: data.title,
-              body: data.body,
-              url: data.url || '/',
-              icon: data.icon,
-              category: pushMeta.category
-            }
-          });
-        }
-      })
-    ])
+      const tasks: Promise<any>[] = [];
+
+      // 1. Sempre notifica as abas para o Toast interno do React
+      for (const client of clients) {
+        client.postMessage({
+          type: 'PUSH_NOTIFICATION',
+          payload: {
+            title: data.title,
+            body: data.body,
+            url: data.url || '/',
+            icon: data.icon,
+            category: pushMeta.category
+          }
+        });
+      }
+
+      // 2. Só exibe a notificação nativa do sistema (banner) se o app NÃO estiver visível
+      // Isso evita o "double notification" relatado pelo usuário.
+      if (!isAppFocused) {
+        tasks.push(self.registration.showNotification(data.title, options));
+      }
+
+      return Promise.all(tasks);
+    })
   );
 });
 

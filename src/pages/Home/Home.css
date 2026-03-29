@@ -385,6 +385,83 @@
   gap: 1.5rem;
 }
 
+.day-snapshot-section {
+  padding: 0 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.day-snapshot-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+
+.snapshot-card {
+  padding: 1.5rem;
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  content-visibility: auto;
+  contain-intrinsic-size: 260px 150px;
+}
+
+.snapshot-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--secondary);
+}
+
+.snapshot-label {
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+
+.snapshot-title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.snapshot-score {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.8rem;
+  font-weight: 900;
+  color: var(--text-main);
+}
+
+.snapshot-sep {
+  color: var(--secondary);
+  font-size: 1.2rem;
+}
+
+.snapshot-meta {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  font-weight: 700;
+}
+
+.snapshot-cta {
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--secondary);
+}
+
+.snapshot-empty {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
 .btn-premium {
   background: linear-gradient(135deg, var(--gold-main) 0%, #d97706 100%);
   color: black;
@@ -436,6 +513,8 @@
   transition: all 0.3s ease;
   cursor: pointer;
   border: 1px solid var(--border-light);
+  content-visibility: auto;
+  contain-intrinsic-size: 240px 140px;
 }
 
 .highlight-card:hover {
@@ -507,6 +586,7 @@
 
 @media (max-width: 900px) {
   .highlights-grid { grid-template-columns: 1fr; }
+  .day-snapshot-grid { grid-template-columns: 1fr; }
 }
 
 /* Podium Section */
@@ -753,6 +833,8 @@
   transition: var(--transition-normal);
   cursor: pointer;
   position: relative;
+  content-visibility: auto;
+  contain-intrinsic-size: 280px 200px;
 }
 
 .podium-card:hover {
@@ -834,6 +916,8 @@
   border-radius: 20px;
   cursor: pointer;
   transition: var(--transition-smooth);
+  content-visibility: auto;
+  contain-intrinsic-size: 320px 160px;
 }
 
 .news-card-v2:hover {

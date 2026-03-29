@@ -12,7 +12,7 @@ export interface MatchEvent {
   minute: number;
   assistant_id?: string | null;
   commentary?: string;
-  players?: { name: string };
+  players?: { name: string; photo_url?: string };
 }
 
 type EventRow = Omit<MatchEvent, 'players'> & { created_at?: string };
@@ -66,11 +66,14 @@ export const useMatchEvents = (matchId: string, onNewEvent?: (event: MatchEvent)
       const rows = (data as EventRow[]) || [];
       const playerIds = Array.from(new Set(rows.map((row) => row.player_id).filter(Boolean))) as string[];
 
-      let playerMap: Record<string, { name: string }> = {};
+      let playerMap: Record<string, { name: string; photo_url?: string }> = {};
       if (playerIds.length > 0) {
-        const { data: playersData } = await supabase.from('players').select('id, name').in('id', playerIds);
+        const { data: playersData } = await supabase.from('players').select('id, name, photo_url').in('id', playerIds);
         if (playersData) {
-          playerMap = Object.fromEntries(playersData.map((p) => [p.id as string, { name: String(p.name || 'Atleta') }]));
+          playerMap = Object.fromEntries(playersData.map((p) => [
+            p.id as string,
+            { name: String(p.name || 'Atleta'), photo_url: p.photo_url || undefined },
+          ]));
         }
       }
 
@@ -101,10 +104,10 @@ export const useMatchEvents = (matchId: string, onNewEvent?: (event: MatchEvent)
         if (payload.eventType === 'INSERT' && onNewEventRef.current) {
           const eventData = payload.new as EventRow;
           if (eventData.player_id) {
-            supabase.from('players').select('name').eq('id', eventData.player_id).single().then(({ data }) => {
+            supabase.from('players').select('name, photo_url').eq('id', eventData.player_id).single().then(({ data }) => {
               onNewEventRef.current?.({
                 ...eventData,
-                players: { name: String(data?.name || 'Atleta') },
+                players: { name: String(data?.name || 'Atleta'), photo_url: data?.photo_url || undefined },
               } as MatchEvent);
             });
           } else {

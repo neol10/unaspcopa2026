@@ -49,6 +49,9 @@ const MatchCenter: React.FC = () => {
 
     if (event.event_type === 'gol') {
       const playerName = event.players?.name || 'Desconhecido';
+      const playerPhotoUrl = event.player_id
+        ? players.find(p => p.id === event.player_id)?.photo_url
+        : undefined;
       const teamName = event.player_id && players.find(p => p.id === event.player_id)?.team_id === activeMatch?.team_a_id 
         ? activeMatch?.teams_a?.name 
         : activeMatch?.teams_b?.name;
@@ -56,7 +59,7 @@ const MatchCenter: React.FC = () => {
       toast.success(`⚽ GOOOOL! ${playerName}`);
       
       // Trigger Global Premium Overlay
-      emitGoalOverlay({ team: teamName || 'GOL!', player: playerName });
+      emitGoalOverlay({ team: teamName || 'GOL!', player: playerName, playerPhotoUrl });
 
     } else if (event.event_type === 'amarelo') {
       toast(`🟨 Cartão Amarelo para ${event.players?.name || ''}`, { icon: '🟨' });
