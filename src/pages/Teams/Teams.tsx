@@ -117,7 +117,20 @@ const Teams: React.FC = () => {
 
       <div className="teams-grid-v2">
         {teams.map((team) => (
-          <div key={team.id} className="team-card-v2 glass" onClick={() => navigate(`/equipes/${team.id}`)}>
+          <div
+            key={team.id}
+            className="team-card-v2 glass"
+            onClick={() => navigate(`/equipes/${team.id}`)}
+            role="button"
+            tabIndex={0}
+            aria-label={`Abrir equipe ${team.name}`}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                navigate(`/equipes/${team.id}`);
+              }
+            }}
+          >
             <div className="card-top">
               <span className="team-pill">{team.group}</span>
             </div>
@@ -147,7 +160,7 @@ const Teams: React.FC = () => {
             </div>
 
             <div className="card-footer">
-              <button className="btn-explore">
+              <button className="btn-explore" type="button">
                 Ver Elenco Completo
               </button>
             </div>

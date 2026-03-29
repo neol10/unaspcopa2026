@@ -60,6 +60,8 @@
   background: linear-gradient(135deg, rgba(251, 191, 36, 0.05), rgba(17, 25, 40, 0.95));
   border: 1px solid rgba(251, 191, 36, 0.1);
   min-height: 280px;
+  content-visibility: auto;
+  contain-intrinsic-size: 320px 260px;
 }
 
 .panel-header-v2 {
@@ -233,6 +235,8 @@
   gap: 1.5rem;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  content-visibility: auto;
+  contain-intrinsic-size: 320px 320px;
 }
 
 .panel-header {
@@ -414,6 +418,8 @@
   padding: 3rem 1rem;
   margin-bottom: 2rem;
   min-height: 420px;
+  content-visibility: auto;
+  contain-intrinsic-size: 320px 360px;
 }
 
 .podium-item {

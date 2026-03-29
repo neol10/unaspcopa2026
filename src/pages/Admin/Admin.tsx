@@ -2699,113 +2699,113 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         </div>
       )}
 
-      {/* Craque do Jogo - NOVO */}
-      <div className="mvp-selection-admin">
-        <div className="mvp-admin-header">
-          <h6>⭐ Definir Craque do Jogo</h6>
+      {match.status === 'finalizado' && (
+        <div className="mvp-selection-admin">
+          <div className="mvp-admin-header">
+            <h6>⭐ Definir Craque do Jogo</h6>
+            <button 
+              className="btn-suggest-mvp" 
+              onClick={() => {
+                const stats: Record<string, { points: number, goals: number, firstEvent: number }> = {};
+                
+                events.forEach(ev => {
+                  if (ev.event_type === 'gol') {
+                    if (!ev.player_id) return;
+                    // Gols (ignorando contra-gols que têm [CONTRA] no comentário)
+                    const isOwnGoal = ev.commentary?.includes('[CONTRA]');
+                    if (!isOwnGoal) {
+                      if (!stats[ev.player_id]) stats[ev.player_id] = { points: 0, goals: 0, firstEvent: ev.minute };
+                      stats[ev.player_id].points += 1;
+                      stats[ev.player_id].goals += 1;
+                      if (ev.minute < stats[ev.player_id].firstEvent) stats[ev.player_id].firstEvent = ev.minute;
+                    }
+                    // Assistências via evento direto ou metadado de gol
+                    const assId = ev.assistant_id;
+                    if (assId) {
+                      if (!stats[assId]) stats[assId] = { points: 0, goals: 0, firstEvent: ev.minute };
+                      stats[assId].points += 1;
+                      if (ev.minute < stats[assId].firstEvent) stats[assId].firstEvent = ev.minute;
+                    }
+                  }
+                });
+
+                const sorted = Object.entries(stats).sort(([, a], [, b]) => {
+                  if (b.points !== a.points) return b.points - a.points;
+                  if (b.goals !== a.goals) return b.goals - a.goals;
+                  return a.firstEvent - b.firstEvent;
+                });
+
+                if (sorted.length > 0) {
+                  const [bestId, bestStats] = sorted[0];
+                  const player = [...playersA, ...playersB].find(p => p.id === bestId);
+                  if (player) {
+                    setMvpData({
+                      player_id: bestId,
+                      description: `${bestStats.goals} Gol(s) e ${bestStats.points - bestStats.goals} Assistência(s)`
+                    });
+                  }
+                } else {
+                  toast.error('Nenhum gol ou assistência registrado nesta partida para sugerir.');
+                }
+              }}
+            >
+              ⭐ Sugerir por Estatísticas
+            </button>
+          </div>
+          <div className="form-grid">
+            <div className="form-group">
+              <label>Jogador Destaque</label>
+              <select 
+                className="mvp-player-select"
+                value={mvpData.player_id}
+                onChange={e => setMvpData({ ...mvpData, player_id: e.target.value })}
+              >
+                <option value="">Selecione o craque...</option>
+                {playersA.length > 0 && (
+                  <optgroup label={match.teams_a?.name}>
+                    {(playersA || []).map(p => <option key={p.id} value={p.id}>{p.number}. {p.name}</option>)}
+                  </optgroup>
+                )}
+                {playersB.length > 0 && (
+                  <optgroup label={match.teams_b?.name}>
+                    {(playersB || []).map(p => <option key={p.id} value={p.id}>{p.number}. {p.name}</option>)}
+                  </optgroup>
+                )}
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Por que foi o craque? (Opcional)</label>
+              <input 
+                type="text"
+                className="mvp-desc-input"
+                placeholder="Ex: 2 gols e comandou o meio-campo"
+                value={mvpData.description}
+                onChange={e => setMvpData({ ...mvpData, description: e.target.value })}
+              />
+            </div>
+          </div>
           <button 
-            className="btn-suggest-mvp" 
-            onClick={() => {
-              const stats: Record<string, { points: number, goals: number, firstEvent: number }> = {};
-              
-              events.forEach(ev => {
-                if (ev.event_type === 'gol') {
-                  if (!ev.player_id) return;
-                  // Gols (ignorando contra-gols que têm [CONTRA] no comentário)
-                  const isOwnGoal = ev.commentary?.includes('[CONTRA]');
-                  if (!isOwnGoal) {
-                    if (!stats[ev.player_id]) stats[ev.player_id] = { points: 0, goals: 0, firstEvent: ev.minute };
-                    stats[ev.player_id].points += 1;
-                    stats[ev.player_id].goals += 1;
-                    if (ev.minute < stats[ev.player_id].firstEvent) stats[ev.player_id].firstEvent = ev.minute;
-                  }
-                  // Assistências via evento direto ou metadado de gol
-                  const assId = ev.assistant_id;
-                  if (assId) {
-                    if (!stats[assId]) stats[assId] = { points: 0, goals: 0, firstEvent: ev.minute };
-                    stats[assId].points += 1;
-                    if (ev.minute < stats[assId].firstEvent) stats[assId].firstEvent = ev.minute;
-                  }
-                }
-              });
-
-              const sorted = Object.entries(stats).sort(([, a], [, b]) => {
-                if (b.points !== a.points) return b.points - a.points;
-                if (b.goals !== a.goals) return b.goals - a.goals;
-                return a.firstEvent - b.firstEvent;
-              });
-
-              if (sorted.length > 0) {
-                const [bestId, bestStats] = sorted[0];
-                const player = [...playersA, ...playersB].find(p => p.id === bestId);
-                if (player) {
-                  setMvpData({
-                    player_id: bestId,
-                    description: `${bestStats.goals} Gol(s) e ${bestStats.points - bestStats.goals} Assistência(s)`
-                  });
-                }
-              } else {
-                toast.error('Nenhum gol ou assistência registrado nesta partida para sugerir.');
+            className="btn-save" 
+            onClick={async () => {
+              try {
+                const { error } = await supabase.from('matches')
+                  .update({ 
+                    match_mvp_player_id: mvpData.player_id || null,
+                    match_mvp_description: mvpData.description 
+                  })
+                  .eq('id', match.id);
+                if (error) throw error;
+                setMvpSaved(true);
+                setTimeout(() => setMvpSaved(false), 2000);
+              } catch (err: unknown) {
+                toast.error(getErrorMessage(err, 'Erro ao salvar craque do jogo'));
               }
             }}
           >
-            ⭐ Sugerir por Estatísticas
+            {mvpSaved ? <><CheckCircle size={18} /> Salvo!</> : <><Save size={18} /> Salvar Craque do Jogo</>}
           </button>
         </div>
-        <div className="form-grid">
-          <div className="form-group">
-            <label>Jogador Destaque</label>
-            <select 
-              className="mvp-player-select"
-              value={mvpData.player_id}
-              onChange={e => setMvpData({ ...mvpData, player_id: e.target.value })}
-            >
-              <option value="">Selecione o craque...</option>
-              {playersA.length > 0 && (
-                <optgroup label={match.teams_a?.name}>
-                  {(playersA || []).map(p => <option key={p.id} value={p.id}>{p.number}. {p.name}</option>)}
-                </optgroup>
-              )}
-              {playersB.length > 0 && (
-                <optgroup label={match.teams_b?.name}>
-                  {(playersB || []).map(p => <option key={p.id} value={p.id}>{p.number}. {p.name}</option>)}
-                </optgroup>
-              )}
-            </select>
-          </div>
-          <div className="form-group">
-            <label>Por que foi o craque? (Opcional)</label>
-            <input 
-              type="text"
-              className="mvp-desc-input"
-              placeholder="Ex: 2 gols e comandou o meio-campo"
-              value={mvpData.description}
-              onChange={e => setMvpData({ ...mvpData, description: e.target.value })}
-            />
-          </div>
-        </div>
-        <button 
-          className="btn-save" 
-          onClick={async () => {
-            try {
-              const { error } = await supabase.from('matches')
-                .update({ 
-                  match_mvp_player_id: mvpData.player_id || null,
-                  match_mvp_description: mvpData.description 
-                })
-                .eq('id', match.id);
-              if (error) throw error;
-              setMvpSaved(true);
-              setTimeout(() => setMvpSaved(false), 2000);
-            } catch (err: unknown) {
-              toast.error(getErrorMessage(err, 'Erro ao salvar craque do jogo'));
-            }
-          }}
-
-        >
-          {mvpSaved ? <><CheckCircle size={18} /> Salvo!</> : <><Save size={18} /> Salvar Craque do Jogo</>}
-        </button>
-      </div>
+      )}
       {ConfirmElement}
     </div>
   );

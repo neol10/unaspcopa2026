@@ -3000,6 +3000,119 @@
   margin-bottom: 0.75rem;
 }
 
+/* RESPONSIVIDADE DO PLACAR E MVP */
+@media (max-width: 650px) {
+  .admin-scoreboard-pro {
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .sb-pro-main {
+    flex-direction: column !important;
+    gap: 1.25rem;
+  }
+
+  /* Inverter ordem no mobile se estiver trocado? No, melhor manter consistente */
+  .admin-scoreboard-pro.is-swapped .sb-pro-main {
+    flex-direction: column !important;
+  }
+
+  .sb-pro-team {
+    flex-direction: row;
+    width: 100%;
+    justify-content: center;
+    gap: 1rem;
+  }
+
+  .sb-pro-score-box {
+    padding: 0.5rem 0.8rem;
+    gap: 0.8rem;
+    order: 2;
+  }
+
+  .score-number-display {
+    font-size: 2.2rem;
+    min-width: 45px;
+  }
+
+  .score-adjust-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 1.2rem;
+  }
+
+  .sb-pro-team-name {
+    font-size: 0.8rem;
+    order: 1;
+    max-width: 120px;
+    letter-spacing: 1px;
+    text-align: right;
+  }
+
+  .team-b .sb-pro-team-name {
+    order: 3;
+    text-align: left;
+  }
+
+  .sb-pro-center {
+    order: -1; /* Timer no topo */
+    width: 100%;
+    gap: 0.8rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .sb-pro-timer-display {
+    font-size: 2rem;
+    padding: 0.6rem 1.5rem;
+  }
+
+  .sb-pro-footer {
+    margin-top: 1rem;
+    padding-top: 1rem;
+  }
+
+  .btn-undo-preview {
+    max-width: 150px;
+  }
+
+  /* MVP Section Mobile */
+  .mvp-selection-admin {
+    padding: 1rem;
+    margin-top: 1rem;
+  }
+
+  .mvp-admin-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+    text-align: center;
+  }
+
+  .mvp-admin-header h6 {
+    margin: 0;
+  }
+
+  .mvp-selection-admin .form-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 400px) {
+  .sb-pro-team {
+    gap: 0.5rem;
+  }
+  
+  .sb-pro-team-name {
+    font-size: 0.75rem;
+  }
+  
+  .score-number-display {
+    font-size: 1.8rem;
+  }
+}
+
 .live-mini-header h6 {
   font-size: 0.85rem;
   font-weight: 900;

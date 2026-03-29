@@ -154,6 +154,8 @@ const Rankings: React.FC = () => {
                   key={r} 
                   className={`round-tab ${selectedRound === r ? 'active' : ''}`}
                   onClick={() => setSelectedRound(r)}
+                  type="button"
+                  aria-pressed={selectedRound === r}
                 >
                   {r}ª R
                 </button>
@@ -162,7 +164,18 @@ const Rankings: React.FC = () => {
           </div>
 
           {roundWinner ? (
-            <div className="round-winner-card" onClick={() => setSelectedPlayer(roundWinner)}>
+            <div
+              className="round-winner-card"
+              onClick={() => setSelectedPlayer(roundWinner)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setSelectedPlayer(roundWinner);
+                }
+              }}
+            >
                <div className="winner-avatar-box">
                   {roundWinner.photo_url ? (
                     <img 
@@ -210,6 +223,14 @@ const Rankings: React.FC = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: idx * 0.15 }}
                   onClick={() => setSelectedPlayer(player)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setSelectedPlayer(player);
+                    }
+                  }}
                 >
                   <div className="podium-player-box glass">
                     <div className="podium-avatar-wrapper">
