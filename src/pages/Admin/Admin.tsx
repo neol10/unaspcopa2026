@@ -1457,6 +1457,7 @@ const MatchManagement = () => {
                   {match.status === 'agendado' && (
                     <>
                       <button className="btn-icon edit" title="Editar Partida" onClick={() => {
+                         vibrate(40);
                          setEditingMatchId(match.id);
                          setFormData({
                            team_a_id: match.team_a_id,
@@ -1467,18 +1468,18 @@ const MatchManagement = () => {
                            round: String(match.round)
                          });
                       }}><Settings2 size={18} /></button>
-                      <button className="btn-icon play" title="Começar Jogo" onClick={() => updateStatus(match.id, 'ao_vivo', match)}><Play size={18} /></button>
+                      <button className="btn-icon play" title="Começar Jogo" onClick={() => { vibrate(60); updateStatus(match.id, 'ao_vivo', match); }}><Play size={18} /></button>
                     </>
                   )}
                   {match.status === 'ao_vivo' && (
                     <>
-                      <button className="btn-live-control" onClick={() => setSelectedMatchId(selectedMatchId === match.id ? null : match.id)}>
+                      <button className="btn-live-control" onClick={() => { vibrate(40); setSelectedMatchId(selectedMatchId === match.id ? null : match.id); }}>
                         {selectedMatchId === match.id ? 'Fechar Painel' : 'Gerenciar (AO VIVO)'}
                       </button>
-                      <button className="btn-icon finish" title="Finalizar Jogo" onClick={() => updateStatus(match.id, 'finalizado', match)}><CheckCircle size={18} /></button>
+                      <button className="btn-icon finish" title="Finalizar Jogo" onClick={() => { vibrate(60); updateStatus(match.id, 'finalizado', match); }}><CheckCircle size={18} /></button>
                     </>
                   )}
-                  <button className="btn-icon delete" onClick={() => handleDeleteMatch(match.id)} title="Excluir Partida"><Trash2 size={18} /></button>
+                  <button className="btn-icon delete" onClick={() => { vibrate(80); handleDeleteMatch(match.id); }} title="Excluir Partida"><Trash2 size={18} /></button>
                 </div>
               </div>
 
