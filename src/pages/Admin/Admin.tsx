@@ -2386,30 +2386,32 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         </div>
       </div>
 
-      <div className="live-mini-summary glass">
-        <div className="live-mini-header">
-          <h6>Resumo ao vivo</h6>
-          <span className="live-mini-score">{match.team_a_score} x {match.team_b_score}</span>
-        </div>
-        <div className="live-mini-grid">
-          <div className="live-mini-col">
-            <span className="live-mini-team">{match.teams_a?.name || 'Equipe A'}</span>
-            <div className="live-mini-row"><span>Gols</span><strong>{finalStats.a.goals}</strong></div>
-            <div className="live-mini-row"><span>Assistencias</span><strong>{finalStats.a.assists}</strong></div>
-            <div className="live-mini-row"><span>Amarelos</span><strong>{finalStats.a.yellows}</strong></div>
-            <div className="live-mini-row"><span>Vermelhos</span><strong>{finalStats.a.reds}</strong></div>
-            <div className="live-mini-row"><span>Gols contra</span><strong>{finalStats.a.ownGoals}</strong></div>
+      {match.status === 'finalizado' && (
+        <div className="live-mini-summary glass">
+          <div className="live-mini-header">
+            <h6>Resumo final</h6>
+            <span className="live-mini-score">{match.team_a_score} x {match.team_b_score}</span>
           </div>
-          <div className="live-mini-col">
-            <span className="live-mini-team">{match.teams_b?.name || 'Equipe B'}</span>
-            <div className="live-mini-row"><span>Gols</span><strong>{finalStats.b.goals}</strong></div>
-            <div className="live-mini-row"><span>Assistencias</span><strong>{finalStats.b.assists}</strong></div>
-            <div className="live-mini-row"><span>Amarelos</span><strong>{finalStats.b.yellows}</strong></div>
-            <div className="live-mini-row"><span>Vermelhos</span><strong>{finalStats.b.reds}</strong></div>
-            <div className="live-mini-row"><span>Gols contra</span><strong>{finalStats.b.ownGoals}</strong></div>
+          <div className="live-mini-grid">
+            <div className="live-mini-col">
+              <span className="live-mini-team">{match.teams_a?.name || 'Equipe A'}</span>
+              <div className="live-mini-row"><span>Gols</span><strong>{finalStats.a.goals}</strong></div>
+              <div className="live-mini-row"><span>Assistencias</span><strong>{finalStats.a.assists}</strong></div>
+              <div className="live-mini-row"><span>Amarelos</span><strong>{finalStats.a.yellows}</strong></div>
+              <div className="live-mini-row"><span>Vermelhos</span><strong>{finalStats.a.reds}</strong></div>
+              <div className="live-mini-row"><span>Gols contra</span><strong>{finalStats.a.ownGoals}</strong></div>
+            </div>
+            <div className="live-mini-col">
+              <span className="live-mini-team">{match.teams_b?.name || 'Equipe B'}</span>
+              <div className="live-mini-row"><span>Gols</span><strong>{finalStats.b.goals}</strong></div>
+              <div className="live-mini-row"><span>Assistencias</span><strong>{finalStats.b.assists}</strong></div>
+              <div className="live-mini-row"><span>Amarelos</span><strong>{finalStats.b.yellows}</strong></div>
+              <div className="live-mini-row"><span>Vermelhos</span><strong>{finalStats.b.reds}</strong></div>
+              <div className="live-mini-row"><span>Gols contra</span><strong>{finalStats.b.ownGoals}</strong></div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
 
       <div className="event-selector">

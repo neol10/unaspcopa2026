@@ -184,7 +184,7 @@ function AppContent() {
       // Som de gol (cheering) ou apito (informação)
       const url = type === 'gol' 
         ? 'https://assets.mixkit.co/active_storage/sfx/123/123-preview.mp3' 
-        : 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
+        : 'https://assets.mixkit.co/active_storage/sfx/2004/2004-preview.mp3';
       const audio = new Audio(url);
       audio.volume = 0.5;
       audio.play().catch(() => {});
