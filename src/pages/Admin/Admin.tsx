@@ -1624,6 +1624,13 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   const [mvpSaved, setMvpSaved] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [editEventMinute, setEditEventMinute] = useState<number>(0);
+  const [isSwapped, setIsSwapped] = useState(false);
+
+  const vibrate = (ms = 50) => {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(ms);
+    }
+  };
 
   const updateOptimisticMatch = (updates: Partial<Match>) => {
     queryClient.setQueryData(['matches', 'all'], (old: Match[] | undefined) => {
@@ -1690,6 +1697,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       
       if (error) throw error;
 
+      vibrate(60);
       if (isTechnical) {
         await supabase.from('match_events').insert({
           match_id: match.id,
@@ -1759,6 +1767,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         player_id: null
       });
 
+      vibrate(100);
       toast.success('Intervalo Iniciado');
     } catch (err: unknown) {
       toast.error('Erro ao iniciar intervalo');
@@ -1778,6 +1787,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         timer_started_at: nowStr
       }).eq('id', match.id);
 
+      vibrate(60);
       if (error) throw error;
 
       if (isPostInterval && !alreadyResumedStage2) {
@@ -1833,6 +1843,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         player_id: null
       });
 
+      vibrate([100, 50, 100]);
       toast.success('Partida finalizada');
       refreshEvents();
     } catch (err: unknown) {
@@ -2095,6 +2106,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
   const undoLastEvent = () => {
     if (events.length === 0) return;
+    vibrate(40);
     const lastEvent = events[0];
     removeEvent(lastEvent);
   };
@@ -2113,6 +2125,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         
         updateOptimisticMatch(updateData);
         await supabase.from('matches').update(updateData).eq('id', match.id);
+        vibrate(40);
         toast.success(`Placar ${team === 'a' ? 'A' : 'B'} ajustado!`);
       } catch (err: unknown) {
         toast.error('Erro ao ajustar placar');
@@ -2276,13 +2289,32 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       </AnimatePresence>
 
       {/* Placar Profissional Centralizado */}
-      <div className="admin-scoreboard-pro glass">
+      <div className={`admin-scoreboard-pro glass ${isSwapped ? 'is-swapped' : ''}`}>
+        <button 
+          className="btn-swap-sides" 
+          onClick={() => { setIsSwapped(!isSwapped); vibrate(30); }}
+          title="Inverter Lados (Campo Visual)"
+        >
+          <RotateCcw size={14} style={{ transform: isSwapped ? 'scaleX(-1)' : 'none' }} />
+        </button>
         <div className="sb-pro-main">
           {/* Equipe A */}
           <div className="sb-pro-team team-a">
              <div className="sb-pro-score-box">
                 <button className="score-adjust-btn minus" onClick={() => handleManualScore('a', -1)}>-</button>
-                <div className="score-number-display">{match.team_a_score}</div>
+                <div className="score-number-display">
+                  <AnimatePresence mode="wait">
+                    <motion.span
+                      key={match.team_a_score}
+                      initial={{ y: 20, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      exit={{ y: -20, opacity: 0 }}
+                      transition={{ duration: 0.3, ease: "backOut" }}
+                    >
+                      {match.team_a_score}
+                    </motion.span>
+                  </AnimatePresence>
+                </div>
                 <button className="score-adjust-btn plus" onClick={() => handleManualScore('a', 1)}>+</button>
              </div>
              <span className="sb-pro-team-name">{match.teams_a?.name || 'Equipe A'}</span>
@@ -2324,7 +2356,19 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           <div className="sb-pro-team team-b">
              <div className="sb-pro-score-box">
                 <button className="score-adjust-btn minus" onClick={() => handleManualScore('b', -1)}>-</button>
-                <div className="score-number-display">{match.team_b_score}</div>
+                <div className="score-number-display">
+                  <AnimatePresence mode="wait">
+                    <motion.span
+                      key={match.team_b_score}
+                      initial={{ y: 20, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      exit={{ y: -20, opacity: 0 }}
+                      transition={{ duration: 0.3, ease: "backOut" }}
+                    >
+                      {match.team_b_score}
+                    </motion.span>
+                  </AnimatePresence>
+                </div>
                 <button className="score-adjust-btn plus" onClick={() => handleManualScore('b', 1)}>+</button>
              </div>
              <span className="sb-pro-team-name">{match.teams_b?.name || 'Equipe B'}</span>

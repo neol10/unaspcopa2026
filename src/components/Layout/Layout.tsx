@@ -105,6 +105,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   return (
     <div className="app-container">
+      <a className="skip-link" href="#main-content">Pular para o conteudo</a>
       {/* Global Premium Goal Overlay */}
       <AnimatePresence>
         {goalOverlay && (
@@ -120,14 +121,16 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               animate={{ y: [0, -20, 0] }}
               transition={{ repeat: Infinity, duration: 2 }}
             >
-              <div className="goal-icon-container">
-                <span className="goal-ball-emoji">⚽</span>
-              </div>
-              {goalOverlay.playerPhotoUrl && (
-                <div className="goal-player-photo">
-                  <img src={goalOverlay.playerPhotoUrl} alt={goalOverlay.player} loading="eager" />
+              <div className="goal-hero-row">
+                <div className="goal-icon-container">
+                  <span className="goal-ball-emoji">⚽</span>
                 </div>
-              )}
+                {goalOverlay.playerPhotoUrl && (
+                  <div className="goal-player-photo">
+                    <img src={goalOverlay.playerPhotoUrl} alt={goalOverlay.player} loading="eager" />
+                  </div>
+                )}
+              </div>
               <h1 className="goal-text">GOOOOOOOL!</h1>
               <div className="goal-details">
                 <span className="goal-team">{goalOverlay.team}</span>
@@ -391,7 +394,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           </div>
         )}
 
-        <main className="content">
+        <main className="content" id="main-content">
           {children}
         </main>
         <footer className="footer">

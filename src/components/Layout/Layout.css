@@ -21,6 +21,25 @@
   z-index: 9999;
 }
 
+.skip-link {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: var(--secondary);
+  color: #000;
+  padding: 0.6rem 1rem;
+  border-radius: 10px;
+  font-weight: 800;
+  font-size: 0.8rem;
+  z-index: 10001;
+  transform: translateY(-150%);
+  transition: transform 0.2s ease;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
 /* Global Premium Goal Overlay */
 .goal-overlay-premium {
   position: fixed;
@@ -52,6 +71,19 @@
   align-items: center;
   justify-content: center;
   gap: 1.5rem;
+}
+
+.goal-hero-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+}
+
+.goal-icon-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .goal-text {
@@ -142,6 +174,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .goal-ball-emoji { animation: none; }
+  .confetti-container { display: none; }
+  .goal-announcement { animation: none; }
 }
 
 @keyframes rainbow-flow {

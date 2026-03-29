@@ -203,7 +203,20 @@ function AppContent() {
         }
 
         toast(() => (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div 
+            style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: '4px', 
+              cursor: event.data.payload?.url ? 'pointer' : 'default',
+              minWidth: '200px'
+            }}
+            onClick={() => {
+              if (event.data.payload?.url) {
+                window.location.href = event.data.payload.url;
+              }
+            }}
+          >
             <strong style={{ fontSize: '0.95rem' }}>{title || 'Copa UNASP'}</strong>
             <span style={{ fontSize: '0.85rem', opacity: 0.9 }}>{body}</span>
           </div>
