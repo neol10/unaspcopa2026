@@ -19,6 +19,12 @@ import './Admin.css';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const vibrate = (ms: number) => {
+  if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
+    window.navigator.vibrate(ms);
+  }
+};
+
 async function withRetry<T>(operation: () => Promise<T>, attempts: number = 2): Promise<T> {
   let lastError: unknown;
   for (let i = 0; i < attempts; i += 1) {
