@@ -26,8 +26,12 @@ const MatchCenter: React.FC = () => {
 
   useEffect(() => {
     const matchIdFromUrl = searchParams.get('id');
-    if (matchIdFromUrl && !selectedMatchId) {
-      setSelectedMatchId(matchIdFromUrl);
+    if (matchIdFromUrl) {
+      if (matchIdFromUrl !== selectedMatchId) setSelectedMatchId(matchIdFromUrl);
+      return;
+    }
+    if (!matchIdFromUrl && selectedMatchId !== null) {
+      setSelectedMatchId(null);
     }
   }, [searchParams, selectedMatchId]);
   

@@ -11,8 +11,10 @@ const Brackets: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [stuck, setStuck] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [startX, setStartX] = useState(0);
-  const [scrollLeft, setScrollLeft] = useState(0);
+  const [isPointerDown, setIsPointerDown] = useState(false);
+  const startXRef = useRef(0);
+  const scrollLeftRef = useRef(0);
+  const dragMovedRef = useRef(false);
   const [activeFilter, setActiveFilter] = useState<'all' | 'live' | 'today' | 'favorite'>('all');
   const [favoriteTeamId, setFavoriteTeamId] = useState<string | null>(null);
   const [nowTs, setNowTs] = useState(() => Date.now());
@@ -148,22 +150,45 @@ const Brackets: React.FC = () => {
   // Lógica de Mouse Drag
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!scrollRef.current) return;
-    setIsDragging(true);
-    setStartX(e.pageX - scrollRef.current.offsetLeft);
-    setScrollLeft(scrollRef.current.scrollLeft);
+    setIsPointerDown(true);
+    setIsDragging(false);
+    dragMovedRef.current = false;
+    startXRef.current = e.pageX - scrollRef.current.offsetLeft;
+    scrollLeftRef.current = scrollRef.current.scrollLeft;
   };
 
-  const handleDragEnd = () => setIsDragging(false);
+  const handleDragEnd = () => {
+    setIsPointerDown(false);
+    setIsDragging(false);
+    if (dragMovedRef.current) {
+      window.setTimeout(() => {
+        dragMovedRef.current = false;
+      }, 0);
+    } else {
+      dragMovedRef.current = false;
+    }
+  };
 
   const handleDragMove = (pageX: number) => {
-    if (!isDragging || !scrollRef.current) return;
+    if (!isPointerDown || !scrollRef.current) return;
     const x = pageX - scrollRef.current.offsetLeft;
-    const walk = (x - startX) * 2;
-    scrollRef.current.scrollLeft = scrollLeft - walk;
+    const walk = (x - startXRef.current) * 2;
+    scrollRef.current.scrollLeft = scrollLeftRef.current - walk;
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (isDragging) {
+    if (!isPointerDown || !scrollRef.current) return;
+    const x = e.pageX - scrollRef.current.offsetLeft;
+    const delta = x - startXRef.current;
+    const exceededThreshold = Math.abs(delta) > 6;
+    if (exceededThreshold && !dragMovedRef.current) {
+      dragMovedRef.current = true;
+    }
+    if (exceededThreshold && !isDragging) {
+      setIsDragging(true);
+    }
+
+    if (exceededThreshold) {
       e.preventDefault();
       handleDragMove(e.pageX);
     }
@@ -237,21 +262,26 @@ const Brackets: React.FC = () => {
       return <span className="scheduled-label">PREVISTO</span>;
     };
 
+    const openMatch = () => {
+      if (dragMovedRef.current) return;
+      navigate(`/central-da-partida?id=${match.id}`);
+    };
+
     return (
-      <div className={`bracket-match ${isKnockout ? 'knockout-item' : ''}`}>
-        <div 
-          className="match-box glass clickable-match"
-          onClick={() => navigate(`/central-da-partida?id=${match.id}`)}
-          role="button"
-          tabIndex={0}
-          aria-label={`Abrir partida ${match.teams_a?.name || 'Equipe A'} x ${match.teams_b?.name || 'Equipe B'}`}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              navigate(`/central-da-partida?id=${match.id}`);
-            }
-          }}
-        >
+      <div
+        className={`bracket-match ${isKnockout ? 'knockout-item' : ''}`}
+        onClick={openMatch}
+        role="button"
+        tabIndex={0}
+        aria-label={`Abrir partida ${match.teams_a?.name || 'Equipe A'} x ${match.teams_b?.name || 'Equipe B'}`}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            openMatch();
+          }
+        }}
+      >
+        <div className="match-box glass clickable-match">
           <div className={`match-status-bar status-${match.status}`}></div>
           <div className="match-header-row" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem', alignItems: 'center' }}>
             <div className="match-time-tiny" style={{ marginBottom: 0 }}>
@@ -274,14 +304,14 @@ const Brackets: React.FC = () => {
             )}
             {match.status === 'agendado' && countdown && (
               <>
-                <span className="timeline-chip">EM BREVE</span>
-                <span className="timeline-chip">{countdown}</span>
+                <span className="timeline-chip soon">EM BREVE</span>
+                <span className="timeline-chip subtle">{countdown}</span>
               </>
             )}
             {match.status === 'finalizado' && (
               <>
-                <span className="timeline-chip">ENCERRADO</span>
-                <span className="timeline-chip">Placar final</span>
+                <span className="timeline-chip final">ENCERRADO</span>
+                <span className="timeline-chip subtle">Placar final</span>
               </>
             )}
           </div>
@@ -473,7 +503,7 @@ const Brackets: React.FC = () => {
                     >
                       <h3 className="round-title knockout-title">
                         <span className="round-dot"></span>
-                        {roundName}
+                        <span className="round-chip">{roundName}</span>
                         {isCurrent && <span className="current-label"><Target size={12} /> Atual</span>}
                       </h3>
                       <div className="round-matches knockout-matches">
@@ -502,7 +532,7 @@ const Brackets: React.FC = () => {
                     >
                       <h3 className="round-title">
                         <span className="round-dot"></span>
-                        {formatRoundName(roundName)}
+                        <span className="round-chip">{formatRoundName(roundName)}</span>
                         {isCurrent && <span className="current-label"><Target size={12} /> Atual</span>}
                       </h3>
                       <div className="round-matches">

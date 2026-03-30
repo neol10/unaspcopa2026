@@ -180,14 +180,35 @@ function AppContent() {
       }
     };
 
+    const playSound = (primaryUrl: string, fallbackUrl?: string, maxDurationMs?: number) => {
+      const playAudio = (url: string) => {
+        const audio = new Audio(url);
+        audio.volume = 0.5;
+        audio.play().catch(() => {});
+        if (maxDurationMs) {
+          window.setTimeout(() => {
+            audio.pause();
+            audio.currentTime = 0;
+          }, maxDurationMs);
+        }
+        return audio;
+      };
+
+      const audio = playAudio(primaryUrl);
+      if (fallbackUrl) {
+        audio.addEventListener('error', () => {
+          playAudio(fallbackUrl);
+        }, { once: true });
+      }
+    };
+
     const playNotificationSound = (type: string) => {
-      // Som de gol (cheering) ou apito (informação)
-      const url = type === 'gol' 
-        ? 'https://assets.mixkit.co/active_storage/sfx/123/123-preview.mp3' 
-        : 'https://assets.mixkit.co/active_storage/sfx/2004/2004-preview.mp3';
-      const audio = new Audio(url);
-      audio.volume = 0.5;
-      audio.play().catch(() => {});
+      // Som de gol (torcida) ou apito (informação)
+      if (type === 'gol') {
+        playSound('/audio/goal-crowd.mp3', 'https://assets.mixkit.co/active_storage/sfx/2330/2330-preview.mp3', 5000);
+        return;
+      }
+      playSound('https://assets.mixkit.co/active_storage/sfx/2004/2004-preview.mp3');
     };
 
     const handleMessage = (event: MessageEvent) => {

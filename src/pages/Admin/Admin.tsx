@@ -1793,11 +1793,6 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   };
 
   const handleIntervalo = async () => {
-    if (!(await confirmAction({
-      title: 'Iniciar Intervalo',
-      description: 'O tempo será pausado e o fim do 1º tempo será registrado.',
-      variant: 'warning'
-    }))) return;
     try {
       const start = match.timer_started_at ? new Date(match.timer_started_at).getTime() : Date.now();
       const now = Date.now();
@@ -1821,10 +1816,12 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
       vibrate(100);
       toast.success('Intervalo Iniciado');
+      refreshEvents();
     } catch (err: unknown) {
       toast.error('Erro ao iniciar intervalo');
     }
   };
+
 
   const handleRetomar = async () => {
     try {
@@ -2252,6 +2249,14 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
     return { label: 'Aguardando', tone: 'idle' };
   }, [events, hasStarted, isActive, match.status]);
 
+  const isPostInterval = useMemo(() => 
+    events.some(e => e.event_type === 'comentario' && e.commentary?.includes('Fim do 1º Tempo')),
+  [events]);
+
+  const alreadyResumedStage2 = useMemo(() => 
+    events.some(e => e.event_type === 'comentario' && e.commentary?.includes('Início do 2º Tempo')),
+  [events]);
+
   const formatEventSummary = (event?: MatchEvent) => {
     if (!event) return 'Nenhum lance ainda';
     if (event.event_type === 'gol') {
@@ -2383,22 +2388,26 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
               <div className="sb-pro-timer-controls">
                   {!match.is_timer_running ? (
                     <button className="timer-btn start" onClick={hasStarted ? handleRetomar : handleStartTimer} disabled={match.status === 'finalizado'}>
-                      <Play size={16} /> {hasStarted ? 'RETOMAR' : 'COMEÇAR'}
+                      <Play size={16} /> {isPostInterval && !alreadyResumedStage2 ? 'INICIAR 2º TEMPO' : (hasStarted ? 'RETOMAR' : 'COMEÇAR')}
                     </button>
                   ) : (
-                    <>
-                      <button className="timer-btn pause" onClick={() => handlePauseTimer(false)}>
-                        <Pause size={16} /> PARAR TEMPO
-                      </button>
-                      <button className="timer-btn interval" onClick={handleIntervalo} style={{ background: 'rgba(168, 85, 247, 0.1)', color: '#a855f7', borderColor: 'rgba(168, 85, 247, 0.3)' }}>
-                        <Coffee size={16} /> FIM DO 1º TEMPO
-                      </button>
-                    </>
+                    <button className="timer-btn pause" onClick={() => handlePauseTimer(false)}>
+                      <Pause size={16} /> PARAR TEMPO
+                    </button>
                   )}
+
+                  {/* Fim do 1º Tempo: Visível se o jogo está AO VIVO e ainda não teve o comentário de fim de 1º tempo */}
+                  {match.status === 'ao_vivo' && !events.some(e => e.event_type === 'comentario' && e.commentary?.includes('Fim do 1º Tempo')) && (
+                    <button className="timer-btn interval" onClick={handleIntervalo}>
+                      <Coffee size={16} /> FIM DO 1º TEMPO
+                    </button>
+                  )}
+
                   <button className="timer-btn end" onClick={handleEndMatch} disabled={match.status === 'finalizado'}>
                     <Flag size={16} /> FIM DE JOGO
                   </button>
               </div>
+
               <div className="live-shortcuts-tip">
                 Ctrl+Espaco: iniciar/pausar/retomar | Alt+1..6: tipos de evento
               </div>

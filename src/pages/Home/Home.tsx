@@ -201,42 +201,7 @@ const Home: React.FC = () => {
         </div>
       )}
 
-      {/* Widget Ao Vivo Flutuante - Premium */}
-      <AnimatePresence>
-        {liveMatch && (
-          <motion.div 
-            className="live-floating-widget glass"
-            initial={{ x: 100, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: 100, opacity: 0 }}
-            onClick={() => navigate('/central-da-partida')}
-          >
-            <div className="live-badge-mini">
-              <div className="pulse-dot"></div>
-              AO VIVO
-            </div>
-
-            <div className="live-widget-teams">
-              <span>{liveMatch.teams_a?.name.substring(0, 3)}</span>
-              <span className="live-widget-score">{liveMatch.team_a_score} - {liveMatch.team_b_score}</span>
-              <span>{liveMatch.teams_b?.name.substring(0, 3)}</span>
-            </div>
-            
-            {latestLiveEvent && (
-              <div className="live-ticker">
-                <span className="ticker-time">{latestLiveEvent.minute}'</span>
-                <span className="ticker-text">
-                  {latestLiveEvent.event_type === 'gol' ? '⚽ GOL!' : 
-                   latestLiveEvent.event_type === 'amarelo' ? '🟨 Cartao' :
-                   latestLiveEvent.event_type === 'vermelho' ? '🟥 Cartao' : '📢'} {latestLiveEvent.players?.name || ''}
-                </span>
-              </div>
-            )}
-            
-            <ArrowRight size={14} />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Widget Ao Vivo Flutuante removido para reduzir poluicao visual */}
 
       {/* Breaking News Ticker - Premium Phase 2 */}
       {breakingItems.length > 0 && (
@@ -296,7 +261,7 @@ const Home: React.FC = () => {
               </div>
 
               <button className="btn-go-live" onClick={() => navigate('/central-da-partida')}>
-                ENTRAR NA CENTRAL <ArrowRight size={16} />
+                ASSISTIR AO VIVO <ArrowRight size={16} />
               </button>
             </div>
           </motion.section>
@@ -381,22 +346,24 @@ const Home: React.FC = () => {
             )}
           </div>
 
-          <div className="snapshot-card glass" onClick={() => navigate('/central-da-partida')}>
-            <span className="snapshot-label">Proximo jogo</span>
-            {nextMatch ? (
-              <>
-                <strong className="snapshot-title">
-                  {nextMatch.teams_a?.name || 'Equipe A'} x {nextMatch.teams_b?.name || 'Equipe B'}
-                </strong>
-                <span className="snapshot-meta">
-                  {formatMatchShort(nextMatch.match_date)} · {nextMatch.location || 'Local a definir'}
-                </span>
-                <span className="snapshot-cta">Acompanhar detalhes</span>
-              </>
-            ) : (
-              <p className="snapshot-empty">Agenda em atualizacao.</p>
-            )}
-          </div>
+          {!liveMatch && (
+            <div className="snapshot-card glass" onClick={() => navigate('/central-da-partida')}>
+              <span className="snapshot-label">Proximo jogo</span>
+              {nextMatch ? (
+                <>
+                  <strong className="snapshot-title">
+                    {nextMatch.teams_a?.name || 'Equipe A'} x {nextMatch.teams_b?.name || 'Equipe B'}
+                  </strong>
+                  <span className="snapshot-meta">
+                    {formatMatchShort(nextMatch.match_date)} · {nextMatch.location || 'Local a definir'}
+                  </span>
+                  <span className="snapshot-cta">Acompanhar detalhes</span>
+                </>
+              ) : (
+                <p className="snapshot-empty">Agenda em atualizacao.</p>
+              )}
+            </div>
+          )}
 
           <div className="snapshot-card glass" onClick={() => navigate('/classificacao')}>
             <span className="snapshot-label">Lider do momento</span>
@@ -477,7 +444,7 @@ const Home: React.FC = () => {
       )}
 
       {/* Match Countdown Banner */}
-      {nextMatch && (
+      {!liveMatch && nextMatch && (
         <motion.section 
           className="match-countdown-banner glass"
           initial={{ opacity: 0, scale: 0.95 }}

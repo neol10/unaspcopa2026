@@ -33,7 +33,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const showAdminNav = role === 'admin' || location.pathname.startsWith('/admin');
+  const isAdminRoute = location.pathname.startsWith('/admin');
+  const showAdminNav = role === 'admin' || isAdminRoute;
 
   const liveMatch = useMemo(() => (matches || []).find((m) => m.status === 'ao_vivo') || null, [matches]);
   const nextMatch = useMemo(() => {
@@ -92,11 +93,12 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   useEffect(() => {
     const unsub = onGoalOverlay((payload) => {
+      if (isAdminRoute) return;
       setGoalOverlay(payload);
       window.setTimeout(() => setGoalOverlay(null), 5000);
     });
     return () => unsub();
-  }, []);
+  }, [isAdminRoute]);
 
   usePreGameReminder(matches, isSubscribed, {
     preGameReminder: preferences.preGameReminder,
@@ -108,7 +110,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       <a className="skip-link" href="#main-content">Pular para o conteudo</a>
       {/* Global Premium Goal Overlay */}
       <AnimatePresence>
-        {goalOverlay && (
+        {!isAdminRoute && goalOverlay && (
           <motion.div
             className="goal-overlay-premium"
             initial={{ opacity: 0, scale: 0.5 }}
@@ -386,9 +388,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <div className="context-actions">
               <button
                 className="context-btn"
-                onClick={() => navigate(liveMatch ? '/central-da-partida' : '/jogos')}
+                onClick={() => navigate('/jogos')}
               >
-                {liveMatch ? 'Assistir ao vivo' : 'Ver agenda'}
+                Ver agenda
               </button>
             </div>
           </div>
