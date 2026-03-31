@@ -21,19 +21,24 @@ import './MatchCenter.css';
 
 const MatchCenter: React.FC = () => {
   const { matches, loading: matchesLoading, error: matchesError, refresh: refreshMatches } = useMatches();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
 
+  // Sincroniza o estado interno com a URL quando a URL muda
   useEffect(() => {
     const matchIdFromUrl = searchParams.get('id');
-    if (matchIdFromUrl) {
-      if (matchIdFromUrl !== selectedMatchId) setSelectedMatchId(matchIdFromUrl);
-      return;
-    }
-    if (!matchIdFromUrl && selectedMatchId !== null) {
-      setSelectedMatchId(null);
+    if (matchIdFromUrl && matchIdFromUrl !== selectedMatchId) {
+      setSelectedMatchId(matchIdFromUrl);
+    } else if (!matchIdFromUrl && selectedMatchId !== null) {
+      // Se não houver ID na URL, mas houver no estado, decidimos se resetamos ou mantemos (mantemos para evitar o bug de reset)
+      // O reset só ocorreria se o usuário navegasse explicitamente para a URL sem ID.
     }
   }, [searchParams, selectedMatchId]);
+
+  const handleSelectMatch = (id: string) => {
+    setSelectedMatchId(id);
+    setSearchParams({ id });
+  };
   
   const activeMatch = selectedMatchId 
     ? matches.find(m => m.id === selectedMatchId) 
@@ -87,6 +92,16 @@ const MatchCenter: React.FC = () => {
   };
 
   const { events, loading: eventsLoading, error: eventsError, refresh: refreshEvents } = useMatchEvents(activeMatch?.id || '', handleNewEvent);
+
+  const matchPeriod = useMemo(() => {
+    if (!activeMatch || activeMatch.status !== 'ao_vivo') return null;
+    const hasEndedFirstHalf = events.some(e => e.event_type === 'comentario' && e.commentary?.includes('Fim do 1º Tempo'));
+    const hasStartedSecondHalf = events.some(e => e.event_type === 'comentario' && e.commentary?.includes('Início do 2º Tempo'));
+    
+    if (hasStartedSecondHalf) return '2º Tempo';
+    if (hasEndedFirstHalf) return 'Intervalo';
+    return '1º Tempo';
+  }, [activeMatch, events]);
   const { user, role: authRole } = useAuthContext();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const { config } = useTournamentConfig();
@@ -258,24 +273,14 @@ const MatchCenter: React.FC = () => {
   const selectorMatches = useMemo(() => {
     if (!activeMatch) return matches;
     
-    // Pega todas as partidas da mesma rodada, ordenadas por data/horário
-    const roundMatches = matches
+    // Pega todas as partidas da mesma rodada da partida ativa, ordenadas por data
+    return matches
       .filter(m => m.round === activeMatch.round)
       .sort((a, b) => {
         const dateA = a.match_date || '';
         const dateB = b.match_date || '';
         return dateA.localeCompare(dateB);
       });
-
-    // Encontra a próxima partida agendada da rodada após a ativa
-    const nextScheduled = roundMatches.find(
-      m => m.id !== activeMatch.id && (m.status === 'agendado' || m.status === 'ao_vivo')
-    );
-
-    // Retorna: partida ativa + próxima (se houver)
-    const result = [activeMatch];
-    if (nextScheduled) result.push(nextScheduled);
-    return result;
   }, [matches, activeMatch]);
 
   if (matchesLoading && matches.length === 0) return (
@@ -360,8 +365,8 @@ const MatchCenter: React.FC = () => {
         <div className="mobile-selector-container mobile-only">
           <select 
             className="match-select-mobile"
-            value={activeMatch?.id}
-            onChange={(e) => setSelectedMatchId(e.target.value)}
+            value={activeMatch?.id || ''}
+            onChange={(e) => handleSelectMatch(e.target.value)}
           >
             {selectorMatches.map(m => (
               <option key={m.id} value={m.id}>
@@ -378,7 +383,7 @@ const MatchCenter: React.FC = () => {
             <button 
               key={m.id} 
               className={`match-pill ${activeMatch?.id === m.id ? 'active' : ''}`}
-              onClick={() => setSelectedMatchId(m.id)}
+              onClick={() => handleSelectMatch(m.id)}
             >
               <span className="pill-teams">{m.teams_a?.name.substring(0,3)} x {m.teams_b?.name.substring(0,3)}</span>
               {m.status === 'ao_vivo' && <span className="live-dot-mini"></span>}
@@ -429,11 +434,16 @@ const MatchCenter: React.FC = () => {
                 </div>
                 <div className={`sb-timer active ${activeMatch.status === 'ao_vivo' && !activeMatch.is_timer_running ? 'paused' : ''}`}>
                   <Timer size={14} className={activeMatch.status === 'ao_vivo' && activeMatch.is_timer_running ? 'animate-pulse' : ''} />
-                  <span>
-                    {activeMatch.status === 'ao_vivo' && !activeMatch.is_timer_running 
-                      ? (events.some(e => e.event_type === 'comentario' && e.commentary?.includes('Fim do 1º Tempo')) ? 'INTERVALO' : 'PAUSADO') 
-                      : elapsedTime}
-                  </span>
+                  <div className="timer-info-group">
+                    <span className="elapsed-time">
+                      {activeMatch.status === 'ao_vivo' && !activeMatch.is_timer_running 
+                        ? (events.some(e => e.event_type === 'comentario' && e.commentary?.includes('Fim do 1º Tempo')) ? 'INTERVALO' : 'PAUSADO') 
+                        : elapsedTime}
+                    </span>
+                    {matchPeriod && (
+                      <span className="period-badge">{matchPeriod}</span>
+                    )}
+                  </div>
                 </div>
               </div>
 

@@ -231,10 +231,12 @@
 
 .live-score-display {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 1rem;
+  justify-content: center;
+  gap: 0.2rem;
   background: rgba(255, 255, 255, 0.05);
-  padding: 0.5rem 1.5rem;
+  padding: 0.5rem 1.75rem;
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
@@ -347,6 +349,24 @@
   font-size: 1.5rem;
   color: var(--primary);
   font-weight: 900;
+  margin: 0 0.5rem;
+}
+
+.live-score-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.live-score-period {
+  font-size: 0.7rem;
+  font-weight: 900;
+  color: var(--secondary);
+  background: rgba(251, 191, 36, 0.1);
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 .btn-go-live {

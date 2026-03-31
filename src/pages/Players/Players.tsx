@@ -2,9 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePlayers, Player } from '../../hooks/usePlayers';
 import { useTeams } from '../../hooks/useTeams';
-import { Shield, ChevronLeft, User, Search, Users, Goal, Footprints } from 'lucide-react';
+import { Shield, ChevronLeft, User, Search, Users, Goal, Footprints, Download } from 'lucide-react';
+import toast from 'react-hot-toast';
 import PlayerProfileModal from './PlayerProfileModal';
 import { getSuspensionFromCards } from '../../lib/discipline';
+import { downloadSocialPlayerCard } from '../../lib/socialCardExport';
 import './Players.css';
 
 const Players: React.FC = () => {
@@ -16,6 +18,7 @@ const Players: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [stuck, setStuck] = useState(false);
   const [brokenImageMap, setBrokenImageMap] = useState<Record<string, true>>({});
+  const [downloadingPlayerId, setDownloadingPlayerId] = useState<string | null>(null);
 
   const normalizeImageSrc = (value: string) => {
     const trimmed = value.trim();
@@ -65,6 +68,44 @@ const Players: React.FC = () => {
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.position.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleDownloadPlayerCard = async (player: Player) => {
+    const playerTeamName = player.team_name || teams.find((t) => t.id === player.team_id)?.name || resolvedTeamName;
+    const fileSafeName = player.name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+
+    setDownloadingPlayerId(player.id);
+    try {
+      await downloadSocialPlayerCard({
+        fileName: `card-jogador-${fileSafeName || player.id}`,
+        category: 'Jogador em Destaque',
+        subtitle: 'Estatisticas oficiais da Copa Unasp',
+        theme: 'blue',
+        player: {
+          name: player.name,
+          teamName: playerTeamName,
+          position: player.position,
+          photoUrl: player.photo_url,
+          teamBadgeUrl: player.team_badge_url || resolvedTeamBadge,
+        },
+        stats: [
+          { label: 'Gols', value: player.goals_count || 0 },
+          { label: 'Assistencias', value: player.assists || 0 },
+          { label: 'Cartoes', value: (player.yellow_cards || 0) + (player.red_cards || 0) },
+        ],
+      });
+      toast.success(`Card de ${player.name} baixado!`);
+    } catch (error) {
+      console.error('Erro ao baixar card de jogador:', error);
+      toast.error('Nao foi possivel baixar o card deste jogador.');
+    } finally {
+      setDownloadingPlayerId(null);
+    }
+  };
 
   if ((stuck || (!navigator.onLine && playersLoading)) && players.length === 0) {
     return (
@@ -201,7 +242,23 @@ const Players: React.FC = () => {
                         <Shield size={16} color="var(--secondary)" />
                       )}
                     </div>
-                    <div className="p-position">{player.position}</div>
+                    <div className="p-header-actions">
+                      <button
+                        type="button"
+                        className="player-card-download-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownloadPlayerCard(player);
+                        }}
+                        disabled={downloadingPlayerId === player.id}
+                        aria-label={`Baixar card de ${player.name}`}
+                        title="Baixar card individual"
+                      >
+                        <Download size={14} />
+                        <span>{downloadingPlayerId === player.id ? 'Gerando...' : 'Card'}</span>
+                      </button>
+                      <div className="p-position">{player.position}</div>
+                    </div>
                   </div>
                   
                   <div className="p-photo-wrapper">

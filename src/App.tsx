@@ -156,6 +156,7 @@ function AppContent() {
   const { loading: authLoading } = useAuthContext();
   const [showSplash, setShowSplash] = useState(true);
   const bootMetricSentRef = useRef(false);
+  const recentPushToastRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     const id = setTimeout(() => setShowSplash(false), 1200);
@@ -214,6 +215,24 @@ function AppContent() {
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'PUSH_NOTIFICATION') {
         const { title, body, category } = event.data.payload || {};
+        const messageKey = `${String(category || 'general')}|${String(title || '')}|${String(body || '')}`;
+        const now = Date.now();
+        const lastShownAt = recentPushToastRef.current.get(messageKey) || 0;
+
+        // Evita toasts duplicados quando o mesmo push chega múltiplas vezes em poucos segundos.
+        if (now - lastShownAt < 8000) {
+          return;
+        }
+
+        recentPushToastRef.current.set(messageKey, now);
+        if (recentPushToastRef.current.size > 50) {
+          const entries = Array.from(recentPushToastRef.current.entries())
+            .sort((a, b) => a[1] - b[1])
+            .slice(0, 20);
+          for (const [key] of entries) {
+            recentPushToastRef.current.delete(key);
+          }
+        }
         
         // Efeitos Imersivos em Tempo Real
         if (category === 'gol') {
@@ -242,6 +261,7 @@ function AppContent() {
             <span style={{ fontSize: '0.85rem', opacity: 0.9 }}>{body}</span>
           </div>
         ), {
+          id: `push-${messageKey}`,
           icon: category === 'gol' ? '⚽' : '🔔',
           duration: 8000,
           position: 'top-center'

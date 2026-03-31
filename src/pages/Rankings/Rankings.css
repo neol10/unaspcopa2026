@@ -11,6 +11,12 @@
   align-items: center;
 }
 
+.rankings-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
 .stat-summary-pill {
   display: flex;
   align-items: center;
@@ -20,6 +26,32 @@
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--text-main);
+}
+
+.btn-download-card {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-main);
+  border-radius: 12px;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.btn-download-card:hover:not(:disabled) {
+  border-color: var(--secondary);
+  color: var(--secondary);
+  transform: translateY(-1px);
+}
+
+.btn-download-card:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 /* Featured Layout */
@@ -291,6 +323,38 @@
   min-width: 0; /* Allow shrinking below fixed min-width if parent allows */
 }
 
+.rank-row-download-btn {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-main);
+  border-radius: 9px;
+  padding: 0.35rem 0.52rem;
+  font-size: 0.66rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.rank-row-download-btn:hover:not(:disabled) {
+  border-color: var(--secondary);
+  color: var(--secondary);
+}
+
+.rank-row-download-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.mvp-download-btn {
+  margin-top: 0.7rem;
+}
+
 .rank-row-item:hover {
   background: rgba(255, 255, 255, 0.05);
   transform: translateX(5px);
@@ -407,6 +471,15 @@
   .hero-body { flex-direction: column; text-align: center; gap: 1.5rem; }
   .hero-stats { justify-content: center; }
   .hero-player-info h2 { font-size: 2.25rem; }
+  .rankings-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+  .rankings-actions {
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
 }
 
 /* Artilharia Podium */
@@ -697,6 +770,11 @@
     font-size: 0.75rem;
     min-width: 32px;
     text-align: center;
+  }
+
+  .rank-row-download-btn {
+    padding: 0.3rem 0.45rem;
+    font-size: 0.62rem;
   }
 }
 

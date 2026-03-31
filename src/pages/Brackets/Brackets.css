@@ -846,6 +846,156 @@
     padding: 1rem;
   }
 }
+/* View Mode Selector */
+.view-mode-selector {
+  display: flex;
+  background: rgba(15, 23, 42, 0.6);
+  padding: 0.4rem;
+  border-radius: 16px;
+  width: fit-content;
+  margin: 1rem auto 1.5rem;
+  border: 1px solid rgba(255,255,255,0.08);
+  gap: 0.4rem;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 100;
+  position: relative;
+}
+
+.view-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 1.2rem;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-dim);
+  font-weight: 800;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border: none;
+}
+
+.view-btn.active {
+  background: var(--secondary);
+  color: var(--bg-main);
+  box-shadow: 0 4px 15px rgba(251, 191, 36, 0.3);
+}
+
+/* Scroll Container & Dragging */
+.brackets-scroll-container {
+  width: 100%;
+  overflow-x: auto;
+  cursor: grab;
+  padding: 1rem 0 3rem;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+}
+
+.brackets-scroll-container:active {
+  cursor: grabbing;
+}
+
+.brackets-scroll-container.dragging {
+  cursor: grabbing;
+}
+
+.brackets-scroll-container.dragging * {
+  pointer-events: none;
+}
+
+/* Teia Layout Improvements */
+.mode-teia .brackets-scroll-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 1250px; /* Garante que sempre tenha área para scroll/drag */
+  padding: 2rem 4rem;
+}
+
+.teia-bracket-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.teia-layout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  margin-bottom: 5rem;
+  position: relative;
+}
+
+.teia-groups-section {
+  width: 100%;
+  margin-top: 4rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 3rem;
+  background: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.02) 0%, transparent 70%);
+}
+
+.teia-groups-grid {
+  display: flex;
+  gap: 2.5rem;
+  padding: 1rem 0;
+  justify-content: center;
+}
+
+/* Conectores Visualmente Melhores */
+.side-left .col-quarters::after {
+  content: '';
+  position: absolute;
+  right: -2rem;
+  top: 18%;
+  bottom: 18%;
+  width: 2px;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.05), rgba(255,255,255,0.15) 50%, rgba(255,255,255,0.05));
+}
+
+.side-left .col-semis::before {
+  content: '';
+  position: absolute;
+  left: -2rem;
+  top: 50%;
+  width: 2rem;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.side-right .col-quarters::after {
+  content: '';
+  position: absolute;
+  left: -2rem;
+  top: 18%;
+  bottom: 18%;
+  width: 2px;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.05), rgba(255,255,255,0.15) 50%, rgba(255,255,255,0.05));
+}
+
+.side-right .col-semis::before {
+  content: '';
+  position: absolute;
+  right: -2rem;
+  top: 50%;
+  width: 2rem;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+@media (max-width: 768px) {
+  .mode-teia .brackets-scroll-content {
+    padding: 1rem 2rem;
+  }
+}
+
 /* Skeleton Loaders */
 .match-skeleton {
   background: rgba(255, 255, 255, 0.02);
@@ -893,13 +1043,3 @@
 .skeleton-badge { width: 24px; height: 24px; border-radius: 50%; }
 .skeleton-name { height: 16px; flex: 1; }
 .skeleton-score { width: 20px; height: 20px; }
-
-@media (max-width: 480px) {
-  .brackets-page {
-    padding: 1rem 0;
-  }
-  
-  .brackets-header {
-    padding: 0 1rem;
-  }
-}

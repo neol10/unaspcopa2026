@@ -21,6 +21,7 @@ const Brackets: React.FC = () => {
 
   const { config } = useTournamentConfig();
   const [hasScrolled, setHasScrolled] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'teia'>('list');
 
   useEffect(() => {
     const id = setInterval(() => setNowTs(Date.now()), 30000);
@@ -146,6 +147,28 @@ const Brackets: React.FC = () => {
   const groupRounds = useMemo(() => {
     return sortedRounds.filter(r => !knockoutRounds.includes(r));
   }, [sortedRounds, knockoutRounds]);
+
+  // Função auxiliar para encontrar fases de mata-mata de forma robusta
+  const findKnockoutRound = useCallback((keyword: string, matchCount: number) => {
+    // 1. Tenta por nome (case insensitive)
+    const byName = knockoutRounds.find(r => r.toLowerCase().includes(keyword.toLowerCase()));
+    if (byName) return byName;
+
+    // 2. Tenta por contagem de jogos (ex: 4 jogos = quartas)
+    const byCount = knockoutRounds.find(r => roundsMap[r]?.length === matchCount);
+    if (byCount) return byCount;
+
+    // 3. Fallback: Se for a final e tiver apenas 1 rodada no knockout
+    if (keyword === 'final' && knockoutRounds.length > 0) return knockoutRounds[knockoutRounds.length - 1];
+
+    return '';
+  }, [knockoutRounds, roundsMap]);
+
+  const teiaRounds = useMemo(() => ({
+    quartas: findKnockoutRound('quartas', 4),
+    semis: findKnockoutRound('semi', 2),
+    final: findKnockoutRound('final', 1)
+  }), [findKnockoutRound]);
 
   // Lógica de Mouse Drag
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -417,6 +440,21 @@ const Brackets: React.FC = () => {
         <p className="text-muted">Acompanhe o caminho rumo ao título</p>
       </header>
 
+      <div className="view-mode-selector glass">
+        <button 
+          className={`view-btn ${viewMode === 'list' ? 'active' : ''}`}
+          onClick={() => setViewMode('list')}
+        >
+          <Timer size={16} /> Lista de Rodadas
+        </button>
+        <button 
+          className={`view-btn ${viewMode === 'teia' ? 'active' : ''}`}
+          onClick={() => setViewMode('teia')}
+        >
+          <Trophy size={16} /> Chaveamento (Teia)
+        </button>
+      </div>
+
       <div className="match-filters">
         <button
           className={`filter-chip ${activeFilter === 'all' ? 'active' : ''}`}
@@ -454,7 +492,7 @@ const Brackets: React.FC = () => {
         </button>
       </div>
 
-      {knockoutRounds.length > 0 && (
+      {knockoutRounds.length > 0 && viewMode === 'list' && (
         <div className="phase-jump-nav glass">
           {knockoutRounds.map(r => (
             <button key={r} onClick={() => scrollToPhase(r)} className="jump-btn">
@@ -465,20 +503,20 @@ const Brackets: React.FC = () => {
              <button onClick={() => {
                 if (scrollRef.current) scrollRef.current.scrollTo({ left: 3000, behavior: 'smooth' });
              }} className="jump-btn">
-                Geral
+                Fase Grupos
              </button>
           )}
         </div>
       )}
 
-      {sortedRounds.length > 0 && (
+      {sortedRounds.length > 0 && viewMode === 'list' && (
         <div className="scroll-hint">
           <ChevronLeft size={16} /> Arraste para navegar <ChevronRight size={16} />
         </div>
       )}
 
       <div 
-        className={`brackets-scroll-container ${isDragging ? 'dragging' : ''}`}
+        className={`brackets-scroll-container ${isDragging ? 'dragging' : ''} mode-${viewMode}`}
         ref={scrollRef}
         onMouseDown={handleMouseDown}
         onMouseLeave={handleDragEnd}
@@ -486,64 +524,143 @@ const Brackets: React.FC = () => {
         onMouseMove={handleMouseMove}
       >
         <div className="brackets-scroll-content">
-          {/* Seção Mata-Mata (Tree Layout) */}
-          {knockoutRounds.length > 0 && (
-            <div className="knockout-tree-container">
-              <div className="knockout-columns">
-                {knockoutRounds.map((roundName) => {
-                  const isCurrent = config.current_phase !== 'grupos' && (
-                    roundName.toLowerCase().includes(config.current_phase.toLowerCase()) ||
-                    (config.current_phase === 'semifinal' && roundName.toLowerCase().includes('semi'))
-                  );
-                  return (
-                    <div 
-                      key={roundName} 
-                      id={`phase-${roundName.toLowerCase().replace(/\s+/g, '-')}`}
-                      className={`knockout-column phase-${roundName.toLowerCase().replace(/\s+/g, '-')}`}
-                    >
-                      <h3 className="round-title knockout-title">
-                        <span className="round-dot"></span>
-                        <span className="round-chip">{roundName}</span>
-                        {isCurrent && <span className="current-label"><Target size={12} /> Atual</span>}
-                      </h3>
-                      <div className="round-matches knockout-matches">
-                        {sortMatches(roundsMap[roundName]).map(m => (
-                          <MatchBox key={m.id} match={m} isKnockout />
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          {viewMode === 'teia' ? (
+            /* Layout de Chaveamento Simétrico (Modo Teia) */
+            <div className="teia-bracket-wrapper">
+              <section className="teia-section-header">
+                <h2 className="section-title"><Trophy size={20} /> Mata-Mata</h2>
+              </section>
+              
+              <div className="teia-layout">
+                {/* Lado Esquerdo: Quartas 1 e 2 + Semi 1 */}
+                <div className="teia-side side-left">
+                  <div className="teia-column col-quarters">
+                    {roundsMap[teiaRounds.quartas]?.slice(0, 2).map(m => (
+                      <MatchBox key={m.id} match={m} isKnockout />
+                    ))}
+                  </div>
+                  <div className="teia-column col-semis">
+                    {roundsMap[teiaRounds.semis]?.slice(0, 1).map(m => (
+                      <MatchBox key={m.id} match={m} isKnockout />
+                    ))}
+                  </div>
+                </div>
 
-          {/* Seção Fase de Grupos */}
-          {groupRounds.length > 0 && (
-            <div className="group-stage-container">
-              <div className="group-rounds">
-                {groupRounds.map((roundName) => {
-                  const isCurrent = config.current_phase === 'grupos' && String(config.current_round) === roundName;
-                  return (
-                    <div 
-                      key={roundName} 
-                      id={`phase-${roundName.toLowerCase().replace(/\s+/g, '-')}`}
-                      className="bracket-round"
-                    >
-                      <h3 className="round-title">
-                        <span className="round-dot"></span>
-                        <span className="round-chip">{formatRoundName(roundName)}</span>
-                        {isCurrent && <span className="current-label"><Target size={12} /> Atual</span>}
-                      </h3>
-                      <div className="round-matches">
-                        {roundsMap[roundName].map(m => (
-                          <MatchBox key={m.id} match={m} />
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
+                {/* Centro: Final */}
+                <div className="teia-center">
+                  <div className="teia-column col-final">
+                    <div className="final-label">GRANDE FINAL</div>
+                    {roundsMap[teiaRounds.final]?.slice(0, 1).map(m => (
+                      <MatchBox key={m.id} match={m} isKnockout />
+                    ))}
+                    <div className="trophy-glow-bg"></div>
+                  </div>
+                </div>
+
+                {/* Lado Direito: Semi 2 + Quartas 3 e 4 */}
+                <div className="teia-side side-right">
+                  <div className="teia-column col-semis">
+                    {roundsMap[teiaRounds.semis]?.slice(1, 2).map(m => (
+                      <MatchBox key={m.id} match={m} isKnockout />
+                    ))}
+                  </div>
+                  <div className="teia-column col-quarters">
+                    {roundsMap[teiaRounds.quartas]?.slice(2, 4).map(m => (
+                      <MatchBox key={m.id} match={m} isKnockout />
+                    ))}
+                  </div>
+                </div>
               </div>
+
+              {/* Fase de Grupos integrada no Modo Teia */}
+              {groupRounds.length > 0 && (
+                <div className="teia-groups-section">
+                  <section className="teia-section-header">
+                    <h2 className="section-title"><Timer size={22} /> Fase de Grupos</h2>
+                  </section>
+                  <div className="teia-groups-grid">
+                    {groupRounds.map((roundName) => (
+                      <div key={roundName} className="bracket-round">
+                        <h3 className="round-title">
+                          <span className="round-dot"></span>
+                          <span className="round-chip">{formatRoundName(roundName)}</span>
+                        </h3>
+                        <div className="round-matches">
+                          {roundsMap[roundName].map(m => (
+                            <MatchBox key={m.id} match={m} />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Layout de Lista de Rodadas (Padrão) */
+            <div className="list-layout-wrapper">
+              {/* Seção Mata-Mata */}
+              {knockoutRounds.length > 0 && (
+                <section className="bracket-section knockout-list">
+                  <h2 className="section-title"><Trophy size={18} /> Mata-Mata</h2>
+                  <div className="section-content-row">
+                    {knockoutRounds.map((roundName) => {
+                      const isCurrent = config.current_phase !== 'grupos' && (
+                        roundName.toLowerCase().includes(config.current_phase.toLowerCase()) ||
+                        (config.current_phase === 'semifinal' && roundName.toLowerCase().includes('semi'))
+                      );
+                      return (
+                        <div 
+                          key={roundName} 
+                          id={`phase-${roundName.toLowerCase().replace(/\s+/g, '-')}`}
+                          className={`knockout-column phase-${roundName.toLowerCase().replace(/\s+/g, '-')}`}
+                        >
+                          <h3 className="round-title knockout-title">
+                            <span className="round-dot"></span>
+                            <span className="round-chip">{roundName}</span>
+                            {isCurrent && <span className="current-label"><Target size={12} /> Atual</span>}
+                          </h3>
+                          <div className="round-matches knockout-matches">
+                            {sortMatches(roundsMap[roundName]).map(m => (
+                              <MatchBox key={m.id} match={m} isKnockout />
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+
+              {/* Seção Fase de Grupos */}
+              {groupRounds.length > 0 && (
+                <section className="bracket-section group-stage-list">
+                  <h2 className="section-title"><Timer size={18} /> Fase de Grupos</h2>
+                  <div className="section-content-row">
+                    {groupRounds.map((roundName) => {
+                      const isCurrent = config.current_phase === 'grupos' && String(config.current_round) === roundName;
+                      return (
+                        <div 
+                          key={roundName} 
+                          id={`phase-${roundName.toLowerCase().replace(/\s+/g, '-')}`}
+                          className="bracket-round"
+                        >
+                          <h3 className="round-title">
+                            <span className="round-dot"></span>
+                            <span className="round-chip">{formatRoundName(roundName)}</span>
+                            {isCurrent && <span className="current-label"><Target size={12} /> Atual</span>}
+                          </h3>
+                          <div className="round-matches">
+                            {roundsMap[roundName].map(m => (
+                              <MatchBox key={m.id} match={m} />
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
             </div>
           )}
           

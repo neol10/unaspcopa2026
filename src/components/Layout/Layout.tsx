@@ -94,6 +94,12 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   useEffect(() => {
     const unsub = onGoalOverlay((payload) => {
       if (isAdminRoute) return;
+      
+      // Reproduzir som de torcida
+      const goalAudio = new Audio('/sounds/torcida.mp3');
+      goalAudio.volume = 0.6;
+      goalAudio.play().catch(e => console.warn('Audio auto-play blocked:', e));
+
       setGoalOverlay(payload);
       window.setTimeout(() => setGoalOverlay(null), 5000);
     });

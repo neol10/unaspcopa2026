@@ -54,6 +54,51 @@ const Home: React.FC = () => {
   const topTeams = standings.slice(0, 3);
   const totalVotes = activePoll?.options.reduce((acc, opt) => acc + opt.votes, 0) || 0;
 
+  const [liveElapsed, setLiveElapsed] = useState('00:00');
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+
+    const updateTimer = () => {
+      if (!liveMatch) return;
+
+      if (liveMatch.status === 'ao_vivo') {
+        if (liveMatch.is_timer_running && liveMatch.timer_started_at) {
+          const start = new Date(liveMatch.timer_started_at).getTime();
+          const now = Date.now();
+          const diff = Math.floor((now - start) / 1000);
+          const totalSeconds = (liveMatch.timer_offset_seconds || 0) + diff;
+          
+          const mins = Math.floor(totalSeconds / 60);
+          const secs = totalSeconds % 60;
+          setLiveElapsed(`${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`);
+        } else {
+          const totalSeconds = liveMatch.timer_offset_seconds || 0;
+          const mins = Math.floor(totalSeconds / 60);
+          const secs = totalSeconds % 60;
+          setLiveElapsed(`${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`);
+        }
+      }
+    };
+
+    updateTimer();
+    if (liveMatch?.status === 'ao_vivo' && liveMatch.is_timer_running) {
+      interval = setInterval(updateTimer, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [liveMatch]);
+
+  const matchPeriod = useMemo(() => {
+    if (!liveMatch) return null;
+    const events = liveEvents || [];
+    const hasEndedFirstHalf = events.some(e => e.event_type === 'comentario' && e.commentary?.includes('Fim do 1º Tempo'));
+    const hasStartedSecondHalf = events.some(e => e.event_type === 'comentario' && e.commentary?.includes('Início do 2º Tempo'));
+    
+    if (hasStartedSecondHalf) return '2ºT';
+    if (hasEndedFirstHalf) return 'INT';
+    return '1ºT';
+  }, [liveMatch, liveEvents]);
+
   useEffect(() => {
     if (!latestLiveEvent || latestLiveEvent.event_type !== 'gol') return;
     if (latestLiveEvent.id && latestLiveEvent.id === lastOverlayEventId) return;
@@ -256,9 +301,14 @@ const Home: React.FC = () => {
                 </div>
                 
                 <div className="live-score-display">
-                  <span className="live-score-val">{liveMatch.team_a_score}</span>
-                  <span className="live-score-sep">:</span>
-                  <span className="live-score-val">{liveMatch.team_b_score}</span>
+                  <div className="live-score-main">
+                    <span className="live-score-val">{liveMatch.team_a_score}</span>
+                    <span className="live-score-sep">:</span>
+                    <span className="live-score-val">{liveMatch.team_b_score}</span>
+                  </div>
+                  <div className="live-score-period">
+                    {matchPeriod === 'INT' ? 'INTERVALO' : `${liveElapsed} • ${matchPeriod}`}
+                  </div>
                 </div>
 
                 <div className="live-team-b">
