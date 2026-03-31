@@ -58,6 +58,15 @@ const Home: React.FC = () => {
     if (!latestLiveEvent || latestLiveEvent.event_type !== 'gol') return;
     if (latestLiveEvent.id && latestLiveEvent.id === lastOverlayEventId) return;
 
+    // Trava de tempo: Só dispara animação se o gol tiver acontecido nos últimos 60 segundos.
+    // Isso evita que a animação apareça toda vez que o app for aberto.
+    if (latestLiveEvent.created_at) {
+      const eventTime = new Date(latestLiveEvent.created_at).getTime();
+      const now = Date.now();
+      const diffSeconds = (now - eventTime) / 1000;
+      if (diffSeconds > 60) return; // Se o gol tem mais de 1 minuto, ignoramos a animação.
+    }
+
     // Home doesn't have the full players list here; use match context.
     const matchup = liveMatch ? `${liveMatch.teams_a?.name || 'Equipe A'} x ${liveMatch.teams_b?.name || 'Equipe B'}` : 'GOL!';
     emitGoalOverlay({

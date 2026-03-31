@@ -48,8 +48,14 @@ const MatchCenter: React.FC = () => {
   const { standings } = useStandings();
 
   const handleNewEvent = (event: MatchEvent) => {
-    // Only show toasts if the event is from the active match
+    // Só processa notificações de eventos da partida ativa
     if (event.match_id !== activeMatch?.id) return;
+
+    // Trava de segurança: ignorar eventos com mais de 60 segundos (útil para reconexões)
+    if (event.created_at) {
+      const eventTime = new Date(event.created_at).getTime();
+      if ((Date.now() - eventTime) / 1000 > 60) return;
+    }
 
     if (event.event_type === 'gol') {
       const playerName = event.players?.name || 'Desconhecido';

@@ -192,6 +192,7 @@
   align-items: center;
   gap: 1.25rem;
   flex: 1;
+  min-width: 0;
 }
 
 .live-team-a { justify-content: flex-end; }
@@ -219,7 +220,14 @@
   font-weight: 900;
   color: var(--text-main);
   letter-spacing: -0.5px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+
+.live-team-a .team-name-abbr { text-align: right; }
+.live-team-b .team-name-abbr { text-align: left; }
 
 .live-score-display {
   display: flex;

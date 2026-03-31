@@ -13,6 +13,7 @@ export interface MatchEvent {
   assistant_id?: string | null;
   commentary?: string;
   players?: { name: string; photo_url?: string };
+  created_at?: string;
 }
 
 type EventRow = Omit<MatchEvent, 'players'> & { created_at?: string };
