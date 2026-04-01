@@ -7,11 +7,13 @@ import toast from 'react-hot-toast';
 import PlayerProfileModal from './PlayerProfileModal';
 import { getSuspensionFromCards } from '../../lib/discipline';
 import { downloadSocialPlayerCard } from '../../lib/socialCardExport';
+import { useAuthContext } from '../../contexts/AuthContext';
 import './Players.css';
 
 const Players: React.FC = () => {
   const { teamId } = useParams<{ teamId: string }>();
   const navigate = useNavigate();
+  const { role: authRole } = useAuthContext();
   const { players, loading: playersLoading, error: playersError, refresh: refreshPlayers } = usePlayers(teamId);
   const { teams } = useTeams();
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
@@ -243,20 +245,22 @@ const Players: React.FC = () => {
                       )}
                     </div>
                     <div className="p-header-actions">
-                      <button
-                        type="button"
-                        className="player-card-download-btn"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDownloadPlayerCard(player);
-                        }}
-                        disabled={downloadingPlayerId === player.id}
-                        aria-label={`Baixar card de ${player.name}`}
-                        title="Baixar card individual"
-                      >
-                        <Download size={14} />
-                        <span>{downloadingPlayerId === player.id ? 'Gerando...' : 'Card'}</span>
-                      </button>
+                      {authRole === 'admin' && (
+                        <button
+                          type="button"
+                          className="player-card-download-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownloadPlayerCard(player);
+                          }}
+                          disabled={downloadingPlayerId === player.id}
+                          aria-label={`Baixar card de ${player.name}`}
+                          title="Baixar card individual"
+                        >
+                          <Download size={14} />
+                          <span>{downloadingPlayerId === player.id ? 'Gerando...' : 'Card'}</span>
+                        </button>
+                      )}
                       <div className="p-position">{player.position}</div>
                     </div>
                   </div>

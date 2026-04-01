@@ -23,28 +23,35 @@ const createSupabaseClient = () => createClient(supabaseUrl, supabaseAnonKey, {
       const asString = typeof url === 'string' ? url : url.toString();
 
       // Timeouts balanceados para estabilidade em rede móvel/instável.
-      // Auth: 30s, Realtime: 45s, Storage (upload): 180s, Queries padrão: 20s
+      // Auth: 90s, Realtime: 45s, Storage (upload): 180s, Queries padrão: 20s
       const timeoutMs = asString.includes('/auth/v1/')
-        ? 30000
+        ? 90000
         : asString.includes('/realtime/v1/')
           ? 45000
           : asString.includes('/storage/v1/')
             ? 180000
           : 20000;
       const controller = new AbortController();
+      let parentAbortHandler: (() => void) | null = null;
 
       if (options?.signal) {
         if (options.signal.aborted) {
-          controller.abort();
+          controller.abort(options.signal.reason);
         } else {
-          options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+          parentAbortHandler = () => controller.abort(options.signal?.reason);
+          options.signal.addEventListener('abort', parentAbortHandler, { once: true });
         }
       }
 
-      const abortTimeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      const abortTimeoutId = setTimeout(() => {
+        controller.abort(new DOMException('Supabase request timeout', 'TimeoutError'));
+      }, timeoutMs);
 
       return fetch(url, { ...options, signal: controller.signal }).finally(() => {
         clearTimeout(abortTimeoutId);
+        if (options?.signal && parentAbortHandler) {
+          options.signal.removeEventListener('abort', parentAbortHandler);
+        }
       });
     },
   }

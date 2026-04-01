@@ -451,6 +451,19 @@
   animation: bell-ring 2s infinite ease-in-out;
 }
 
+.push-toggle.locked {
+  opacity: 0.55;
+  cursor: not-allowed;
+  color: var(--text-dim);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.push-toggle.locked:hover {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: var(--text-dim);
+}
+
 .push-prefs {
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
@@ -663,6 +676,22 @@
   gap: 0.5rem;
 }
 
+.gallery-modal-open .footer {
+  display: none;
+}
+
+body.gallery-modal-open {
+  overflow: hidden;
+}
+
+body.gallery-modal-open .app-container::before,
+body.gallery-modal-open .mobile-navbar,
+body.gallery-modal-open .context-bar,
+body.gallery-modal-open .nav-overlay {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .developer-credit {
   font-size: 0.75rem;
   opacity: 0.6;
@@ -674,6 +703,23 @@
   color: var(--secondary);
   font-weight: 800;
   text-transform: uppercase;
+  text-shadow: 0 0 10px rgba(251, 191, 36, 0.45);
+  animation: dev-name-glow 2.6s ease-in-out infinite;
+}
+
+.dev-name:nth-of-type(2) {
+  animation-delay: 0.4s;
+}
+
+@keyframes dev-name-glow {
+  0%, 100% {
+    text-shadow: 0 0 8px rgba(251, 191, 36, 0.35), 0 0 16px rgba(251, 191, 36, 0.2);
+    filter: brightness(1);
+  }
+  50% {
+    text-shadow: 0 0 14px rgba(251, 191, 36, 0.7), 0 0 24px rgba(251, 191, 36, 0.35);
+    filter: brightness(1.1);
+  }
 }
 
 .nav-overlay {

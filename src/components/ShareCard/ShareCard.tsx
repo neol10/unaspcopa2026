@@ -88,7 +88,7 @@ const ShareCard: React.FC<ShareCardProps & { innerRef: React.RefObject<HTMLDivEl
         </section>
 
         <footer className="footer-credits">
-           WWW.COPAUNASP.COM.BR • @COPAUNASP
+           UNASPCOPA2026.VERCEL.APP • @COPAUNASP
         </footer>
       </div>
     </div>

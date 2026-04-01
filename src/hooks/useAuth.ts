@@ -23,6 +23,7 @@ export const useAuth = () => {
       lower.includes('aborterror')
       || lower.includes("lock broken by another request with the 'steal' option")
       || lower.includes('request was aborted')
+      || lower.includes('signal is aborted without reason')
       || lower.includes('refresh token not found')
       || lower.includes('invalid refresh token')
     );
@@ -154,9 +155,27 @@ export const useAuth = () => {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
-    return data;
+    const attempt = async () => {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      return data;
+    };
+
+    try {
+      return await attempt();
+    } catch (err) {
+      if (!isIgnorableAuthAbort(err)) throw err;
+
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      try {
+        return await attempt();
+      } catch (retryErr) {
+        if (isIgnorableAuthAbort(retryErr)) {
+          throw new Error('A conexão demorou e o login foi interrompido. Tente novamente.');
+        }
+        throw retryErr;
+      }
+    }
   };
 
   const signUp = async (email: string, password: string) => {

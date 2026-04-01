@@ -12,9 +12,9 @@
   --vibrant-red: #E4002B;   /* Official Red */
   
   /* Dark Mode Foundation - Deep & Elegant */
-  --bg-main: #010204; 
-  --bg-sidebar: rgba(15, 23, 42, 0.98);
-  --bg-card: rgba(17, 25, 40, 0.85);
+  --bg-main: #050b1f;
+  --bg-sidebar: rgba(9, 16, 38, 0.96);
+  --bg-card: rgba(14, 24, 52, 0.86);
   --bg-glass: rgba(255, 255, 255, 0.05);
   
   /* Text & Contrast */
@@ -65,10 +65,10 @@ body {
   font-family: 'Inter', 'Manrope', system-ui, -apple-system, sans-serif;
   background-color: var(--bg-main);
   background-image: 
-    radial-gradient(circle at 5% 5%, rgba(52, 168, 83, 0.08) 0%, transparent 45%),   /* Green glow */
-    radial-gradient(circle at 95% 5%, rgba(228, 0, 43, 0.08) 0%, transparent 45%),    /* Red glow */
-    radial-gradient(circle at 50% 95%, rgba(0, 169, 224, 0.08) 0%, transparent 45%),  /* Blue glow */
-    radial-gradient(circle at 50% 50%, rgba(255, 215, 0, 0.03) 0%, transparent 70%);  /* Gold ambient */
+    radial-gradient(circle at 11% 12%, rgba(0, 169, 224, 0.2) 0%, transparent 36%),
+    radial-gradient(circle at 89% 9%, rgba(228, 0, 43, 0.16) 0%, transparent 34%),
+    radial-gradient(circle at 52% 88%, rgba(52, 168, 83, 0.16) 0%, transparent 40%),
+    linear-gradient(140deg, #030716 0%, #071333 42%, #061b3b 72%, #0d2242 100%);
   background-attachment: scroll;
   color: var(--text-main);
   line-height: 1.6;
@@ -90,10 +90,10 @@ body {
 
 [data-theme='light'] body {
   background-image: 
-    radial-gradient(circle at 5% 5%, rgba(52, 168, 83, 0.15) 0%, transparent 60%),
-    radial-gradient(circle at 95% 5%, rgba(228, 0, 43, 0.15) 0%, transparent 60%),
-    radial-gradient(circle at 50% 95%, rgba(0, 169, 224, 0.15) 0%, transparent 60%),
-    radial-gradient(circle at 50% 50%, rgba(255, 215, 0, 0.1) 0%, transparent 75%);
+    radial-gradient(circle at 10% 10%, rgba(0, 169, 224, 0.2) 0%, transparent 50%),
+    radial-gradient(circle at 88% 8%, rgba(228, 0, 43, 0.18) 0%, transparent 52%),
+    radial-gradient(circle at 52% 92%, rgba(52, 168, 83, 0.2) 0%, transparent 56%),
+    linear-gradient(140deg, #f4f8ff 0%, #e8f0ff 45%, #edf4ff 100%);
 }
 
 a {

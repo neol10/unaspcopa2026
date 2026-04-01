@@ -97,7 +97,7 @@ const getServerVapidPublicKey = async (): Promise<string> => {
 };
 
 export const usePushNotifications = () => {
-  const { user } = useAuthContext();
+  const { user, loading: authLoading } = useAuthContext();
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [preferences, setPreferences] = useState<PushPreferences>(DEFAULT_PREFERENCES);
   const [loading, setLoading] = useState(true);
@@ -173,10 +173,25 @@ export const usePushNotifications = () => {
     }
   };
 
+  const removeSubscriptionRecord = async (endpoint: string, token?: string) => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    await fetch('/api/push-subscription', {
+      method: 'DELETE',
+      headers,
+      body: JSON.stringify({ endpoint }),
+    });
+  };
+
   useEffect(() => {
     let mounted = true;
 
     const checkAndSyncSubscription = async () => {
+      if (authLoading) return;
+
       if (!isPushSupported()) {
         setLoading(false);
         return;
@@ -194,7 +209,27 @@ export const usePushNotifications = () => {
         if (!registration || !mounted) return;
 
         let subscription = await registration.pushManager.getSubscription();
-        if (mounted) setIsSubscribed(!!subscription);
+        if (mounted) setIsSubscribed(!!subscription && !!user);
+
+        if (!user) {
+          if (subscription) {
+            try {
+              await removeSubscriptionRecord(subscription.endpoint);
+            } catch {
+              // ignore server cleanup errors during logout cleanup
+            }
+            await subscription.unsubscribe();
+          }
+          warnedSyncRef.current = false;
+          if (mounted) setIsSubscribed(false);
+          try {
+            localStorage.removeItem(PUSH_SYNC_VERSION_KEY);
+          } catch {
+            // ignore
+          }
+          setLoading(false);
+          return;
+        }
 
         // Somente tenta re-inscrever automaticamente se NÃO for iOS (ou se já tiver permissão e for standalone)
         const canAutoSubscribe = !isIOS() || (isStandalone() && Notification.permission === 'granted');
@@ -230,7 +265,7 @@ export const usePushNotifications = () => {
 
     checkAndSyncSubscription();
     return () => { mounted = false; };
-  }, [user, preferences]);
+  }, [user, preferences, authLoading]);
 
   const updatePreferences = async (patch: PushPreferencesPatch) => {
     const next = {
@@ -325,16 +360,8 @@ export const usePushNotifications = () => {
 
         const { data: { session } } = await supabase.auth.getSession();
         const token = session?.access_token;
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
-        }
-        
-        await fetch('/api/push-subscription', {
-          method: 'DELETE',
-          headers,
-          body: JSON.stringify({ endpoint: subscription.endpoint }),
-        });
+
+        await removeSubscriptionRecord(subscription.endpoint, token);
       }
       
       setIsSubscribed(false);

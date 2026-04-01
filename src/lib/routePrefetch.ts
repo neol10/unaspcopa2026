@@ -11,6 +11,7 @@ const routeChunkPrefetchers: Record<string, () => Promise<unknown>> = {
   '/jogadores': () => import('../pages/Players/Players'),
   '/central-da-partida': () => import('../pages/MatchCenter/MatchCenter'),
   '/jogos': () => import('../pages/Brackets/Brackets'),
+  '/galeria': () => import('../pages/Gallery/Gallery'),
   '/admin': () => import('../pages/Admin/Admin'),
 };
 
@@ -90,6 +91,27 @@ const prefetchQueriesByRoute = async (path: string, queryClient: QueryClient) =>
         if (error) throw error;
         return data ?? [];
       },
+      staleTime: 30_000,
+    });
+  }
+
+  if (path === '/galeria') {
+    await queryClient.prefetchQuery({
+      queryKey: ['gallery'],
+      queryFn: async () => {
+        const { data, error } = await supabase
+          .from('gallery')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error?.code === '42P01') {
+          return [];
+        }
+
+        if (error) throw error;
+        return data ?? [];
+      },
+      retry: false,
       staleTime: 30_000,
     });
   }

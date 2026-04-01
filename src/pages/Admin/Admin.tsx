@@ -6,6 +6,7 @@ import { useTeams, type Team } from '../../hooks/useTeams';
 import { usePlayers } from '../../hooks/usePlayers';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNews, type News } from '../../hooks/useNews';
+import { useGallery, type GalleryItem } from '../../hooks/useGallery';
 import { useMatches, type Match } from '../../hooks/useMatches';
 import { useMatchEvents, type MatchEvent } from '../../hooks/useMatchEvents';
 import { useTournamentConfig, type TournamentConfig } from '../../hooks/useTournamentConfig';
@@ -38,15 +39,22 @@ async function withRetry<T>(operation: () => Promise<T>, attempts: number = 2): 
   throw lastError;
 }
 
-const MAX_IMAGE_SIZE_MB = 5;
+const MAX_IMAGE_INPUT_MB = 20;
+const MAX_IMAGE_UPLOAD_MB = 8;
 const COMPRESS_MIN_BYTES = 350 * 1024; // 350KB
 const COMPRESS_MAX_DIM = 1024;
 const COMPRESS_QUALITY = 0.82;
 
 const validateImageFile = (file: File): string | null => {
   if (!file.type.startsWith('image/')) return 'Arquivo invalido. Envie uma imagem.';
-  const maxBytes = MAX_IMAGE_SIZE_MB * 1024 * 1024;
-  if (file.size > maxBytes) return `Imagem muito grande. Maximo: ${MAX_IMAGE_SIZE_MB}MB.`;
+  const maxInputBytes = MAX_IMAGE_INPUT_MB * 1024 * 1024;
+  if (file.size > maxInputBytes) return `Imagem muito grande. Maximo: ${MAX_IMAGE_INPUT_MB}MB.`;
+  return null;
+};
+
+const validatePreparedImageFile = (file: File): string | null => {
+  const maxUploadBytes = MAX_IMAGE_UPLOAD_MB * 1024 * 1024;
+  if (file.size > maxUploadBytes) return `Nao foi possivel otimizar o suficiente. Tente uma imagem menor (maximo ${MAX_IMAGE_UPLOAD_MB}MB apos compactacao).`;
   return null;
 };
 
@@ -117,13 +125,12 @@ const fileToDataUrl = async (file: File): Promise<string | null> => {
 
 const uploadToStorage = async (file: File, bucket: string = 'images', folder: string = 'team-badges'): Promise<string | null> => {
   try {
-    const validationError = validateImageFile(file);
+    const fileToUpload = await prepareImageForUpload(file);
+    const validationError = validateImageFile(file) || validatePreparedImageFile(fileToUpload);
     if (validationError) {
       toast.error(validationError);
       return null;
     }
-
-    const fileToUpload = await prepareImageForUpload(file);
     const fileExt = fileToUpload.name.split('.').pop() || 'jpg';
     const baseName = sanitizeFileBaseName(fileToUpload.name.replace(/\.[^.]+$/, '')) || 'imagem';
     const fileName = `${baseName}_${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
@@ -200,7 +207,7 @@ const getDeleteMatchErrorMessage = (err: unknown): string => {
 
 const Admin: React.FC = () => {
   const { user, role, loading: authLoading } = useAuthContext();
-  const [activeTab, setActiveTab] = useState<'matches' | 'teams' | 'players' | 'news' | 'tournament' | 'polls' | 'notifications' | 'errors' | 'users'>('matches');
+  const [activeTab, setActiveTab] = useState<'matches' | 'teams' | 'players' | 'news' | 'gallery' | 'tournament' | 'polls' | 'notifications' | 'errors' | 'users'>('matches');
   // --- Listagem de Usuários Logados ---
   type UserProfile = {
     id: string;
@@ -345,6 +352,13 @@ const Admin: React.FC = () => {
                 <Newspaper size={18} />
                 <span>Notícias</span>
               </button>
+              <button
+                className={`tab-btn ${activeTab === 'gallery' ? 'active' : ''}`}
+                onClick={() => setActiveTab('gallery')}
+              >
+                <Camera size={18} />
+                <span>Galeria</span>
+              </button>
               <button 
                 className={`tab-btn ${activeTab === 'tournament' ? 'active' : ''}`} 
                 onClick={() => setActiveTab('tournament')}
@@ -388,6 +402,7 @@ const Admin: React.FC = () => {
             {activeTab === 'teams' && <TeamManagement />}
             {activeTab === 'players' && <GlobalPlayerManagement />}
             {activeTab === 'news' && <NewsManagement />}
+            {activeTab === 'gallery' && <GalleryManagement />}
             {activeTab === 'tournament' && <TournamentManagement />}
             {activeTab === 'polls' && <PollManagement />}
             {activeTab === 'notifications' && (
@@ -3744,6 +3759,275 @@ const NewsManagement = () => {
     </div>
   );
 }
+
+const GalleryManagement = () => {
+  const { items, loading, refresh, unavailable } = useGallery();
+  const [isAdding, setIsAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [formData, setFormData] = useState<Pick<GalleryItem, 'title' | 'description' | 'media_url' | 'media_type'>>({
+    title: '',
+    description: '',
+    media_url: '',
+    media_type: 'image',
+  });
+
+  const resetForm = () => {
+    setFormData({
+      title: '',
+      description: '',
+      media_url: '',
+      media_type: 'image',
+    });
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const url = await uploadToStorage(file, 'images', 'gallery');
+    if (url) setFormData((prev) => ({ ...prev, media_url: url, media_type: 'image' }));
+    setUploading(false);
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        ...formData,
+        description: formData.description || '',
+      };
+
+      const { error } = await supabase.from('gallery').insert([payload]);
+      if (error) throw error;
+
+      await sendPushNotification('📸 Nova publicação na Galeria!', formData.title, {
+        url: '/galeria',
+        category: 'general',
+        important: true,
+      });
+
+      setIsAdding(false);
+      resetForm();
+      await refresh();
+      toast.success('Item da galeria publicado!');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao publicar na galeria'));
+    }
+  };
+
+  const handleUpdate = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('gallery')
+        .update({
+          title: formData.title,
+          description: formData.description,
+          media_url: formData.media_url,
+          media_type: formData.media_type,
+        })
+        .eq('id', id);
+      if (error) throw error;
+      setEditingId(null);
+      resetForm();
+      await refresh();
+      toast.success('Publicação atualizada!');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao atualizar publicação'));
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Deseja excluir esta publicação da galeria?')) return;
+    try {
+      const { error } = await supabase.from('gallery').delete().eq('id', id);
+      if (error) throw error;
+      await refresh();
+      toast.success('Publicação removida!');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao excluir publicação'));
+    }
+  };
+
+  const startEdit = (item: GalleryItem) => {
+    setEditingId(item.id);
+    setFormData({
+      title: item.title,
+      description: item.description || '',
+      media_url: item.media_url,
+      media_type: item.media_type,
+    });
+  };
+
+  return (
+    <div className="admin-section glass">
+      <div className="section-header">
+        <h2>Galeria de Fotos e Vídeos</h2>
+        <button
+          className="btn-add"
+          onClick={() => setIsAdding((prev) => !prev)}
+          disabled={unavailable}
+          title={unavailable ? 'Crie a tabela gallery no banco para habilitar publicações.' : 'Nova publicação'}
+        >
+          {isAdding ? 'Cancelar' : <><Plus size={18} /> Nova Publicação</>}
+        </button>
+      </div>
+
+      {isAdding && (
+        <form className="admin-form glass" onSubmit={handleCreate}>
+          <div className="form-grid-full">
+            <div className="form-group">
+              <label>Título</label>
+              <input
+                type="text"
+                required
+                value={formData.title}
+                onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
+                placeholder="Ex: Bastidores da rodada"
+              />
+            </div>
+            <div className="form-group">
+              <label>Descrição</label>
+              <textarea
+                rows={3}
+                value={formData.description}
+                onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+                placeholder="Texto curto para acompanhar a mídia"
+              />
+            </div>
+            <div className="form-group">
+              <label>Tipo da Mídia</label>
+              <select
+                value={formData.media_type}
+                onChange={(e) => setFormData((prev) => ({ ...prev, media_type: e.target.value as GalleryItem['media_type'] }))}
+              >
+                <option value="image">Foto</option>
+                <option value="video">Vídeo</option>
+              </select>
+            </div>
+            {formData.media_type === 'image' && (
+              <div className="form-group">
+                <label>Upload de Foto</label>
+                <label className={`image-upload-container news-upload ${uploading ? 'uploading' : ''}`} style={{ width: '100%', height: '160px' }}>
+                  {uploading ? (
+                    <div className="upload-loading-overlay">
+                      <div className="spinner"></div>
+                    </div>
+                  ) : formData.media_url ? (
+                    <img src={formData.media_url} alt="Preview" className="image-preview-badge" style={{ objectFit: 'cover' }} />
+                  ) : (
+                    <div className="upload-icon-box">
+                      <Camera size={32} />
+                      <span>Upload da Foto</span>
+                    </div>
+                  )}
+                  <input type="file" accept="image/*" className="hidden-file-input" onChange={handleImageUpload} />
+                </label>
+              </div>
+            )}
+            <div className="form-group">
+              <label>URL da Mídia</label>
+              <input
+                type="url"
+                required
+                value={formData.media_url}
+                onChange={(e) => setFormData((prev) => ({ ...prev, media_url: e.target.value }))}
+                placeholder={formData.media_type === 'video' ? 'https://.../video.mp4' : 'https://.../imagem.jpg'}
+              />
+            </div>
+          </div>
+          <button className="btn-save" type="submit"><Save size={18} /> Publicar</button>
+        </form>
+      )}
+
+      {unavailable && (
+        <div className="admin-list">
+          <p className="empty-msg">A tabela gallery ainda não existe no banco. Rode o SQL de setup da Galeria para publicar conteúdo.</p>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="admin-list"><p>Carregando galeria...</p></div>
+      ) : (
+        <div className="admin-list">
+          {items.map((item) => (
+            <div key={item.id} className="admin-list-item-wrapper">
+              <div className="admin-list-item">
+                <div className="item-main">
+                  <Camera size={22} className="icon-subtle" />
+                  <div className="item-info">
+                    <strong>{item.title}</strong>
+                    <span>{item.media_type === 'video' ? 'Vídeo' : 'Foto'} • {new Date(item.created_at).toLocaleString('pt-BR')}</span>
+                  </div>
+                </div>
+                <div className="item-actions">
+                  <button className="btn-icon edit" onClick={() => startEdit(item)}><Settings2 size={18} /></button>
+                  <button className="btn-icon delete" onClick={() => void handleDelete(item.id)}><Trash2 size={18} /></button>
+                </div>
+              </div>
+
+              {editingId === item.id && (
+                <form
+                  className="admin-form glass animate-slide-down"
+                  style={{ margin: '1rem 0' }}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void handleUpdate(item.id);
+                  }}
+                >
+                  <div className="form-grid-full">
+                    <div className="form-group">
+                      <label>Título</label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.title}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Descrição</label>
+                      <textarea
+                        rows={3}
+                        value={formData.description}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Tipo</label>
+                      <select
+                        value={formData.media_type}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, media_type: e.target.value as GalleryItem['media_type'] }))}
+                      >
+                        <option value="image">Foto</option>
+                        <option value="video">Vídeo</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>URL da mídia</label>
+                      <input
+                        type="url"
+                        required
+                        value={formData.media_url}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, media_url: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                    <button type="submit" className="btn-save"><Save size={18} /> Salvar</button>
+                    <button type="button" className="btn-cancel" onClick={() => setEditingId(null)}>Cancelar</button>
+                  </div>
+                </form>
+              )}
+            </div>
+          ))}
+
+          {!loading && items.length === 0 && <p className="empty-msg">Nenhuma publicação na galeria.</p>}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ===== Gerenciamento do Torneio =====
 const TournamentManagement = () => {

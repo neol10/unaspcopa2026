@@ -8,9 +8,11 @@ import PlayerProfileModal from '../Players/PlayerProfileModal';
 import Skeleton, { SkeletonRankingRow } from '../../components/Skeleton/Skeleton';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { downloadSocialPlayerCard } from '../../lib/socialCardExport';
+import { useAuthContext } from '../../contexts/AuthContext';
 
 const Rankings: React.FC = () => {
   const { scorers, assistants, goalkeepers, disciplined, roundMvps, availableRounds, loading, error, refresh } = useRankings();
+  const { role: authRole } = useAuthContext();
   const [selectedPlayer, setSelectedPlayer] = useState<RankingPlayer | null>(null);
   const [selectedRound, setSelectedRound] = useState<string | null>(null);
   const [stuck, setStuck] = useState(false);
@@ -240,29 +242,31 @@ const Rankings: React.FC = () => {
                   <h4>{roundWinner.name}</h4>
                   <span className="winner-team">{roundWinner.team_name}</span>
                   <p className="winner-reason">Destaque estatístico da {selectedRound}ª rodada.</p>
-                  <button
-                    type="button"
-                    className="rank-row-download-btn mvp-download-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDownloadRankingCard(
-                        `mvp-${selectedRound}-${roundWinner.id}`,
-                        roundWinner,
-                        'Craque da Rodada',
-                        `${selectedRound}a rodada da Copa Unasp`,
-                        'gold',
-                        [
-                          { label: 'Rodada', value: selectedRound || '-' },
-                          { label: 'Status', value: 'Destaque' },
-                          { label: 'Categoria', value: 'MVP' },
-                        ],
-                      );
-                    }}
-                    disabled={downloadingCardKey === `mvp-${selectedRound}-${roundWinner.id}`}
-                  >
-                    <Download size={14} />
-                    <span>{downloadingCardKey === `mvp-${selectedRound}-${roundWinner.id}` ? 'Gerando...' : 'Baixar card'}</span>
-                  </button>
+                  {authRole === 'admin' && (
+                    <button
+                      type="button"
+                      className="rank-row-download-btn mvp-download-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDownloadRankingCard(
+                          `mvp-${selectedRound}-${roundWinner.id}`,
+                          roundWinner,
+                          'Craque da Rodada',
+                          `${selectedRound}a rodada da Copa Unasp`,
+                          'gold',
+                          [
+                            { label: 'Rodada', value: selectedRound || '-' },
+                            { label: 'Status', value: 'Destaque' },
+                            { label: 'Categoria', value: 'MVP' },
+                          ],
+                        );
+                      }}
+                      disabled={downloadingCardKey === `mvp-${selectedRound}-${roundWinner.id}`}
+                    >
+                      <Download size={14} />
+                      <span>{downloadingCardKey === `mvp-${selectedRound}-${roundWinner.id}` ? 'Gerando...' : 'Baixar card'}</span>
+                    </button>
+                  )}
                </div>
             </div>
           ) : (
@@ -369,30 +373,32 @@ const Rankings: React.FC = () => {
                   </div>
                 </div>
                 <div className="rank-val">{p.goals_count} G</div>
-                <button
-                  type="button"
-                  className="rank-row-download-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDownloadRankingCard(
-                      `scorers-${p.id}`,
-                      p,
-                      'Artilharia',
-                      'Top goleadores da Copa Unasp',
-                      'gold',
-                      [
-                        { label: 'Posicao', value: `${i + 1}o` },
-                        { label: 'Gols', value: p.goals_count || 0 },
-                        { label: 'Assistencias', value: p.assists || 0 },
-                      ],
-                    );
-                  }}
-                  disabled={downloadingCardKey === `scorers-${p.id}`}
-                  aria-label={`Baixar card de ${p.name}`}
-                >
-                  <Download size={14} />
-                  <span>{downloadingCardKey === `scorers-${p.id}` ? 'Gerando...' : 'Card'}</span>
-                </button>
+                {authRole === 'admin' && (
+                  <button
+                    type="button"
+                    className="rank-row-download-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDownloadRankingCard(
+                        `scorers-${p.id}`,
+                        p,
+                        'Artilharia',
+                        'Top goleadores da Copa Unasp',
+                        'gold',
+                        [
+                          { label: 'Posicao', value: `${i + 1}o` },
+                          { label: 'Gols', value: p.goals_count || 0 },
+                          { label: 'Assistencias', value: p.assists || 0 },
+                        ],
+                      );
+                    }}
+                    disabled={downloadingCardKey === `scorers-${p.id}`}
+                    aria-label={`Baixar card de ${p.name}`}
+                  >
+                    <Download size={14} />
+                    <span>{downloadingCardKey === `scorers-${p.id}` ? 'Gerando...' : 'Card'}</span>
+                  </button>
+                )}
               </div>
             ))}
             {scorers.length === 0 && <p className="empty-rank">Nenhum gol registrado.</p>}
@@ -422,30 +428,32 @@ const Rankings: React.FC = () => {
                    </div>
                 </div>
                 <div className="rank-val">{p.goals_conceded || 0} Gols Sofridos</div>
-                <button
-                  type="button"
-                  className="rank-row-download-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDownloadRankingCard(
-                      `goalkeepers-${p.id}`,
-                      p,
-                      'Luva de Ouro',
-                      'Ranking de goleiros da Copa Unasp',
-                      'green',
-                      [
-                        { label: 'Posicao', value: `${i + 1}o` },
-                        { label: 'Gols Sofridos', value: p.goals_conceded || 0 },
-                        { label: 'Clean Sheets', value: p.clean_sheets || 0 },
-                      ],
-                    );
-                  }}
-                  disabled={downloadingCardKey === `goalkeepers-${p.id}`}
-                  aria-label={`Baixar card de ${p.name}`}
-                >
-                  <Download size={14} />
-                  <span>{downloadingCardKey === `goalkeepers-${p.id}` ? 'Gerando...' : 'Card'}</span>
-                </button>
+                {authRole === 'admin' && (
+                  <button
+                    type="button"
+                    className="rank-row-download-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDownloadRankingCard(
+                        `goalkeepers-${p.id}`,
+                        p,
+                        'Luva de Ouro',
+                        'Ranking de goleiros da Copa Unasp',
+                        'green',
+                        [
+                          { label: 'Posicao', value: `${i + 1}o` },
+                          { label: 'Gols Sofridos', value: p.goals_conceded || 0 },
+                          { label: 'Clean Sheets', value: p.clean_sheets || 0 },
+                        ],
+                      );
+                    }}
+                    disabled={downloadingCardKey === `goalkeepers-${p.id}`}
+                    aria-label={`Baixar card de ${p.name}`}
+                  >
+                    <Download size={14} />
+                    <span>{downloadingCardKey === `goalkeepers-${p.id}` ? 'Gerando...' : 'Card'}</span>
+                  </button>
+                )}
               </div>
             ))}
             {goalkeepers.length === 0 && <p className="empty-rank">Aguardando súmulas...</p>}
@@ -492,30 +500,32 @@ const Rankings: React.FC = () => {
                   </div>
                 </div>
                 <div className="rank-val">{p.assists} ASS</div>
-                <button
-                  type="button"
-                  className="rank-row-download-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDownloadRankingCard(
-                      `assistants-${p.id}`,
-                      p,
-                      'Rei das Assistencias',
-                      'Top criadores de jogada da Copa Unasp',
-                      'blue',
-                      [
-                        { label: 'Posicao', value: `${i + 1}o` },
-                        { label: 'Assistencias', value: p.assists || 0 },
-                        { label: 'Gols', value: p.goals_count || 0 },
-                      ],
-                    );
-                  }}
-                  disabled={downloadingCardKey === `assistants-${p.id}`}
-                  aria-label={`Baixar card de ${p.name}`}
-                >
-                  <Download size={14} />
-                  <span>{downloadingCardKey === `assistants-${p.id}` ? 'Gerando...' : 'Card'}</span>
-                </button>
+                {authRole === 'admin' && (
+                  <button
+                    type="button"
+                    className="rank-row-download-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDownloadRankingCard(
+                        `assistants-${p.id}`,
+                        p,
+                        'Rei das Assistencias',
+                        'Top criadores de jogada da Copa Unasp',
+                        'blue',
+                        [
+                          { label: 'Posicao', value: `${i + 1}o` },
+                          { label: 'Assistencias', value: p.assists || 0 },
+                          { label: 'Gols', value: p.goals_count || 0 },
+                        ],
+                      );
+                    }}
+                    disabled={downloadingCardKey === `assistants-${p.id}`}
+                    aria-label={`Baixar card de ${p.name}`}
+                  >
+                    <Download size={14} />
+                    <span>{downloadingCardKey === `assistants-${p.id}` ? 'Gerando...' : 'Card'}</span>
+                  </button>
+                )}
               </div>
             ))}
             {assistants.length === 0 && <p className="empty-rank">Nenhuma assistência.</p>}
@@ -566,30 +576,32 @@ const Rankings: React.FC = () => {
                   <span className="p-card-new red">{p.red_cards || 0}</span>
                 </div>
                 <div className="rank-val">{p.fair_play_points || 0} pts</div>
-                <button
-                  type="button"
-                  className="rank-row-download-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDownloadRankingCard(
-                      `discipline-${p.id}`,
-                      p,
-                      'Fair Play',
-                      'Disciplina oficial da Copa Unasp',
-                      'red',
-                      [
-                        { label: 'Posicao', value: `${i + 1}o` },
-                        { label: 'Pontos', value: p.fair_play_points || 0 },
-                        { label: 'Cartoes', value: (p.yellow_cards || 0) + (p.red_cards || 0) },
-                      ],
-                    );
-                  }}
-                  disabled={downloadingCardKey === `discipline-${p.id}`}
-                  aria-label={`Baixar card de ${p.name}`}
-                >
-                  <Download size={14} />
-                  <span>{downloadingCardKey === `discipline-${p.id}` ? 'Gerando...' : 'Card'}</span>
-                </button>
+                {authRole === 'admin' && (
+                  <button
+                    type="button"
+                    className="rank-row-download-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDownloadRankingCard(
+                        `discipline-${p.id}`,
+                        p,
+                        'Fair Play',
+                        'Disciplina oficial da Copa Unasp',
+                        'red',
+                        [
+                          { label: 'Posicao', value: `${i + 1}o` },
+                          { label: 'Pontos', value: p.fair_play_points || 0 },
+                          { label: 'Cartoes', value: (p.yellow_cards || 0) + (p.red_cards || 0) },
+                        ],
+                      );
+                    }}
+                    disabled={downloadingCardKey === `discipline-${p.id}`}
+                    aria-label={`Baixar card de ${p.name}`}
+                  >
+                    <Download size={14} />
+                    <span>{downloadingCardKey === `discipline-${p.id}` ? 'Gerando...' : 'Card'}</span>
+                  </button>
+                )}
               </div>
             ))}
             {disciplined.length === 0 && <p className="empty-rank">Sem dados de cartões.</p>}

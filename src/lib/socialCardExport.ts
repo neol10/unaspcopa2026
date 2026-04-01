@@ -79,6 +79,58 @@ const createStatTile = (label: string, value: string | number, primary: string) 
   return tile;
 };
 
+const getDominantColor = (imgUrl: string): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 64; 
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return resolve('14,165,233'); // fallback blue
+      ctx.drawImage(img, 0, 0, 64, 64);
+      try {
+        const data = ctx.getImageData(0, 0, 64, 64).data;
+        let r = 0, g = 0, b = 0, count = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          const a = data[i+3];
+          if (a > 200) {
+             const max = Math.max(data[i], data[i+1], data[i+2]);
+             const min = Math.min(data[i], data[i+1], data[i+2]);
+             const isGray = (max - min) < 20 && max > 30 && max < 220;
+             if (!isGray && (data[i] < 240 || data[i+1] < 240 || data[i+2] < 240)) {
+               r += data[i];
+               g += data[i+1];
+               b += data[i+2];
+               count++;
+             }
+          }
+        }
+        if (count === 0) return resolve('14,165,233');
+        r = Math.floor(r / count);
+        g = Math.floor(g / count);
+        b = Math.floor(b / count);
+        
+        // Boost vibrance slightly
+        const maxFinal = Math.max(r, g, b);
+        if (maxFinal > 0 && maxFinal < 180) {
+           const multiplier = 180 / maxFinal;
+           r = Math.min(255, Math.floor(r * multiplier));
+           g = Math.min(255, Math.floor(g * multiplier));
+           b = Math.min(255, Math.floor(b * multiplier));
+        }
+
+        resolve(`${r}, ${g}, ${b}`); 
+      } catch (e) {
+        resolve('14,165,233'); 
+      }
+    };
+    img.onerror = () => resolve('14,165,233');
+    img.src = imgUrl;
+  });
+};
+
 export const downloadSocialPlayerCard = async ({
   fileName,
   category,
@@ -87,7 +139,16 @@ export const downloadSocialPlayerCard = async ({
   stats,
   theme = 'gold',
 }: DownloadSocialCardOptions) => {
-  const colors = THEME_COLORS[theme];
+  let colors = THEME_COLORS[theme];
+
+  if (player.teamBadgeUrl) {
+    const rgbStr = await getDominantColor(player.teamBadgeUrl);
+    colors = {
+      primary: `rgb(${rgbStr})`,
+      secondary: `rgb(${rgbStr})`,
+      glow: `rgba(${rgbStr}, 0.25)`,
+    };
+  }
 
   const mount = document.createElement('div');
   mount.style.position = 'fixed';
@@ -160,6 +221,7 @@ export const downloadSocialPlayerCard = async ({
 
   if (player.teamBadgeUrl) {
     const badgeImg = document.createElement('img');
+    badgeImg.crossOrigin = 'anonymous';
     badgeImg.src = player.teamBadgeUrl;
     badgeImg.alt = player.teamName || 'Time';
     badgeImg.width = 90;
@@ -195,11 +257,12 @@ export const downloadSocialPlayerCard = async ({
 
   if (player.photoUrl) {
     const photo = document.createElement('img');
+    photo.crossOrigin = 'anonymous';
     photo.src = player.photoUrl;
     photo.alt = player.name;
     photo.width = 310;
     photo.height = 310;
-    photo.style.objectFit = 'cover';
+    photo.style.objectFit = 'contain';
     avatarWrap.appendChild(photo);
   } else {
     const noPhoto = document.createElement('span');
@@ -263,7 +326,7 @@ export const downloadSocialPlayerCard = async ({
   footer.style.borderTop = '1px solid rgba(255,255,255,0.16)';
 
   const footerLeft = document.createElement('span');
-  footerLeft.textContent = 'www.copaunasp.com.br';
+  footerLeft.textContent = 'unaspcopa2026.vercel.app';
   footerLeft.style.fontSize = '22px';
   footerLeft.style.color = 'rgba(255,255,255,0.75)';
   footerLeft.style.fontWeight = '600';

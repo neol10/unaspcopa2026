@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Home, Trophy, BarChart2, Users, Settings, Timer, Sun, Moon, Menu, X, LogIn, User, LogOut, Calendar, Bell, BellOff } from 'lucide-react';
+import { Home, Trophy, BarChart2, Users, Settings, Timer, Sun, Moon, Menu, X, LogIn, User, LogOut, Calendar, Bell, BellOff, Image } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
@@ -12,7 +12,6 @@ import { AutoRefreshStatus } from '../AutoRefreshStatus/AutoRefreshStatus';
 import AuthModal from '../Auth/AuthModal';
 import IOSInstallPrompt from '../PWA/IOSInstallPrompt';
 import { AnimatePresence, motion } from 'framer-motion';
-import toast from 'react-hot-toast';
 import logo from '../../assets/unasp_logo.png';
 import { prefetchRouteIntent } from '../../lib/routePrefetch';
 import { onGoalOverlay, type GoalOverlayPayload } from '../../lib/goalOverlay';
@@ -34,7 +33,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
 
   const isAdminRoute = location.pathname.startsWith('/admin');
+  const showContextBar = location.pathname === '/' || location.pathname.startsWith('/classificacao');
   const showAdminNav = role === 'admin' || isAdminRoute;
+  const isPushLocked = !user;
 
   const liveMatch = useMemo(() => (matches || []).find((m) => m.status === 'ao_vivo') || null, [matches]);
   const nextMatch = useMemo(() => {
@@ -58,9 +59,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   };
 
   const handlePushToggle = async () => {
-    if (!user && !isSubscribed) {
-      toast('Faça login para ativar alertas.');
-      setShowAuthModal(true);
+    if (isPushLocked) {
       return;
     }
 
@@ -218,6 +217,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                   <Users size={20} /> <span>Jogadores</span>
                 </NavLink>
               </li>
+              <li>
+                <NavLink to="/galeria" className={({ isActive }) => (isActive ? 'nav-active' : '')} onClick={closeMobileMenu} {...navIntentHandlers('/galeria')}>
+                  <Image size={20} /> <span>Galeria</span>
+                </NavLink>
+              </li>
               {showAdminNav && (
                 <li>
                   <NavLink to="/admin" className={({ isActive }) => isActive ? 'nav-active' : ''} onClick={closeMobileMenu} {...navIntentHandlers('/admin')}>
@@ -250,12 +254,14 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               </button>
             )}
             <button 
-              className={`push-toggle ${isSubscribed ? 'subscribed' : ''}`} 
+              className={`push-toggle ${isSubscribed ? 'subscribed' : ''} ${isPushLocked ? 'locked' : ''}`} 
               onClick={handlePushToggle}
-              title={isSubscribed ? 'Desativar Notificações' : 'Ativar Notificações'}
+              title={isPushLocked ? 'Faça login para gerenciar alertas' : isSubscribed ? 'Desativar Notificações' : 'Ativar Notificações'}
+              disabled={isPushLocked}
+              aria-disabled={isPushLocked}
             >
               {isSubscribed ? <Bell size={20} color="var(--secondary)" /> : <BellOff size={20} />}
-              <span>{isSubscribed ? 'Alertas Ativos' : 'Ativar Alertas'}</span>
+              <span>{isPushLocked ? 'Alertas indisponíveis' : isSubscribed ? 'Alertas Ativos' : 'Ativar Alertas'}</span>
             </button>
 
             {isSubscribed && (
@@ -376,7 +382,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
         <div className={`nav-overlay ${isMobileMenuOpen ? 'show' : ''}`} onClick={closeMobileMenu}></div>
 
-        {(liveMatch || nextMatch) && (
+        {showContextBar && (liveMatch || nextMatch) && (
           <div className={`context-bar glass ${liveMatch ? 'is-live' : 'is-next'}`}>
             <div className="context-left">
               <span className={`context-pill ${liveMatch ? 'live' : 'next'}`}>
