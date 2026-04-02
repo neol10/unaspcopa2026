@@ -47,6 +47,17 @@ const MatchCenter: React.FC = () => {
   const activeMatchRoundText = activeMatch ? String(activeMatch.round ?? '').toLowerCase() : '';
   const liveMatchId = matches.find(m => m.status === 'ao_vivo')?.id;
 
+  const getTeamLabel = (name: string | null | undefined, fallback: string) => {
+    const trimmed = (name || '').trim();
+    return trimmed ? trimmed : fallback;
+  };
+
+  const getTeamShortName = (name: string | null | undefined, fallback: string) => {
+    const trimmed = (name || '').trim();
+    if (!trimmed) return fallback;
+    return trimmed.replace(/\s+/g, '').slice(0, 3).toUpperCase();
+  };
+
   const [elapsedTime, setElapsedTime] = useState('00:00');
 
   const { players } = usePlayers();
@@ -371,7 +382,7 @@ const MatchCenter: React.FC = () => {
             {selectorMatches.map(m => (
               <option key={m.id} value={m.id}>
                 {m.status === 'ao_vivo' ? '🔴 ' : ''}
-                {m.teams_a?.name.substring(0,10)} x {m.teams_b?.name.substring(0,10)}
+                {getTeamLabel(m.teams_a?.name, 'Equipe A')} x {getTeamLabel(m.teams_b?.name, 'Equipe B')}
               </option>
             ))}
           </select>
@@ -385,7 +396,9 @@ const MatchCenter: React.FC = () => {
               className={`match-pill ${activeMatch?.id === m.id ? 'active' : ''}`}
               onClick={() => handleSelectMatch(m.id)}
             >
-              <span className="pill-teams">{m.teams_a?.name.substring(0,3)} x {m.teams_b?.name.substring(0,3)}</span>
+              <span className="pill-teams">
+                {getTeamShortName(m.teams_a?.name, 'A')} x {getTeamShortName(m.teams_b?.name, 'B')}
+              </span>
               {m.status === 'ao_vivo' && <span className="live-dot-mini"></span>}
             </button>
           ))}

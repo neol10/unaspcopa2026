@@ -3,6 +3,7 @@
   flex-direction: column;
   gap: 2.5rem;
   padding-bottom: 3rem;
+  overscroll-behavior-y: contain;
 }
 
 /* Match Selector Bar */
@@ -69,6 +70,58 @@
   gap: 1rem;
   align-items: center;
   overflow-x: auto;
+  padding-bottom: 0.25rem;
+  scrollbar-width: thin;
+}
+
+.selector-list::-webkit-scrollbar {
+  height: 6px;
+}
+
+.selector-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+}
+
+.match-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-light);
+  color: var(--text-dim);
+  font-weight: 800;
+  font-size: 0.7rem;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.match-pill:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-main);
+}
+
+.match-pill.active {
+  background: rgba(251, 191, 36, 0.18);
+  border-color: rgba(251, 191, 36, 0.35);
+  color: var(--secondary);
+}
+
+.pill-teams {
+  white-space: nowrap;
+}
+
+.live-dot-mini {
+  width: 6px;
+  height: 6px;
+  background: var(--primary);
+  border-radius: 50%;
+  box-shadow: 0 0 10px var(--primary);
+}
 
 .comment-meta {
   display: flex;
@@ -98,15 +151,6 @@
   color: var(--text-main);
   border-color: rgba(255, 255, 255, 0.18);
   background: rgba(255, 255, 255, 0.04);
-}
-}
-
-.live-dot-mini {
-  width: 6px;
-  height: 6px;
-  background: var(--primary);
-  border-radius: 50%;
-  box-shadow: 0 0 10px var(--primary);
 }
 
 /* Match Layout */
@@ -183,32 +227,6 @@
 .scoreboard-main {
   display: flex;
   justify-content: space-around;
-.comment-meta {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 6px;
-}
-.comment-author {
-  font-size: 0.82rem;
-  font-weight: 800;
-  color: var(--text-dim);
-}
-.comment-delete {
-  margin-left: auto;
-  font-size: 0.78rem;
-  font-weight: 800;
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  color: var(--text-dim);
-  padding: 6px 10px;
-  border-radius: 10px;
-}
-.comment-delete:hover {
-  color: var(--text-main);
-  border-color: rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.04);
-}
   align-items: center;
 }
 

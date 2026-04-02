@@ -64,11 +64,7 @@
 body {
   font-family: 'Inter', 'Manrope', system-ui, -apple-system, sans-serif;
   background-color: var(--bg-main);
-  background-image: 
-    radial-gradient(circle at 11% 12%, rgba(0, 169, 224, 0.2) 0%, transparent 36%),
-    radial-gradient(circle at 89% 9%, rgba(228, 0, 43, 0.16) 0%, transparent 34%),
-    radial-gradient(circle at 52% 88%, rgba(52, 168, 83, 0.16) 0%, transparent 40%),
-    linear-gradient(140deg, #030716 0%, #071333 42%, #061b3b 72%, #0d2242 100%);
+  background-image: radial-gradient(circle at 18% 18%, rgba(0, 169, 224, 0.16) 0%, transparent 42%), radial-gradient(circle at 82% 12%, rgba(0, 169, 224, 0.12) 0%, transparent 40%), linear-gradient(140deg, #02040c 0%, #081635 45%, #061b3b 100%);
   background-attachment: scroll;
   color: var(--text-main);
   line-height: 1.6;
@@ -80,6 +76,7 @@ body {
   transition: background-color 0.4s ease, color 0.4s ease;
   width: 100%;
   position: relative;
+  overscroll-behavior-y: contain;
 }
 
 #root {
@@ -89,11 +86,7 @@ body {
 }
 
 [data-theme='light'] body {
-  background-image: 
-    radial-gradient(circle at 10% 10%, rgba(0, 169, 224, 0.2) 0%, transparent 50%),
-    radial-gradient(circle at 88% 8%, rgba(228, 0, 43, 0.18) 0%, transparent 52%),
-    radial-gradient(circle at 52% 92%, rgba(52, 168, 83, 0.2) 0%, transparent 56%),
-    linear-gradient(140deg, #f4f8ff 0%, #e8f0ff 45%, #edf4ff 100%);
+  background-image: radial-gradient(circle at 10% 10%, rgba(0, 169, 224, 0.2) 0%, transparent 50%), radial-gradient(circle at 88% 8%, rgba(228, 0, 43, 0.18) 0%, transparent 52%), radial-gradient(circle at 52% 92%, rgba(52, 168, 83, 0.2) 0%, transparent 56%), linear-gradient(140deg, #f4f8ff 0%, #e8f0ff 45%, #edf4ff 100%);
 }
 
 a {
@@ -131,6 +124,7 @@ html {
   scroll-behavior: smooth;
   width: 100%;
   -webkit-text-size-adjust: 100%;
+  overscroll-behavior-y: contain;
 }
 
 ::selection {
@@ -190,8 +184,6 @@ html {
   background-clip: text;
   -webkit-text-fill-color: transparent;
 }
-
-/* Animations */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }

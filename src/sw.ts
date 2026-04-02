@@ -31,12 +31,22 @@ self.addEventListener('push', (event) => {
   const pushMeta = data as {
     tag?: string;
     category?: string;
+    action?: string;
     sentAt?: string;
     url?: string;
     icon?: string;
     body?: string;
     title?: string;
   };
+
+  if (pushMeta.action === 'cancel' && pushMeta.tag) {
+    event.waitUntil(
+      self.registration.getNotifications({ tag: pushMeta.tag }).then((notifications) => {
+        notifications.forEach((notification) => notification.close());
+      }),
+    );
+    return;
+  }
 
   const computedTag =
     pushMeta.tag ||

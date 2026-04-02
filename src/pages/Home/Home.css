@@ -3,6 +3,7 @@
   flex-direction: column;
   gap: 5rem;
   touch-action: pan-y;
+  overscroll-behavior-y: contain;
 }
 
 .hero-cinematic {

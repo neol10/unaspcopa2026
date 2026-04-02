@@ -1079,6 +1079,34 @@ const MatchManagement = () => {
   });
   const [searchTerm, setSearchTerm] = useState('');
 
+  const KO_ROUND_CODES: Record<string, number> = {
+    quartas: 1001,
+    semi: 1002,
+    final: 1003,
+    terceiro: 1004,
+  };
+
+  const KO_ROUND_LABELS: Record<number, string> = {
+    1001: 'Quartas',
+    1002: 'Semi',
+    1003: 'Final',
+    1004: '3o Lugar',
+  };
+
+  const parseRoundInput = (value: string): number | null => {
+    const raw = value.trim();
+    if (!raw) return null;
+    const lower = raw.toLowerCase();
+    if (KO_ROUND_CODES[lower]) return KO_ROUND_CODES[lower];
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
+    return null;
+  };
+
+  const formatRoundLabel = (value: number) => KO_ROUND_LABELS[value] || `${value}ª Rodada`;
+
+  const formatRoundInput = (value: number) => KO_ROUND_LABELS[value] || String(value);
+
   const invalidateCompetitionData = () => {
     void queryClient.invalidateQueries({ queryKey: ['matches'] });
     void queryClient.invalidateQueries({ queryKey: ['standings'] });
@@ -1100,7 +1128,10 @@ const MatchManagement = () => {
     if (formData.team_a_id === formData.team_b_id) return toast.error('Selecione times diferentes!');
     
     // Validação: Impedir que o mesmo time jogue duas vezes na mesma rodada
-    const currentRound = parseInt(formData.round) || 1;
+    const currentRound = parseRoundInput(formData.round) || 0;
+    if (!currentRound) {
+      return toast.error('Rodada inválida. Use um número ou: Quartas, Semi, Final, 3o Lugar.');
+    }
     const teamACollision = matches.find(m => m.round === currentRound && (m.team_a_id === formData.team_a_id || m.team_b_id === formData.team_a_id));
     const teamBCollision = matches.find(m => m.round === currentRound && (m.team_a_id === formData.team_b_id || m.team_b_id === formData.team_b_id));
 
@@ -1301,7 +1332,10 @@ const MatchManagement = () => {
 
   const handleUpdateMatch = async (id: string, data: MatchFormData) => {
     // Validação: Impedir que o mesmo time jogue duas vezes na mesma rodada (ignorando a própria partida sendo editada)
-    const currentRound = parseInt(data.round) || 1;
+    const currentRound = parseRoundInput(data.round) || 0;
+    if (!currentRound) {
+      return toast.error('Rodada inválida. Use um número ou: Quartas, Semi, Final, 3o Lugar.');
+    }
     const teamACollision = matches.find(m => m.id !== id && m.round === currentRound && (m.team_a_id === data.team_a_id || m.team_b_id === data.team_a_id));
     const teamBCollision = matches.find(m => m.id !== id && m.round === currentRound && (m.team_a_id === data.team_b_id || m.team_b_id === data.team_b_id));
 
@@ -1348,7 +1382,7 @@ const MatchManagement = () => {
   // Times ocupados na rodada selecionada (Nova Partida)
   const busyTeamIdsInRound = new Set(
     (matches || [])
-      .filter(m => m.round === (parseInt(formData.round) || 1))
+      .filter(m => m.round === (parseRoundInput(formData.round) || 1))
       .flatMap(m => [m.team_a_id, m.team_b_id])
   );
 
@@ -1427,10 +1461,24 @@ const MatchManagement = () => {
                  <input type="datetime-local" required value={formData.match_date} onChange={e => setFormData({...formData, match_date: e.target.value})} />
                </div>
                <div className="form-group">
-                 <label>Rodada (Apenas número)</label>
-                 <input type="number" placeholder="Ex: 1, 2..." required value={formData.round} onChange={e => setFormData({...formData, round: e.target.value})} />
+                 <label>Rodada</label>
+                 <input type="text" placeholder="Ex: 1, 2, Quartas" required value={formData.round} onChange={e => setFormData({...formData, round: e.target.value})} list="round-options" />
                </div>
            </div>
+           <datalist id="round-options">
+             <option value="1" />
+             <option value="2" />
+             <option value="3" />
+             <option value="4" />
+             <option value="5" />
+             <option value="6" />
+             <option value="7" />
+             <option value="8" />
+             <option value="Quartas" />
+             <option value="Semi" />
+             <option value="Final" />
+             <option value="3o Lugar" />
+           </datalist>
            <button type="submit" className="btn-save" disabled={isSubmittingMatch}>
              <Save size={18} /> {isSubmittingMatch ? 'Criando...' : 'Criar Partida'}
            </button>
@@ -1475,7 +1523,7 @@ const MatchManagement = () => {
                         )}
                       </strong>
                       <div className="match-meta-admin">
-                        <span className="round-badge">{match.round}ª Rodada</span>
+                        <span className="round-badge">{formatRoundLabel(match.round)}</span>
                         <span className="match-date">{new Date(match.match_date).toLocaleString('pt-BR')}</span>
                       </div>
                     </div>
@@ -1492,7 +1540,7 @@ const MatchManagement = () => {
                            match_date: formatDatetimeLocal(match.match_date),
                            location: match.location,
                            status: match.status,
-                           round: String(match.round)
+                           round: formatRoundInput(match.round)
                          });
                       }}><Settings2 size={18} /></button>
                       <button className="btn-icon play" title="Começar Jogo" onClick={() => { vibrate(60); updateStatus(match.id, 'ao_vivo', match); }}><Play size={18} /></button>
@@ -1537,7 +1585,7 @@ const MatchManagement = () => {
                       <label>Equipe A</label>
                       <select value={formData.team_a_id} onChange={e => setFormData({...formData, team_a_id: e.target.value})}>
                         {teams
-                          .filter(t => !getBusyTeamIdsForEdit(match.id, parseInt(formData.round)).has(t.id) || t.id === match.team_a_id)
+                          .filter(t => !getBusyTeamIdsForEdit(match.id, parseRoundInput(formData.round) || 1).has(t.id) || t.id === match.team_a_id)
                           .map(t => <option key={t.id} value={t.id}>{t.name}</option>)
                         }
                       </select>
@@ -1546,7 +1594,7 @@ const MatchManagement = () => {
                       <label>Equipe B</label>
                       <select value={formData.team_b_id} onChange={e => setFormData({...formData, team_b_id: e.target.value})}>
                         {teams
-                          .filter(t => !getBusyTeamIdsForEdit(match.id, parseInt(formData.round)).has(t.id) || t.id === match.team_b_id)
+                          .filter(t => !getBusyTeamIdsForEdit(match.id, parseRoundInput(formData.round) || 1).has(t.id) || t.id === match.team_b_id)
                           .map(t => <option key={t.id} value={t.id}>{t.name}</option>)
                         }
                       </select>
@@ -1557,7 +1605,7 @@ const MatchManagement = () => {
                     </div>
                     <div className="form-group">
                       <label>Rodada</label>
-                      <input type="number" value={formData.round} onChange={e => setFormData({...formData, round: e.target.value})} />
+                      <input type="text" value={formData.round} onChange={e => setFormData({...formData, round: e.target.value})} list="round-options" />
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '1rem' }}>
@@ -1592,7 +1640,7 @@ const MatchManagement = () => {
                         {match.teams_b?.badge_url && <img src={match.teams_b.badge_url} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} />}
                       </strong>
                       <div className="match-meta-admin">
-                        <span className="round-badge">{match.round}ª Rodada</span>
+                        <span className="round-badge">{formatRoundLabel(match.round)}</span>
                         <span className="match-date">{new Date(match.match_date).toLocaleDateString('pt-BR')}</span>
                       </div>
                     </div>
@@ -1609,7 +1657,7 @@ const MatchManagement = () => {
                         match_date: formatDatetimeLocal(match.match_date),
                         location: match.location,
                         status: match.status,
-                        round: String(match.round)
+                        round: formatRoundInput(match.round)
                       });
                   }}><Settings2 size={16} /></button>
                   <button 

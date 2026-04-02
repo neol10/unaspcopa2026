@@ -731,6 +731,48 @@ body.gallery-modal-open .nav-overlay {
   z-index: 950;
 }
 
+@media (min-width: 1025px) {
+  .sidebar-content {
+    padding: 1.4rem 1.2rem;
+  }
+
+  .sidebar-header {
+    margin-bottom: 1.2rem;
+  }
+
+  .nav-links {
+    gap: 0.35rem;
+  }
+
+  .nav-links a {
+    padding: 0.7rem 1rem;
+    font-size: 0.85rem;
+  }
+
+  .sidebar-footer {
+    padding: 1rem 0 0;
+  }
+
+  .net-status {
+    margin-bottom: 0.6rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+  }
+
+  .theme-toggle,
+  .push-toggle,
+  .btn-login {
+    padding: 0.7rem 1rem;
+    font-size: 0.85rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .auth-user-block {
+    padding: 0.6rem 0.9rem;
+    margin-bottom: 0.6rem;
+  }
+}
+
 /* RESPONSIVE DESIGN */
 @media (max-width: 1024px) {
   .sidebar {

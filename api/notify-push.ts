@@ -125,6 +125,8 @@ type NotifyPayload = {
   category?: string;
   important?: boolean;
   teamIds?: string[];
+  tag?: string;
+  action?: 'notify' | 'cancel';
 };
 
 const shouldReceiveNotification = (
@@ -314,7 +316,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(500).json({ error: envValidationError });
     }
 
-    const { title, body, url, category, important, teamIds } =
+    const { title, body, url, category, important, teamIds, tag, action } =
       ((typeof req.body === 'string' ? JSON.parse(req.body) : req.body) ?? {}) as NotifyPayload;
 
     if (!title || !body) {
@@ -356,6 +358,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       icon: ICON_URL,
       category: category || 'general',
       important: Boolean(important),
+      tag: tag || undefined,
+      action: action || undefined,
     });
 
     const validSubscriptions = (subscriptions as SubscriptionRow[]).filter((row) =>
