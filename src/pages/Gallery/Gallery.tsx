@@ -357,16 +357,6 @@ const Gallery: React.FC = () => {
 
   return (
     <section className="gallery-page animate-fade-in">
-      <header className="gallery-header glass">
-        <div>
-          <h1>Galeria</h1>
-          <p>Fotos e vídeos da copa. Curta e comente com a galera.</p>
-        </div>
-        <button className="gallery-refresh" onClick={() => void refresh()}>
-          Atualizar
-        </button>
-      </header>
-
       <div className="gallery-toolbar glass">
         <div className="gallery-toolbar__search-wrap">
           <input
@@ -377,6 +367,9 @@ const Gallery: React.FC = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
             aria-label="Buscar mídia na galeria"
           />
+          <button className="gallery-refresh" onClick={() => void refresh()}>
+            Atualizar
+          </button>
         </div>
         <div className="gallery-toolbar__filters" role="group" aria-label="Filtro por tipo de mídia">
           <button

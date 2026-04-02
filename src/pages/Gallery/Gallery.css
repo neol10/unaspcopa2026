@@ -33,6 +33,7 @@
   border-radius: 10px;
   padding: 0.55rem 1rem;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .gallery-warning {
@@ -61,10 +62,13 @@
 
 .gallery-toolbar__search-wrap {
   width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .gallery-toolbar__search {
-  width: 100%;
+  flex: 1 1 auto;
   border-radius: 12px;
   border: 1px solid var(--border-light);
   background: rgba(255, 255, 255, 0.03);

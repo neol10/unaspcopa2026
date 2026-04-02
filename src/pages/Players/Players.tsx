@@ -23,6 +23,7 @@ const Players: React.FC = () => {
   const [stuck, setStuck] = useState(false);
   const [brokenImageMap, setBrokenImageMap] = useState<Record<string, true>>({});
   const [downloadingPlayerId, setDownloadingPlayerId] = useState<string | null>(null);
+  const isAdmin = authRole === 'admin';
 
   const normalizeImageSrc = (value: string) => {
     const trimmed = value.trim();
@@ -49,17 +50,31 @@ const Players: React.FC = () => {
     return () => clearTimeout(id);
   }, [playersLoading]);
   
+  const normalize = (value: string) => value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  const isTestGroup = (groupName?: string | null) => {
+    const clean = (groupName || '').trim().toUpperCase().replace(/\s+/g, '');
+    return clean === 'C' || clean === 'GRUPOC';
+  };
+
+  const basePlayers = isAdmin
+    ? players
+    : players.filter((p) => !isTestGroup(p.team_group));
+
   const team = teams.find(t => t.id === teamId);
   const teamFromPlayers = useMemo(() => {
-    if (!teamId || players.length === 0) return null;
-    const first = players[0];
+    if (!teamId || basePlayers.length === 0) return null;
+    const first = basePlayers[0];
     return {
       name: first.team_name,
       badge_url: first.team_badge_url,
       group: first.team_group,
       leader: first.team_leader,
     };
-  }, [teamId, players]);
+  }, [teamId, basePlayers]);
 
   const resolvedTeamName = team?.name || teamFromPlayers?.name || 'Equipe';
   const resolvedTeamBadge = team?.badge_url || teamFromPlayers?.badge_url || '';
@@ -68,16 +83,11 @@ const Players: React.FC = () => {
   const isGlobalView = !teamId;
   const teamBadgeKey = teamId ? `team-badge-${teamId}` : 'team-badge-global';
 
-  const normalize = (value: string) => value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-
-  const positionOptions = Array.from(new Set(players.map((p) => p.position).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  const positionOptions = Array.from(new Set(basePlayers.map((p) => p.position).filter(Boolean))).sort((a, b) => a.localeCompare(b));
 
   const filteredPlayers = useMemo(() => {
     const term = normalize(searchTerm.trim());
-    const list = players.filter((p) => {
+    const list = basePlayers.filter((p) => {
       const matchesPosition = selectedPosition === 'all' || p.position === selectedPosition;
       if (!matchesPosition) return false;
       if (!term) return true;
@@ -99,7 +109,7 @@ const Players: React.FC = () => {
     });
 
     return sorted;
-  }, [players, searchTerm, selectedPosition, sortBy]);
+  }, [basePlayers, searchTerm, selectedPosition, sortBy]);
 
   const handleDownloadPlayerCard = async (player: Player) => {
     const playerTeamName = player.team_name || teams.find((t) => t.id === player.team_id)?.name || resolvedTeamName;
@@ -139,7 +149,7 @@ const Players: React.FC = () => {
     }
   };
 
-  if ((stuck || (!navigator.onLine && playersLoading)) && players.length === 0) {
+  if ((stuck || (!navigator.onLine && playersLoading)) && basePlayers.length === 0) {
     return (
       <div className="error-state glass" style={{ margin: '2rem auto', maxWidth: 720 }}>
         <p style={{ marginBottom: '0.75rem' }}>
@@ -159,19 +169,30 @@ const Players: React.FC = () => {
     );
   }
 
-  if (playersLoading && players.length === 0) return (
+  if (playersLoading && basePlayers.length === 0) return (
     <div className="players-loading">
       <div className="spinner"></div>
       <p>Convocando atletas...</p>
     </div>
   );
   
-  if (playersError && players.length === 0) {
+  if (playersError && basePlayers.length === 0) {
     return (
       <div className="error-state glass" style={{ margin: '2rem auto', maxWidth: 720 }}>
         <p style={{ marginBottom: '0.75rem' }}>Erro ao carregar jogadores: {playersError}</p>
         <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => refreshPlayers()}>
           Tentar novamente
+        </button>
+      </div>
+    );
+  }
+
+  if (teamId && !isAdmin && isTestGroup(resolvedTeamGroup)) {
+    return (
+      <div className="error-state glass" style={{ margin: '2rem auto', maxWidth: 720 }}>
+        <p style={{ marginBottom: '0.75rem' }}>Equipe indisponivel para usuarios nao-admin.</p>
+        <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => navigate('/equipes')}>
+          Voltar para equipes
         </button>
       </div>
     );
@@ -231,22 +252,6 @@ const Players: React.FC = () => {
           />
         </div>
 
-        <div className="players-filters glass">
-          <select value={selectedPosition} onChange={(e) => setSelectedPosition(e.target.value)}>
-            <option value="all">Todas posições</option>
-            {positionOptions.map((position) => (
-              <option key={position} value={position}>{position}</option>
-            ))}
-          </select>
-
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
-            <option value="name">Ordenar por nome</option>
-            <option value="goals">Ordenar por gols</option>
-            <option value="assists">Ordenar por assistências</option>
-            <option value="cards">Ordenar por cartões</option>
-          </select>
-        </div>
-        
         <div className="profile-highlights glass">
           <div className="h-stat">
             <strong>{filteredPlayers.length}</strong>

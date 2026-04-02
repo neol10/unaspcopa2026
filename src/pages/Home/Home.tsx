@@ -273,7 +273,7 @@ const Home: React.FC = () => {
   });
 
   return (
-    <div className="home-page-v2 animate-fade-in" ref={containerRef} style={{ overflowY: 'auto', height: '100%' }}>
+    <div className="home-page-v2 animate-fade-in" ref={containerRef}>
       {/* Pull To Refresh Indicator */}
       {(isPulling || isRefreshing) && (
         <div className="pull-to-refresh-indicator" style={{ height: `${Math.max(40, pullDistance)}px` }}>
@@ -306,49 +306,6 @@ const Home: React.FC = () => {
           </div>
         </div>
       )}
-
-      <motion.section
-        className="home-tournament-status glass"
-        initial={{ opacity: 0, y: 16 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.45 }}
-      >
-        <div className="home-tournament-status-head">
-          <div>
-            <span className="home-status-kicker">Status do Torneio</span>
-            <h3>{phaseLabelMap[effectivePhase] || 'Fase atual'}</h3>
-            <p>
-              {effectivePhase === 'grupos'
-                ? `${config.current_round}ª rodada de ${config.total_rounds}`
-                : 'Chaveamento eliminatório em andamento'}
-            </p>
-          </div>
-          <div className="home-status-actions">
-            <button className="btn-view-all" onClick={() => navigate('/jogos')}>
-              Ver jogos <ArrowRight size={14} />
-            </button>
-            <button className="btn-secondary-glass" onClick={() => navigate('/central-da-partida')}>
-              Central da partida
-            </button>
-          </div>
-        </div>
-
-        <div className="home-status-grid">
-          <div className="home-status-item">
-            <span>Ao vivo</span>
-            <strong>{quickSnapshot.liveCount}</strong>
-          </div>
-          <div className="home-status-item">
-            <span>Jogos hoje</span>
-            <strong>{quickSnapshot.todayCount}</strong>
-          </div>
-          <div className="home-status-item">
-            <span>Próximos</span>
-            <strong>{quickSnapshot.upcomingCount}</strong>
-          </div>
-        </div>
-      </motion.section>
 
       {/* Acontecendo Agora - Seção de Jogo ao Vivo Prioritária */}
       <AnimatePresence>
@@ -443,6 +400,49 @@ const Home: React.FC = () => {
           </div>
         </motion.div>
       </section>
+
+      <motion.section
+        className="home-tournament-status glass"
+        initial={{ opacity: 0, y: 16 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.45 }}
+      >
+        <div className="home-tournament-status-head">
+          <div>
+            <span className="home-status-kicker">Status do Torneio</span>
+            <h3>{phaseLabelMap[effectivePhase] || 'Fase atual'}</h3>
+            <p>
+              {effectivePhase === 'grupos'
+                ? `${config.current_round}ª rodada de ${config.total_rounds}`
+                : 'Chaveamento eliminatório em andamento'}
+            </p>
+          </div>
+          <div className="home-status-actions">
+            <button className="btn-view-all" onClick={() => navigate('/jogos')}>
+              Ver jogos <ArrowRight size={14} />
+            </button>
+            <button className="btn-secondary-glass" onClick={() => navigate('/central-da-partida')}>
+              Central da partida
+            </button>
+          </div>
+        </div>
+
+        <div className="home-status-grid">
+          <div className="home-status-item">
+            <span>Ao vivo</span>
+            <strong>{quickSnapshot.liveCount}</strong>
+          </div>
+          <div className="home-status-item">
+            <span>Jogos hoje</span>
+            <strong>{quickSnapshot.todayCount}</strong>
+          </div>
+          <div className="home-status-item">
+            <span>Próximos</span>
+            <strong>{quickSnapshot.upcomingCount}</strong>
+          </div>
+        </div>
+      </motion.section>
 
       <motion.section
         className="day-snapshot-section"

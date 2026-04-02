@@ -7,7 +7,7 @@
 }
 
 .home-tournament-status {
-  margin: -1.2rem 2rem 0;
+  margin: 0.4rem 2rem 0;
   padding: 1.1rem 1.3rem;
   border-radius: 20px;
   border: 1px solid rgba(251, 191, 36, 0.2);
@@ -82,7 +82,7 @@
 
 @media (max-width: 900px) {
   .home-tournament-status {
-    margin: -1rem 1rem 0;
+    margin: 0.35rem 1rem 0;
   }
 
   .home-status-grid {

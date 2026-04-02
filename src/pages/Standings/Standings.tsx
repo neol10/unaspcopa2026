@@ -2,14 +2,17 @@ import React, { useEffect, useState } from 'react';
 import './Standings.css';
 import { Shield, Info, LayoutGrid, List, Trophy } from 'lucide-react';
 import { useStandings } from '../../hooks/useStandings';
+import { useAuthContext } from '../../contexts/AuthContext';
 import Skeleton, { SkeletonStandingsRow } from '../../components/Skeleton/Skeleton';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 
 const Standings: React.FC = () => {
   const { standings, loading, error, refresh, paused } = useStandings();
+  const { role } = useAuthContext();
   const [showByGroup, setShowByGroup] = useState(true);
   const [selectedGroup, setSelectedGroup] = useState('all');
   const [stuck, setStuck] = useState(false);
+  const isAdmin = role === 'admin';
 
   useEffect(() => {
     if (!loading) {
@@ -48,7 +51,7 @@ const Standings: React.FC = () => {
   });
 
   if (loading && standings.length === 0) return (
-    <div className="standings-container animate-fade-in" style={{ overflowY: 'auto', height: '100%' }}>
+    <div className="standings-container animate-fade-in">
       <header className="standings-header">
         <div className="header-info">
           <Skeleton width="200px" height="40px" className="mb-2" />
@@ -76,7 +79,16 @@ const Standings: React.FC = () => {
   }
 
   // Agrupar equipes por grupo
-  const groupedStandings = standings.reduce((acc: Record<string, typeof standings>, team) => {
+  const isTestGroup = (groupName?: string | null) => {
+    const clean = (groupName || '').trim().toUpperCase().replace(/\s+/g, '');
+    return clean === 'C' || clean === 'GRUPOC';
+  };
+
+  const visibleStandings = isAdmin
+    ? standings
+    : standings.filter((team) => !isTestGroup(team.group));
+
+  const groupedStandings = visibleStandings.reduce((acc: Record<string, typeof standings>, team) => {
     const groupName = team.group || 'Geral';
     if (!acc[groupName]) acc[groupName] = [];
     acc[groupName].push(team);
@@ -104,7 +116,7 @@ const Standings: React.FC = () => {
   };
 
   return (
-    <div className="standings-container animate-fade-in" ref={containerRef} style={{ overflowY: 'auto', height: '100%' }}>
+    <div className="standings-container animate-fade-in" ref={containerRef}>
       {/* Pull To Refresh Indicator */}
       {(isPulling || isRefreshing) && (
         <div className="pull-to-refresh-indicator" style={{ height: `${Math.max(40, pullDistance)}px` }}>
@@ -149,14 +161,6 @@ const Standings: React.FC = () => {
           </div>
         </div>
       </header>
-
-      <section className="standings-criteria-card glass">
-        <div className="standings-criteria-head">
-          <Info size={16} />
-          <strong>Critérios de desempate</strong>
-        </div>
-        <p>1. Vitórias | 2. Saldo de Gols | 3. Gols Pró</p>
-      </section>
 
       {showByGroup && groupNames.length > 1 && (
         <div className="group-filter-row">
@@ -283,7 +287,7 @@ const Standings: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {standings.map((team, index) => (
+                {visibleStandings.map((team, index) => (
                   <tr key={team.team_id} className={`row-animate overall-rank ${getOverallRankColorClass(index)}`}>
                     <td className="col-rank">
                       <span className="rank-num">{index + 1}</span>

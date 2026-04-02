@@ -116,6 +116,18 @@ export const usePushNotifications = () => {
     return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
   };
 
+  const getServiceWorkerRegistration = async (ensure = false) => {
+    let registration = await navigator.serviceWorker.getRegistration();
+    if (registration) return registration;
+    if (!ensure) return null;
+    try {
+      registration = await navigator.serviceWorker.register('/sw.js');
+      return registration;
+    } catch {
+      return null;
+    }
+  };
+
   const markPushSyncVersion = () => {
     try {
       localStorage.setItem(PUSH_SYNC_VERSION_KEY, PUSH_SYNC_VERSION);
@@ -205,28 +217,17 @@ export const usePushNotifications = () => {
       }
 
       try {
-        const registration = await navigator.serviceWorker.ready;
-        if (!registration || !mounted) return;
+        const registration = await getServiceWorkerRegistration();
+        if (!registration || !mounted) {
+          setLoading(false);
+          return;
+        }
 
         let subscription = await registration.pushManager.getSubscription();
-        if (mounted) setIsSubscribed(!!subscription && !!user);
+        if (mounted) setIsSubscribed(!!subscription);
 
         if (!user) {
-          if (subscription) {
-            try {
-              await removeSubscriptionRecord(subscription.endpoint);
-            } catch {
-              // ignore server cleanup errors during logout cleanup
-            }
-            await subscription.unsubscribe();
-          }
           warnedSyncRef.current = false;
-          if (mounted) setIsSubscribed(false);
-          try {
-            localStorage.removeItem(PUSH_SYNC_VERSION_KEY);
-          } catch {
-            // ignore
-          }
           setLoading(false);
           return;
         }
@@ -282,7 +283,10 @@ export const usePushNotifications = () => {
     if (!isPushSupported()) return;
 
     try {
-      const registration = await navigator.serviceWorker.ready;
+      const registration = await getServiceWorkerRegistration(true);
+      if (!registration) {
+        throw new Error('Service Worker nao registrado. Recarregue o app.');
+      }
       const subscription = await registration.pushManager.getSubscription();
       if (!subscription) return;
 
@@ -322,7 +326,10 @@ export const usePushNotifications = () => {
         throw new Error('Permissão de notificação negada. Verifique as configurações do iOS.');
       }
 
-      const registration = await navigator.serviceWorker.ready;
+      const registration = await getServiceWorkerRegistration(true);
+      if (!registration) {
+        throw new Error('Service Worker nao registrado. Recarregue o app.');
+      }
       const vapidPublicKey = await getServerVapidPublicKey();
 
       const existing = await registration.pushManager.getSubscription();

@@ -4,14 +4,17 @@ import './Teams.css';
 import { Shield, Search } from 'lucide-react';
 import { useTeams } from '../../hooks/useTeams';
 import Skeleton from '../../components/Skeleton/Skeleton';
+import { useAuthContext } from '../../contexts/AuthContext';
 
 const Teams: React.FC = () => {
   const navigate = useNavigate();
   const { teams, loading, error, refresh } = useTeams();
+  const { role } = useAuthContext();
   const [stuck, setStuck] = useState(false);
   const [brokenBadgeMap, setBrokenBadgeMap] = useState<Record<string, true>>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('all');
+  const isAdmin = role === 'admin';
 
   const markBadgeBroken = (teamId: string) => {
     setBrokenBadgeMap((prev) => (prev[teamId] ? prev : { ...prev, [teamId]: true }));
@@ -104,10 +107,19 @@ const Teams: React.FC = () => {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
 
-  const groupNames = Array.from(new Set(teams.map((team) => (team.group || 'Sem Grupo').trim()))).sort((a, b) => a.localeCompare(b));
+  const isTestGroup = (groupName?: string | null) => {
+    const clean = (groupName || '').trim().toUpperCase().replace(/\s+/g, '');
+    return clean === 'C' || clean === 'GRUPOC';
+  };
+
+  const visibleTeamsBase = isAdmin
+    ? teams
+    : teams.filter((team) => !isTestGroup(team.group));
+
+  const groupNames = Array.from(new Set(visibleTeamsBase.map((team) => (team.group || 'Sem Grupo').trim()))).sort((a, b) => a.localeCompare(b));
   const normalizedSearch = normalize(searchTerm.trim());
 
-  const visibleTeams = teams.filter((team) => {
+  const visibleTeams = visibleTeamsBase.filter((team) => {
     const groupName = (team.group || 'Sem Grupo').trim();
     if (selectedGroup !== 'all' && groupName !== selectedGroup) return false;
     if (!normalizedSearch) return true;

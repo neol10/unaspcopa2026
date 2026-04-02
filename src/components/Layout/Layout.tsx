@@ -33,9 +33,19 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
 
   const isAdminRoute = location.pathname.startsWith('/admin');
-  const showContextBar = location.pathname === '/' || location.pathname.startsWith('/classificacao');
+  const showContextBar = location.pathname.startsWith('/classificacao');
   const showAdminNav = role === 'admin' || isAdminRoute;
   const isPushLocked = !user;
+  const isAdminUser = role === 'admin';
+
+  const isTestGroup = (groupName?: string | null) => {
+    const clean = (groupName || '').trim().toUpperCase().replace(/\s+/g, '');
+    return clean === 'C' || clean === 'GRUPOC';
+  };
+
+  const visibleTeams = isAdminUser
+    ? teams
+    : teams.filter((team) => !isTestGroup(team.group));
 
   const liveMatch = useMemo(() => (matches || []).find((m) => m.status === 'ao_vivo') || null, [matches]);
   const nextMatch = useMemo(() => {
@@ -347,7 +357,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                         onChange={(e) => void updatePreferences({ favoriteTeamId: e.target.value || null })}
                       >
                         <option value="">Todos os times</option>
-                        {teams.map((team) => (
+                        {visibleTeams.map((team) => (
                           <option key={team.id} value={team.id}>{team.name}</option>
                         ))}
                       </select>

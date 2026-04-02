@@ -76,7 +76,7 @@ const Rankings: React.FC = () => {
   });
 
   if (loading && scorers.length === 0) return (
-    <div className="rankings-container animate-fade-in" style={{ overflowY: 'auto', height: '100%' }}>
+    <div className="rankings-container animate-fade-in">
       <header className="rankings-header">
         <div className="header-info">
           <Skeleton width="200px" height="40px" className="mb-2" />
@@ -184,7 +184,7 @@ const Rankings: React.FC = () => {
   };
 
   return (
-    <div className="rankings-container animate-fade-in" ref={containerRef} style={{ overflowY: 'auto', height: '100%' }}>
+    <div className="rankings-container animate-fade-in" ref={containerRef}>
       <div className="rankings-card-export">
       {/* Pull To Refresh Indicator */}
       {(isPulling || isRefreshing) && (

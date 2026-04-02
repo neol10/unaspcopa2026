@@ -280,7 +280,8 @@ const MatchCenter: React.FC = () => {
         refreshEvents(),
         refreshRoundMvp()
       ]);
-    }
+    },
+    disabled: true,
   });
 
   // IMPORTANT: This hook must stay HERE, before any conditional returns, to satisfy React's rules of hooks.
