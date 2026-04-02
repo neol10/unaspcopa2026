@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { useMatches, Match } from '../../hooks/useMatches';
 import { useTournamentConfig } from '../../hooks/useTournamentConfig';
+import { KNOCKOUT_ROUND_LABELS } from '../../lib/tournamentRules';
 import { Trophy, ChevronRight, ChevronLeft, Target, Timer, ZoomIn, ZoomOut } from 'lucide-react';
 import './Brackets.css';
 
@@ -93,12 +94,7 @@ const Brackets: React.FC = () => {
     });
   }, []);
 
-  const KO_ROUND_LABELS: Record<number, string> = {
-    1001: 'Quartas',
-    1002: 'Semi',
-    1003: 'Final',
-    1004: '3o Lugar',
-  };
+  const KO_ROUND_LABELS: Record<number, string> = KNOCKOUT_ROUND_LABELS;
 
   const getRoundKey = (round: number) => KO_ROUND_LABELS[round] || String(round);
 
@@ -153,16 +149,19 @@ const Brackets: React.FC = () => {
     return name.charAt(0).toUpperCase() + name.slice(1);
   };
 
-  // Distinguir entre Fase de Grupos e Mata-Mata - MEMOIZED
-  const finalPhases = useMemo(() => ['quartas', 'semis', 'semi', 'final', 'decisão', 'terceiro', '3o'], []);
+  // Distinguir entre Fase de Grupos e Mata-Mata com suporte aos codigos do admin
+  const finalPhases = useMemo(() => ['oitavas', 'oitava', 'quartas', 'semis', 'semi', 'final', 'decisão', 'terceiro', '3o'], []);
+  const isKnockoutRoundName = useCallback((roundName: string) => {
+    const lower = roundName.toLowerCase();
+    return finalPhases.some((p) => lower.includes(p));
+  }, [finalPhases]);
   
   const knockoutRounds = useMemo(() => {
-    const rounds = sortedRounds.filter(r => 
-      finalPhases.some(p => r.toLowerCase().includes(p))
-    );
+    const rounds = sortedRounds.filter((r) => isKnockoutRoundName(r));
 
     const roundOrder = (name: string) => {
       const lower = name.toLowerCase();
+      if (lower.includes('oitav')) return 0;
       if (lower.includes('quart')) return 1;
       if (lower.includes('semi')) return 2;
       if (lower.includes('final') && !lower.includes('3')) return 3;
@@ -175,13 +174,16 @@ const Brackets: React.FC = () => {
       if (orderDiff !== 0) return orderDiff;
       return a.localeCompare(b);
     });
-  }, [sortedRounds, finalPhases]);
+  }, [sortedRounds, isKnockoutRoundName]);
 
   const groupRounds = useMemo(() => {
-    return sortedRounds.filter(r => !knockoutRounds.includes(r));
-  }, [sortedRounds, knockoutRounds]);
+    return sortedRounds.filter((r) => !isKnockoutRoundName(r));
+  }, [sortedRounds, isKnockoutRoundName]);
 
-  const hasKnockout = knockoutRounds.length > 0;
+  const hasKnockout = useMemo(() => {
+    if (knockoutRounds.length > 0) return true;
+    return filteredMatches.some((m) => (m.round ?? 0) >= 1000);
+  }, [knockoutRounds, filteredMatches]);
 
   useEffect(() => {
     if (hasKnockout) {
@@ -193,27 +195,29 @@ const Brackets: React.FC = () => {
     setViewMode('list');
   }, [hasKnockout]);
 
-  // Função auxiliar para encontrar fases de mata-mata de forma robusta
-  const findKnockoutRound = useCallback((keyword: string, matchCount: number) => {
-    // 1. Tenta por nome (case insensitive)
-    const byName = knockoutRounds.find(r => r.toLowerCase().includes(keyword.toLowerCase()));
-    if (byName) return byName;
+  const teiaColumns = useMemo(() => {
+    return knockoutRounds.map((roundName) => ({
+      roundName,
+      matches: sortMatches(roundsMap[roundName] || []),
+    }));
+  }, [knockoutRounds, roundsMap, sortMatches]);
 
-    // 2. Tenta por contagem de jogos (ex: 4 jogos = quartas)
-    const byCount = knockoutRounds.find(r => roundsMap[r]?.length === matchCount);
-    if (byCount) return byCount;
+  const scheduleSummary = useMemo(() => {
+    const now = new Date();
+    const today = now.toDateString();
+    const liveCount = matches.filter((m) => m.status === 'ao_vivo').length;
+    const todayCount = matches.filter((m) => new Date(m.match_date).toDateString() === today).length;
+    const upcoming = matches
+      .filter((m) => m.status === 'agendado' && new Date(m.match_date).getTime() > now.getTime())
+      .sort((a, b) => new Date(a.match_date).getTime() - new Date(b.match_date).getTime());
 
-    // 3. Fallback: Se for a final e tiver apenas 1 rodada no knockout
-    if (keyword === 'final' && knockoutRounds.length > 0) return knockoutRounds[knockoutRounds.length - 1];
-
-    return '';
-  }, [knockoutRounds, roundsMap]);
-
-  const teiaRounds = useMemo(() => ({
-    quartas: findKnockoutRound('quartas', 4),
-    semis: findKnockoutRound('semi', 2),
-    final: findKnockoutRound('final', 1)
-  }), [findKnockoutRound]);
+    return {
+      liveCount,
+      todayCount,
+      upcomingCount: upcoming.length,
+      nextMatch: upcoming[0] || null,
+    };
+  }, [matches]);
 
   // Lógica de Mouse Drag
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -586,21 +590,54 @@ const Brackets: React.FC = () => {
       </header>
 
       <div className="view-mode-selector glass">
-        {!hasKnockout && (
-          <button 
-            className={`view-btn ${viewMode === 'list' ? 'active' : ''}`}
-            onClick={() => { viewModeTouchedRef.current = true; setViewMode('list'); }}
-          >
-            <Timer size={16} /> Lista de Rodadas
-          </button>
-        )}
         <button 
           className={`view-btn ${viewMode === 'teia' ? 'active' : ''}`}
-          onClick={() => { viewModeTouchedRef.current = true; setViewMode('teia'); }}
+          onClick={() => {
+            if (!hasKnockout) return;
+            viewModeTouchedRef.current = true;
+            setViewMode('teia');
+          }}
+          disabled={!hasKnockout}
+          title={!hasKnockout ? 'O chaveamento abre automaticamente quando houver mata-mata no Admin' : undefined}
         >
           <Trophy size={16} /> Chaveamento (Teia)
         </button>
+        <button 
+          className={`view-btn ${viewMode === 'list' ? 'active' : ''}`}
+          onClick={() => { viewModeTouchedRef.current = true; setViewMode('list'); }}
+        >
+          <Timer size={16} /> Lista de Rodadas
+        </button>
       </div>
+      {!hasKnockout && (
+        <div className="no-knockout-hint glass" role="status" aria-live="polite">
+          Chaveamento (Teia) sera liberado automaticamente quando voce cadastrar fases de mata-mata no Admin.
+        </div>
+      )}
+
+      <section className="brackets-summary-bar glass">
+        <div className="summary-item">
+          <span>Ao vivo</span>
+          <strong>{scheduleSummary.liveCount}</strong>
+        </div>
+        <div className="summary-item">
+          <span>Jogos hoje</span>
+          <strong>{scheduleSummary.todayCount}</strong>
+        </div>
+        <div className="summary-item">
+          <span>Próximos</span>
+          <strong>{scheduleSummary.upcomingCount}</strong>
+        </div>
+        <div className="summary-item summary-next">
+          <span>Próximo jogo</span>
+          <strong>
+            {scheduleSummary.nextMatch
+              ? `${new Date(scheduleSummary.nextMatch.match_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ${new Date(scheduleSummary.nextMatch.match_date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+              : 'A definir'}
+          </strong>
+        </div>
+      </section>
+
       {viewMode === 'teia' && (
         <div className="view-zoom">
           <button className="zoom-btn" onClick={() => setZoom((prev) => clamp(prev - 0.08, 0.8, 1.6))} type="button" aria-label="Diminuir zoom">
@@ -649,6 +686,11 @@ const Brackets: React.FC = () => {
         >
           Meu time
         </button>
+        {activeFilter !== 'all' && (
+          <button className="filter-chip filter-reset" onClick={() => setActiveFilter('all')} type="button">
+            Limpar
+          </button>
+        )}
       </div>
 
       {knockoutRounds.length > 0 && viewMode === 'list' && (
@@ -689,54 +731,27 @@ const Brackets: React.FC = () => {
           style={viewMode === 'teia' ? { transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` } : undefined}
         >
           {viewMode === 'teia' ? (
-            /* Layout de Chaveamento Simétrico (Modo Teia) */
-            <div className="teia-bracket-wrapper">
-              <section className="teia-section-header">
+            /* Layout de Chaveamento Dinamico (Modo Teia) */
+            <div className="knockout-tree-container">
+              <section className="knockout-title">
                 <h2 className="section-title"><Trophy size={20} /> Mata-Mata</h2>
               </section>
-              
-              <div className="teia-layout">
-                {/* Lado Esquerdo: Quartas 1 e 2 + Semi 1 */}
-                <div className="teia-side side-left">
-                  <div className="teia-column col-quarters">
-                    {roundsMap[teiaRounds.quartas]?.slice(0, 2).map(m => (
-                      <MatchBox key={m.id} match={m} isKnockout />
-                    ))}
-                  </div>
-                  <div className="teia-column col-semis">
-                    {roundsMap[teiaRounds.semis]?.slice(0, 1).map(m => (
-                      <MatchBox key={m.id} match={m} isKnockout />
-                    ))}
-                  </div>
-                </div>
 
-                {/* Centro: Final */}
-                <div className="teia-center">
-                  <div className="teia-column col-final">
-                    <div className="final-label">GRANDE FINAL</div>
-                    {roundsMap[teiaRounds.final]?.slice(0, 1).map(m => (
-                      <MatchBox key={m.id} match={m} isKnockout />
-                    ))}
-                    <div className="trophy-glow-bg"></div>
+              <div className="knockout-columns">
+                {teiaColumns.map((column) => (
+                  <div key={column.roundName} className={`knockout-column phase-${column.roundName.toLowerCase().replace(/\s+/g, '-')}`}>
+                    <h3 className="round-title">
+                      <span className="round-dot"></span>
+                      <span className="round-chip">{formatRoundName(column.roundName)}</span>
+                    </h3>
+                    <div className="knockout-matches">
+                      {column.matches.map((m) => (
+                        <MatchBox key={m.id} match={m} isKnockout />
+                      ))}
+                    </div>
                   </div>
-                </div>
-
-                {/* Lado Direito: Semi 2 + Quartas 3 e 4 */}
-                <div className="teia-side side-right">
-                  <div className="teia-column col-semis">
-                    {roundsMap[teiaRounds.semis]?.slice(1, 2).map(m => (
-                      <MatchBox key={m.id} match={m} isKnockout />
-                    ))}
-                  </div>
-                  <div className="teia-column col-quarters">
-                    {roundsMap[teiaRounds.quartas]?.slice(2, 4).map(m => (
-                      <MatchBox key={m.id} match={m} isKnockout />
-                    ))}
-                  </div>
-                </div>
+                ))}
               </div>
-
-              {/* Fase de Grupos visível apenas no modo lista */}
             </div>
           ) : (
             /* Layout de Lista de Rodadas (Padrão) */

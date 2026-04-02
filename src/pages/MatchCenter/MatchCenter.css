@@ -74,6 +74,37 @@
   scrollbar-width: thin;
 }
 
+.match-selector-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.summary-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border-light);
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.summary-chip.summary-live {
+  border-color: rgba(34, 197, 94, 0.35);
+  color: #4ade80;
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.summary-chip.summary-round {
+  border-color: rgba(251, 191, 36, 0.35);
+  color: var(--secondary);
+  background: rgba(251, 191, 36, 0.12);
+}
+
 .selector-list::-webkit-scrollbar {
   height: 6px;
 }

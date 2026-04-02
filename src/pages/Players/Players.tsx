@@ -18,6 +18,8 @@ const Players: React.FC = () => {
   const { teams } = useTeams();
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedPosition, setSelectedPosition] = useState('all');
+  const [sortBy, setSortBy] = useState<'name' | 'goals' | 'assists' | 'cards'>('name');
   const [stuck, setStuck] = useState(false);
   const [brokenImageMap, setBrokenImageMap] = useState<Record<string, true>>({});
   const [downloadingPlayerId, setDownloadingPlayerId] = useState<string | null>(null);
@@ -66,10 +68,38 @@ const Players: React.FC = () => {
   const isGlobalView = !teamId;
   const teamBadgeKey = teamId ? `team-badge-${teamId}` : 'team-badge-global';
 
-  const filteredPlayers = players.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.position.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const normalize = (value: string) => value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  const positionOptions = Array.from(new Set(players.map((p) => p.position).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+
+  const filteredPlayers = useMemo(() => {
+    const term = normalize(searchTerm.trim());
+    const list = players.filter((p) => {
+      const matchesPosition = selectedPosition === 'all' || p.position === selectedPosition;
+      if (!matchesPosition) return false;
+      if (!term) return true;
+      const byName = normalize(p.name || '').includes(term);
+      const byPosition = normalize(p.position || '').includes(term);
+      const byTeam = normalize(p.team_name || '').includes(term);
+      return byName || byPosition || byTeam;
+    });
+
+    const sorted = [...list].sort((a, b) => {
+      if (sortBy === 'goals') return (b.goals_count || 0) - (a.goals_count || 0) || a.name.localeCompare(b.name);
+      if (sortBy === 'assists') return (b.assists || 0) - (a.assists || 0) || a.name.localeCompare(b.name);
+      if (sortBy === 'cards') {
+        const cardsA = (a.yellow_cards || 0) + (a.red_cards || 0) * 2;
+        const cardsB = (b.yellow_cards || 0) + (b.red_cards || 0) * 2;
+        return cardsB - cardsA || a.name.localeCompare(b.name);
+      }
+      return a.name.localeCompare(b.name);
+    });
+
+    return sorted;
+  }, [players, searchTerm, selectedPosition, sortBy]);
 
   const handleDownloadPlayerCard = async (player: Player) => {
     const playerTeamName = player.team_name || teams.find((t) => t.id === player.team_id)?.name || resolvedTeamName;
@@ -199,6 +229,22 @@ const Players: React.FC = () => {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+        </div>
+
+        <div className="players-filters glass">
+          <select value={selectedPosition} onChange={(e) => setSelectedPosition(e.target.value)}>
+            <option value="all">Todas posições</option>
+            {positionOptions.map((position) => (
+              <option key={position} value={position}>{position}</option>
+            ))}
+          </select>
+
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
+            <option value="name">Ordenar por nome</option>
+            <option value="goals">Ordenar por gols</option>
+            <option value="assists">Ordenar por assistências</option>
+            <option value="cards">Ordenar por cartões</option>
+          </select>
         </div>
         
         <div className="profile-highlights glass">

@@ -182,6 +182,24 @@
   color: var(--text-dim);
 }
 
+.players-filters {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  border-radius: 12px;
+  padding: 0.5rem;
+}
+
+.players-filters select {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-main);
+  border-radius: 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.45rem 0.55rem;
+}
+
 /* Roster Grid */
 .roster-grid-section {
   display: flex;
@@ -720,6 +738,8 @@
   .profile-highlights { min-width: auto; }
   .profile-info-group h1 { font-size: 2.2rem; }
   .profile-tags { justify-content: center; }
+  .players-filters { width: 100%; justify-content: stretch; }
+  .players-filters select { flex: 1; min-width: 0; }
   .player-modal-content { padding: 2rem; border-radius: 30px; }
   .modal-player-header { flex-direction: column; text-align: center; gap: 1rem; }
   

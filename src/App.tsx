@@ -290,6 +290,77 @@ function AppContent() {
   }, [authLoading, showSplash]);
 
   useEffect(() => {
+    if (typeof window === 'undefined' || !('PerformanceObserver' in window)) return;
+
+    let lcp = 0;
+    let cls = 0;
+    let inp = 0;
+
+    let lcpObserver: PerformanceObserver | null = null;
+    let clsObserver: PerformanceObserver | null = null;
+    let inpObserver: PerformanceObserver | null = null;
+
+    try {
+      lcpObserver = new PerformanceObserver((list) => {
+        const entries = list.getEntries();
+        const last = entries[entries.length - 1] as PerformanceEntry | undefined;
+        if (!last) return;
+        lcp = Math.max(lcp, last.startTime);
+      });
+      lcpObserver.observe({ type: 'largest-contentful-paint', buffered: true } as PerformanceObserverInit);
+    } catch {
+      lcpObserver = null;
+    }
+
+    try {
+      clsObserver = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries() as Array<PerformanceEntry & { value?: number; hadRecentInput?: boolean }>) {
+          if (!entry.hadRecentInput) {
+            cls += entry.value || 0;
+          }
+        }
+      });
+      clsObserver.observe({ type: 'layout-shift', buffered: true } as PerformanceObserverInit);
+    } catch {
+      clsObserver = null;
+    }
+
+    try {
+      inpObserver = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries() as Array<PerformanceEntry & { duration?: number }>) {
+          inp = Math.max(inp, entry.duration || 0);
+        }
+      });
+      inpObserver.observe({ type: 'event', buffered: true, durationThreshold: 40 } as PerformanceObserverInit);
+    } catch {
+      inpObserver = null;
+    }
+
+    const reportVitals = () => {
+      if (lcp > 0) reportPerformanceMetric('lcp', lcp, { route: window.location.pathname });
+      if (cls > 0) reportPerformanceMetric('cls', Math.round(cls * 1000), { route: window.location.pathname, raw: cls });
+      if (inp > 0) reportPerformanceMetric('inp', inp, { route: window.location.pathname });
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        reportVitals();
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('pagehide', reportVitals);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('pagehide', reportVitals);
+      lcpObserver?.disconnect();
+      clsObserver?.disconnect();
+      inpObserver?.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
     // Escuta mudanças na conectividade para feedback offline
     const handleOnline = () => {
       toast.success('Você está online! ✨', { id: 'connectivity' });
@@ -301,7 +372,7 @@ function AppContent() {
     window.addEventListener('offline', handleOffline);
 
     // Tratamento global de erros para evitar tela branca (ex: erro de chunk no PWA)
-    const handleError = (e: unknown) => {
+    const handleWindowError = (e: unknown) => {
       const evt = e as { message?: unknown; reason?: unknown; preventDefault?: () => void };
       const reason = evt?.reason as { message?: unknown } | undefined;
       const msg = String(evt?.message ?? reason?.message ?? '');
@@ -319,15 +390,19 @@ function AppContent() {
       if (isIgnorableAbort) return;
 
       console.error('Global Error Caught:', e);
-      reportErrorFromWindowEvent(e, 'window');
+      reportErrorFromWindowEvent(e, 'window_error');
       if (msg.includes('Loading chunk') || msg.includes('Failed to fetch dynamically imported module')) {
         toast.error('Nova versão disponível! Atualizando...', { duration: 3000 });
         setTimeout(() => window.location.reload(), 2000);
       }
     };
 
-    window.addEventListener('error', handleError);
-    window.addEventListener('unhandledrejection', handleError);
+    const handleUnhandledRejection = (e: unknown) => {
+      reportErrorFromWindowEvent(e, 'unhandled_rejection');
+    };
+
+    window.addEventListener('error', handleWindowError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
 
     // Tenta enviar erros pendentes no boot
     flushClientErrorQueue();
@@ -351,13 +426,54 @@ function AppContent() {
       }
     };
 
-    performPrefetch();
+    const nav = navigator as Navigator & {
+      connection?: { effectiveType?: string; saveData?: boolean };
+    };
+
+    const connectionType = nav.connection?.effectiveType || '';
+    const shouldSkipPrefetch =
+      !navigator.onLine ||
+      nav.connection?.saveData === true ||
+      connectionType.includes('2g');
+
+    if (!shouldSkipPrefetch) {
+      const win = window as Window & {
+        requestIdleCallback?: (cb: () => void, opts?: { timeout?: number }) => number;
+        cancelIdleCallback?: (id: number) => void;
+      };
+
+      let idleId: number | null = null;
+      let timeoutId: number | null = null;
+
+      if (typeof win.requestIdleCallback === 'function') {
+        idleId = win.requestIdleCallback(() => {
+          void performPrefetch();
+        }, { timeout: 2500 });
+      } else {
+        timeoutId = window.setTimeout(() => {
+          void performPrefetch();
+        }, 1500);
+      }
+
+      return () => {
+        window.removeEventListener('online', handleOnline);
+        window.removeEventListener('offline', handleOffline);
+        window.removeEventListener('error', handleWindowError);
+        window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+        if (idleId !== null && typeof win.cancelIdleCallback === 'function') {
+          win.cancelIdleCallback(idleId);
+        }
+        if (timeoutId !== null) {
+          clearTimeout(timeoutId);
+        }
+      };
+    }
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
-      window.removeEventListener('error', handleError);
-      window.removeEventListener('unhandledrejection', handleError);
+      window.removeEventListener('error', handleWindowError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
     };
   }, []);
 

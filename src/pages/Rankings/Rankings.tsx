@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import './Rankings.css';
 import { useRankings, RankingPlayer } from '../../hooks/useRankings';
-import { Trophy, Activity, ShieldAlert, Zap, User, Download } from 'lucide-react';
+import { Trophy, Activity, ShieldAlert, Zap, User, Download, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import PlayerProfileModal from '../Players/PlayerProfileModal';
 import Skeleton, { SkeletonRankingRow } from '../../components/Skeleton/Skeleton';
@@ -17,6 +17,8 @@ const Rankings: React.FC = () => {
   const [selectedRound, setSelectedRound] = useState<string | null>(null);
   const [stuck, setStuck] = useState(false);
   const [downloadingCardKey, setDownloadingCardKey] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [viewLimit, setViewLimit] = useState<5 | 10>(10);
 
   useEffect(() => {
     if (!loading) {
@@ -110,6 +112,30 @@ const Rankings: React.FC = () => {
   const top3Scorers = scorers.slice(0, 3);
   const roundWinner = selectedRound ? roundMvps[selectedRound] : null;
 
+  const normalize = (value: string) => value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  const filterPlayers = useMemo(() => {
+    const term = normalize(searchTerm.trim());
+    return (list: RankingPlayer[]) => {
+      const filtered = term
+        ? list.filter((p) => {
+            const name = normalize(p.name || '');
+            const team = normalize(p.team_name || '');
+            return name.includes(term) || team.includes(term);
+          })
+        : list;
+      return filtered.slice(0, viewLimit);
+    };
+  }, [searchTerm, viewLimit]);
+
+  const visibleScorers = filterPlayers(scorers);
+  const visibleGoalkeepers = filterPlayers(goalkeepers);
+  const visibleAssistants = filterPlayers(assistants);
+  const visibleDisciplined = filterPlayers(disciplined);
+
   // Podium order: 2nd, 1st, 3rd
   const podiumOrder = [
     top3Scorers[1] || null,
@@ -186,6 +212,23 @@ const Rankings: React.FC = () => {
           </div>
         </div>
       </header>
+
+      <section className="rankings-filter-bar glass">
+        <label className="rankings-search-wrap" htmlFor="rankings-search-input">
+          <Search size={15} />
+          <input
+            id="rankings-search-input"
+            type="search"
+            placeholder="Buscar atleta ou equipe"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </label>
+        <div className="rankings-limit-toggle">
+          <button type="button" className={viewLimit === 5 ? 'active' : ''} onClick={() => setViewLimit(5)}>Top 5</button>
+          <button type="button" className={viewLimit === 10 ? 'active' : ''} onClick={() => setViewLimit(10)}>Top 10</button>
+        </div>
+      </section>
 
       <div className="rankings-featured-grid">
         {/* Craque da Rodada - NOVO */}
@@ -340,7 +383,7 @@ const Rankings: React.FC = () => {
             <h3>Artilharia do Torneio</h3>
           </div>
           <div className="rank-rows">
-            {scorers.map((p, i) => (
+            {visibleScorers.map((p, i) => (
               <div key={p.id} className="rank-row-item glass-hover" onClick={() => setSelectedPlayer(p)}>
                 <div className="rank-idx">{i + 1}º</div>
                 <div className="rank-avatar">
@@ -401,7 +444,7 @@ const Rankings: React.FC = () => {
                 )}
               </div>
             ))}
-            {scorers.length === 0 && <p className="empty-rank">Nenhum gol registrado.</p>}
+            {visibleScorers.length === 0 && <p className="empty-rank">{searchTerm ? 'Nenhum atleta encontrado neste ranking.' : 'Nenhum gol registrado.'}</p>}
           </div>
         </section>
 
@@ -412,7 +455,7 @@ const Rankings: React.FC = () => {
             <h3>Luva de Ouro</h3>
           </div>
           <div className="rank-rows">
-            {goalkeepers.map((p, i) => (
+            {visibleGoalkeepers.map((p, i) => (
               <div key={p.id} className="rank-row-item glass-hover" onClick={() => setSelectedPlayer(p)}>
                 <div className="rank-idx">{i + 1}º</div>
                 <div className="rank-avatar">
@@ -456,7 +499,7 @@ const Rankings: React.FC = () => {
                 )}
               </div>
             ))}
-            {goalkeepers.length === 0 && <p className="empty-rank">Aguardando súmulas...</p>}
+            {visibleGoalkeepers.length === 0 && <p className="empty-rank">{searchTerm ? 'Nenhum atleta encontrado neste ranking.' : 'Aguardando súmulas...'}</p>}
           </div>
         </section>
 
@@ -467,7 +510,7 @@ const Rankings: React.FC = () => {
             <h3>Assistências da Copa</h3>
           </div>
           <div className="rank-rows">
-            {assistants.map((p, i) => (
+            {visibleAssistants.map((p, i) => (
               <div key={p.id} className="rank-row-item glass-hover" onClick={() => setSelectedPlayer(p)}>
                 <div className="rank-idx">{i + 1}º</div>
                 <div className="rank-avatar">
@@ -528,7 +571,7 @@ const Rankings: React.FC = () => {
                 )}
               </div>
             ))}
-            {assistants.length === 0 && <p className="empty-rank">Nenhuma assistência.</p>}
+            {visibleAssistants.length === 0 && <p className="empty-rank">{searchTerm ? 'Nenhum atleta encontrado neste ranking.' : 'Nenhuma assistência.'}</p>}
           </div>
         </section>
 
@@ -539,7 +582,7 @@ const Rankings: React.FC = () => {
             <h3>Fair Play / Cartões</h3>
           </div>
           <div className="rank-rows">
-            {disciplined.map((p, i) => (
+            {visibleDisciplined.map((p, i) => (
               <div key={p.id} className="rank-row-item glass-hover" onClick={() => setSelectedPlayer(p)}>
                 <div className="rank-idx">{i + 1}º</div>
                 <div className="rank-avatar">
@@ -604,7 +647,7 @@ const Rankings: React.FC = () => {
                 )}
               </div>
             ))}
-            {disciplined.length === 0 && <p className="empty-rank">Sem dados de cartões.</p>}
+            {visibleDisciplined.length === 0 && <p className="empty-rank">{searchTerm ? 'Nenhum atleta encontrado neste ranking.' : 'Sem dados de cartões.'}</p>}
           </div>
         </section>
       </div>

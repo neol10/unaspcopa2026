@@ -46,6 +46,9 @@ const MatchCenter: React.FC = () => {
 
   const activeMatchRoundText = activeMatch ? String(activeMatch.round ?? '').toLowerCase() : '';
   const liveMatchId = matches.find(m => m.status === 'ao_vivo')?.id;
+  const liveCount = matches.filter(m => m.status === 'ao_vivo').length;
+  const upcomingCount = matches.filter(m => m.status === 'agendado').length;
+  const finishedCount = matches.filter(m => m.status === 'finalizado').length;
 
   const getTeamLabel = (name: string | null | undefined, fallback: string) => {
     const trimmed = (name || '').trim();
@@ -350,7 +353,7 @@ const MatchCenter: React.FC = () => {
               <strong>Novo jogo ao vivo detectado!</strong>
               <button 
                 className="btn-toast-switch"
-                onClick={() => setSelectedMatchId(liveMatchId)}
+                onClick={() => handleSelectMatch(liveMatchId)}
               >
                 Assistir
               </button>
@@ -370,6 +373,15 @@ const MatchCenter: React.FC = () => {
             <div className="pulse-dot"></div>
             <span>Auto-Sync</span>
           </div>
+        </div>
+
+        <div className="match-selector-summary" role="status" aria-live="polite">
+          <span className="summary-chip summary-live">Ao vivo: {liveCount}</span>
+          <span className="summary-chip">Agendados: {upcomingCount}</span>
+          <span className="summary-chip">Finalizados: {finishedCount}</span>
+          {activeMatch?.round && (
+            <span className="summary-chip summary-round">Rodada {activeMatch.round}</span>
+          )}
         </div>
 
         {/* Mobile Dropdown Selector */}

@@ -16,6 +16,7 @@ import { useRankings } from '../../hooks/useRankings';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { motion, AnimatePresence } from 'framer-motion';
 import { emitGoalOverlay } from '../../lib/goalOverlay';
+import { detectTournamentPhase } from '../../lib/tournamentRules';
 
 const Home: React.FC = () => {
   const { config } = useTournamentConfig();
@@ -55,6 +56,38 @@ const Home: React.FC = () => {
   const totalVotes = activePoll?.options.reduce((acc, opt) => acc + opt.votes, 0) || 0;
 
   const [liveElapsed, setLiveElapsed] = useState('00:00');
+
+  const phaseLabelMap: Record<string, string> = {
+    grupos: 'Fase de Grupos',
+    oitavas: 'Oitavas de Final',
+    quartas: 'Quartas de Final',
+    semifinal: 'Semifinal',
+    final: 'Final',
+  };
+
+  const autoPhase = useMemo(() => {
+    return detectTournamentPhase((matches || []).map((m) => ({
+      round: m.round,
+      status: m.status,
+    })));
+  }, [matches]);
+
+  const effectivePhase = config.current_phase || autoPhase;
+
+  const quickSnapshot = useMemo(() => {
+    const now = new Date();
+    const todayStr = now.toDateString();
+
+    const liveCount = matches.filter((m) => m.status === 'ao_vivo').length;
+    const todayCount = matches.filter((m) => new Date(m.match_date).toDateString() === todayStr).length;
+    const upcomingCount = matches.filter((m) => m.status === 'agendado' && new Date(m.match_date).getTime() > now.getTime()).length;
+
+    return {
+      liveCount,
+      todayCount,
+      upcomingCount,
+    };
+  }, [matches]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -273,6 +306,49 @@ const Home: React.FC = () => {
           </div>
         </div>
       )}
+
+      <motion.section
+        className="home-tournament-status glass"
+        initial={{ opacity: 0, y: 16 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.45 }}
+      >
+        <div className="home-tournament-status-head">
+          <div>
+            <span className="home-status-kicker">Status do Torneio</span>
+            <h3>{phaseLabelMap[effectivePhase] || 'Fase atual'}</h3>
+            <p>
+              {effectivePhase === 'grupos'
+                ? `${config.current_round}ª rodada de ${config.total_rounds}`
+                : 'Chaveamento eliminatório em andamento'}
+            </p>
+          </div>
+          <div className="home-status-actions">
+            <button className="btn-view-all" onClick={() => navigate('/jogos')}>
+              Ver jogos <ArrowRight size={14} />
+            </button>
+            <button className="btn-secondary-glass" onClick={() => navigate('/central-da-partida')}>
+              Central da partida
+            </button>
+          </div>
+        </div>
+
+        <div className="home-status-grid">
+          <div className="home-status-item">
+            <span>Ao vivo</span>
+            <strong>{quickSnapshot.liveCount}</strong>
+          </div>
+          <div className="home-status-item">
+            <span>Jogos hoje</span>
+            <strong>{quickSnapshot.todayCount}</strong>
+          </div>
+          <div className="home-status-item">
+            <span>Próximos</span>
+            <strong>{quickSnapshot.upcomingCount}</strong>
+          </div>
+        </div>
+      </motion.section>
 
       {/* Acontecendo Agora - Seção de Jogo ao Vivo Prioritária */}
       <AnimatePresence>

@@ -6,6 +6,90 @@
   overscroll-behavior-y: contain;
 }
 
+.home-tournament-status {
+  margin: -1.2rem 2rem 0;
+  padding: 1.1rem 1.3rem;
+  border-radius: 20px;
+  border: 1px solid rgba(251, 191, 36, 0.2);
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.08), rgba(15, 23, 42, 0.8));
+}
+
+.home-tournament-status-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.home-status-kicker {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--secondary);
+  font-weight: 800;
+}
+
+.home-tournament-status-head h3 {
+  margin: 0.2rem 0 0;
+  font-size: 1.2rem;
+  color: var(--text-main);
+}
+
+.home-tournament-status-head p {
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  font-weight: 700;
+}
+
+.home-status-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.home-status-grid {
+  margin-top: 0.95rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.home-status-item {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.55rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.home-status-item span {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.9px;
+  color: var(--text-dim);
+  font-weight: 800;
+}
+
+.home-status-item strong {
+  font-size: 1.25rem;
+  color: var(--text-main);
+  font-weight: 900;
+}
+
+@media (max-width: 900px) {
+  .home-tournament-status {
+    margin: -1rem 1rem 0;
+  }
+
+  .home-status-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .hero-cinematic {
   position: relative;
   min-height: 85vh;

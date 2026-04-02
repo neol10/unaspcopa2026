@@ -58,6 +58,73 @@
   gap: 2rem;
 }
 
+.teams-filter-bar {
+  border-radius: 16px;
+  padding: 0.75rem 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.teams-search-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.45rem 0.65rem;
+  min-width: 270px;
+}
+
+.teams-search-wrap input {
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text-main);
+  font-size: 0.84rem;
+  width: 100%;
+}
+
+.teams-search-wrap input::placeholder {
+  color: var(--text-dim);
+}
+
+.teams-group-filters {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.teams-filter-chip {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0.36rem 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.teams-filter-chip.active {
+  border-color: rgba(0, 176, 255, 0.4);
+  background: rgba(0, 176, 255, 0.18);
+  color: var(--accent-blue);
+}
+
+.teams-empty-state {
+  border-radius: 14px;
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-dim);
+  font-weight: 700;
+}
+
 .team-card-v2 {
   padding: 2rem;
   display: flex;
@@ -213,6 +280,15 @@
   .hero-stats {
     width: 100%;
     padding: 1rem 1.2rem;
+  }
+
+  .teams-filter-bar {
+    padding: 0.7rem;
+  }
+
+  .teams-search-wrap {
+    min-width: 0;
+    width: 100%;
   }
 
   .teams-grid-v2 {

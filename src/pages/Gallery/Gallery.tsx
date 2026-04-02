@@ -22,6 +22,8 @@ type GalleryCommentRow = {
 const Gallery: React.FC = () => {
   const { items, loading, refresh, unavailable } = useGallery();
   const { user, role } = useAuthContext();
+  const [mediaFilter, setMediaFilter] = useState<'all' | 'image' | 'video'>('all');
+  const [searchTerm, setSearchTerm] = useState('');
 
   const [likesByItem, setLikesByItem] = useState<Record<string, number>>({});
   const [likedByMe, setLikedByMe] = useState<Record<string, boolean>>({});
@@ -39,15 +41,30 @@ const Gallery: React.FC = () => {
   const modalSwipeStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const itemIds = useMemo(() => (items || []).map((item) => item.id), [items]);
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const filteredItems = useMemo(() => {
+    return items.filter((item) => {
+      const matchesType = mediaFilter === 'all' || item.media_type === mediaFilter;
+      if (!matchesType) return false;
+      if (!normalizedSearch) return true;
+
+      const title = item.title?.toLowerCase() || '';
+      const description = item.description?.toLowerCase() || '';
+      return title.includes(normalizedSearch) || description.includes(normalizedSearch);
+    });
+  }, [items, mediaFilter, normalizedSearch]);
+  const imageCount = useMemo(() => items.filter((item) => item.media_type === 'image').length, [items]);
+  const videoCount = useMemo(() => items.filter((item) => item.media_type === 'video').length, [items]);
+  const hasActiveFilters = mediaFilter !== 'all' || normalizedSearch.length > 0;
   const selectedItem = useMemo(
-    () => (selectedItemId ? items.find((item) => item.id === selectedItemId) ?? null : null),
-    [items, selectedItemId],
+    () => (selectedItemId ? filteredItems.find((item) => item.id === selectedItemId) ?? null : null),
+    [filteredItems, selectedItemId],
   );
   const selectedIndex = useMemo(
-    () => (selectedItemId ? items.findIndex((item) => item.id === selectedItemId) : -1),
-    [items, selectedItemId],
+    () => (selectedItemId ? filteredItems.findIndex((item) => item.id === selectedItemId) : -1),
+    [filteredItems, selectedItemId],
   );
-  const canNavigate = items.length > 1 && selectedIndex >= 0;
+  const canNavigate = filteredItems.length > 1 && selectedIndex >= 0;
 
   const loadInteractions = async () => {
     if (itemIds.length === 0) {
@@ -130,8 +147,8 @@ const Gallery: React.FC = () => {
     if (!canNavigate) return;
 
     const delta = direction === 'next' ? 1 : -1;
-    const nextIndex = (selectedIndex + delta + items.length) % items.length;
-    const nextItem = items[nextIndex];
+    const nextIndex = (selectedIndex + delta + filteredItems.length) % filteredItems.length;
+    const nextItem = filteredItems[nextIndex];
     if (!nextItem) return;
 
     setSelectedItemId(nextItem.id);
@@ -157,7 +174,7 @@ const Gallery: React.FC = () => {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [selectedItemId, selectedIndex, items]);
+  }, [selectedItemId, selectedIndex, filteredItems]);
 
   useEffect(() => {
     return () => {
@@ -350,6 +367,60 @@ const Gallery: React.FC = () => {
         </button>
       </header>
 
+      <div className="gallery-toolbar glass">
+        <div className="gallery-toolbar__search-wrap">
+          <input
+            type="search"
+            className="gallery-toolbar__search"
+            placeholder="Buscar por título ou descrição"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            aria-label="Buscar mídia na galeria"
+          />
+        </div>
+        <div className="gallery-toolbar__filters" role="group" aria-label="Filtro por tipo de mídia">
+          <button
+            className={`gallery-filter-chip ${mediaFilter === 'all' ? 'active' : ''}`}
+            onClick={() => setMediaFilter('all')}
+          >
+            Tudo
+          </button>
+          <button
+            className={`gallery-filter-chip ${mediaFilter === 'image' ? 'active' : ''}`}
+            onClick={() => setMediaFilter('image')}
+          >
+            Fotos
+          </button>
+          <button
+            className={`gallery-filter-chip ${mediaFilter === 'video' ? 'active' : ''}`}
+            onClick={() => setMediaFilter('video')}
+          >
+            Videos
+          </button>
+          {hasActiveFilters && (
+            <button
+              className="gallery-filter-chip gallery-filter-chip--reset"
+              onClick={() => {
+                setMediaFilter('all');
+                setSearchTerm('');
+              }}
+            >
+              Limpar
+            </button>
+          )}
+        </div>
+        <div className="gallery-toolbar__summary" role="status" aria-live="polite">
+          <span className="gallery-summary-chip">Midias: {items.length}</span>
+          <span className="gallery-summary-chip">Fotos: {imageCount}</span>
+          <span className="gallery-summary-chip">Videos: {videoCount}</span>
+          {hasActiveFilters && (
+            <span className="gallery-summary-chip gallery-summary-chip--active">
+              Exibindo: {filteredItems.length}
+            </span>
+          )}
+        </div>
+      </div>
+
       {interactionsUnavailable && (
         <div className="gallery-warning glass">
           Curtidas e comentários ainda não estão ativos no banco. A mídia da galeria já está funcionando.
@@ -370,9 +441,13 @@ const Gallery: React.FC = () => {
         <div className="gallery-empty glass">
           <p>Nenhuma mídia publicada ainda.</p>
         </div>
+      ) : filteredItems.length === 0 ? (
+        <div className="gallery-empty glass">
+          <p>Nenhuma mídia encontrada para o filtro atual.</p>
+        </div>
       ) : (
         <div className="gallery-grid">
-          {items.map((item) => {
+          {filteredItems.map((item) => {
             const comments = commentsByItem[item.id] || [];
             const likesCount = likesByItem[item.id] || 0;
             const myLike = Boolean(likedByMe[item.id]);

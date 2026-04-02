@@ -13,6 +13,7 @@ import { useTournamentConfig, type TournamentConfig } from '../../hooks/useTourn
 import { usePolls, type Poll, type PollOption } from '../../hooks/usePolls';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { withTimeout } from '../../lib/withTimeout';
+import { detectTournamentPhase, KNOCKOUT_ROUND_LABELS } from '../../lib/tournamentRules';
 import { toast } from 'react-hot-toast';
 import { useConfirm } from '../../hooks/useConfirm';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -208,6 +209,31 @@ const getDeleteMatchErrorMessage = (err: unknown): string => {
 const Admin: React.FC = () => {
   const { user, role, loading: authLoading } = useAuthContext();
   const [activeTab, setActiveTab] = useState<'matches' | 'teams' | 'players' | 'news' | 'gallery' | 'tournament' | 'polls' | 'notifications' | 'errors' | 'users'>('matches');
+  const tabLabels: Record<typeof activeTab, string> = {
+    matches: 'Partidas',
+    teams: 'Equipes',
+    players: 'Atletas',
+    news: 'Noticias',
+    gallery: 'Galeria',
+    tournament: 'Torneio',
+    polls: 'Enquetes',
+    notifications: 'Alertas Push',
+    errors: 'Erros',
+    users: 'Usuarios',
+  };
+
+  const tabHints: Record<typeof activeTab, string> = {
+    matches: 'Criacao, edicao e operacao de partidas em tempo real.',
+    teams: 'Cadastro e ajustes de equipes participantes.',
+    players: 'Gestao global de atletas e vinculacao aos times.',
+    news: 'Publicacao de comunicados e noticias oficiais.',
+    gallery: 'Postagens de fotos e videos para o app.',
+    tournament: 'Configuracoes gerais da competicao e fase atual.',
+    polls: 'Perguntas, opcoes e acompanhamento das votacoes.',
+    notifications: 'Disparo de push segmentado para engajar torcedores.',
+    errors: 'Triagem de erros e eventos de performance do cliente.',
+    users: 'Auditoria de usuarios que acessaram o aplicativo.',
+  };
   // --- Listagem de Usuários Logados ---
   type UserProfile = {
     id: string;
@@ -396,6 +422,44 @@ const Admin: React.FC = () => {
               </button>
             </nav>
           </header>
+
+          <section className="admin-quick-strip glass" aria-label="Acoes rapidas do admin">
+            <div className="admin-quick-strip__context">
+              <span className="admin-quick-strip__label">Modulo ativo</span>
+              <strong>{tabLabels[activeTab]}</strong>
+              <p>{tabHints[activeTab]}</p>
+            </div>
+            <div className="admin-quick-strip__actions" role="group" aria-label="Atalhos para modulos criticos">
+              <button
+                className={`admin-quick-btn ${activeTab === 'matches' ? 'active' : ''}`}
+                onClick={() => setActiveTab('matches')}
+              >
+                <Calendar size={15} />
+                <span>Partidas</span>
+              </button>
+              <button
+                className={`admin-quick-btn ${activeTab === 'tournament' ? 'active' : ''}`}
+                onClick={() => setActiveTab('tournament')}
+              >
+                <Settings2 size={15} />
+                <span>Torneio</span>
+              </button>
+              <button
+                className={`admin-quick-btn ${activeTab === 'notifications' ? 'active' : ''}`}
+                onClick={() => setActiveTab('notifications')}
+              >
+                <Bell size={15} />
+                <span>Alertas</span>
+              </button>
+              <button
+                className={`admin-quick-btn ${activeTab === 'errors' ? 'active' : ''}`}
+                onClick={() => setActiveTab('errors')}
+              >
+                <ShieldAlert size={15} />
+                <span>Erros</span>
+              </button>
+            </div>
+          </section>
 
           <main className="admin-viewport">
             {activeTab === 'matches' && <MatchManagement />}
@@ -608,6 +672,76 @@ const NotificationBroadcast = () => {
   const [important, setImportant] = useState(false);
   const [targetTeamId, setTargetTeamId] = useState('');
   const [sending, setSending] = useState(false);
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+
+  const presets: Array<{
+    id: string;
+    label: string;
+    title: string;
+    body: string;
+    url: string;
+    category: PushSendOptions['category'];
+    important: boolean;
+  }> = [
+    {
+      id: 'goal',
+      label: 'Gol no jogo',
+      title: 'Gol na Copa!',
+      body: 'A rede balancou agora. Veja o lance na Central da Partida.',
+      url: '/central-da-partida',
+      category: 'live',
+      important: true,
+    },
+    {
+      id: 'kickoff',
+      label: 'Inicio de jogo',
+      title: 'Bola rolando!',
+      body: 'A partida comecou. Acompanhe em tempo real na Central da Partida.',
+      url: '/central-da-partida',
+      category: 'live',
+      important: false,
+    },
+    {
+      id: 'halftime',
+      label: 'Intervalo',
+      title: 'Fim do 1 tempo',
+      body: 'Intervalo de jogo. Confira o placar parcial no app.',
+      url: '/central-da-partida',
+      category: 'live',
+      important: false,
+    },
+    {
+      id: 'fulltime',
+      label: 'Resultado final',
+      title: 'Partida encerrada',
+      body: 'O jogo terminou. Veja o resultado e os destaques da partida.',
+      url: '/jogos',
+      category: 'results',
+      important: true,
+    },
+    {
+      id: 'news',
+      label: 'Comunicado',
+      title: 'Novo comunicado oficial',
+      body: 'Publicamos uma nova atualizacao. Confira os detalhes agora.',
+      url: '/noticias',
+      category: 'news',
+      important: false,
+    },
+  ];
+
+  const applyPreset = (presetId: string) => {
+    const preset = presets.find((item) => item.id === presetId);
+    if (!preset) return;
+
+    setSelectedPresetId(preset.id);
+    setTitle(preset.title);
+    setBody(preset.body);
+    setUrl(preset.url);
+    setCategory(preset.category);
+    setImportant(preset.important);
+    toast.success(`Modelo aplicado: ${preset.label}`);
+  };
 
   const handleBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -643,6 +777,7 @@ const NotificationBroadcast = () => {
       setCategory('general');
       setImportant(false);
       setTargetTeamId('');
+      setSelectedPresetId(null);
     } catch (err: unknown) {
       const message =
         typeof (err as { message?: unknown })?.message === 'string'
@@ -659,6 +794,25 @@ const NotificationBroadcast = () => {
       <div className="section-header">
         <h2>Transmissão de Alertas (Push)</h2>
         <p className="section-subtitle">Envie notificações em tempo real para todos os usuários que aceitaram alertas.</p>
+      </div>
+
+      <div className="broadcast-presets glass">
+        <div className="broadcast-presets-head">
+          <strong>Modelos rapidos</strong>
+          <span>Preencha o formulario com um clique e ajuste antes de enviar.</span>
+        </div>
+        <div className="broadcast-presets-grid" role="group" aria-label="Modelos de alerta push">
+          {presets.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              className={`broadcast-preset-btn ${selectedPresetId === preset.id ? 'active' : ''}`}
+              onClick={() => applyPreset(preset.id)}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <form className="admin-form glass" onSubmit={handleBroadcast}>
@@ -939,6 +1093,87 @@ const ClientErrorsPanel = () => {
   const [items, setItems] = useState<ClientErrorRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'errors' | 'performance' | 'all'>('errors');
+  const [groupByFingerprint, setGroupByFingerprint] = useState(false);
+
+  const classifyItem = React.useCallback((item: ClientErrorRow) => {
+    return item.source.toLowerCase() === 'performance' ? 'performance' : 'error';
+  }, []);
+
+  const counters = React.useMemo(() => {
+    const performanceCount = items.filter((it) => classifyItem(it) === 'performance').length;
+    const errorCount = items.length - performanceCount;
+    return {
+      all: items.length,
+      errors: errorCount,
+      performance: performanceCount,
+    };
+  }, [items, classifyItem]);
+
+  const filteredItems = React.useMemo(() => {
+    if (viewMode === 'all') return items;
+    if (viewMode === 'performance') return items.filter((it) => classifyItem(it) === 'performance');
+    return items.filter((it) => classifyItem(it) === 'error');
+  }, [items, viewMode, classifyItem]);
+
+  const normalizeMessage = React.useCallback((message: string) => {
+    return message
+      .toLowerCase()
+      .replace(/\d+/g, '#')
+      .replace(/[a-f0-9]{8,}/g, '#')
+      .trim();
+  }, []);
+
+  const getSeverity = React.useCallback((item: ClientErrorRow) => {
+    const source = item.source.toLowerCase();
+    const message = item.message.toLowerCase();
+    if (source === 'performance') {
+      const metricMatch = /:(\d+)ms/.exec(message);
+      const ms = metricMatch ? Number(metricMatch[1]) : 0;
+      if (ms >= 15000) return 'warning';
+      return 'info';
+    }
+
+    if (message.includes('loading chunk') || message.includes('failed to fetch dynamically imported module')) {
+      return 'critical';
+    }
+    if (message.includes('timeout') || message.includes('network')) {
+      return 'warning';
+    }
+    return 'error';
+  }, []);
+
+  const listedItems = React.useMemo(() => {
+    const enriched = filteredItems.map((item) => ({
+      item,
+      severity: getSeverity(item),
+      fingerprint: `${item.source.toLowerCase()}::${normalizeMessage(item.message)}`,
+      count: 1,
+    }));
+
+    if (!groupByFingerprint) return enriched;
+
+    const grouped = new Map<string, (typeof enriched)[number]>();
+    for (const entry of enriched) {
+      const existing = grouped.get(entry.fingerprint);
+      if (!existing) {
+        grouped.set(entry.fingerprint, entry);
+        continue;
+      }
+      const existingTs = new Date(existing.item.created_at).getTime();
+      const currentTs = new Date(entry.item.created_at).getTime();
+      const latest = currentTs > existingTs ? entry.item : existing.item;
+      grouped.set(entry.fingerprint, {
+        ...entry,
+        item: latest,
+        count: existing.count + 1,
+      });
+    }
+
+    return Array.from(grouped.values()).sort(
+      (a, b) => new Date(b.item.created_at).getTime() - new Date(a.item.created_at).getTime(),
+    );
+  }, [filteredItems, getSeverity, normalizeMessage, groupByFingerprint]);
 
   const load = async () => {
     setLoading(true);
@@ -983,7 +1218,7 @@ const ClientErrorsPanel = () => {
       <div className="section-header">
         <div>
           <h2>Erros do App (Client)</h2>
-          <p className="section-subtitle">Últimos 50 erros reportados pelos usuários (observabilidade).</p>
+          <p className="section-subtitle">Observabilidade dos últimos 50 eventos do app (erros reais e métricas de performance).</p>
         </div>
         <button className="btn-add" onClick={() => void load()} disabled={loading}>
           <RotateCcw size={18} /> {loading ? 'Atualizando...' : 'Atualizar'}
@@ -991,6 +1226,38 @@ const ClientErrorsPanel = () => {
       </div>
 
       <div className="client-errors-body">
+        <div className="client-errors-filterbar">
+          <button
+            className={`client-errors-filter ${viewMode === 'errors' ? 'active' : ''}`}
+            type="button"
+            onClick={() => setViewMode('errors')}
+          >
+            Erros reais ({counters.errors})
+          </button>
+          <button
+            className={`client-errors-filter ${viewMode === 'performance' ? 'active' : ''}`}
+            type="button"
+            onClick={() => setViewMode('performance')}
+          >
+            Performance ({counters.performance})
+          </button>
+          <button
+            className={`client-errors-filter ${viewMode === 'all' ? 'active' : ''}`}
+            type="button"
+            onClick={() => setViewMode('all')}
+          >
+            Todos ({counters.all})
+          </button>
+          <label className="client-errors-group-toggle">
+            <input
+              type="checkbox"
+              checked={groupByFingerprint}
+              onChange={(e) => setGroupByFingerprint(e.target.checked)}
+            />
+            Agrupar por fingerprint
+          </label>
+        </div>
+
         {loadError ? (
           <div className="admin-empty-state">
             <p>Não foi possível carregar: {loadError}</p>
@@ -998,16 +1265,28 @@ const ClientErrorsPanel = () => {
               <RotateCcw size={18} /> Tentar novamente
             </button>
           </div>
-        ) : items.length === 0 ? (
+        ) : listedItems.length === 0 ? (
           <div className="admin-empty-state">
-            <p>Nenhum erro registrado ainda.</p>
+            <p>
+              {items.length === 0
+                ? 'Nenhum evento registrado ainda.'
+                : viewMode === 'errors'
+                  ? 'Sem erros reais no recorte atual.'
+                  : viewMode === 'performance'
+                    ? 'Sem métricas de performance no recorte atual.'
+                    : 'Sem eventos no recorte atual.'}
+            </p>
           </div>
         ) : (
           <div className="client-errors-list">
-            {(items || []).map((it) => (
-              <div key={it.id} className="client-error-item glass">
+            {(listedItems || []).map(({ item: it, severity, count, fingerprint }) => (
+              <div key={groupByFingerprint ? fingerprint : it.id} className={`client-error-item glass ${classifyItem(it) === 'performance' ? 'is-performance' : 'is-error'}`}>
                 <div className="client-error-head">
-                  <strong>{it.source}</strong>
+                  <strong>
+                    {it.source}
+                    <span className={`client-error-severity sev-${severity}`}>{severity}</span>
+                    {groupByFingerprint && count > 1 ? <span className="client-error-count">x{count}</span> : null}
+                  </strong>
                   <span className="client-error-date">{formatDateTime(it.created_at)}</span>
                 </div>
                 <div className="client-error-message">{it.message}</div>
@@ -1080,6 +1359,7 @@ const MatchManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
 
   const KO_ROUND_CODES: Record<string, number> = {
+    oitavas: 1000,
     quartas: 1001,
     semi: 1002,
     final: 1003,
@@ -1087,10 +1367,7 @@ const MatchManagement = () => {
   };
 
   const KO_ROUND_LABELS: Record<number, string> = {
-    1001: 'Quartas',
-    1002: 'Semi',
-    1003: 'Final',
-    1004: '3o Lugar',
+    ...KNOCKOUT_ROUND_LABELS,
   };
 
   const parseRoundInput = (value: string): number | null => {
@@ -1130,7 +1407,7 @@ const MatchManagement = () => {
     // Validação: Impedir que o mesmo time jogue duas vezes na mesma rodada
     const currentRound = parseRoundInput(formData.round) || 0;
     if (!currentRound) {
-      return toast.error('Rodada inválida. Use um número ou: Quartas, Semi, Final, 3o Lugar.');
+      return toast.error('Rodada inválida. Use um número ou: Oitavas, Quartas, Semi, Final, 3o Lugar.');
     }
     const teamACollision = matches.find(m => m.round === currentRound && (m.team_a_id === formData.team_a_id || m.team_b_id === formData.team_a_id));
     const teamBCollision = matches.find(m => m.round === currentRound && (m.team_a_id === formData.team_b_id || m.team_b_id === formData.team_b_id));
@@ -1334,7 +1611,7 @@ const MatchManagement = () => {
     // Validação: Impedir que o mesmo time jogue duas vezes na mesma rodada (ignorando a própria partida sendo editada)
     const currentRound = parseRoundInput(data.round) || 0;
     if (!currentRound) {
-      return toast.error('Rodada inválida. Use um número ou: Quartas, Semi, Final, 3o Lugar.');
+      return toast.error('Rodada inválida. Use um número ou: Oitavas, Quartas, Semi, Final, 3o Lugar.');
     }
     const teamACollision = matches.find(m => m.id !== id && m.round === currentRound && (m.team_a_id === data.team_a_id || m.team_b_id === data.team_a_id));
     const teamBCollision = matches.find(m => m.id !== id && m.round === currentRound && (m.team_a_id === data.team_b_id || m.team_b_id === data.team_b_id));
@@ -1462,7 +1739,7 @@ const MatchManagement = () => {
                </div>
                <div className="form-group">
                  <label>Rodada</label>
-                 <input type="text" placeholder="Ex: 1, 2, Quartas" required value={formData.round} onChange={e => setFormData({...formData, round: e.target.value})} list="round-options" />
+                 <input type="text" placeholder="Ex: 1, 2, Oitavas" required value={formData.round} onChange={e => setFormData({...formData, round: e.target.value})} list="round-options" />
                </div>
            </div>
            <datalist id="round-options">
@@ -1474,6 +1751,7 @@ const MatchManagement = () => {
              <option value="6" />
              <option value="7" />
              <option value="8" />
+             <option value="Oitavas" />
              <option value="Quartas" />
              <option value="Semi" />
              <option value="Final" />
@@ -3596,7 +3874,75 @@ const NewsManagement = () => {
   const [isAdding, setIsAdding] = useState(false);
   const [editingNewsId, setEditingNewsId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ title: '', summary: '', content: '', image_url: '' });
+  const [newsCategory, setNewsCategory] = useState<'geral' | 'rodada' | 'resultado' | 'bastidores' | 'aviso'>('geral');
+  const [selectedNewsPresetId, setSelectedNewsPresetId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+
+  const newsPresets: Array<{
+    id: string;
+    label: string;
+    category: 'geral' | 'rodada' | 'resultado' | 'bastidores' | 'aviso';
+    title: string;
+    summary: string;
+    content: string;
+  }> = [
+    {
+      id: 'rodada-confirmada',
+      label: 'Rodada confirmada',
+      category: 'rodada',
+      title: 'Rodada confirmada para este fim de semana',
+      summary: 'Horarios e confrontos oficiais ja estao definidos.',
+      content: 'A organizacao confirmou os jogos da proxima rodada. Confira os confrontos e acompanhe em tempo real no aplicativo.',
+    },
+    {
+      id: 'resultado-oficial',
+      label: 'Resultado oficial',
+      category: 'resultado',
+      title: 'Resultado oficial da rodada publicado',
+      summary: 'Classificacao e destaques atualizados.',
+      content: 'Os resultados oficiais foram processados e a classificacao ja esta atualizada no app. Veja os destaques e estatisticas dos jogos.',
+    },
+    {
+      id: 'bastidores',
+      label: 'Bastidores',
+      category: 'bastidores',
+      title: 'Bastidores da rodada: preparacao das equipes',
+      summary: 'Veja momentos especiais antes do apito inicial.',
+      content: 'Reunimos imagens e historias dos bastidores para aproximar os torcedores da experiencia da Copa.',
+    },
+    {
+      id: 'aviso-operacional',
+      label: 'Aviso operacional',
+      category: 'aviso',
+      title: 'Comunicado importante da organizacao',
+      summary: 'Atualizacao relevante para equipes e torcedores.',
+      content: 'Publicamos um comunicado oficial com orientacoes atualizadas. Leia com atencao e compartilhe com sua equipe.',
+    },
+  ];
+
+  const titleLength = formData.title.trim().length;
+  const titleWords = formData.title.trim().split(/\s+/).filter(Boolean).length;
+  const titleQuality =
+    titleLength < 18 || titleWords < 3
+      ? { label: 'Muito curto', tone: 'low' as const }
+      : titleLength > 72
+        ? { label: 'Muito longo', tone: 'high' as const }
+        : { label: 'Bom tamanho', tone: 'good' as const };
+
+  const applyNewsPreset = (presetId: string) => {
+    const preset = newsPresets.find((item) => item.id === presetId);
+    if (!preset) return;
+
+    setSelectedNewsPresetId(preset.id);
+    setNewsCategory(preset.category);
+    setFormData((prev) => ({
+      ...prev,
+      title: preset.title,
+      summary: preset.summary,
+      content: preset.content,
+    }));
+    toast.success(`Modelo aplicado: ${preset.label}`);
+  };
 
   const formatNewsDate = (value?: string) => {
     if (!value) return '';
@@ -3629,6 +3975,8 @@ const NewsManagement = () => {
         .single();
       if (error) throw error;
       setFormData({ title: '', summary: '', content: '', image_url: '' });
+      setNewsCategory('geral');
+      setSelectedNewsPresetId(null);
       setIsAdding(false);
 
       if (data) {
@@ -3688,7 +4036,37 @@ const NewsManagement = () => {
 
       {isAdding && (
         <form className="admin-form glass" onSubmit={handleAddNews}>
+          <div className="news-presets-panel glass">
+            <div className="news-presets-head">
+              <strong>Modelos de noticia</strong>
+              <span>Preencha automaticamente titulo e texto base para acelerar publicacoes.</span>
+            </div>
+            <div className="news-presets-grid" role="group" aria-label="Modelos de noticia">
+              {newsPresets.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  className={`news-preset-btn ${selectedNewsPresetId === preset.id ? 'active' : ''}`}
+                  onClick={() => applyNewsPreset(preset.id)}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="form-grid-full">
+            <div className="form-group">
+              <label>Categoria Editorial (apoio interno)</label>
+              <select value={newsCategory} onChange={(e) => setNewsCategory(e.target.value as typeof newsCategory)}>
+                <option value="geral">Geral</option>
+                <option value="rodada">Rodada</option>
+                <option value="resultado">Resultado</option>
+                <option value="bastidores">Bastidores</option>
+                <option value="aviso">Aviso</option>
+              </select>
+              <small>Usado para padronizar o texto antes da publicacao.</small>
+            </div>
             <div className="form-group">
               <label>Título da Notícia</label>
               <input 
@@ -3698,6 +4076,11 @@ const NewsManagement = () => {
                 onChange={(e) => setFormData({...formData, title: e.target.value})}
                 placeholder="Ex: Rodada 5 confirmada"
               />
+              <div className="news-title-quality" aria-live="polite">
+                <span className={`news-quality-chip ${titleQuality.tone}`}>{titleQuality.label}</span>
+                <span>{titleLength} caracteres</span>
+                <span>{titleWords} palavras</span>
+              </div>
             </div>
             <div className="form-group">
               <label>Resumo (Breve descrição)</label>
@@ -4080,6 +4463,7 @@ const GalleryManagement = () => {
 // ===== Gerenciamento do Torneio =====
 const TournamentManagement = () => {
   const { config, loading, saveConfig } = useTournamentConfig();
+  const { matches } = useMatches();
 
   type ConfigForm = Pick<TournamentConfig, 'total_rounds' | 'matches_per_round' | 'current_phase' | 'current_round'>;
 
@@ -4090,6 +4474,14 @@ const TournamentManagement = () => {
     current_round: 1,
   });
   const [saved, setSaved] = useState(false);
+  const [manualPhaseOverride, setManualPhaseOverride] = useState(false);
+
+  const autoPhase = React.useMemo<TournamentConfig['current_phase']>(() => {
+    return detectTournamentPhase((matches || []).map((m) => ({
+      round: m.round,
+      status: m.status,
+    })));
+  }, [matches]);
 
   React.useEffect(() => {
     if (!loading && config.id) {
@@ -4109,9 +4501,34 @@ const TournamentManagement = () => {
     config.current_round,
   ]);
 
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem('copa_unasp_admin_manual_phase_override');
+      setManualPhaseOverride(raw === '1');
+    } catch {
+      setManualPhaseOverride(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('copa_unasp_admin_manual_phase_override', manualPhaseOverride ? '1' : '0');
+    } catch {
+      // ignore
+    }
+  }, [manualPhaseOverride]);
+
+  React.useEffect(() => {
+    if (manualPhaseOverride) return;
+    setForm((prev) => {
+      if (prev.current_phase === autoPhase) return prev;
+      return { ...prev, current_phase: autoPhase };
+    });
+  }, [autoPhase, manualPhaseOverride]);
+
   const handleSave = async () => {
     try {
-      await saveConfig(form);
+      await saveConfig({ ...form, current_phase: manualPhaseOverride ? form.current_phase : autoPhase });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (err: unknown) {
@@ -4121,6 +4538,7 @@ const TournamentManagement = () => {
 
   const phaseLabel: Record<string, string> = {
     grupos: '1ª Fase (Grupos)',
+    oitavas: 'Oitavas de Final',
     quartas: 'Quartas de Final',
     semifinal: 'Semifinal',
     final: 'Final',
@@ -4135,20 +4553,41 @@ const TournamentManagement = () => {
       </div>
 
       <div className="tournament-config-card admin-form">
+        <div className="form-group" style={{ marginBottom: '1rem' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <input
+              type="checkbox"
+              checked={manualPhaseOverride}
+              onChange={(e) => setManualPhaseOverride(e.target.checked)}
+            />
+            Override manual de fase
+          </label>
+          <span className="form-hint">Use apenas em caso de emergencia. Desativado = fase automatica por partidas.</span>
+        </div>
+
         <div className="tournament-config-grid">
-          {/* Fase Atual */}
+          {/* Fase Atual (Automatica) */}
           <div className="form-group">
-            <label>Fase Atual</label>
-            <select
-              value={form.current_phase}
-              onChange={e => setForm({ ...form, current_phase: e.target.value as TournamentConfig['current_phase'] })}
-            >
-              <option value="grupos">1ª Fase (Grupos)</option>
-              <option value="quartas">Quartas de Final</option>
-              <option value="semifinal">Semifinal</option>
-              <option value="final">Final</option>
-            </select>
-            <span className="form-hint">Controla o display de "Fase" no sistema</span>
+            <label>{manualPhaseOverride ? 'Fase Atual (Manual)' : 'Fase Atual (Automática)'}</label>
+            {manualPhaseOverride ? (
+              <select
+                value={form.current_phase}
+                onChange={e => setForm({ ...form, current_phase: e.target.value as TournamentConfig['current_phase'] })}
+              >
+                <option value="grupos">1ª Fase (Grupos)</option>
+                <option value="oitavas">Oitavas de Final</option>
+                <option value="quartas">Quartas de Final</option>
+                <option value="semifinal">Semifinal</option>
+                <option value="final">Final</option>
+              </select>
+            ) : (
+              <input type="text" value={phaseLabel[autoPhase]} readOnly />
+            )}
+            <span className="form-hint">
+              {manualPhaseOverride
+                ? 'Forcando fase manualmente para o sistema inteiro.'
+                : 'Detectada automaticamente pelas partidas de mata-mata (Oitavas, Quartas, Semi e Final)'}
+            </span>
           </div>
 
           {/* Total de Rodadas */}
@@ -4176,7 +4615,7 @@ const TournamentManagement = () => {
           </div>
 
           {/* Rodada Atual */}
-          {form.current_phase === 'grupos' && (
+          {autoPhase === 'grupos' && (
             <div className="form-group">
               <label>Rodada Atual</label>
               <select
@@ -4196,9 +4635,9 @@ const TournamentManagement = () => {
         <div className="tournament-summary">
           <div className="t-summary-item">
             <span className="t-summary-label">Fase</span>
-            <span className="t-summary-value">{phaseLabel[form.current_phase]}</span>
+            <span className="t-summary-value">{phaseLabel[manualPhaseOverride ? form.current_phase : autoPhase]}</span>
           </div>
-          {form.current_phase === 'grupos' && (
+          {autoPhase === 'grupos' && (
             <>
               <div className="t-summary-item">
                 <span className="t-summary-label">Rodada</span>
@@ -4233,6 +4672,66 @@ const PollManagement = () => {
     question: '', 
     options: ['', ''] 
   });
+  const [selectedPollPresetId, setSelectedPollPresetId] = useState<string | null>(null);
+
+  const pollPresets: Array<{ id: string; label: string; question: string; options: string[] }> = [
+    {
+      id: 'mvp-rodada',
+      label: 'Craque da rodada',
+      question: 'Quem foi o craque da rodada?',
+      options: ['Jogador 1', 'Jogador 2', 'Jogador 3'],
+    },
+    {
+      id: 'favorito-titulo',
+      label: 'Favorito ao titulo',
+      question: 'Quem e o favorito ao titulo da Copa?',
+      options: ['Equipe A', 'Equipe B', 'Equipe C', 'Outra equipe'],
+    },
+    {
+      id: 'melhor-jogo',
+      label: 'Melhor jogo',
+      question: 'Qual foi o melhor jogo da rodada?',
+      options: ['Jogo 1', 'Jogo 2', 'Jogo 3'],
+    },
+    {
+      id: 'palpite-final',
+      label: 'Palpite de placar',
+      question: 'Qual seu palpite para a final?',
+      options: ['Vitoria equipe A', 'Empate no tempo normal', 'Vitoria equipe B'],
+    },
+  ];
+
+  const trimmedQuestion = formData.question.trim();
+  const validOptionValues = formData.options.map((o) => o.trim()).filter((o) => o.length > 0);
+  const uniqueOptionsCount = new Set(validOptionValues.map((o) => o.toLowerCase())).size;
+
+  const questionQuality =
+    trimmedQuestion.length < 12
+      ? { label: 'Pergunta curta', tone: 'low' as const }
+      : trimmedQuestion.length > 90
+        ? { label: 'Pergunta longa', tone: 'high' as const }
+        : { label: 'Pergunta boa', tone: 'good' as const };
+
+  const optionsQuality =
+    validOptionValues.length < 2
+      ? { label: 'Adicione mais opcoes', tone: 'low' as const }
+      : uniqueOptionsCount < validOptionValues.length
+        ? { label: 'Opcoes duplicadas', tone: 'high' as const }
+        : validOptionValues.length > 6
+          ? { label: 'Muitas opcoes', tone: 'low' as const }
+          : { label: 'Opcoes equilibradas', tone: 'good' as const };
+
+  const applyPollPreset = (presetId: string) => {
+    const preset = pollPresets.find((item) => item.id === presetId);
+    if (!preset) return;
+
+    setSelectedPollPresetId(preset.id);
+    setFormData({
+      question: preset.question,
+      options: [...preset.options],
+    });
+    toast.success(`Modelo aplicado: ${preset.label}`);
+  };
 
   const fetchPolls = async () => {
     try {
@@ -4277,6 +4776,7 @@ const PollManagement = () => {
       if (error) throw error;
       
       setFormData({ question: '', options: ['', ''] });
+      setSelectedPollPresetId(null);
       setIsAdding(false);
       fetchPolls();
     } catch (err: unknown) {
@@ -4360,6 +4860,25 @@ const PollManagement = () => {
 
       {isAdding && (
         <form className="admin-form glass" onSubmit={handleCreatePoll}>
+          <div className="poll-presets-panel glass">
+            <div className="poll-presets-head">
+              <strong>Modelos de enquete</strong>
+              <span>Use um modelo para preencher pergunta e opcoes em um clique.</span>
+            </div>
+            <div className="poll-presets-grid" role="group" aria-label="Modelos de enquete">
+              {pollPresets.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  className={`poll-preset-btn ${selectedPollPresetId === preset.id ? 'active' : ''}`}
+                  onClick={() => applyPollPreset(preset.id)}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="form-group-full">
             <label>Pergunta da Enquete</label>
             <input 
@@ -4369,6 +4888,10 @@ const PollManagement = () => {
               onChange={e => setFormData({...formData, question: e.target.value})}
               placeholder="Ex: Quem será o artilheiro?"
             />
+            <div className="poll-quality-row" aria-live="polite">
+              <span className={`poll-quality-chip ${questionQuality.tone}`}>{questionQuality.label}</span>
+              <span>{trimmedQuestion.length} caracteres</span>
+            </div>
           </div>
           
           <div className="poll-options-editor">
@@ -4397,6 +4920,11 @@ const PollManagement = () => {
             <button type="button" className="btn-add-opt" onClick={() => setFormData({...formData, options: [...formData.options, '']})}>
               + Adicionar Opção
             </button>
+            <div className="poll-quality-row" aria-live="polite">
+              <span className={`poll-quality-chip ${optionsQuality.tone}`}>{optionsQuality.label}</span>
+              <span>{validOptionValues.length} validas</span>
+              <span>{uniqueOptionsCount} unicas</span>
+            </div>
           </div>
           
           <button type="submit" className="btn-save"><Save size={18} /> Criar Enquete</button>

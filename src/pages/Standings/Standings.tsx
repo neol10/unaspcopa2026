@@ -8,6 +8,7 @@ import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 const Standings: React.FC = () => {
   const { standings, loading, error, refresh, paused } = useStandings();
   const [showByGroup, setShowByGroup] = useState(true);
+  const [selectedGroup, setSelectedGroup] = useState('all');
   const [stuck, setStuck] = useState(false);
 
   useEffect(() => {
@@ -82,6 +83,11 @@ const Standings: React.FC = () => {
     return acc;
   }, {});
 
+  const groupNames = Object.keys(groupedStandings);
+  const visibleGroups = showByGroup
+    ? Object.entries(groupedStandings).filter(([groupName]) => selectedGroup === 'all' || groupName === selectedGroup)
+    : [];
+
   const getGroupRankColorClass = (index: number) => {
     if (index <= 2) return 'rank-green';
     if (index === 3) return 'rank-yellow';
@@ -144,8 +150,38 @@ const Standings: React.FC = () => {
         </div>
       </header>
 
+      <section className="standings-criteria-card glass">
+        <div className="standings-criteria-head">
+          <Info size={16} />
+          <strong>Critérios de desempate</strong>
+        </div>
+        <p>1. Vitórias | 2. Saldo de Gols | 3. Gols Pró</p>
+      </section>
+
+      {showByGroup && groupNames.length > 1 && (
+        <div className="group-filter-row">
+          <button
+            type="button"
+            className={`group-filter-chip ${selectedGroup === 'all' ? 'active' : ''}`}
+            onClick={() => setSelectedGroup('all')}
+          >
+            Todos os grupos
+          </button>
+          {groupNames.map((groupName) => (
+            <button
+              key={groupName}
+              type="button"
+              className={`group-filter-chip ${selectedGroup === groupName ? 'active' : ''}`}
+              onClick={() => setSelectedGroup(groupName)}
+            >
+              {groupName}
+            </button>
+          ))}
+        </div>
+      )}
+
       {showByGroup ? (
-        Object.entries(groupedStandings).map(([groupName, groupTeams]) => (
+        visibleGroups.map(([groupName, groupTeams]) => (
           <div key={groupName} className="group-section">
             <h3 className="group-title">
               <Shield size={20} color="var(--secondary)" />

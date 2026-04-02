@@ -12,6 +12,52 @@
   gap: 1.5rem;
 }
 
+.standings-criteria-card {
+  border-radius: 16px;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.standings-criteria-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-main);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.standings-criteria-card p {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  font-weight: 700;
+}
+
+.group-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.group-filter-chip {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 0.42rem 0.85rem;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+
+.group-filter-chip.active {
+  border-color: rgba(251, 191, 36, 0.45);
+  background: rgba(251, 191, 36, 0.16);
+  color: var(--secondary);
+}
+
 .group-title {
   display: flex;
   align-items: center;
@@ -368,6 +414,10 @@
     color: var(--text-dim);
     text-align: center;
     font-style: italic;
+  }
+
+  .standings-criteria-card {
+    padding: 0.75rem 0.85rem;
   }
 }
 .col-form { width: 140px; }

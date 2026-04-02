@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Teams.css';
-import { Shield } from 'lucide-react';
+import { Shield, Search } from 'lucide-react';
 import { useTeams } from '../../hooks/useTeams';
 import Skeleton from '../../components/Skeleton/Skeleton';
 
@@ -10,6 +10,8 @@ const Teams: React.FC = () => {
   const { teams, loading, error, refresh } = useTeams();
   const [stuck, setStuck] = useState(false);
   const [brokenBadgeMap, setBrokenBadgeMap] = useState<Record<string, true>>({});
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedGroup, setSelectedGroup] = useState('all');
 
   const markBadgeBroken = (teamId: string) => {
     setBrokenBadgeMap((prev) => (prev[teamId] ? prev : { ...prev, [teamId]: true }));
@@ -97,6 +99,24 @@ const Teams: React.FC = () => {
     );
   }
 
+  const normalize = (value: string) => value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  const groupNames = Array.from(new Set(teams.map((team) => (team.group || 'Sem Grupo').trim()))).sort((a, b) => a.localeCompare(b));
+  const normalizedSearch = normalize(searchTerm.trim());
+
+  const visibleTeams = teams.filter((team) => {
+    const groupName = (team.group || 'Sem Grupo').trim();
+    if (selectedGroup !== 'all' && groupName !== selectedGroup) return false;
+    if (!normalizedSearch) return true;
+    const inName = normalize(team.name || '').includes(normalizedSearch);
+    const inLeader = normalize(team.leader || '').includes(normalizedSearch);
+    const inGroup = normalize(groupName).includes(normalizedSearch);
+    return inName || inLeader || inGroup;
+  });
+
   return (
     <div className="teams-page animate-fade-in">
       <header className="teams-hero-header">
@@ -108,15 +128,48 @@ const Teams: React.FC = () => {
           <div className="hero-stat">
             <Shield size={20} color="var(--secondary)" />
             <div>
-              <strong>{teams.length}</strong>
-              <span>Equipes</span>
+              <strong>{visibleTeams.length}</strong>
+              <span>{visibleTeams.length === teams.length ? 'Equipes' : 'Resultados'}</span>
             </div>
           </div>
         </div>
       </header>
 
+      <section className="teams-filter-bar glass">
+        <label className="teams-search-wrap" htmlFor="teams-search-input">
+          <Search size={15} />
+          <input
+            id="teams-search-input"
+            type="search"
+            placeholder="Buscar equipe, capitão ou grupo"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </label>
+
+        <div className="teams-group-filters" role="tablist" aria-label="Filtro por grupo">
+          <button
+            type="button"
+            className={`teams-filter-chip ${selectedGroup === 'all' ? 'active' : ''}`}
+            onClick={() => setSelectedGroup('all')}
+          >
+            Todos
+          </button>
+          {groupNames.map((group) => (
+            <button
+              key={group}
+              type="button"
+              className={`teams-filter-chip ${selectedGroup === group ? 'active' : ''}`}
+              onClick={() => setSelectedGroup(group)}
+            >
+              {group}
+            </button>
+          ))}
+        </div>
+      </section>
+
       <div className="teams-grid-v2">
-        {teams.map((team) => (
+        {visibleTeams.map((team) => (
           <div
             key={team.id}
             className="team-card-v2 glass"
@@ -132,7 +185,7 @@ const Teams: React.FC = () => {
             }}
           >
             <div className="card-top">
-              <span className="team-pill">{team.group}</span>
+              <span className="team-pill">{team.group || 'Sem Grupo'}</span>
             </div>
             
             <div className="card-badge">
@@ -155,7 +208,7 @@ const Teams: React.FC = () => {
             <div className="card-body">
               <h3>{team.name}</h3>
               <div className="leader-info">
-                <span>Capitão: {team.leader}</span>
+                <span>Capitão: {team.leader || 'A definir'}</span>
               </div>
             </div>
 
@@ -167,6 +220,12 @@ const Teams: React.FC = () => {
           </div>
         ))}
       </div>
+
+      {visibleTeams.length === 0 && (
+        <div className="teams-empty-state glass">
+          <p>Nenhuma equipe encontrada com os filtros atuais.</p>
+        </div>
+      )}
     </div>
   );
 };

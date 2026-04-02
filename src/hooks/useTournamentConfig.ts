@@ -5,7 +5,7 @@ export interface TournamentConfig {
   id: string;
   total_rounds: number;
   matches_per_round: number;
-  current_phase: 'grupos' | 'quartas' | 'semifinal' | 'final';
+  current_phase: 'grupos' | 'oitavas' | 'quartas' | 'semifinal' | 'final';
   current_round: number;
 }
 
