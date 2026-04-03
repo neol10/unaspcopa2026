@@ -225,6 +225,7 @@ const Standings: React.FC = () => {
                                 width="24" 
                                 height="24" 
                                 loading="lazy"
+                                decoding="async"
                                 style={{ objectFit: 'contain', padding: '2px' }} 
                               />
                             ) : (
@@ -302,6 +303,7 @@ const Standings: React.FC = () => {
                               width="24" 
                               height="24" 
                               loading="lazy"
+                              decoding="async"
                               style={{ objectFit: 'contain', padding: '2px' }} 
                             />
                           ) : (

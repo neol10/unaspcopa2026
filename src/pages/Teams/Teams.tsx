@@ -209,6 +209,7 @@ const Teams: React.FC = () => {
                   width="48" 
                   height="48" 
                   loading="lazy"
+                  decoding="async"
                   style={{ objectFit: 'contain' }}
                   onError={() => markBadgeBroken(team.id)}
                 />

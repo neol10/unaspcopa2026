@@ -498,6 +498,7 @@ const Brackets: React.FC = () => {
                   width="28" 
                   height="28" 
                   loading="lazy" 
+                  decoding="async"
                 />
               ) : <div className="team-badge-mini" style={{width: 28, height: 28, background: 'rgba(255,255,255,0.05)', borderRadius: '50%'}}></div>}
               <span>{match.teams_a?.name || 'A definir'}</span>
@@ -515,6 +516,7 @@ const Brackets: React.FC = () => {
                   width="28" 
                   height="28" 
                   loading="lazy" 
+                  decoding="async"
                 />
               ) : <div className="team-badge-mini" style={{width: 28, height: 28, background: 'rgba(255,255,255,0.05)', borderRadius: '50%'}}></div>}
               <span>{match.teams_b?.name || 'A definir'}</span>

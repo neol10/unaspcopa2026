@@ -334,7 +334,11 @@ export const usePushNotifications = () => {
 
       const existing = await registration.pushManager.getSubscription();
       if (existing) {
-        await existing.unsubscribe();
+        await syncSubscriptionRecord(existing, preferences, user?.id || null);
+        markPushSyncVersion();
+        setIsSubscribed(true);
+        toast.success('Alertas ativados com sucesso!');
+        return;
       }
 
       const subscription = await registration.pushManager.subscribe({

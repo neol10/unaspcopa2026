@@ -101,6 +101,14 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }, []);
 
   useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.classList.add('nav-open');
+      return () => document.body.classList.remove('nav-open');
+    }
+    document.body.classList.remove('nav-open');
+  }, [isMobileMenuOpen]);
+
+  useEffect(() => {
     const unsub = onGoalOverlay((payload) => {
       if (isAdminRoute) return;
       

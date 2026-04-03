@@ -445,6 +445,7 @@ const MatchCenter: React.FC = () => {
                       width="48" 
                       height="48" 
                       loading="lazy"
+                      decoding="async"
                       style={{ objectFit: 'contain', padding: '4px' }} 
                     />
                   ) : <Shield size={48} color="var(--secondary)" />}
@@ -482,6 +483,7 @@ const MatchCenter: React.FC = () => {
                       width="48" 
                       height="48" 
                       loading="lazy"
+                      decoding="async"
                       style={{ objectFit: 'contain', padding: '4px' }} 
                     />
                   ) : <Shield size={48} color="var(--primary)" />}

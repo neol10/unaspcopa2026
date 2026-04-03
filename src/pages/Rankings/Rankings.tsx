@@ -275,6 +275,7 @@ const Rankings: React.FC = () => {
                       width="64" 
                       height="64" 
                       loading="lazy" 
+                      decoding="async"
                     />
                   ) : (
                     <User size={32} />
@@ -351,7 +352,7 @@ const Rankings: React.FC = () => {
                   <div className="podium-player-box glass">
                     <div className="podium-avatar-wrapper">
                       {player.photo_url ? (
-                        <img src={player.photo_url} alt={player.name} className="podium-avatar" />
+                        <img src={player.photo_url} alt={player.name} className="podium-avatar" loading="lazy" decoding="async" />
                       ) : (
                         <div className="podium-avatar" style={{ background: 'var(--bg-glass)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <User size={isFirst ? 48 : 32} />
@@ -394,6 +395,7 @@ const Rankings: React.FC = () => {
                       width="32" 
                       height="32" 
                       loading="lazy" 
+                      decoding="async"
                     />
                   ) : <div className="avatar-dummy"><User size={14} /></div>}
                 </div>
@@ -409,6 +411,7 @@ const Rankings: React.FC = () => {
                           width="16" 
                           height="16" 
                           loading="lazy" 
+                          decoding="async"
                         />
                       )}
                       <span>{p.team_name}</span>
@@ -459,13 +462,13 @@ const Rankings: React.FC = () => {
               <div key={p.id} className="rank-row-item glass-hover" onClick={() => setSelectedPlayer(p)}>
                 <div className="rank-idx">{i + 1}º</div>
                 <div className="rank-avatar">
-                   {p.photo_url ? <img src={p.photo_url} alt={p.name} /> : <div className="avatar-dummy"><User size={14} /></div>}
+                   {p.photo_url ? <img src={p.photo_url} alt={p.name} loading="lazy" decoding="async" /> : <div className="avatar-dummy"><User size={14} /></div>}
                 </div>
                 <div className="rank-player">
                    <div className="player-name-wrapper">
                      <strong>{p.name}</strong>
                      <div className="team-mini-info">
-                        {p.team_badge_url && <img src={p.team_badge_url} alt="" className="mini-badge" />}
+                        {p.team_badge_url && <img src={p.team_badge_url} alt="" className="mini-badge" loading="lazy" decoding="async" />}
                         <span>{p.team_name}</span>
                      </div>
                    </div>
@@ -521,6 +524,7 @@ const Rankings: React.FC = () => {
                       width="32" 
                       height="32" 
                       loading="lazy" 
+                      decoding="async"
                     />
                   ) : <div className="avatar-dummy"><User size={14} /></div>}
                 </div>
@@ -536,6 +540,7 @@ const Rankings: React.FC = () => {
                           width="16" 
                           height="16" 
                           loading="lazy" 
+                          decoding="async"
                         />
                       )}
                       <span>{p.team_name}</span>
@@ -593,6 +598,7 @@ const Rankings: React.FC = () => {
                       width="32" 
                       height="32" 
                       loading="lazy" 
+                      decoding="async"
                     />
                   ) : <div className="avatar-dummy"><User size={14} /></div>}
                 </div>
@@ -608,6 +614,7 @@ const Rankings: React.FC = () => {
                           width="16" 
                           height="16" 
                           loading="lazy" 
+                          decoding="async"
                         />
                       )}
                       <span>{p.team_name}</span>

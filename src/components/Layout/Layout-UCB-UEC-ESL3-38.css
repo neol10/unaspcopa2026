@@ -684,6 +684,11 @@ body.gallery-modal-open {
   overflow: hidden;
 }
 
+body.nav-open {
+  overflow: hidden;
+  touch-action: none;
+}
+
 body.gallery-modal-open .app-container::before,
 body.gallery-modal-open .mobile-navbar,
 body.gallery-modal-open .context-bar,

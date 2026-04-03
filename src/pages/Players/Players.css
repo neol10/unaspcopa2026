@@ -248,6 +248,8 @@
   gap: 1.5rem;
   transition: var(--transition-normal);
   border: 1px solid var(--border-light);
+  content-visibility: auto;
+  contain-intrinsic-size: 280px 420px;
 }
 
 .player-card-v2:hover {
@@ -753,8 +755,8 @@
   .profile-highlights { min-width: auto; }
   .profile-info-group h1 { font-size: 2.2rem; }
   .profile-tags { justify-content: center; }
-  .search-players-box { width: 100%; }
-  .players-filters { width: 100%; justify-content: stretch; }
+  .search-players-box { width: 100%; flex: 0 0 auto; }
+  .players-filters { width: 100%; justify-content: stretch; flex: 0 0 auto; }
   .players-filters select { flex: 1; min-width: 0; }
   .profile-highlights { width: 100%; padding: 1.5rem; }
   .h-stat strong { font-size: 2rem; }
@@ -790,7 +792,7 @@
   }
 
   .team-profile-header {
-    padding: 1.1rem;
+    padding: 0.9rem;
     gap: 1rem;
   }
 
@@ -804,10 +806,10 @@
   }
 
   .search-players-box {
-    padding: 0.25rem 0.45rem;
-    border-radius: 8px;
-    gap: 0.4rem;
-    min-height: 34px;
+    padding: 0.2rem 0.6rem;
+    border-radius: 10px;
+    gap: 0.35rem;
+    min-height: 30px;
   }
 
   .search-players-box svg {
@@ -816,7 +818,8 @@
   }
 
   .search-players-box input {
-    font-size: 0.78rem;
+    font-size: 0.74rem;
+    line-height: 1.1;
   }
 
   .players-filters {

@@ -379,6 +379,8 @@
   border-radius: var(--radius-sm);
   transition: var(--transition-fast);
   min-width: 0; /* Allow shrinking below fixed min-width if parent allows */
+  content-visibility: auto;
+  contain-intrinsic-size: 320px 72px;
 }
 
 .rank-row-download-btn {

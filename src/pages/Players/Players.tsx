@@ -252,6 +252,23 @@ const Players: React.FC = () => {
           />
         </div>
 
+        <div className="players-filters glass">
+          <select value={selectedPosition} onChange={(e) => setSelectedPosition(e.target.value)}>
+            <option value="all">Todas as posições</option>
+            {positionOptions.map((position) => (
+              <option key={position} value={position}>
+                {position}
+              </option>
+            ))}
+          </select>
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as 'name' | 'goals' | 'assists' | 'cards')}>
+            <option value="name">Ordem A-Z</option>
+            <option value="goals">Mais gols</option>
+            <option value="assists">Mais assistencias</option>
+            <option value="cards">Mais cartoes</option>
+          </select>
+        </div>
+
         <div className="profile-highlights glass">
           <div className="h-stat">
             <strong>{filteredPlayers.length}</strong>

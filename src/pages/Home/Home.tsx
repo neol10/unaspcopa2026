@@ -329,7 +329,11 @@ const Home: React.FC = () => {
                 <div className="live-team-a">
                    <span className="team-name-abbr">{liveMatch.teams_a?.name}</span>
                    <div className="team-shield-mini">
-                     {liveMatch.teams_a?.badge_url ? <img src={liveMatch.teams_a.badge_url} alt="" /> : <Shield size={24} />}
+                     {liveMatch.teams_a?.badge_url ? (
+                       <img src={liveMatch.teams_a.badge_url} alt="" width="24" height="24" decoding="async" />
+                     ) : (
+                       <Shield size={24} />
+                     )}
                    </div>
                 </div>
                 
@@ -346,7 +350,11 @@ const Home: React.FC = () => {
 
                 <div className="live-team-b">
                    <div className="team-shield-mini">
-                     {liveMatch.teams_b?.badge_url ? <img src={liveMatch.teams_b.badge_url} alt="" /> : <Shield size={24} />}
+                     {liveMatch.teams_b?.badge_url ? (
+                       <img src={liveMatch.teams_b.badge_url} alt="" width="24" height="24" decoding="async" />
+                     ) : (
+                       <Shield size={24} />
+                     )}
                    </div>
                    <span className="team-name-abbr">{liveMatch.teams_b?.name}</span>
                 </div>
@@ -603,6 +611,7 @@ const Home: React.FC = () => {
                        width="24" 
                        height="24" 
                        loading="lazy"
+                       decoding="async"
                        style={{ objectFit: 'contain' }} 
                      />
                    ) : (
@@ -619,6 +628,7 @@ const Home: React.FC = () => {
                        width="24" 
                        height="24" 
                        loading="lazy"
+                       decoding="async"
                        style={{ objectFit: 'contain' }} 
                      />
                    ) : (
@@ -697,6 +707,7 @@ const Home: React.FC = () => {
                        width="48" 
                        height="48" 
                        loading="lazy"
+                       decoding="async"
                        style={{ objectFit: 'contain', zIndex: 1 }} 
                      />
                    ) : (
@@ -760,7 +771,7 @@ const Home: React.FC = () => {
                   <button className="news-modal-close" onClick={() => setSelectedNews(null)}><X size={24} /></button>
                   <div className="news-modal-hero">
                     {selectedNews.image_url ? (
-                      <img src={selectedNews.image_url} alt={selectedNews.title} className="news-modal-img" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                      <img src={selectedNews.image_url} alt={selectedNews.title} className="news-modal-img" decoding="async" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                     ) : (
                       <div className="news-modal-img-placeholder"><Zap size={64} /></div>
                     )}
