@@ -112,6 +112,17 @@
   margin-bottom: 0.5rem;
 }
 
+[data-theme='light'] .skeleton-card,
+[data-theme='light'] .skeleton-match-card,
+[data-theme='light'] .skeleton-ranking-row {
+  background: rgba(2, 6, 23, 0.03);
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+[data-theme='light'] .skeleton-standings-row {
+  border-bottom-color: rgba(15, 23, 42, 0.08);
+}
+
 /* ---- Pull to Refresh indicator ---- */
 .pull-to-refresh-indicator {
   display: flex;

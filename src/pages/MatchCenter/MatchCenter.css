@@ -95,6 +95,11 @@
   background: rgba(255, 255, 255, 0.03);
 }
 
+[data-theme='light'] .summary-chip {
+  background: rgba(2, 6, 23, 0.04);
+  color: var(--text-main);
+}
+
 .summary-chip.summary-live {
   border-color: rgba(34, 197, 94, 0.35);
   color: #4ade80;
@@ -133,9 +138,18 @@
   transition: all 0.2s ease;
 }
 
+[data-theme='light'] .match-pill {
+  background: rgba(2, 6, 23, 0.04);
+  color: var(--text-main);
+}
+
 .match-pill:hover {
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-main);
+}
+
+[data-theme='light'] .match-pill:hover {
+  background: rgba(2, 6, 23, 0.06);
 }
 
 .match-pill.active {
@@ -257,6 +271,11 @@
   color: var(--text-muted);
 }
 
+[data-theme='light'] .match-badge.finalizado {
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--text-dim);
+}
+
 .scoreboard-main {
   display: flex;
   justify-content: space-around;
@@ -333,6 +352,11 @@
   color: var(--secondary);
 }
 
+[data-theme='light'] .sb-timer {
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--accent-navy);
+}
+
 .timer-info-group {
   display: flex;
   flex-direction: column;
@@ -355,11 +379,20 @@
   letter-spacing: 0.5px;
 }
 
+[data-theme='light'] .period-badge {
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--text-main);
+}
+
 .scoreboard-bottom {
   height: 4px;
   background: rgba(255, 255, 255, 0.05);
   border-radius: 2px;
   overflow: hidden;
+}
+
+[data-theme='light'] .scoreboard-bottom {
+  background: rgba(15, 23, 42, 0.1);
 }
 
 .live-progress {
@@ -498,6 +531,10 @@
   opacity: 0.3;
 }
 
+[data-theme='light'] .timeline-v2-list::before {
+  opacity: 0.5;
+}
+
 .t-event {
   display: flex;
   align-items: center;
@@ -506,6 +543,10 @@
   z-index: 1;
 }
 
+[data-theme='light'] .comment-bubble {
+  background: rgba(2, 6, 23, 0.04);
+  border-left-color: var(--accent-blue);
+}
 .t-time {
   width: 45px;
   text-align: right;
@@ -516,11 +557,19 @@
   flex-shrink: 0;
 }
 
+[data-theme='light'] .comment-delete {
+  border-color: rgba(15, 23, 42, 0.12);
+  color: var(--text-main);
+}
 .t-icon-box {
   width: 36px;
   height: 36px;
   background: var(--bg-main);
   border-radius: 50%;
+[data-theme='light'] .comment-delete:hover {
+  border-color: rgba(15, 23, 42, 0.2);
+  background: rgba(2, 6, 23, 0.06);
+}
   display: flex;
   align-items: center;
   justify-content: center;
@@ -534,6 +583,11 @@
 .card-red { width: 10px; height: 14px; background: #ff2d2d; border-radius: 2px; box-shadow: 0 0 8px #ff2d2d; }
 
 .t-content {
+[data-theme='light'] .t-icon-box {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(15, 23, 42, 0.12);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12);
+}
   flex: 1;
   padding: 1rem 1.25rem;
   border-radius: 16px;
@@ -542,10 +596,18 @@
   transition: var(--transition-fast);
 }
 
+[data-theme='light'] .t-content {
+  background: rgba(2, 6, 23, 0.04);
+  border-color: rgba(15, 23, 42, 0.12);
+}
 .t-event:hover .t-content {
   background: rgba(255, 255, 255, 0.06);
   border-color: var(--border-glow);
   transform: translateX(5px);
+}
+[data-theme='light'] .t-event:hover .t-content {
+  background: rgba(2, 6, 23, 0.06);
+  border-color: rgba(15, 23, 42, 0.2);
 }
 
 .t-header {
@@ -595,6 +657,11 @@
   flex-direction: column;
 }
 
+[data-theme='light'] .fan-zone {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+}
+
 .side-header {
   display: flex;
   align-items: center;
@@ -626,6 +693,10 @@
   padding: 0.75rem;
   border-radius: 8px;
   border-left: 2px solid var(--primary);
+}
+
+[data-theme='light'] .chat-msg.highlight {
+  background: rgba(255, 45, 45, 0.08);
 }
 
 .fan-input {
@@ -1392,6 +1463,11 @@
   background: rgba(0, 0, 0, 0.2);
 }
 
+[data-theme='light'] .comment-input-area {
+  border-top-color: rgba(15, 23, 42, 0.12);
+  background: rgba(2, 6, 23, 0.03);
+}
+
 .comment-form {
   display: flex;
   gap: 0.75rem;
@@ -1407,6 +1483,12 @@
   color: var(--text-main);
   font-size: 0.9rem;
   transition: all 0.3s ease;
+}
+
+[data-theme='light'] .comment-form input {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(15, 23, 42, 0.12);
+  color: var(--text-main);
 }
 
 .comment-form input:focus {
@@ -1447,6 +1529,11 @@
   background: rgba(255, 255, 255, 0.03);
   border-radius: 12px;
   border: 1px dashed rgba(255, 255, 255, 0.12);
+}
+
+[data-theme='light'] .login-to-comment {
+  background: rgba(2, 6, 23, 0.04);
+  border-color: rgba(15, 23, 42, 0.16);
 }
 
 .login-to-comment p {
