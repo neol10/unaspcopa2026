@@ -365,6 +365,17 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               </div>
             )}
 
+            <a
+              className="theme-toggle"
+              href="https://copa-unasp-2026-production.up.railway.app/telao"
+              target="_blank"
+              rel="noreferrer"
+              onClick={closeMobileMenu}
+            >
+              <Trophy size={20} />
+              <span>Leilao</span>
+            </a>
+
             <button className="theme-toggle" onClick={toggleTheme} aria-label="Alternar tema">
               {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
               <span>{theme === 'light' ? 'Modo Escuro' : 'Modo Claro'}</span>
