@@ -13,7 +13,7 @@ import { useTournamentConfig, type TournamentConfig } from '../../hooks/useTourn
 import { usePolls, type Poll, type PollOption } from '../../hooks/usePolls';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { withTimeout } from '../../lib/withTimeout';
-import { detectTournamentPhase, KNOCKOUT_ROUND_LABELS } from '../../lib/tournamentRules';
+import { detectTournamentPhase, KNOCKOUT_PHASE_BY_ROUND, KNOCKOUT_ROUND_LABELS } from '../../lib/tournamentRules';
 import { toast } from 'react-hot-toast';
 import { useConfirm } from '../../hooks/useConfirm';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -4476,6 +4476,24 @@ const TournamentManagement = () => {
   const [saved, setSaved] = useState(false);
   const [manualPhaseOverride, setManualPhaseOverride] = useState(false);
 
+  const usedPhases = React.useMemo(() => {
+    const used = new Set<TournamentConfig['current_phase']>();
+
+    (matches || []).forEach((match) => {
+      const round = match.round;
+      if (typeof round !== 'number') return;
+      if (round < 1000) {
+        used.add('grupos');
+        return;
+      }
+      if (round in KNOCKOUT_PHASE_BY_ROUND) {
+        used.add(KNOCKOUT_PHASE_BY_ROUND[round]);
+      }
+    });
+
+    return used;
+  }, [matches]);
+
   const autoPhase = React.useMemo<TournamentConfig['current_phase']>(() => {
     return detectTournamentPhase((matches || []).map((m) => ({
       round: m.round,
@@ -4574,11 +4592,21 @@ const TournamentManagement = () => {
                 value={form.current_phase}
                 onChange={e => setForm({ ...form, current_phase: e.target.value as TournamentConfig['current_phase'] })}
               >
-                <option value="grupos">1ª Fase (Grupos)</option>
-                <option value="oitavas">Oitavas de Final</option>
-                <option value="quartas">Quartas de Final</option>
-                <option value="semifinal">Semifinal</option>
-                <option value="final">Final</option>
+                <option value="grupos" disabled={usedPhases.has('grupos') && form.current_phase !== 'grupos'}>
+                  1ª Fase (Grupos){usedPhases.has('grupos') && form.current_phase !== 'grupos' ? ' (ja usada)' : ''}
+                </option>
+                <option value="oitavas" disabled={usedPhases.has('oitavas') && form.current_phase !== 'oitavas'}>
+                  Oitavas de Final{usedPhases.has('oitavas') && form.current_phase !== 'oitavas' ? ' (ja usada)' : ''}
+                </option>
+                <option value="quartas" disabled={usedPhases.has('quartas') && form.current_phase !== 'quartas'}>
+                  Quartas de Final{usedPhases.has('quartas') && form.current_phase !== 'quartas' ? ' (ja usada)' : ''}
+                </option>
+                <option value="semifinal" disabled={usedPhases.has('semifinal') && form.current_phase !== 'semifinal'}>
+                  Semifinal{usedPhases.has('semifinal') && form.current_phase !== 'semifinal' ? ' (ja usada)' : ''}
+                </option>
+                <option value="final" disabled={usedPhases.has('final') && form.current_phase !== 'final'}>
+                  Final{usedPhases.has('final') && form.current_phase !== 'final' ? ' (ja usada)' : ''}
+                </option>
               </select>
             ) : (
               <input type="text" value={phaseLabel[autoPhase]} readOnly />

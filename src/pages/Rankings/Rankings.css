@@ -70,6 +70,11 @@
   padding: 0.4rem 0.7rem;
 }
 
+.rankings-limit-toggle button:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
+}
+
 .rankings-limit-toggle button.active {
   background: rgba(251, 191, 36, 0.2);
   color: var(--secondary);
@@ -544,11 +549,24 @@
   .rankings-filter-bar {
     flex-direction: column;
     align-items: stretch;
+    gap: 0.75rem;
   }
 
   .rankings-search-wrap {
     min-width: 0;
     width: 100%;
+    min-height: 40px;
+  }
+
+  .rankings-limit-toggle {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .rankings-limit-toggle button {
+    min-height: 40px;
+    flex: 1;
+    justify-content: center;
   }
 }
 

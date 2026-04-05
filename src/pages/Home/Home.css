@@ -6,6 +6,12 @@
   overscroll-behavior-y: contain;
 }
 
+@media (max-width: 768px) {
+  .home-page-v2 {
+    padding-top: 4.5rem;
+  }
+}
+
 .home-tournament-status {
   margin: 0.4rem 2rem 0;
   padding: 1.1rem 1.3rem;

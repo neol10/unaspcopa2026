@@ -2,17 +2,20 @@ import React, { useEffect, useState } from 'react';
 import './Standings.css';
 import { Shield, Info, LayoutGrid, List, Trophy } from 'lucide-react';
 import { useStandings } from '../../hooks/useStandings';
+import { useTournamentConfig } from '../../hooks/useTournamentConfig';
 import { useAuthContext } from '../../contexts/AuthContext';
 import Skeleton, { SkeletonStandingsRow } from '../../components/Skeleton/Skeleton';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 
 const Standings: React.FC = () => {
   const { standings, loading, error, refresh, paused } = useStandings();
+  const { config } = useTournamentConfig();
   const { role } = useAuthContext();
   const [showByGroup, setShowByGroup] = useState(true);
   const [selectedGroup, setSelectedGroup] = useState('all');
   const [stuck, setStuck] = useState(false);
   const isAdmin = role === 'admin';
+  const isGroupPhase = config.current_phase === 'grupos';
 
   useEffect(() => {
     if (!loading) {
@@ -23,6 +26,12 @@ const Standings: React.FC = () => {
     const id = setTimeout(() => setStuck(true), 15000);
     return () => clearTimeout(id);
   }, [loading]);
+
+  useEffect(() => {
+    if (!isGroupPhase) {
+      setShowByGroup(false);
+    }
+  }, [isGroupPhase]);
 
   if ((paused || stuck) && standings.length === 0) {
     return (
@@ -137,24 +146,31 @@ const Standings: React.FC = () => {
           <p>Acompanhe a corrida pelo título da Copa Unasp 2026</p>
         </div>
         <div className="header-actions">
-          <div className="view-toggle glass">
-            <button 
-              className={showByGroup ? 'active' : ''} 
-              onClick={() => setShowByGroup(true)}
-              title="Ver por Grupos"
-            >
-              <LayoutGrid size={18} />
-              <span>Grupos</span>
-            </button>
-            <button 
-              className={!showByGroup ? 'active' : ''} 
-              onClick={() => setShowByGroup(false)}
-              title="Ver Geral"
-            >
-              <List size={18} />
-              <span>Geral</span>
-            </button>
-          </div>
+          {isGroupPhase ? (
+            <div className="view-toggle glass">
+              <button 
+                className={showByGroup ? 'active' : ''} 
+                onClick={() => setShowByGroup(true)}
+                title="Ver por Grupos"
+              >
+                <LayoutGrid size={18} />
+                <span>Grupos</span>
+              </button>
+              <button 
+                className={!showByGroup ? 'active' : ''} 
+                onClick={() => setShowByGroup(false)}
+                title="Ver Geral"
+              >
+                <List size={18} />
+                <span>Geral</span>
+              </button>
+            </div>
+          ) : (
+            <div className="status-pill glass">
+              <Trophy size={16} />
+              Mata-mata
+            </div>
+          )}
           <div className="status-pill glass">
             <div className="live-dot"></div>
             Tempo Real
@@ -162,7 +178,7 @@ const Standings: React.FC = () => {
         </div>
       </header>
 
-      {showByGroup && groupNames.length > 1 && (
+      {isGroupPhase && showByGroup && groupNames.length > 1 && (
         <div className="group-filter-row">
           <button
             type="button"

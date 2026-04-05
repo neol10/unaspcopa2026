@@ -307,6 +307,12 @@
   position: relative;
   overflow: hidden;
   text-decoration: none;
+  min-height: 44px;
+}
+
+.nav-links a:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
 }
 
 .nav-links a::before {
@@ -420,6 +426,12 @@
   transition: all var(--transition-fast);
   cursor: pointer;
   margin-bottom: 0.75rem;
+  min-height: 44px;
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
 }
 
 .theme-toggle:hover {
@@ -443,6 +455,12 @@
   transition: all var(--transition-smooth);
   cursor: pointer;
   margin-bottom: 0.75rem;
+  min-height: 44px;
+}
+
+.push-toggle:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
 }
 
 .push-toggle:hover {
@@ -871,12 +889,17 @@ body.gallery-modal-open .nav-overlay {
     background: var(--bg-glass);
     color: var(--text-main);
     border: 1px solid var(--border-light);
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+
+  .mobile-menu-btn:focus-visible {
+    outline: 2px solid var(--secondary);
+    outline-offset: 2px;
   }
 
   .nav-overlay.show {

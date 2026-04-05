@@ -88,6 +88,11 @@
   width: 100%;
 }
 
+.teams-search-wrap input:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
+}
+
 .teams-search-wrap input::placeholder {
   color: var(--text-dim);
 }
@@ -109,6 +114,11 @@
   padding: 0.36rem 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.3px;
+}
+
+.teams-filter-chip:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
 }
 
 .teams-filter-chip.active {
@@ -284,11 +294,23 @@
 
   .teams-filter-bar {
     padding: 0.7rem;
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .teams-search-wrap {
     min-width: 0;
     width: 100%;
+    min-height: 40px;
+  }
+
+  .teams-group-filters {
+    width: 100%;
+  }
+
+  .teams-filter-chip {
+    padding: 0.5rem 0.95rem;
+    min-height: 40px;
   }
 
   .teams-grid-v2 {

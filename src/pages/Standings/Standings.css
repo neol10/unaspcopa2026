@@ -52,6 +52,11 @@
   letter-spacing: 0.3px;
 }
 
+.group-filter-chip:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
+}
+
 .group-filter-chip.active {
   border-color: rgba(251, 191, 36, 0.45);
   background: rgba(251, 191, 36, 0.16);
@@ -121,6 +126,11 @@
   font-size: 0.85rem;
   transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   cursor: pointer;
+}
+
+.view-toggle button:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
 }
 
 .view-toggle button.active {
@@ -402,7 +412,11 @@
   .standings-container { gap: 1.5rem; }
   .group-title { font-size: 1.1rem; letter-spacing: 0.8px; }
   .header-info h1 { font-size: 2.1rem; }
-  .view-toggle button { padding: 0.45rem 0.7rem; font-size: 0.75rem; }
+  .header-actions { width: 100%; }
+  .view-toggle { width: 100%; }
+  .view-toggle button { padding: 0.6rem 0.7rem; font-size: 0.75rem; min-height: 44px; flex: 1; justify-content: center; }
+  .status-pill { min-height: 40px; }
+  .group-filter-chip { padding: 0.55rem 0.95rem; min-height: 40px; }
   .table-container { padding: 0.5rem 0.35rem; }
   .standings-table-new { min-width: 600px; } /* Reduzido de 860px para mobile */
   .team-cell { gap: 0.55rem; }
