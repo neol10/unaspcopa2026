@@ -4512,9 +4512,11 @@ const TournamentManagement = () => {
 
   const autoMatchesPerRound = React.useMemo(() => {
     if (roundStats.size === 0) return Math.max(config.matches_per_round || 1, 1);
+    const currentCount = roundStats.get(autoRound)?.count ?? 0;
+    if (currentCount > 0) return Math.max(currentCount, 1);
     const maxCount = Math.max(...Array.from(roundStats.values()).map((data) => data.count));
     return Math.max(maxCount, 1);
-  }, [roundStats, config.matches_per_round]);
+  }, [roundStats, config.matches_per_round, autoRound]);
 
   const usedPhases = React.useMemo(() => {
     const used = new Set<TournamentConfig['current_phase']>();
@@ -4749,7 +4751,7 @@ const TournamentManagement = () => {
               readOnly
               aria-readonly="true"
             />
-            <span className="form-hint">Atualizado automaticamente com base nas partidas</span>
+            <span className="form-hint">Atualizado automaticamente com base nas partidas da fase de grupos</span>
           </div>
 
           {/* Rodada Atual */}
@@ -4764,7 +4766,7 @@ const TournamentManagement = () => {
                   <option key={r} value={r}>{r}ª Rodada</option>
                 ))}
               </select>
-              <span className="form-hint">Atualizada automaticamente pela situacao das partidas</span>
+              <span className="form-hint">Avanca quando todos os jogos da rodada finalizam; se nao houver jogos, fica aguardando</span>
             </div>
           )}
         </div>

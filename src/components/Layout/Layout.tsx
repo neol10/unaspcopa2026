@@ -109,6 +109,12 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }, [isMobileMenuOpen]);
 
   useEffect(() => {
+    if (isMobileMenuOpen) {
+      closeMobileMenu();
+    }
+  }, [location.pathname, isMobileMenuOpen]);
+
+  useEffect(() => {
     const unsub = onGoalOverlay((payload) => {
       if (isAdminRoute) return;
       
@@ -409,7 +415,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           </button>
         </header>
 
-        <div className={`nav-overlay ${isMobileMenuOpen ? 'show' : ''}`} onClick={closeMobileMenu}></div>
+        <div
+          className={`nav-overlay ${isMobileMenuOpen ? 'show' : ''}`}
+          onClick={closeMobileMenu}
+          aria-hidden={!isMobileMenuOpen}
+        ></div>
 
         {showContextBar && (liveMatch || nextMatch) && (
           <div className={`context-bar glass ${liveMatch ? 'is-live' : 'is-next'}`}>

@@ -145,6 +145,11 @@
   color: var(--text-main);
 }
 
+.broadcast-preset-btn:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
+}
+
 .broadcast-preset-btn.active {
   border-color: rgba(251, 191, 36, 0.45);
   background: rgba(251, 191, 36, 0.14);
@@ -200,6 +205,11 @@
   border-color: rgba(251, 191, 36, 0.45);
   background: rgba(251, 191, 36, 0.14);
   color: var(--secondary);
+}
+
+.news-preset-btn:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
 }
 
 .news-title-quality {
@@ -702,6 +712,11 @@
   box-shadow: 0 8px 20px -5px rgba(251, 191, 36, 0.4);
 }
 
+.btn-add:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
+}
+
 .admin-actions-header {
   display: flex;
   gap: 1rem;
@@ -728,6 +743,11 @@
   border-color: var(--border-light);
   color: var(--text-main);
   transform: translateY(-2px);
+}
+
+.btn-test-push:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
 }
 
 .admin-list {
@@ -1058,6 +1078,11 @@
 .btn-save:hover {
   transform: translateY(-2px);
   box-shadow: 0 15px 30px -8px rgba(251, 191, 36, 0.4);
+}
+
+.btn-save:focus-visible {
+  outline: 2px solid #000;
+  outline-offset: 2px;
 }
 
 /* Specific Cards */
@@ -1440,6 +1465,11 @@
   background: var(--secondary);
   color: black;
   transform: scale(1.03);
+}
+
+.btn-add-sm:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
 }
 
 /* Player Form */
