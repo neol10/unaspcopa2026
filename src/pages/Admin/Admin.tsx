@@ -4476,6 +4476,46 @@ const TournamentManagement = () => {
   const [saved, setSaved] = useState(false);
   const [manualPhaseOverride, setManualPhaseOverride] = useState(false);
 
+  const groupMatches = React.useMemo(() => {
+    return (matches || []).filter((match) => typeof match.round === 'number' && match.round > 0 && match.round < 1000);
+  }, [matches]);
+
+  const roundStats = React.useMemo(() => {
+    const stats = new Map<number, { count: number; pending: boolean }>();
+
+    groupMatches.forEach((match) => {
+      const round = match.round;
+      const current = stats.get(round) || { count: 0, pending: false };
+      stats.set(round, {
+        count: current.count + 1,
+        pending: current.pending || match.status !== 'finalizado',
+      });
+    });
+
+    return stats;
+  }, [groupMatches]);
+
+  const autoRound = React.useMemo(() => {
+    if (roundStats.size === 0) return 1;
+
+    const pendingRounds = Array.from(roundStats.entries())
+      .filter(([, data]) => data.pending)
+      .map(([round]) => round)
+      .sort((a, b) => a - b);
+
+    if (pendingRounds.length > 0) return pendingRounds[0];
+
+    const maxRound = Math.max(...Array.from(roundStats.keys()));
+    if (maxRound >= (config.total_rounds || 1)) return Math.max(config.total_rounds || 1, 1);
+    return maxRound + 1;
+  }, [roundStats, config.total_rounds]);
+
+  const autoMatchesPerRound = React.useMemo(() => {
+    if (roundStats.size === 0) return Math.max(config.matches_per_round || 1, 1);
+    const maxCount = Math.max(...Array.from(roundStats.values()).map((data) => data.count));
+    return Math.max(maxCount, 1);
+  }, [roundStats, config.matches_per_round]);
+
   const usedPhases = React.useMemo(() => {
     const used = new Set<TournamentConfig['current_phase']>();
 
@@ -4543,6 +4583,75 @@ const TournamentManagement = () => {
       return { ...prev, current_phase: autoPhase };
     });
   }, [autoPhase, manualPhaseOverride]);
+
+  React.useEffect(() => {
+    if (loading) return;
+    setForm((prev) => {
+      let changed = false;
+      let next = prev;
+
+      if (prev.current_round !== autoRound) {
+        next = { ...next, current_round: autoRound };
+        changed = true;
+      }
+
+      if (prev.matches_per_round !== autoMatchesPerRound) {
+        next = { ...next, matches_per_round: autoMatchesPerRound };
+        changed = true;
+      }
+
+      if (!manualPhaseOverride && prev.current_phase !== autoPhase) {
+        next = { ...next, current_phase: autoPhase };
+        changed = true;
+      }
+
+      return changed ? next : prev;
+    });
+  }, [loading, autoRound, autoMatchesPerRound, autoPhase, manualPhaseOverride]);
+
+  const lastAutoSave = React.useRef<string>('');
+
+  React.useEffect(() => {
+    if (loading) return;
+    if (!config.id) return;
+
+    const desiredPhase = manualPhaseOverride ? form.current_phase : autoPhase;
+    const nextUpdates: Partial<TournamentConfig> = {};
+
+    if (!manualPhaseOverride && config.current_phase !== desiredPhase) {
+      nextUpdates.current_phase = desiredPhase;
+    }
+
+    if (config.current_round !== autoRound) {
+      nextUpdates.current_round = autoRound;
+    }
+
+    if (config.matches_per_round !== autoMatchesPerRound) {
+      nextUpdates.matches_per_round = autoMatchesPerRound;
+    }
+
+    if (Object.keys(nextUpdates).length === 0) return;
+
+    const signature = JSON.stringify({ id: config.id, ...nextUpdates });
+    if (lastAutoSave.current === signature) return;
+    lastAutoSave.current = signature;
+
+    void saveConfig(nextUpdates).catch((err) => {
+      console.warn('Falha ao atualizar configuracao automaticamente:', err);
+    });
+  }, [
+    loading,
+    config.id,
+    config.current_phase,
+    config.current_round,
+    config.matches_per_round,
+    autoPhase,
+    autoRound,
+    autoMatchesPerRound,
+    manualPhaseOverride,
+    form.current_phase,
+    saveConfig,
+  ]);
 
   const handleSave = async () => {
     try {
@@ -4637,9 +4746,10 @@ const TournamentManagement = () => {
               type="number"
               min={1} max={20}
               value={form.matches_per_round}
-              onChange={e => setForm({ ...form, matches_per_round: parseInt(e.target.value) || 1 })}
+              readOnly
+              aria-readonly="true"
             />
-            <span className="form-hint">Quantos jogos ocorrem em cada rodada</span>
+            <span className="form-hint">Atualizado automaticamente com base nas partidas</span>
           </div>
 
           {/* Rodada Atual */}
@@ -4648,13 +4758,13 @@ const TournamentManagement = () => {
               <label>Rodada Atual</label>
               <select
                 value={form.current_round}
-                onChange={e => setForm({ ...form, current_round: parseInt(e.target.value) })}
+                disabled
               >
                 {Array.from({ length: form.total_rounds }, (_, i) => i + 1).map(r => (
                   <option key={r} value={r}>{r}ª Rodada</option>
                 ))}
               </select>
-              <span className="form-hint">Rodada em andamento agora</span>
+              <span className="form-hint">Atualizada automaticamente pela situacao das partidas</span>
             </div>
           )}
         </div>
