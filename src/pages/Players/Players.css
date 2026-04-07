@@ -252,10 +252,23 @@
   contain-intrinsic-size: 280px 420px;
 }
 
+.player-card-v2.team-tinted {
+  background:
+    radial-gradient(circle at top right, var(--team-card-bg, rgba(255, 255, 255, 0.04)), transparent 62%),
+    rgba(8, 12, 28, 0.72);
+  border-color: var(--team-card-border, var(--border-light));
+  box-shadow: 0 10px 26px var(--team-card-glow, rgba(0, 0, 0, 0));
+}
+
 .player-card-v2:hover {
   transform: translateY(-8px);
   border-color: var(--secondary);
   background: rgba(255, 255, 255, 0.04);
+}
+
+.player-card-v2.team-tinted:hover {
+  border-color: var(--team-card-border, var(--secondary));
+  box-shadow: 0 14px 34px var(--team-card-glow, rgba(0, 0, 0, 0.1));
 }
 
 .p-header {
@@ -302,8 +315,8 @@
   width: 34px;
   height: 34px;
   border-radius: 10px;
-  border: 1px solid rgba(251, 191, 36, 0.24);
-  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid var(--team-chip-border, rgba(251, 191, 36, 0.24));
+  background: var(--team-chip-bg, rgba(251, 191, 36, 0.08));
   display: flex;
   align-items: center;
   justify-content: center;

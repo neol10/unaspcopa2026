@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import './Home.css';
@@ -30,6 +30,7 @@ const Home: React.FC = () => {
   const { scorers, assistants, galeraRank, loading: rankingsLoading, refresh: refreshRankings } = useRankings();
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [selectedNews, setSelectedNews] = useState<News | null>(null);
+  const pollWidgetRef = useRef<HTMLDivElement | null>(null);
   
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
 
@@ -54,6 +55,7 @@ const Home: React.FC = () => {
 
   const topTeams = standings.slice(0, 3);
   const totalVotes = activePoll?.options.reduce((acc, opt) => acc + opt.votes, 0) || 0;
+  const showPollReminder = Boolean(activePoll && !hasVoted);
 
   const [liveElapsed, setLiveElapsed] = useState('00:00');
 
@@ -290,6 +292,22 @@ const Home: React.FC = () => {
 
       {/* Widget Ao Vivo Flutuante removido para reduzir poluicao visual */}
 
+      {showPollReminder && (
+        <div className="poll-reminder-banner glass" role="status" aria-live="polite">
+          <div className="poll-reminder-copy">
+            <strong>Nova enquete disponível</strong>
+            <p>{activePoll?.question}</p>
+          </div>
+          <button
+            className="poll-reminder-action"
+            type="button"
+            onClick={() => pollWidgetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+          >
+            Votar agora
+          </button>
+        </div>
+      )}
+
       {/* Breaking News Ticker - Premium Phase 2 */}
       {breakingItems.length > 0 && (
         <div className="breaking-news-ticker glass">
@@ -408,6 +426,104 @@ const Home: React.FC = () => {
           </div>
         </motion.div>
       </section>
+
+      <motion.section
+        className="hero-poll-section"
+        ref={pollWidgetRef}
+        initial={{ opacity: 0, y: 24 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.5 }}
+      >
+        <div className="poll-feature-card glass">
+          <div className="widget-header">
+            <Vote size={22} color="var(--accent-blue)" />
+            <h3>Enquete da Torcida</h3>
+          </div>
+          <p className="widget-desc">Participe agora e acompanhe o resultado em tempo real.</p>
+
+          <div className="poll-container-v2">
+            {pollLoading ? (
+              <p>Carregando enquete...</p>
+            ) : pollError ? (
+              <div className="error-state glass" style={{ padding: '12px', marginTop: '8px' }}>
+                <p style={{ marginBottom: '0.5rem' }}>Erro ao carregar enquete: {pollError}</p>
+                <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => refreshPoll()}>
+                  Tentar novamente
+                </button>
+              </div>
+            ) : activePoll ? (
+              <>
+                <h4 style={{ marginBottom: '1rem' }}>{activePoll.question}</h4>
+                {activePoll.options.map((opt) => {
+                  const percentage = totalVotes > 0 ? Math.round((opt.votes / totalVotes) * 100) : 0;
+                  return (
+                    <div
+                      key={opt.id}
+                      className={`poll-option-v2 ${selectedOption === opt.id ? 'selected' : ''}`}
+                      onClick={() => !hasVoted && setSelectedOption(opt.id)}
+                      style={{ cursor: hasVoted ? 'default' : 'pointer', opacity: (hasVoted || selectedOption === opt.id) ? 1 : 0.8 }}
+                    >
+                      <div className="poll-label">
+                        <span className="poll-option-main-copy">
+                          {opt.image_url && (
+                            <img
+                              src={opt.image_url}
+                              alt={opt.text}
+                              className="poll-option-thumb"
+                              loading="lazy"
+                              decoding="async"
+                            />
+                          )}
+                          <span>{opt.text}</span>
+                        </span>
+                        <span>{hasVoted ? `${percentage}%` : ''}</span>
+                      </div>
+                      <div className="poll-bar-bg">
+                        <div className="poll-bar-fill" style={{ width: hasVoted ? `${percentage}%` : (selectedOption === opt.id ? '100%' : '0%') }}></div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {!hasVoted && (
+                  <button
+                    className="btn-vote-now"
+                    disabled={!selectedOption}
+                    onClick={() => {
+                      if (!user) {
+                        setShowAuthModal(true);
+                      } else if (selectedOption) {
+                        submitVote(selectedOption);
+                      }
+                    }}
+                    style={{ opacity: selectedOption ? 1 : 0.5, marginTop: '1rem' }}
+                  >
+                    Registrar Meu Voto
+                  </button>
+                )}
+                {showAuthModal && (
+                  <div className="modal-auth-overlay" onClick={() => setShowAuthModal(false)}>
+                    <div className="modal-auth-content" onClick={(e) => e.stopPropagation()}>
+                      <h3 style={{ marginBottom: 16 }}>Faça login para votar</h3>
+                      <div style={{ marginBottom: 16 }}>
+                        <span>É necessário estar logado para participar da votação.</span>
+                      </div>
+                      <button className="btn-login" onClick={() => setShowAuthModal(false)} style={{ marginBottom: 16 }}>Fechar</button>
+                    </div>
+                  </div>
+                )}
+                {hasVoted && (
+                  <p style={{ textAlign: 'center', marginTop: '10px', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                    Voto registrado! Total de votos: {totalVotes}
+                  </p>
+                )}
+              </>
+            ) : (
+              <p>Sem enquetes ativas no momento.</p>
+            )}
+          </div>
+        </div>
+      </motion.section>
 
       <motion.section
         className="home-tournament-status glass"
@@ -794,92 +910,6 @@ const Home: React.FC = () => {
             )}
           </AnimatePresence>
 
-          {/* Engagement Hub */}
-          <motion.aside 
-            className="engagement-hub"
-            initial={{ opacity: 0, x: 30 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
-            <div className="widget-premium glass">
-              <div className="widget-header">
-                <Vote size={22} color="var(--accent-blue)" />
-                <h3>Quem será o Campeão?</h3>
-              </div>
-              <p className="widget-desc">Votação aberta para a torcida decidir o favorito.</p>
-              
-              <div className="poll-container-v2">
-                {pollLoading ? (
-                  <p>Carregando enquete...</p>
-                ) : pollError ? (
-                  <div className="error-state glass" style={{ padding: '12px', marginTop: '8px' }}>
-                    <p style={{ marginBottom: '0.5rem' }}>Erro ao carregar enquete: {pollError}</p>
-                    <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => refreshPoll()}>
-                      Tentar novamente
-                    </button>
-                  </div>
-                ) : activePoll ? (
-                  <>
-                    <h4 style={{marginBottom: '1rem'}}>{activePoll.question}</h4>
-                    {activePoll.options.map(opt => {
-                      const percentage = totalVotes > 0 ? Math.round((opt.votes / totalVotes) * 100) : 0;
-                      return (
-                        <div 
-                          key={opt.id} 
-                          className={`poll-option-v2 ${selectedOption === opt.id ? 'selected' : ''}`}
-                          onClick={() => !hasVoted && setSelectedOption(opt.id)}
-                          style={{ cursor: hasVoted ? 'default' : 'pointer', opacity: (hasVoted || selectedOption === opt.id) ? 1 : 0.8 }}
-                        >
-                           <div className="poll-label">
-                             <span>{opt.text}</span>
-                             <span>{hasVoted ? `${percentage}%` : ''}</span>
-                           </div>
-                           <div className="poll-bar-bg">
-                             <div className="poll-bar-fill" style={{ width: hasVoted ? `${percentage}%` : (selectedOption === opt.id ? '100%' : '0%') }}></div>
-                           </div>
-                        </div>
-                      );
-                    })}
-                    {!hasVoted && (
-                      <button 
-                        className="btn-vote-now" 
-                        disabled={!selectedOption} 
-                        onClick={() => {
-                          if (!user) {
-                            setShowAuthModal(true);
-                          } else if (selectedOption) {
-                            submitVote(selectedOption);
-                          }
-                        }}
-                        style={{ opacity: selectedOption ? 1 : 0.5, marginTop: '1rem' }}
-                      >
-                         Registrar Meu Voto
-                      </button>
-                    )}
-                          {showAuthModal && (
-                            <div className="modal-auth-overlay" onClick={() => setShowAuthModal(false)}>
-                              <div className="modal-auth-content" onClick={e => e.stopPropagation()}>
-                                <h3 style={{marginBottom: 16}}>Faça login para votar</h3>
-                                <div style={{marginBottom: 16}}>
-                                  <span>É necessário estar logado para participar da votação.</span>
-                                </div>
-                                <button className="btn-login" onClick={() => setShowAuthModal(false)} style={{marginBottom: 16}}>Fechar</button>
-                              </div>
-                            </div>
-                          )}
-                    {hasVoted && (
-                      <p style={{textAlign: 'center', marginTop: '10px', fontSize: '0.9rem', color: 'var(--text-muted)'}}>
-                        Voto registrado! Total de votos: {totalVotes}
-                      </p>
-                    )}
-                  </>
-                ) : (
-                  <p>Sem enquetes ativas no momento.</p>
-                )}
-              </div>
-            </div>
-          </motion.aside>
         </div>
       </main>
     </div>

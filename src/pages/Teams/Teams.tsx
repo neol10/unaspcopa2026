@@ -5,11 +5,13 @@ import { Shield, Search } from 'lucide-react';
 import { useTeams } from '../../hooks/useTeams';
 import Skeleton from '../../components/Skeleton/Skeleton';
 import { useAuthContext } from '../../contexts/AuthContext';
+import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
 
 const Teams: React.FC = () => {
   const navigate = useNavigate();
   const { teams, loading, error, refresh } = useTeams();
   const { role } = useAuthContext();
+  const { visibility } = useGroupCVisibility();
   const [stuck, setStuck] = useState(false);
   const [brokenBadgeMap, setBrokenBadgeMap] = useState<Record<string, true>>({});
   const [searchTerm, setSearchTerm] = useState('');
@@ -113,6 +115,8 @@ const Teams: React.FC = () => {
   };
 
   const visibleTeamsBase = isAdmin
+    ? teams
+    : visibility.teams
     ? teams
     : teams.filter((team) => !isTestGroup(team.group));
 

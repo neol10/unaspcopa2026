@@ -1,12 +1,51 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 
+export interface GroupCVisibilityConfig {
+  teams: boolean;
+  players: boolean;
+  standings: boolean;
+  favorite_team_menu: boolean;
+}
+
+export const DEFAULT_GROUP_C_VISIBILITY: GroupCVisibilityConfig = {
+  teams: false,
+  players: false,
+  standings: false,
+  favorite_team_menu: false,
+};
+
+export const normalizeGroupCVisibility = (raw: unknown): GroupCVisibilityConfig => {
+  let parsed = raw;
+
+  if (typeof raw === 'string') {
+    try {
+      parsed = JSON.parse(raw) as unknown;
+    } catch {
+      parsed = null;
+    }
+  }
+
+  if (!parsed || typeof parsed !== 'object') {
+    return DEFAULT_GROUP_C_VISIBILITY;
+  }
+
+  const candidate = parsed as Partial<GroupCVisibilityConfig>;
+  return {
+    teams: Boolean(candidate.teams),
+    players: Boolean(candidate.players),
+    standings: Boolean(candidate.standings),
+    favorite_team_menu: Boolean(candidate.favorite_team_menu),
+  };
+};
+
 export interface TournamentConfig {
   id: string;
   total_rounds: number;
   matches_per_round: number;
   current_phase: 'grupos' | 'oitavas' | 'quartas' | 'semifinal' | 'final';
   current_round: number;
+  group_c_visibility?: GroupCVisibilityConfig;
 }
 
 const DEFAULT: TournamentConfig = {
@@ -15,6 +54,7 @@ const DEFAULT: TournamentConfig = {
   matches_per_round: 4,
   current_phase: 'grupos',
   current_round: 1,
+  group_c_visibility: DEFAULT_GROUP_C_VISIBILITY,
 };
 
 export const useTournamentConfig = () => {
@@ -28,7 +68,11 @@ export const useTournamentConfig = () => {
         .select('*')
         .single();
       if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows found
-      return (data as TournamentConfig) || DEFAULT;
+      const base = (data as TournamentConfig) || DEFAULT;
+      return {
+        ...base,
+        group_c_visibility: normalizeGroupCVisibility((base as { group_c_visibility?: unknown }).group_c_visibility),
+      };
     },
     staleTime: 1000 * 60 * 30, // 30 minutos de cache
     gcTime: 1000 * 60 * 60, // Mantém no cache por 1 hora
@@ -38,24 +82,61 @@ export const useTournamentConfig = () => {
     mutationFn: async (updated: Partial<TournamentConfig>) => {
       const currentConfig = query.data || DEFAULT;
       const merged = { ...currentConfig, ...updated };
+
+      const stripGroupVisibility = (value: Record<string, unknown>) => {
+        const next = { ...value };
+        delete next.group_c_visibility;
+        return next;
+      };
       
       if (currentConfig.id) {
-        const { data, error } = await supabase
+        let payload: Record<string, unknown> = { ...merged, updated_at: new Date().toISOString() };
+
+        let result = await supabase
           .from('tournament_config')
-          .update({ ...merged, updated_at: new Date().toISOString() })
+          .update(payload)
           .eq('id', currentConfig.id)
           .select()
           .single();
-        if (error) throw error;
-        return data as TournamentConfig;
+
+        if (result.error && result.error.code === '42703' && 'group_c_visibility' in payload) {
+          payload = stripGroupVisibility(payload);
+          result = await supabase
+            .from('tournament_config')
+            .update(payload)
+            .eq('id', currentConfig.id)
+            .select()
+            .single();
+        }
+
+        if (result.error) throw result.error;
+        return {
+          ...(result.data as TournamentConfig),
+          group_c_visibility: normalizeGroupCVisibility((result.data as { group_c_visibility?: unknown })?.group_c_visibility),
+        };
       } else {
-        const { data, error } = await supabase
+        let payload: Record<string, unknown> = { ...merged };
+
+        let result = await supabase
           .from('tournament_config')
-          .insert([merged])
+          .insert([payload])
           .select()
           .single();
-        if (error) throw error;
-        return data as TournamentConfig;
+
+        if (result.error && result.error.code === '42703' && 'group_c_visibility' in payload) {
+          payload = stripGroupVisibility(payload);
+          result = await supabase
+            .from('tournament_config')
+            .insert([payload])
+            .select()
+            .single();
+        }
+
+        if (result.error) throw result.error;
+        return {
+          ...(result.data as TournamentConfig),
+          group_c_visibility: normalizeGroupCVisibility((result.data as { group_c_visibility?: unknown })?.group_c_visibility),
+        };
       }
     },
     onSuccess: () => {
@@ -64,7 +145,10 @@ export const useTournamentConfig = () => {
   });
 
   return { 
-    config: query.data || DEFAULT, 
+    config: {
+      ...(query.data || DEFAULT),
+      group_c_visibility: normalizeGroupCVisibility((query.data || DEFAULT).group_c_visibility),
+    }, 
     loading: query.isLoading && query.data === undefined, 
     error: (
       query.error &&

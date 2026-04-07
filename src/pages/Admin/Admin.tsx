@@ -14,6 +14,7 @@ import { usePolls, type Poll, type PollOption } from '../../hooks/usePolls';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { withTimeout } from '../../lib/withTimeout';
 import { detectTournamentPhase, KNOCKOUT_PHASE_BY_ROUND, KNOCKOUT_ROUND_LABELS } from '../../lib/tournamentRules';
+import { DEFAULT_GROUP_C_VISIBILITY, normalizeGroupCVisibility, type GroupCVisibilityConfig } from '../../hooks/useTournamentConfig';
 import { toast } from 'react-hot-toast';
 import { useConfirm } from '../../hooks/useConfirm';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -4475,6 +4476,7 @@ const TournamentManagement = () => {
   });
   const [saved, setSaved] = useState(false);
   const [manualPhaseOverride, setManualPhaseOverride] = useState(false);
+  const [groupCVisibility, setGroupCVisibility] = useState<GroupCVisibilityConfig>(DEFAULT_GROUP_C_VISIBILITY);
 
   const groupMatches = React.useMemo(() => {
     return (matches || []).filter((match) => typeof match.round === 'number' && match.round > 0 && match.round < 1000);
@@ -4551,6 +4553,7 @@ const TournamentManagement = () => {
         current_phase: config.current_phase,
         current_round: config.current_round,
       });
+      setGroupCVisibility(normalizeGroupCVisibility(config.group_c_visibility));
     }
   }, [
     loading,
@@ -4559,6 +4562,7 @@ const TournamentManagement = () => {
     config.matches_per_round,
     config.current_phase,
     config.current_round,
+    config.group_c_visibility,
   ]);
 
   React.useEffect(() => {
@@ -4657,11 +4661,29 @@ const TournamentManagement = () => {
 
   const handleSave = async () => {
     try {
-      await saveConfig({ ...form, current_phase: manualPhaseOverride ? form.current_phase : autoPhase });
+      const payload = {
+        ...form,
+        current_phase: manualPhaseOverride ? form.current_phase : autoPhase,
+        group_c_visibility: groupCVisibility,
+      };
+
+      await saveConfig(payload);
+      try {
+        localStorage.setItem('copa_unasp_group_c_visibility_v1', JSON.stringify(groupCVisibility));
+      } catch {
+        // ignore local cache errors
+      }
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (err: unknown) {
-      toast.error(getErrorMessage(err, 'Erro ao salvar configurações'));
+      try {
+        localStorage.setItem('copa_unasp_group_c_visibility_v1', JSON.stringify(groupCVisibility));
+        toast.success('Visibilidade do Grupo C salva localmente neste navegador.');
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2500);
+      } catch {
+        toast.error(getErrorMessage(err, 'Erro ao salvar configurações'));
+      }
     }
   };
 
@@ -4771,6 +4793,47 @@ const TournamentManagement = () => {
           )}
         </div>
 
+        <div className="poll-presets-panel glass" style={{ marginTop: '1rem' }}>
+          <div className="poll-presets-head">
+            <strong>Visibilidade do Grupo C (usuarios normais)</strong>
+            <span>Escolha em quais menus/telas o Grupo C pode aparecer para quem nao e admin.</span>
+          </div>
+          <div className="push-pref-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.5rem' }}>
+            <label className="push-pref-check">
+              <input
+                type="checkbox"
+                checked={groupCVisibility.teams}
+                onChange={(e) => setGroupCVisibility((prev) => ({ ...prev, teams: e.target.checked }))}
+              />
+              <span>Menu Equipes</span>
+            </label>
+            <label className="push-pref-check">
+              <input
+                type="checkbox"
+                checked={groupCVisibility.players}
+                onChange={(e) => setGroupCVisibility((prev) => ({ ...prev, players: e.target.checked }))}
+              />
+              <span>Menu Jogadores</span>
+            </label>
+            <label className="push-pref-check">
+              <input
+                type="checkbox"
+                checked={groupCVisibility.standings}
+                onChange={(e) => setGroupCVisibility((prev) => ({ ...prev, standings: e.target.checked }))}
+              />
+              <span>Menu Classificacao</span>
+            </label>
+            <label className="push-pref-check">
+              <input
+                type="checkbox"
+                checked={groupCVisibility.favorite_team_menu}
+                onChange={(e) => setGroupCVisibility((prev) => ({ ...prev, favorite_team_menu: e.target.checked }))}
+              />
+              <span>Seletor de Time Favorito</span>
+            </label>
+          </div>
+        </div>
+
         {/* Resumo Visual */}
         <div className="tournament-summary">
           <div className="t-summary-item">
@@ -4804,15 +4867,63 @@ const PollManagement = () => {
   const [loading, setLoading] = useState(true);
   const { confirm: confirmAction, ConfirmElement } = useConfirm();
   const queryClient = useQueryClient();
-  type PollFormData = { question: string; options: string[] };
+  type PollFormOptionInput = { text: string; image_url: string };
+  type PollFormData = { question: string; options: PollFormOptionInput[] };
+  type PollVoteRow = {
+    poll_id: string | null;
+    option_id: string | null;
+    user_id: string | null;
+    created_at: string | null;
+  };
+  type PollVoteView = {
+    optionId: string;
+    userId: string | null;
+    voterLabel: string;
+    createdAt: string | null;
+    optionText?: string;
+  };
 
   const [isAdding, setIsAdding] = useState(false);
   const [editingPollId, setEditingPollId] = useState<string | null>(null);
   const [formData, setFormData] = useState<PollFormData>({ 
     question: '', 
-    options: ['', ''] 
+    options: [{ text: '', image_url: '' }, { text: '', image_url: '' }]
   });
   const [selectedPollPresetId, setSelectedPollPresetId] = useState<string | null>(null);
+  const [pollVotesByPollId, setPollVotesByPollId] = useState<Record<string, PollVoteView[]>>({});
+  const [pollVotesLoading, setPollVotesLoading] = useState(false);
+  const [pollVotesError, setPollVotesError] = useState<string | null>(null);
+  const [uploadingOptionIndex, setUploadingOptionIndex] = useState<number | null>(null);
+
+  const normalizePollOptions = (raw: unknown): PollOption[] => {
+    if (Array.isArray(raw)) {
+      return raw
+        .map((opt, index) => {
+          if (!opt || typeof opt !== 'object') return null;
+          const candidate = opt as Partial<PollOption>;
+          const text = typeof candidate.text === 'string' ? candidate.text.trim() : '';
+          if (!text) return null;
+          return {
+            id: typeof candidate.id === 'string' && candidate.id.trim() ? candidate.id : `opt_${index}`,
+            text,
+            votes: Number(candidate.votes || 0),
+            image_url: typeof candidate.image_url === 'string' ? candidate.image_url : undefined,
+          };
+        })
+        .filter((opt): opt is PollOption => Boolean(opt));
+    }
+
+    if (typeof raw === 'string') {
+      try {
+        const parsed = JSON.parse(raw) as unknown;
+        return normalizePollOptions(parsed);
+      } catch {
+        return [];
+      }
+    }
+
+    return [];
+  };
 
   const pollPresets: Array<{ id: string; label: string; question: string; options: string[] }> = [
     {
@@ -4842,7 +4953,7 @@ const PollManagement = () => {
   ];
 
   const trimmedQuestion = formData.question.trim();
-  const validOptionValues = formData.options.map((o) => o.trim()).filter((o) => o.length > 0);
+  const validOptionValues = formData.options.map((o) => o.text.trim()).filter((o) => o.length > 0);
   const uniqueOptionsCount = new Set(validOptionValues.map((o) => o.toLowerCase())).size;
 
   const questionQuality =
@@ -4868,9 +4979,110 @@ const PollManagement = () => {
     setSelectedPollPresetId(preset.id);
     setFormData({
       question: preset.question,
-      options: [...preset.options],
+      options: preset.options.map((text) => ({ text, image_url: '' })),
     });
     toast.success(`Modelo aplicado: ${preset.label}`);
+  };
+
+  const updateOptionField = (index: number, patch: Partial<PollFormOptionInput>) => {
+    setFormData((prev) => ({
+      ...prev,
+      options: prev.options.map((option, idx) => (idx === index ? { ...option, ...patch } : option)),
+    }));
+  };
+
+  const removeOptionAt = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      options: prev.options.filter((_, idx) => idx !== index),
+    }));
+  };
+
+  const addEmptyOption = () => {
+    setFormData((prev) => ({
+      ...prev,
+      options: [...prev.options, { text: '', image_url: '' }],
+    }));
+  };
+
+  const handleOptionImageUpload = async (index: number, event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploadingOptionIndex(index);
+    const url = await uploadToStorage(file, 'images', 'poll-options');
+    if (url) {
+      updateOptionField(index, { image_url: url });
+      toast.success('Imagem da opcao carregada com sucesso!');
+    }
+    setUploadingOptionIndex(null);
+  };
+
+  const totalVotesFromOptions = (poll: Poll) => {
+    return (poll.options || []).reduce((acc, option) => acc + Number(option.votes || 0), 0);
+  };
+
+  const fetchPollVotes = async (pollList: Poll[]) => {
+    const pollIds = pollList.map((poll) => poll.id).filter(Boolean);
+    if (pollIds.length === 0) {
+      setPollVotesByPollId({});
+      setPollVotesError(null);
+      return;
+    }
+
+    setPollVotesLoading(true);
+    setPollVotesError(null);
+
+    try {
+      const { data: voteRows, error: votesError } = await supabase
+        .from('poll_votes')
+        .select('poll_id, option_id, user_id, created_at')
+        .in('poll_id', pollIds);
+
+      if (votesError) throw votesError;
+
+      const rows = ((voteRows || []) as PollVoteRow[]).filter((row) => row.poll_id && row.option_id);
+      const userIds = Array.from(new Set(rows.map((row) => row.user_id).filter(Boolean))) as string[];
+
+      let voterLabelById: Record<string, string> = {};
+      if (userIds.length > 0) {
+        const { data: profiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, email')
+          .in('id', userIds);
+
+        if (profilesError) throw profilesError;
+
+        voterLabelById = Object.fromEntries(
+          (profiles || []).map((profile) => {
+            const email = typeof profile.email === 'string' && profile.email.trim() ? profile.email : null;
+            const label = email || `Usuario ${String(profile.id).slice(0, 8)}`;
+            return [String(profile.id), label];
+          })
+        );
+      }
+
+      const grouped: Record<string, PollVoteView[]> = {};
+      rows.forEach((row) => {
+        const pollId = String(row.poll_id);
+        if (!grouped[pollId]) grouped[pollId] = [];
+        const voterLabel = row.user_id ? voterLabelById[row.user_id] || `Usuario ${row.user_id.slice(0, 8)}` : 'Usuario anonimo';
+        grouped[pollId].push({
+          optionId: String(row.option_id),
+          userId: row.user_id,
+          voterLabel,
+          createdAt: row.created_at,
+        });
+      });
+
+      setPollVotesByPollId(grouped);
+    } catch (err: unknown) {
+      console.warn('Nao foi possivel carregar votos detalhados de enquetes.', err);
+      setPollVotesByPollId({});
+      setPollVotesError('Nao foi possivel carregar os votos por usuario. Verifique permissoes da tabela poll_votes.');
+    } finally {
+      setPollVotesLoading(false);
+    }
   };
 
   const fetchPolls = async () => {
@@ -4881,7 +5093,14 @@ const PollManagement = () => {
         .select('*')
         .order('created_at', { ascending: false });
       if (error) throw error;
-      setPolls(((data || []) as Poll[]) || []);
+      const normalizedPolls = ((data || []) as Array<Partial<Poll> & { options?: unknown }>).map((poll) => ({
+        id: String(poll.id || ''),
+        question: String(poll.question || ''),
+        active: Boolean(poll.active),
+        options: normalizePollOptions(poll.options),
+      }));
+      setPolls(normalizedPolls);
+      void fetchPollVotes(normalizedPolls);
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Erro ao carregar enquetes'));
     } finally {
@@ -4899,15 +5118,16 @@ const PollManagement = () => {
     e.preventDefault();
     try {
       // Valida opções
-      const validOptions = formData.options.filter(o => o.trim() !== '');
+      const validOptions = formData.options.filter((o) => o.text.trim() !== '');
       if (validOptions.length < 2) return toast.error('Adicione pelo menos 2 opções válidas!');
 
       const newPoll = {
         question: formData.question,
-        options: validOptions.map((text, index) => ({
+        options: validOptions.map((option, index) => ({
           id: `opt_${index}_${Date.now()}`,
-          text,
-          votes: 0
+          text: option.text.trim(),
+          votes: 0,
+          image_url: option.image_url?.trim() || undefined,
         })),
         active: false // Criada como inativa por padrão
       };
@@ -4915,7 +5135,7 @@ const PollManagement = () => {
       const { error } = await supabase.from('polls').insert([newPoll]);
       if (error) throw error;
       
-      setFormData({ question: '', options: ['', ''] });
+      setFormData({ question: '', options: [{ text: '', image_url: '' }, { text: '', image_url: '' }] });
       setSelectedPollPresetId(null);
       setIsAdding(false);
       fetchPolls();
@@ -4926,13 +5146,14 @@ const PollManagement = () => {
 
   const handleUpdatePoll = async (id: string, data: PollFormData) => {
     try {
-      const validOptions = data.options.filter((o: string) => o.trim() !== '');
+      const validOptions = data.options.filter((o: PollFormOptionInput) => o.text.trim() !== '');
       const { error } = await supabase.from('polls').update({
         question: data.question,
-        options: validOptions.map((text: string, index: number) => ({
+        options: validOptions.map((option: PollFormOptionInput, index: number) => ({
           id: `opt_${index}_${Date.now()}`,
-          text,
-          votes: 0 
+          text: option.text.trim(),
+          votes: 0,
+          image_url: option.image_url?.trim() || undefined,
         }))
       }).eq('id', id);
       if (error) throw error;
@@ -5041,23 +5262,36 @@ const PollManagement = () => {
                 <input 
                   type="text"
                   placeholder={`Opção ${idx + 1}`}
-                  value={option}
-                  onChange={e => {
-                    const newOpts = [...formData.options];
-                    newOpts[idx] = e.target.value;
-                    setFormData({...formData, options: newOpts});
-                  }}
+                  value={option.text}
+                  onChange={e => updateOptionField(idx, { text: e.target.value })}
                   required={idx < 2}
                 />
+                <div className="poll-option-media-inputs">
+                  <label className="poll-option-upload-btn">
+                    {uploadingOptionIndex === idx ? 'Enviando...' : 'Upload imagem'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => void handleOptionImageUpload(idx, e)}
+                      disabled={uploadingOptionIndex === idx}
+                    />
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="URL da imagem (opcional)"
+                    value={option.image_url}
+                    onChange={(e) => updateOptionField(idx, { image_url: e.target.value })}
+                  />
+                  {option.image_url && (
+                    <img src={option.image_url} alt={`Opcao ${idx + 1}`} className="poll-option-admin-thumb" loading="lazy" decoding="async" />
+                  )}
+                </div>
                 {formData.options.length > 2 && (
-                  <button type="button" className="btn-remove-opt" onClick={() => {
-                    const newOpts = formData.options.filter((_, i) => i !== idx);
-                    setFormData({...formData, options: newOpts});
-                  }}>✕</button>
+                  <button type="button" className="btn-remove-opt" onClick={() => removeOptionAt(idx)}>✕</button>
                 )}
               </div>
             ))}
-            <button type="button" className="btn-add-opt" onClick={() => setFormData({...formData, options: [...formData.options, '']})}>
+            <button type="button" className="btn-add-opt" onClick={addEmptyOption}>
               + Adicionar Opção
             </button>
             <div className="poll-quality-row" aria-live="polite">
@@ -5076,12 +5310,18 @@ const PollManagement = () => {
           <div className="loading-box"><p>Carregando enquetes...</p></div>
         ) : (polls || []).map(poll => (
           <React.Fragment key={poll.id}>
+            {(() => {
+              const detailedVotes = pollVotesByPollId[poll.id] || [];
+              const hasDetailedVotes = detailedVotes.length > 0;
+              const totalVotes = hasDetailedVotes ? detailedVotes.length : totalVotesFromOptions(poll);
+
+              return (
             <div className={`admin-list-item poll-item ${poll.active ? 'active-poll' : ''}`}>
               <div className="item-main">
                 <Shield size={24} className={poll.active ? 'icon-active' : 'icon-subtle'} />
                 <div className="item-info">
                   <strong>{poll.question}</strong>
-                  <span>{(poll.options || []).length} opções • Total: {(poll.options || []).reduce((acc: number, o: PollOption) => acc + o.votes, 0)} votos</span>
+                  <span>{(poll.options || []).length} opções • Total: {totalVotes} votos</span>
                 </div>
               </div>
               <div className="item-actions">
@@ -5093,10 +5333,115 @@ const PollManagement = () => {
                 </button>
                 <button className="btn-icon edit" onClick={() => {
                   setEditingPollId(poll.id);
-                  setFormData({ question: poll.question, options: (poll.options || []).map((o) => o.text) });
+                  setFormData({
+                    question: poll.question,
+                    options: (poll.options || []).map((o) => ({ text: o.text, image_url: o.image_url || '' })),
+                  });
                 }}><Settings2 size={18} /></button>
                 <button className="btn-icon delete" onClick={() => handleDelete(poll.id)}><Trash2 size={18} /></button>
               </div>
+            </div>
+              );
+            })()}
+
+            <div className="poll-insights-card glass">
+              <div className="poll-insights-header">
+                <strong>Resumo de votos</strong>
+                {pollVotesLoading ? <span>Atualizando votos...</span> : <span>Dados em tempo real</span>}
+              </div>
+
+              <div className="poll-insights-options">
+                {(poll.options || []).map((option) => {
+                  const detailedVotes = pollVotesByPollId[poll.id] || [];
+                  const hasDetailedVotes = detailedVotes.length > 0;
+                  const optionVotes = hasDetailedVotes
+                    ? detailedVotes.filter((vote) => vote.optionId === option.id).length
+                    : Number(option.votes || 0);
+                  const totalVotes = hasDetailedVotes
+                    ? detailedVotes.length
+                    : totalVotesFromOptions(poll);
+                  const percentage = totalVotes > 0 ? Math.round((optionVotes / totalVotes) * 100) : 0;
+                  const voters = hasDetailedVotes
+                    ? detailedVotes.filter((vote) => vote.optionId === option.id)
+                    : [];
+
+                  return (
+                    <div key={option.id} className="poll-insight-option-row">
+                      <div className="poll-insight-option-head">
+                        <span className="poll-insight-option-label">
+                          {option.image_url && (
+                            <img src={option.image_url} alt={option.text} className="poll-option-admin-thumb" loading="lazy" decoding="async" />
+                          )}
+                          <span>{option.text}</span>
+                        </span>
+                        <strong>{optionVotes} votos • {percentage}%</strong>
+                      </div>
+                      <div className="poll-insight-option-bar-bg">
+                        <div className="poll-insight-option-bar-fill" style={{ width: `${percentage}%` }} />
+                      </div>
+                      {voters.length > 0 && (
+                        <div className="poll-voter-list">
+                          {voters.map((vote, index) => (
+                            <span key={`${option.id}-${vote.userId || index}-${index}`} className="poll-voter-chip">
+                              {vote.voterLabel}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {(() => {
+                const detailedVotes = pollVotesByPollId[poll.id] || [];
+                if (detailedVotes.length === 0) return null;
+                const optionTextById = Object.fromEntries((poll.options || []).map((opt) => [opt.id, opt.text]));
+                const totalVotes = detailedVotes.length;
+                const orderedVotes = [...detailedVotes].sort((a, b) => {
+                  const aTime = a.createdAt ? Date.parse(a.createdAt) : 0;
+                  const bTime = b.createdAt ? Date.parse(b.createdAt) : 0;
+                  return bTime - aTime;
+                });
+
+                return (
+                  <div className="poll-votes-table-wrap">
+                    <div className="poll-insights-header" style={{ marginTop: '0.9rem' }}>
+                      <strong>Votos por usuario</strong>
+                      <span>{totalVotes} registros</span>
+                    </div>
+                    <table className="poll-votes-table">
+                      <thead>
+                        <tr>
+                          <th>Usuario</th>
+                          <th>Opcao</th>
+                          <th>% da opcao</th>
+                          <th>Data/Hora</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {orderedVotes.map((vote, index) => {
+                          const optionId = vote.optionId;
+                          const optionVotes = detailedVotes.filter((item) => item.optionId === optionId).length;
+                          const optionPct = totalVotes > 0 ? Math.round((optionVotes / totalVotes) * 100) : 0;
+                          return (
+                            <tr key={`${optionId}-${vote.userId || 'anon'}-${index}`}>
+                              <td>{vote.voterLabel}</td>
+                              <td>{optionTextById[optionId] || optionId}</td>
+                              <td>{optionPct}%</td>
+                              <td>{vote.createdAt ? new Date(vote.createdAt).toLocaleString('pt-BR') : '-'}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
+
+              {pollVotesError && (
+                <p className="poll-insights-warning">{pollVotesError}</p>
+              )}
             </div>
 
             {editingPollId === poll.id && (
@@ -5108,11 +5453,31 @@ const PollManagement = () => {
                 <div className="poll-options-editor">
                   {formData.options.map((opt, idx) => (
                     <div key={idx} className="option-input-row">
-                      <input type="text" value={opt} onChange={e => {
-                        const newOpts = [...formData.options];
-                        newOpts[idx] = e.target.value;
-                        setFormData({...formData, options: newOpts});
-                      }} />
+                      <input
+                        type="text"
+                        value={opt.text}
+                        onChange={e => updateOptionField(idx, { text: e.target.value })}
+                      />
+                      <div className="poll-option-media-inputs">
+                        <label className="poll-option-upload-btn">
+                          {uploadingOptionIndex === idx ? 'Enviando...' : 'Upload imagem'}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => void handleOptionImageUpload(idx, e)}
+                            disabled={uploadingOptionIndex === idx}
+                          />
+                        </label>
+                        <input
+                          type="url"
+                          placeholder="URL da imagem (opcional)"
+                          value={opt.image_url}
+                          onChange={(e) => updateOptionField(idx, { image_url: e.target.value })}
+                        />
+                        {opt.image_url && (
+                          <img src={opt.image_url} alt={`Opcao ${idx + 1}`} className="poll-option-admin-thumb" loading="lazy" decoding="async" />
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>

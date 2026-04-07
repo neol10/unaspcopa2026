@@ -6,6 +6,7 @@ export interface PollOption {
   id: string;
   text: string;
   votes: number;
+  image_url?: string;
 }
 
 export interface Poll {
@@ -14,6 +15,54 @@ export interface Poll {
   options: PollOption[];
   active: boolean;
 }
+
+const normalizePoll = (value: unknown): Poll | null => {
+  if (!value || typeof value !== 'object') return null;
+
+  const candidate = value as Partial<Poll> & { options?: unknown };
+  const rawOptions = candidate.options;
+
+  const optionsSource = (() => {
+    if (Array.isArray(rawOptions)) return rawOptions;
+    if (typeof rawOptions === 'string') {
+      try {
+        const parsed = JSON.parse(rawOptions) as unknown;
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  })();
+
+  const options: PollOption[] = optionsSource
+    .map((opt, index) => {
+      if (!opt || typeof opt !== 'object') return null;
+      const optionCandidate = opt as Partial<PollOption>;
+      const text = typeof optionCandidate.text === 'string' ? optionCandidate.text.trim() : '';
+      if (!text) return null;
+      const votes = Number(optionCandidate.votes ?? 0);
+      const imageUrl = typeof optionCandidate.image_url === 'string' ? optionCandidate.image_url.trim() : '';
+      return {
+        id: typeof optionCandidate.id === 'string' && optionCandidate.id.trim()
+          ? optionCandidate.id
+          : `opt_${index}`,
+        text,
+        votes: Number.isFinite(votes) ? votes : 0,
+        image_url: imageUrl || undefined,
+      };
+    })
+    .filter((opt): opt is PollOption => Boolean(opt));
+
+  if (typeof candidate.id !== 'string' || typeof candidate.question !== 'string') return null;
+
+  return {
+    id: candidate.id,
+    question: candidate.question,
+    options,
+    active: Boolean(candidate.active),
+  };
+};
 
 export const usePolls = () => {
   const queryClient = useQueryClient();
@@ -25,9 +74,12 @@ export const usePolls = () => {
     try {
       const raw = localStorage.getItem(cacheKey);
       if (!raw) return null;
-      const parsed = JSON.parse(raw) as { ts: number; data: Poll | null };
+      const parsed = JSON.parse(raw) as { ts: number; data: unknown };
       if (!parsed?.ts) return null;
-      return parsed;
+      return {
+        ts: parsed.ts,
+        data: normalizePoll(parsed.data),
+      };
     } catch {
       return null;
     }
@@ -55,15 +107,18 @@ export const usePolls = () => {
         .limit(1)
         .maybeSingle();
       if (error) throw error;
-      const result = (data as Poll) || null;
+      const result = normalizePoll(data);
       saveCachedPoll(result);
       return result;
     },
     initialData: cached?.data ?? null,
     initialDataUpdatedAt: cached?.ts,
     placeholderData: (prev) => prev,
-    staleTime: 1000 * 60 * 5, // 5 minutos
+    staleTime: 1000 * 20,
     gcTime: 1000 * 60 * 30,  // 30 minutos em memória
+    refetchInterval: 1000 * 30,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 
   const pollId = query.data?.id || null;

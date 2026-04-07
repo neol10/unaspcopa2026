@@ -15,6 +15,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import logo from '../../assets/unasp_logo.png';
 import { prefetchRouteIntent } from '../../lib/routePrefetch';
 import { onGoalOverlay, type GoalOverlayPayload } from '../../lib/goalOverlay';
+import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
 import './Layout.css';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -22,6 +23,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, role, signOut } = useAuthContext();
   const { isSubscribed, subscribe, unsubscribe, preferences, updatePreferences } = usePushNotifications();
   const { teams } = useTeams();
+  const { visibility } = useGroupCVisibility();
   const { matches } = useMatches();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showPushPrefs, setShowPushPrefs] = useState(false);
@@ -44,6 +46,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   };
 
   const visibleTeams = isAdminUser
+    ? teams
+    : visibility.favorite_team_menu
     ? teams
     : teams.filter((team) => !isTestGroup(team.group));
 

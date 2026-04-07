@@ -15,6 +15,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import logo from '../../assets/unasp_logo.png';
 import { prefetchRouteIntent } from '../../lib/routePrefetch';
 import { onGoalOverlay, type GoalOverlayPayload } from '../../lib/goalOverlay';
+import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
 import './Layout.css';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -22,6 +23,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, role, signOut } = useAuthContext();
   const { isSubscribed, subscribe, unsubscribe, preferences, updatePreferences } = usePushNotifications();
   const { teams } = useTeams();
+  const { visibility } = useGroupCVisibility();
   const { matches } = useMatches();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showPushPrefs, setShowPushPrefs] = useState(false);
@@ -36,6 +38,18 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const showContextBar = location.pathname === '/' || location.pathname.startsWith('/classificacao');
   const showAdminNav = role === 'admin' || isAdminRoute;
   const isPushLocked = !user;
+  const isAdminUser = role === 'admin';
+
+  const isTestGroup = (groupName?: string | null) => {
+    const clean = (groupName || '').trim().toUpperCase().replace(/\s+/g, '');
+    return clean === 'C' || clean === 'GRUPOC';
+  };
+
+  const visibleTeams = isAdminUser
+    ? teams
+    : visibility.favorite_team_menu
+      ? teams
+      : teams.filter((team) => !isTestGroup(team.group));
 
   const liveMatch = useMemo(() => (matches || []).find((m) => m.status === 'ao_vivo') || null, [matches]);
   const nextMatch = useMemo(() => {
@@ -361,7 +375,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                         onChange={(e) => void updatePreferences({ favoriteTeamId: e.target.value || null })}
                       >
                         <option value="">Todos os times</option>
-                        {teams.map((team) => (
+                        {visibleTeams.map((team) => (
                           <option key={team.id} value={team.id}>{team.name}</option>
                         ))}
                       </select>

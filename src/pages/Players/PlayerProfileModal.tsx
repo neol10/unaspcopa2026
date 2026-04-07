@@ -13,6 +13,28 @@ interface PlayerProfileModalProps {
 const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose, teamName }) => {
   const [brokenPhotoUrl, setBrokenPhotoUrl] = useState<string | null>(null);
 
+  const hashToHue = (seed: string) => {
+    let hash = 0;
+    for (let i = 0; i < seed.length; i += 1) {
+      hash = (hash * 31 + seed.charCodeAt(i)) % 360;
+    }
+    return Math.abs(hash % 360);
+  };
+
+  const getTeamModalTone = (seedRaw: string) => {
+    const seed = seedRaw.trim() || 'team-default';
+    const hue = hashToHue(seed);
+    return {
+      modalBg: `hsla(${hue}, 75%, 58%, 0.14)`,
+      modalGlow: `hsla(${hue}, 88%, 60%, 0.2)`,
+      modalBorder: `hsla(${hue}, 86%, 62%, 0.35)`,
+      pillBg: `hsla(${hue}, 90%, 62%, 0.95)`,
+      pillText: `hsl(${hue}, 40%, 10%)`,
+      iconBg: `hsla(${hue}, 85%, 58%, 0.16)`,
+      iconColor: `hsl(${hue}, 95%, 72%)`,
+    };
+  };
+
   const normalizeImageSrc = (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return '';
@@ -26,11 +48,23 @@ const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose
 
   if (!player) return null;
 
+  const toneSeed = `${teamName || player.team_name || ''}-${player.team_id || ''}`;
+  const tone = getTeamModalTone(toneSeed);
+
   return (
     <AnimatePresence>
       <div className="modal-overlay" onClick={onClose}>
         <motion.div 
-          className="player-profile-modal glass"
+          className="player-profile-modal glass team-tinted-modal"
+          style={{
+            '--team-modal-bg': tone.modalBg,
+            '--team-modal-glow': tone.modalGlow,
+            '--team-modal-border': tone.modalBorder,
+            '--team-modal-pill-bg': tone.pillBg,
+            '--team-modal-pill-text': tone.pillText,
+            '--team-modal-icon-bg': tone.iconBg,
+            '--team-modal-icon-color': tone.iconColor,
+          } as React.CSSProperties}
           onClick={e => e.stopPropagation()}
           initial={{ opacity: 0, scale: 0.9, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -77,8 +111,8 @@ const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose
 
           <div className="player-stats-grid">
             <div className="stat-card glass-hover">
-              <div className="stat-icon-circle" style={{ background: 'rgba(251, 191, 36, 0.1)' }}>
-                <Goal size={20} color="#fbbf24" />
+              <div className="stat-icon-circle team-tone">
+                <Goal size={20} color="var(--team-modal-icon-color)" />
               </div>
               <div className="stat-content">
                 <strong>{player.goals_count}</strong>
@@ -87,8 +121,8 @@ const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose
             </div>
 
             <div className="stat-card glass-hover">
-              <div className="stat-icon-circle" style={{ background: 'rgba(0, 176, 255, 0.1)' }}>
-                <Footprints size={20} color="#00b0ff" />
+              <div className="stat-icon-circle team-tone">
+                <Footprints size={20} color="var(--team-modal-icon-color)" />
               </div>
               <div className="stat-content">
                 <strong>{player.assists}</strong>
@@ -97,8 +131,8 @@ const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose
             </div>
 
             <div className="stat-card glass-hover">
-              <div className="stat-icon-circle" style={{ background: 'rgba(255, 255, 255, 0.1)' }}>
-                <Timer size={20} color="#ffffff" />
+              <div className="stat-icon-circle team-tone">
+                <Timer size={20} color="var(--team-modal-icon-color)" />
               </div>
               <div className="stat-content">
                 <strong>{player.position === 'Goleiro' ? (player.clean_sheets || 0) : (player.goals_count + player.assists)}</strong>
@@ -107,8 +141,8 @@ const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose
             </div>
 
             <div className="stat-card glass-hover">
-              <div className="stat-icon-circle" style={{ background: 'rgba(255, 45, 45, 0.1)' }}>
-                <ShieldAlert size={20} color="#ff2d2d" />
+              <div className="stat-icon-circle team-tone">
+                <ShieldAlert size={20} color="var(--team-modal-icon-color)" />
               </div>
               <div className="stat-content">
                 <div className="cards-brief">

@@ -8,12 +8,14 @@ import PlayerProfileModal from './PlayerProfileModal';
 import { getSuspensionFromCards } from '../../lib/discipline';
 import { downloadSocialPlayerCard } from '../../lib/socialCardExport';
 import { useAuthContext } from '../../contexts/AuthContext';
+import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
 import './Players.css';
 
 const Players: React.FC = () => {
   const { teamId } = useParams<{ teamId: string }>();
   const navigate = useNavigate();
   const { role: authRole } = useAuthContext();
+  const { visibility } = useGroupCVisibility();
   const { players, loading: playersLoading, error: playersError, refresh: refreshPlayers } = usePlayers(teamId);
   const { teams } = useTeams();
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
@@ -40,6 +42,26 @@ const Players: React.FC = () => {
     setBrokenImageMap((prev) => (prev[key] ? prev : { ...prev, [key]: true }));
   };
 
+  const hashToHue = (seed: string) => {
+    let hash = 0;
+    for (let i = 0; i < seed.length; i += 1) {
+      hash = (hash * 31 + seed.charCodeAt(i)) % 360;
+    }
+    return Math.abs(hash % 360);
+  };
+
+  const getTeamCardTone = (seedRaw: string) => {
+    const seed = seedRaw.trim() || 'team-default';
+    const hue = hashToHue(seed);
+    return {
+      cardBg: `hsla(${hue}, 85%, 55%, 0.12)`,
+      cardBorder: `hsla(${hue}, 85%, 62%, 0.32)`,
+      cardGlow: `hsla(${hue}, 95%, 60%, 0.16)`,
+      chipBg: `hsla(${hue}, 85%, 55%, 0.16)`,
+      chipBorder: `hsla(${hue}, 90%, 66%, 0.36)`,
+    };
+  };
+
   useEffect(() => {
     if (!playersLoading) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -61,6 +83,8 @@ const Players: React.FC = () => {
   };
 
   const basePlayers = isAdmin
+    ? players
+    : visibility.players
     ? players
     : players.filter((p) => !isTestGroup(p.team_group));
 
@@ -187,7 +211,7 @@ const Players: React.FC = () => {
     );
   }
 
-  if (teamId && !isAdmin && isTestGroup(resolvedTeamGroup)) {
+  if (teamId && !isAdmin && !visibility.players && isTestGroup(resolvedTeamGroup)) {
     return (
       <div className="error-state glass" style={{ margin: '2rem auto', maxWidth: 720 }}>
         <p style={{ marginBottom: '0.75rem' }}>Equipe indisponivel para usuarios nao-admin.</p>
@@ -288,12 +312,23 @@ const Players: React.FC = () => {
             filteredPlayers.map((player) => {
               const playerImageKey = `player-photo-${player.id}`;
               const hasValidPhoto = Boolean(player.photo_url && !brokenImageMap[playerImageKey]);
+              const teamSeed = isGlobalView
+                ? `${player.team_name || ''}-${player.team_id || ''}`
+                : `${resolvedTeamName}-${teamId || ''}`;
+              const tone = getTeamCardTone(teamSeed);
               return (
                 <div 
                   key={player.id} 
-                  className="player-card-v2 glass" 
+                  className="player-card-v2 glass team-tinted" 
                   onClick={() => setSelectedPlayer(player)}
-                  style={{ cursor: 'pointer' }}
+                  style={{
+                    cursor: 'pointer',
+                    '--team-card-bg': tone.cardBg,
+                    '--team-card-border': tone.cardBorder,
+                    '--team-card-glow': tone.cardGlow,
+                    '--team-chip-bg': tone.chipBg,
+                    '--team-chip-border': tone.chipBorder,
+                  } as React.CSSProperties}
                 >
                   <div className="p-header">
                     <div className="p-team-badge-chip" title={player.team_name || 'Equipe'}>

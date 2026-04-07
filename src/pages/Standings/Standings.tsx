@@ -6,11 +6,13 @@ import { useTournamentConfig } from '../../hooks/useTournamentConfig';
 import { useAuthContext } from '../../contexts/AuthContext';
 import Skeleton, { SkeletonStandingsRow } from '../../components/Skeleton/Skeleton';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
+import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
 
 const Standings: React.FC = () => {
   const { standings, loading, error, refresh, paused } = useStandings();
   const { config } = useTournamentConfig();
   const { role } = useAuthContext();
+  const { visibility } = useGroupCVisibility();
   const [showByGroup, setShowByGroup] = useState(true);
   const [selectedGroup, setSelectedGroup] = useState('all');
   const [stuck, setStuck] = useState(false);
@@ -94,6 +96,8 @@ const Standings: React.FC = () => {
   };
 
   const visibleStandings = isAdmin
+    ? standings
+    : visibility.standings
     ? standings
     : standings.filter((team) => !isTestGroup(team.group));
 
