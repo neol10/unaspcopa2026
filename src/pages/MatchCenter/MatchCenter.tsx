@@ -135,7 +135,6 @@ const MatchCenter: React.FC = () => {
     if (hasEndedFirstHalf) return 'Intervalo';
     return '1º Tempo';
   }, [activeMatch, events]);
-  const { user, role: authRole } = useAuthContext();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const { config } = useTournamentConfig();
   const { voteCounts: roundVotes, userVote: roundUserVote, vote: castRoundVote, loading: roundMvpLoading, error: roundMvpError, refresh: refreshRoundMvp } = useMvpVoting(String(config.current_round));
@@ -155,9 +154,9 @@ const MatchCenter: React.FC = () => {
 
   const canDeleteComment = useCallback((ev: MatchEvent) => {
     if (!user) return false;
-    if (authRole === 'admin') return true;
+    if (role === 'admin') return true;
     return Boolean(ev.user_id && ev.user_id === user.id);
-  }, [authRole, user]);
+  }, [role, user]);
 
   const handleSendComment = useCallback(async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
