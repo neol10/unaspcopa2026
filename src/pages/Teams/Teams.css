@@ -142,12 +142,17 @@
   align-items: center;
   text-align: center;
   border-radius: 24px;
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+              box-shadow 0.25s ease,
+              border-color 0.25s ease,
+              background-color 0.25s ease;
   cursor: pointer;
   position: relative;
   overflow: hidden;
   content-visibility: auto;
   contain-intrinsic-size: 280px 320px;
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 .team-card-v2:hover {
@@ -191,8 +196,9 @@
   height: 100%;
   background: radial-gradient(circle, var(--secondary) 0%, transparent 70%);
   opacity: 0.2;
-  filter: blur(20px);
+  filter: blur(14px);
   z-index: 0;
+  will-change: transform, opacity;
 }
 
 .card-badge img {
@@ -201,7 +207,7 @@
   width: 100%;
   height: 100%;
   object-fit: contain;
-  filter: drop-shadow(0 5px 15px rgba(0, 0, 0, 0.5));
+  filter: drop-shadow(0 3px 10px rgba(0, 0, 0, 0.45));
 }
 
 .card-body h3 {

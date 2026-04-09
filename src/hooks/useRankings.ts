@@ -153,10 +153,14 @@ export const useRankings = () => {
       }));
 
       const teamGoalsAgainst: Record<string, number> = {};
+      const teamMatchesPlayed: Record<string, number> = {};
       matchesData.forEach((m) => {
         if (m.status !== 'finalizado' && m.status !== 'ao_vivo') return;
         teamGoalsAgainst[m.team_a_id] = (teamGoalsAgainst[m.team_a_id] || 0) + (m.team_b_score || 0);
         teamGoalsAgainst[m.team_b_id] = (teamGoalsAgainst[m.team_b_id] || 0) + (m.team_a_score || 0);
+
+        teamMatchesPlayed[m.team_a_id] = (teamMatchesPlayed[m.team_a_id] || 0) + 1;
+        teamMatchesPlayed[m.team_b_id] = (teamMatchesPlayed[m.team_b_id] || 0) + 1;
       });
 
       const fairPlayList = [...playersWithTeam]
@@ -180,6 +184,7 @@ export const useRankings = () => {
           ...p,
           goals_conceded: teamGoalsAgainst[p.team_id] || 0,
         }))
+        .filter((p) => (teamMatchesPlayed[p.team_id] || 0) > 0)
         .sort((a, b) => {
           if ((a.goals_conceded || 0) !== (b.goals_conceded || 0)) {
             return (a.goals_conceded || 0) - (b.goals_conceded || 0);

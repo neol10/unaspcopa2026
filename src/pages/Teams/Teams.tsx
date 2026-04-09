@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Teams.css';
 import { Shield, Search } from 'lucide-react';
@@ -17,6 +17,7 @@ const Teams: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('all');
   const isAdmin = role === 'admin';
+  const deferredSearchTerm = useDeferredValue(searchTerm);
 
   const markBadgeBroken = (teamId: string) => {
     setBrokenBadgeMap((prev) => (prev[teamId] ? prev : { ...prev, [teamId]: true }));
@@ -114,24 +115,30 @@ const Teams: React.FC = () => {
     return clean === 'C' || clean === 'GRUPOC';
   };
 
-  const visibleTeamsBase = isAdmin
-    ? teams
-    : visibility.teams
-    ? teams
-    : teams.filter((team) => !isTestGroup(team.group));
+  const visibleTeamsBase = useMemo(() => {
+    if (isAdmin) return teams;
+    if (visibility.teams) return teams;
+    return teams.filter((team) => !isTestGroup(team.group));
+  }, [isAdmin, teams, visibility.teams]);
 
-  const groupNames = Array.from(new Set(visibleTeamsBase.map((team) => (team.group || 'Sem Grupo').trim()))).sort((a, b) => a.localeCompare(b));
-  const normalizedSearch = normalize(searchTerm.trim());
+  const groupNames = useMemo(() => {
+    return Array.from(new Set(visibleTeamsBase.map((team) => (team.group || 'Sem Grupo').trim())))
+      .sort((a, b) => a.localeCompare(b));
+  }, [visibleTeamsBase]);
 
-  const visibleTeams = visibleTeamsBase.filter((team) => {
-    const groupName = (team.group || 'Sem Grupo').trim();
-    if (selectedGroup !== 'all' && groupName !== selectedGroup) return false;
-    if (!normalizedSearch) return true;
-    const inName = normalize(team.name || '').includes(normalizedSearch);
-    const inLeader = normalize(team.leader || '').includes(normalizedSearch);
-    const inGroup = normalize(groupName).includes(normalizedSearch);
-    return inName || inLeader || inGroup;
-  });
+  const normalizedSearch = useMemo(() => normalize(deferredSearchTerm.trim()), [deferredSearchTerm]);
+
+  const visibleTeams = useMemo(() => {
+    return visibleTeamsBase.filter((team) => {
+      const groupName = (team.group || 'Sem Grupo').trim();
+      if (selectedGroup !== 'all' && groupName !== selectedGroup) return false;
+      if (!normalizedSearch) return true;
+      const inName = normalize(team.name || '').includes(normalizedSearch);
+      const inLeader = normalize(team.leader || '').includes(normalizedSearch);
+      const inGroup = normalize(groupName).includes(normalizedSearch);
+      return inName || inLeader || inGroup;
+    });
+  }, [normalizedSearch, selectedGroup, visibleTeamsBase]);
 
   return (
     <div className="teams-page animate-fade-in">

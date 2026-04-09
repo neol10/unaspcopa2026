@@ -12,6 +12,7 @@ const Brackets: React.FC = () => {
   const { matches, loading, error, refresh } = useMatches();
   const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const teiaContentRef = useRef<HTMLDivElement>(null);
   const [stuck, setStuck] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isPointerDown, setIsPointerDown] = useState(false);
@@ -26,14 +27,54 @@ const Brackets: React.FC = () => {
   const [nowTs, setNowTs] = useState(() => Date.now());
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const zoomRef = useRef(1);
+  const panRef = useRef({ x: 0, y: 0 });
   const panStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
   const pinchStartRef = useRef<{ distance: number; zoom: number } | null>(null);
   const viewModeTouchedRef = useRef(false);
+  const teiaApplyFrameRef = useRef<number | null>(null);
+  const teiaWheelCommitRef = useRef<number | null>(null);
 
   const { config } = useTournamentConfig();
   const [hasScrolled, setHasScrolled] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'teia'>('list');
+
+  const applyTeiaTransform = useCallback(() => {
+    if (!teiaContentRef.current) return;
+    const { x, y } = panRef.current;
+    const z = zoomRef.current;
+    teiaContentRef.current.style.transform = `translate(${x}px, ${y}px) scale(${z})`;
+  }, []);
+
+  const scheduleApplyTeiaTransform = useCallback(() => {
+    if (teiaApplyFrameRef.current !== null) return;
+    teiaApplyFrameRef.current = window.requestAnimationFrame(() => {
+      teiaApplyFrameRef.current = null;
+      applyTeiaTransform();
+    });
+  }, [applyTeiaTransform]);
+
+  useEffect(() => {
+    zoomRef.current = zoom;
+    panRef.current = pan;
+    if (viewMode === 'teia') {
+      applyTeiaTransform();
+    }
+  }, [zoom, pan, viewMode, applyTeiaTransform]);
+
+  useEffect(() => {
+    return () => {
+      if (teiaApplyFrameRef.current !== null) {
+        window.cancelAnimationFrame(teiaApplyFrameRef.current);
+        teiaApplyFrameRef.current = null;
+      }
+      if (teiaWheelCommitRef.current !== null) {
+        window.clearTimeout(teiaWheelCommitRef.current);
+        teiaWheelCommitRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const id = setInterval(() => setNowTs(Date.now()), 30000);
@@ -310,12 +351,13 @@ const Brackets: React.FC = () => {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (pointersRef.current.size === 1) {
-        panStartRef.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y };
+        const currentPan = panRef.current;
+        panStartRef.current = { x: e.clientX, y: e.clientY, panX: currentPan.x, panY: currentPan.y };
       }
       if (pointersRef.current.size === 2) {
         const [p1, p2] = Array.from(pointersRef.current.values());
         const distance = Math.hypot(p1.x - p2.x, p1.y - p2.y) || 1;
-        pinchStartRef.current = { distance, zoom };
+        pinchStartRef.current = { distance, zoom: zoomRef.current };
       }
       setIsDragging(true);
       return;
@@ -335,7 +377,8 @@ const Brackets: React.FC = () => {
         const [p1, p2] = pointers;
         const distance = Math.hypot(p1.x - p2.x, p1.y - p2.y) || 1;
         const nextZoom = clamp((pinchStartRef.current.zoom * distance) / pinchStartRef.current.distance, 0.6, 2.2);
-        setZoom(nextZoom);
+        zoomRef.current = nextZoom;
+        scheduleApplyTeiaTransform();
         dragMovedRef.current = true;
         return;
       }
@@ -346,7 +389,8 @@ const Brackets: React.FC = () => {
       if (exceededThreshold && !dragMovedRef.current) {
         dragMovedRef.current = true;
       }
-      setPan({ x: panStartRef.current.panX + dx, y: panStartRef.current.panY + dy });
+      panRef.current = { x: panStartRef.current.panX + dx, y: panStartRef.current.panY + dy };
+      scheduleApplyTeiaTransform();
       return;
     }
 
@@ -362,11 +406,17 @@ const Brackets: React.FC = () => {
       }
       if (pointersRef.current.size === 1) {
         const [remaining] = Array.from(pointersRef.current.values());
-        panStartRef.current = { x: remaining.x, y: remaining.y, panX: pan.x, panY: pan.y };
+        const currentPan = panRef.current;
+        panStartRef.current = { x: remaining.x, y: remaining.y, panX: currentPan.x, panY: currentPan.y };
       }
       if (pointersRef.current.size === 0) {
         panStartRef.current = null;
       }
+
+      // Comitar estado apenas no fim do gesto (evita re-render durante drag/pinch)
+      setZoom(zoomRef.current);
+      setPan(panRef.current);
+
       setIsDragging(false);
       if (dragMovedRef.current) {
         window.setTimeout(() => {
@@ -384,7 +434,17 @@ const Brackets: React.FC = () => {
     if (viewMode !== 'teia') return;
     e.preventDefault();
     const delta = -e.deltaY * 0.0006;
-    setZoom((prev) => clamp(prev + delta, 0.8, 1.6));
+    zoomRef.current = clamp(zoomRef.current + delta, 0.8, 1.6);
+    scheduleApplyTeiaTransform();
+
+    if (teiaWheelCommitRef.current !== null) {
+      window.clearTimeout(teiaWheelCommitRef.current);
+    }
+    teiaWheelCommitRef.current = window.setTimeout(() => {
+      teiaWheelCommitRef.current = null;
+      setZoom(zoomRef.current);
+      setPan(panRef.current);
+    }, 120);
   };
 
   const scrollToPhase = (phase: string) => {
@@ -665,14 +725,46 @@ const Brackets: React.FC = () => {
 
       {viewMode === 'teia' && (
         <div className="view-zoom">
-          <button className="zoom-btn" onClick={() => setZoom((prev) => clamp(prev - 0.08, 0.8, 1.6))} type="button" aria-label="Diminuir zoom">
+          <button
+            className="zoom-btn"
+            onClick={() => {
+              const next = clamp(zoomRef.current - 0.08, 0.8, 1.6);
+              zoomRef.current = next;
+              setZoom(next);
+              scheduleApplyTeiaTransform();
+            }}
+            type="button"
+            aria-label="Diminuir zoom"
+          >
             <ZoomOut size={14} />
           </button>
           <span className="zoom-label">{Math.round(zoom * 100)}%</span>
-          <button className="zoom-btn" onClick={() => setZoom((prev) => clamp(prev + 0.08, 0.8, 1.6))} type="button" aria-label="Aumentar zoom">
+          <button
+            className="zoom-btn"
+            onClick={() => {
+              const next = clamp(zoomRef.current + 0.08, 0.8, 1.6);
+              zoomRef.current = next;
+              setZoom(next);
+              scheduleApplyTeiaTransform();
+            }}
+            type="button"
+            aria-label="Aumentar zoom"
+          >
             <ZoomIn size={14} />
           </button>
-          <button className="zoom-reset" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }} type="button">Reset</button>
+          <button
+            className="zoom-reset"
+            onClick={() => {
+              zoomRef.current = 1;
+              panRef.current = { x: 0, y: 0 };
+              setZoom(1);
+              setPan({ x: 0, y: 0 });
+              scheduleApplyTeiaTransform();
+            }}
+            type="button"
+          >
+            Reset
+          </button>
         </div>
       )}
 
@@ -753,7 +845,7 @@ const Brackets: React.FC = () => {
       >
         <div
           className="brackets-scroll-content"
-          style={viewMode === 'teia' ? { transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` } : undefined}
+          ref={viewMode === 'teia' ? teiaContentRef : undefined}
         >
           {viewMode === 'teia' ? (
             /* Layout de Chaveamento Dinamico (Modo Teia) */

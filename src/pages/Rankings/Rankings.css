@@ -124,6 +124,30 @@
   margin-bottom: 3rem;
 }
 
+@media (max-width: 1024px) {
+  .rankings-featured-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .panel-header-v2 {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .round-selector-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    max-width: 100%;
+  }
+
+  .round-selector-tabs::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 .scorers-podium.podium-empty {
   display: flex;
   flex-direction: column;
@@ -567,6 +591,43 @@
     flex: 1;
     justify-content: center;
   }
+
+  .rankings-featured-grid {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .round-winner-card {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 480px) {
+  .panel-header-v2 {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .round-selector-tabs {
+    width: 100%;
+  }
+
+  .rank-row-item {
+    flex-wrap: wrap;
+  }
+
+  .rank-val,
+  .rank-cards {
+    margin-left: auto;
+  }
+
+  .rank-row-download-btn {
+    width: 100%;
+    justify-content: center;
+    margin-top: 0.5rem;
+  }
 }
 
 /* Artilharia Podium */
@@ -801,7 +862,7 @@
   .rank-row-item {
     padding: 0.75rem 0.6rem;
     gap: 0.5rem;
-    min-width: 280px; /* Reduzido de 340px para evitar scroll excessivo */
+    min-width: 0;
   }
 
   .round-winner-card {
@@ -879,7 +940,7 @@
   }
 
   .rank-row-item {
-    min-width: 310px;
+    min-width: 0;
     padding: 0.6rem 0.5rem;
   }
 
