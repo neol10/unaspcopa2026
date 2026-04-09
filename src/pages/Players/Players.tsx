@@ -50,15 +50,52 @@ const Players: React.FC = () => {
     return Math.abs(hash % 360);
   };
 
-  const getTeamCardTone = (seedRaw: string) => {
-    const seed = seedRaw.trim() || 'team-default';
-    const hue = hashToHue(seed);
+  const hexToHue = (hex: string) => {
+    let r = 0, g = 0, b = 0;
+    if (hex.length === 4) {
+      r = parseInt(hex[1] + hex[1], 16);
+      g = parseInt(hex[2] + hex[2], 16);
+      b = parseInt(hex[3] + hex[3], 16);
+    } else if (hex.length === 7) {
+      r = parseInt(hex.slice(1, 3), 16);
+      g = parseInt(hex.slice(3, 5), 16);
+      b = parseInt(hex.slice(5, 7), 16);
+    }
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    let h = (max + min) / 2;
+    if (max === min) {
+      h = 0;
+    } else {
+      const d = max - min;
+      switch (max) {
+        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+        case g: h = (b - r) / d + 2; break;
+        case b: h = (r - g) / d + 4; break;
+      }
+      h /= 6;
+    }
+    return Math.round(h * 360);
+  };
+
+  const getTeamCardTone = (seedRaw: string, primaryColor?: string | null) => {
+    let hue: number;
+    if (primaryColor && /^#[0-9A-F]{3,6}$/i.test(primaryColor)) {
+      hue = hexToHue(primaryColor);
+    } else {
+      const seed = seedRaw.trim() || 'team-default';
+      hue = hashToHue(seed);
+    }
+
+    // Retornamos um tema base elegante (azul suave) se não estivermos no modo "brand"
+    // O usuário solicitou "cor base normal" no site.
+    const baseHue = 215; // Azul Copa Unasp
     return {
-      cardBg: `hsla(${hue}, 85%, 55%, 0.12)`,
-      cardBorder: `hsla(${hue}, 85%, 62%, 0.32)`,
-      cardGlow: `hsla(${hue}, 95%, 60%, 0.16)`,
-      chipBg: `hsla(${hue}, 85%, 55%, 0.16)`,
-      chipBorder: `hsla(${hue}, 90%, 66%, 0.36)`,
+      cardBg: `hsla(${baseHue}, 85%, 55%, 0.08)`,
+      cardBorder: `hsla(${baseHue}, 85%, 62%, 0.22)`,
+      cardGlow: `hsla(${baseHue}, 95%, 60%, 0.12)`,
+      chipBg: `hsla(${baseHue}, 85%, 55%, 0.12)`,
+      chipBorder: `hsla(${baseHue}, 90%, 66%, 0.26)`,
     };
   };
 
@@ -151,12 +188,13 @@ const Players: React.FC = () => {
         category: 'Jogador em Destaque',
         subtitle: 'Estatisticas oficiais da Copa Unasp',
         theme: 'blue',
-        player: {
-          name: player.name,
-          teamName: playerTeamName,
-          position: player.position,
-          photoUrl: player.photo_url,
+        player: { 
+          name: player.name, 
+          teamName: playerTeamName, 
+          position: player.position, 
+          photoUrl: player.photo_url, 
           teamBadgeUrl: player.team_badge_url || resolvedTeamBadge,
+          teamPrimaryColor: player.team_primary_color
         },
         stats: [
           { label: 'Gols', value: player.goals_count || 0 },
@@ -315,7 +353,7 @@ const Players: React.FC = () => {
               const teamSeed = isGlobalView
                 ? `${player.team_name || ''}-${player.team_id || ''}`
                 : `${resolvedTeamName}-${teamId || ''}`;
-              const tone = getTeamCardTone(teamSeed);
+              const tone = getTeamCardTone(teamSeed, player.team_primary_color);
               return (
                 <div 
                   key={player.id} 
@@ -442,11 +480,13 @@ const Players: React.FC = () => {
         </div>
       </section>
 
-      <PlayerProfileModal 
-        player={selectedPlayer} 
-        onClose={() => setSelectedPlayer(null)} 
-        teamName={selectedPlayer?.team_name || teams.find(t => t.id === selectedPlayer?.team_id)?.name}
-      />
+      {selectedPlayer && (
+        <PlayerProfileModal 
+          player={selectedPlayer} 
+          onClose={() => setSelectedPlayer(null)} 
+          teamName={selectedPlayer?.team_name || teams.find(t => t.id === selectedPlayer?.team_id)?.name}
+        />
+      )}
     </div>
   );
 };

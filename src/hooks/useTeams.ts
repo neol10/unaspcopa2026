@@ -8,6 +8,7 @@ export interface Team {
   badge_url: string;
   group: string;
   leader: string;
+  primary_color?: string | null;
 }
 
 const normalizeImageSrc = (value: string | null | undefined) => {

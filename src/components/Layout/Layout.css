@@ -717,6 +717,10 @@ body.nav-open {
   touch-action: none;
 }
 
+@media (max-width: 768px) {
+  /* Removido pointer-events para garantir scroll sempre habilitado */
+}
+
 body.gallery-modal-open .app-container::before,
 body.gallery-modal-open .mobile-navbar,
 body.gallery-modal-open .context-bar,
@@ -842,11 +846,15 @@ body.gallery-modal-open .nav-overlay {
     height: 100dvh;
     z-index: 1001;
     box-shadow: 20px 0 50px rgba(0,0,0,0.2);
+    pointer-events: none;
+    touch-action: none;
   }
 
   .sidebar.mobile-open {
     left: 0;
     transform: none;
+    pointer-events: auto;
+    touch-action: auto;
   }
 
   .sidebar-header .mobile-menu-btn {
@@ -861,12 +869,23 @@ body.gallery-modal-open .nav-overlay {
   }
 
   .main-wrapper {
-    width: 100%;
+    width: 100vw !important;
+    min-height: 100vh;
+    position: relative;
+    z-index: 1;
+    pointer-events: auto;
+    overflow-x: hidden;
   }
 
   .content {
     padding: 0.65rem 0.75rem 1.5rem;
     max-width: 100vw;
+    width: 100vw !important;
+    min-height: 100vh;
+    position: relative;
+    z-index: 2;
+    pointer-events: auto;
+    overflow-x: hidden;
     box-sizing: border-box;
   }
 
@@ -902,8 +921,13 @@ body.gallery-modal-open .nav-overlay {
     outline-offset: 2px;
   }
 
+  .nav-overlay {
+    display: none;
+  }
   .nav-overlay.show {
     display: block;
+    pointer-events: auto;
+    touch-action: auto;
   }
 
   .footer {

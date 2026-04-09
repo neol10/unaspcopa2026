@@ -3,9 +3,6 @@
   flex-direction: column;
   gap: 2.5rem;
   padding-bottom: 3rem;
-  overscroll-behavior-y: contain;
-  touch-action: pan-y;
-  -webkit-overflow-scrolling: touch;
 }
 
 /* Match Selector Bar */

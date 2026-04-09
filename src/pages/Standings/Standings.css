@@ -3,7 +3,6 @@
   flex-direction: column;
   gap: 3rem;
   padding-bottom: 5rem;
-  overscroll-behavior-y: contain;
 }
 
 .group-section {

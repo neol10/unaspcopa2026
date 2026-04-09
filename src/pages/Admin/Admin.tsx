@@ -3222,9 +3222,9 @@ const TeamManagement = () => {
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editGroupValue, setEditGroupValue] = useState('');
-  type TeamFormData = { name: string; group: string; leader: string; badge_url: string };
-  const [newTeamData, setNewTeamData] = useState<TeamFormData>({ name: '', group: '', leader: '', badge_url: '' });
-  const [editTeamData, setEditTeamData] = useState<TeamFormData>({ name: '', group: '', leader: '', badge_url: '' });
+  type TeamFormData = { name: string; group: string; leader: string; badge_url: string; primary_color: string };
+  const [newTeamData, setNewTeamData] = useState<TeamFormData>({ name: '', group: '', leader: '', badge_url: '', primary_color: '#E4002B' });
+  const [editTeamData, setEditTeamData] = useState<TeamFormData>({ name: '', group: '', leader: '', badge_url: '', primary_color: '#E4002B' });
   const [uploading, setUploading] = useState(false);
 
   const handleBadgeUpload = async (
@@ -3258,6 +3258,7 @@ const TeamManagement = () => {
         group: newTeamData.group.trim(),
         leader: newTeamData.leader.trim(),
         badge_url: newTeamData.badge_url?.trim() || null,
+        primary_color: newTeamData.primary_color || null,
       };
 
       const { error } = await withRetry(async () => {
@@ -3268,7 +3269,7 @@ const TeamManagement = () => {
         );
       }, 2);
       if (error) throw error;
-      setNewTeamData({ name: '', group: '', leader: '', badge_url: '' });
+      setNewTeamData({ name: '', group: '', leader: '', badge_url: '', primary_color: '#E4002B' });
       setIsAdding(false);
       void queryClient.invalidateQueries({ queryKey: ['teams'] });
       void queryClient.invalidateQueries({ queryKey: ['standings'] });
@@ -3397,6 +3398,24 @@ const TeamManagement = () => {
                 onChange={(e) => setNewTeamData({ ...newTeamData, badge_url: e.target.value })}
               />
             </div>
+            <div className="form-group">
+              <label>Cor de Identidade (Primária)</label>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <input 
+                  type="color" 
+                  value={newTeamData.primary_color}
+                  onChange={(e) => setNewTeamData({ ...newTeamData, primary_color: e.target.value })}
+                  style={{ width: '50px', height: '40px', padding: '2px', cursor: 'pointer' }}
+                />
+                <input 
+                  type="text" 
+                  value={newTeamData.primary_color}
+                  onChange={(e) => setNewTeamData({ ...newTeamData, primary_color: e.target.value })}
+                  placeholder="#HEX"
+                  style={{ flex: 1 }}
+                />
+              </div>
+            </div>
           </div>
           <button type="submit" className="btn-save" disabled={isSubmittingTeam || uploading}>
             <Save size={18} /> {isSubmittingTeam ? 'Salvando...' : 'Salvar Equipe'}
@@ -3439,6 +3458,23 @@ const TeamManagement = () => {
                             value={editGroupValue}
                             onChange={e => setEditGroupValue(e.target.value)}
                           />
+                          <div className="form-group-mini">
+                            <label style={{ fontSize: '0.75rem', opacity: 0.8 }}>Cor do Time</label>
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                              <input 
+                                type="color" 
+                                value={editTeamData.primary_color}
+                                onChange={e => setEditTeamData({ ...editTeamData, primary_color: e.target.value })}
+                                style={{ width: '30px', height: '30px', cursor: 'pointer' }}
+                              />
+                              <input 
+                                type="text"
+                                style={{ fontSize: '0.8rem', width: '80px' }}
+                                value={editTeamData.primary_color}
+                                onChange={e => setEditTeamData({ ...editTeamData, primary_color: e.target.value })}
+                              />
+                            </div>
+                          </div>
                         </div>
                         <div className="form-actions-mini">
                           <button type="button" className="btn-save-mini" onClick={() => {
@@ -3446,7 +3482,8 @@ const TeamManagement = () => {
                               name: editTeamData.name || team.name, 
                               leader: editTeamData.leader || team.leader,
                               badge_url: editTeamData.badge_url || team.badge_url,
-                              group: editGroupValue 
+                              group: editGroupValue,
+                              primary_color: editTeamData.primary_color || null
                             });
                             setEditingGroupId(null);
                           }}><Save size={14} /> Salvar</button>
@@ -3470,7 +3507,13 @@ const TeamManagement = () => {
                       e.stopPropagation(); 
                       setEditingGroupId(team.id); 
                       setEditGroupValue(team.group || '');
-                      setEditTeamData({ name: team.name, leader: team.leader, badge_url: team.badge_url || '', group: team.group || '' });
+                      setEditTeamData({ 
+                        name: team.name, 
+                        leader: team.leader, 
+                        badge_url: team.badge_url || '', 
+                        group: team.group || '',
+                        primary_color: team.primary_color || '#E4002B'
+                      });
                     }}><Settings2 size={18} /></button>
                   )}
                   <button className="btn-icon delete" onClick={(e) => { e.stopPropagation(); handleDelete(team.id); }}><Trash2 size={18} /></button>
@@ -4831,6 +4874,14 @@ const TournamentManagement = () => {
               />
               <span>Seletor de Time Favorito</span>
             </label>
+            <label className="push-pref-check">
+              <input
+                type="checkbox"
+                checked={groupCVisibility.matches}
+                onChange={(e) => setGroupCVisibility((prev) => ({ ...prev, matches: e.target.checked }))}
+              />
+              <span>Menu Jogos</span>
+            </label>
           </div>
         </div>
 
@@ -5079,7 +5130,9 @@ const PollManagement = () => {
     } catch (err: unknown) {
       console.warn('Nao foi possivel carregar votos detalhados de enquetes.', err);
       setPollVotesByPollId({});
-      setPollVotesError('Nao foi possivel carregar os votos por usuario. Verifique permissoes da tabela poll_votes.');
+      // O erro só será exibido se for algo crítico que impeça a experiência básica,
+      // caso contrário, apenas escondemos a tabela detalhada silenciosamente.
+      setPollVotesError(null);
     } finally {
       setPollVotesLoading(false);
     }
@@ -5838,7 +5891,7 @@ const GlobalPlayerManagement = () => {
               <select required value={formData.team_id} onChange={e => setFormData({...formData, team_id: e.target.value})}>
                 <option value="">Selecione a equipe...</option>
                 {[...(teams || [])].sort((a,b) => a.name.localeCompare(b.name)).map(t => (
-                  <option key={t.id} value={t.id}>{t.name} ({t.group || 'S/G'})</option>
+                  <option key={t.id} value={t.id}>{t.name} ({t.group || 'Sem Grupo'})</option>
                 ))}
               </select>
             </div>

@@ -6,6 +6,7 @@ export interface GroupCVisibilityConfig {
   players: boolean;
   standings: boolean;
   favorite_team_menu: boolean;
+  matches: boolean;
 }
 
 export const DEFAULT_GROUP_C_VISIBILITY: GroupCVisibilityConfig = {
@@ -13,6 +14,7 @@ export const DEFAULT_GROUP_C_VISIBILITY: GroupCVisibilityConfig = {
   players: false,
   standings: false,
   favorite_team_menu: false,
+  matches: false,
 };
 
 export const normalizeGroupCVisibility = (raw: unknown): GroupCVisibilityConfig => {
@@ -36,6 +38,7 @@ export const normalizeGroupCVisibility = (raw: unknown): GroupCVisibilityConfig 
     players: Boolean(candidate.players),
     standings: Boolean(candidate.standings),
     favorite_team_menu: Boolean(candidate.favorite_team_menu),
+    matches: Boolean(candidate.matches),
   };
 };
 

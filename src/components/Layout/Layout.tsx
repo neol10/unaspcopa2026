@@ -113,10 +113,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }, [isMobileMenuOpen]);
 
   useEffect(() => {
-    if (isMobileMenuOpen) {
-      closeMobileMenu();
-    }
-  }, [location.pathname, isMobileMenuOpen]);
+    closeMobileMenu();
+  }, [location.pathname]);
 
   useEffect(() => {
     const unsub = onGoalOverlay((payload) => {

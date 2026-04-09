@@ -14,6 +14,7 @@ import { useTournamentConfig } from '../../hooks/useTournamentConfig';
 import { Star, Goal, Handshake } from 'lucide-react';
 import { useRankings } from '../../hooks/useRankings';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
+import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
 import { motion, AnimatePresence } from 'framer-motion';
 import { emitGoalOverlay } from '../../lib/goalOverlay';
 import { detectTournamentPhase } from '../../lib/tournamentRules';
@@ -28,6 +29,23 @@ const Home: React.FC = () => {
   const { user } = useAuthContext();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const { scorers, assistants, galeraRank, loading: rankingsLoading, refresh: refreshRankings } = useRankings();
+  const { role } = useAuthContext();
+  const isAdmin = role === 'admin';
+  const { visibility } = useGroupCVisibility();
+
+  const isTestGroup = (groupName?: string | null) => {
+    const clean = (groupName || '').trim().toUpperCase().replace(/\s+/g, '');
+    return clean === 'C' || clean === 'GRUPOC';
+  };
+
+  const baseMatches = useMemo(() => {
+    if (isAdmin || visibility.matches) return matches;
+    return matches.filter(m => {
+      const isTeamAGroupC = isTestGroup(m.teams_a?.group);
+      const isTeamBGroupC = isTestGroup(m.teams_b?.group);
+      return !isTeamAGroupC && !isTeamBGroupC;
+    });
+  }, [matches, isAdmin, visibility.matches]);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [selectedNews, setSelectedNews] = useState<News | null>(null);
   const pollWidgetRef = useRef<HTMLDivElement | null>(null);
@@ -35,20 +53,20 @@ const Home: React.FC = () => {
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
 
   const nextMatch = useMemo<Match | null>(() => {
-    const scheduled = matches
+    const scheduled = baseMatches
       .filter(m => m.status === 'agendado' && new Date(m.match_date).getTime() > new Date().getTime())
       .sort((a, b) => new Date(a.match_date).getTime() - new Date(b.match_date).getTime());
     return scheduled.length > 0 ? scheduled[0] : null;
-  }, [matches]);
+  }, [baseMatches]);
 
   const lastFinishedMatch = useMemo<Match | null>(() => {
-    const finished = matches
+    const finished = baseMatches
       .filter(m => m.status === 'finalizado')
       .sort((a, b) => new Date(b.match_date).getTime() - new Date(a.match_date).getTime());
     return finished.length > 0 ? finished[0] : null;
-  }, [matches]);
+  }, [baseMatches]);
 
-  const liveMatch = useMemo<Match | null>(() => matches.find(m => m.status === 'ao_vivo') || null, [matches]);
+  const liveMatch = useMemo<Match | null>(() => baseMatches.find(m => m.status === 'ao_vivo') || null, [baseMatches]);
   const { events: liveEvents } = useMatchEvents(liveMatch?.id || '');
   const latestLiveEvent = liveEvents?.[0];
   const [lastOverlayEventId, setLastOverlayEventId] = useState<string | null>(null);
@@ -68,11 +86,11 @@ const Home: React.FC = () => {
   };
 
   const autoPhase = useMemo(() => {
-    return detectTournamentPhase((matches || []).map((m) => ({
+    return detectTournamentPhase((baseMatches || []).map((m) => ({
       round: m.round,
       status: m.status,
     })));
-  }, [matches]);
+  }, [baseMatches]);
 
   const effectivePhase = config.current_phase || autoPhase;
 
@@ -80,16 +98,16 @@ const Home: React.FC = () => {
     const now = new Date();
     const todayStr = now.toDateString();
 
-    const liveCount = matches.filter((m) => m.status === 'ao_vivo').length;
-    const todayCount = matches.filter((m) => new Date(m.match_date).toDateString() === todayStr).length;
-    const upcomingCount = matches.filter((m) => m.status === 'agendado' && new Date(m.match_date).getTime() > now.getTime()).length;
+    const liveCount = baseMatches.filter((m) => m.status === 'ao_vivo').length;
+    const todayCount = baseMatches.filter((m) => new Date(m.match_date).toDateString() === todayStr).length;
+    const upcomingCount = baseMatches.filter((m) => m.status === 'agendado' && new Date(m.match_date).getTime() > now.getTime()).length;
 
     return {
       liveCount,
       todayCount,
       upcomingCount,
     };
-  }, [matches]);
+  }, [baseMatches]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;

@@ -19,6 +19,7 @@ export interface Player {
   team_badge_url?: string;
   team_group?: string;
   team_leader?: string;
+  team_primary_color?: string | null;
 }
 
 type PlayerRow = Player & {
@@ -27,6 +28,7 @@ type PlayerRow = Player & {
     badge_url?: string;
     group?: string;
     leader?: string;
+    primary_color?: string | null;
   };
 };
 
@@ -43,7 +45,7 @@ const normalizeImageSrc = (value: string | null | undefined) => {
 
 export const usePlayers = (teamId?: string) => {
   const queryClient = useQueryClient();
-  const cacheKey = `players_cache_v1_${teamId || 'all'}`;
+  const cacheKey = `players_cache_v2_${teamId || 'all'}`;
 
   const loadCachedPlayers = () => {
     if (typeof window === 'undefined') return null;
@@ -63,7 +65,7 @@ export const usePlayers = (teamId?: string) => {
   const loadFallbackFromAllCache = () => {
     if (!teamId || typeof window === 'undefined') return null;
     try {
-      const raw = localStorage.getItem('players_cache_v1_all');
+      const raw = localStorage.getItem('players_cache_v2_all');
       if (!raw) return null;
       const parsed = JSON.parse(raw) as { ts: number; data: PlayerRow[] };
       if (!parsed?.ts || !Array.isArray(parsed.data) || parsed.data.length === 0) return null;
@@ -92,15 +94,22 @@ export const usePlayers = (teamId?: string) => {
       if (teamId) q = q.eq('team_id', teamId);
       const { data, error } = await q.order('name');
       if (error) throw error;
-      const rows = (data as PlayerRow[]) || [];
-      return rows.map((player) => ({
-        ...player,
-        photo_url: normalizeImageSrc(player.photo_url),
-        team_name: player.teams?.name || player.team_name,
-        team_badge_url: normalizeImageSrc(player.teams?.badge_url || player.team_badge_url || ''),
-        team_group: player.teams?.group || player.team_group,
-        team_leader: player.teams?.leader || player.team_leader,
-      }));
+      const rows = (data as any[]) || [];
+      return rows.map((row) => {
+        // Robust check for team data (handles object or array from Supabase join)
+        const team = Array.isArray(row.teams) ? row.teams[0] : row.teams;
+        
+        return {
+          ...row,
+          photo_url: normalizeImageSrc(row.photo_url),
+          // Fallback to existing properties if they exist, priority to joined data
+          team_name: team?.name || row.team_name || 'Equipe',
+          team_badge_url: normalizeImageSrc(team?.badge_url || row.team_badge_url || ''),
+          team_group: team?.group || row.team_group || '',
+          team_leader: team?.leader || row.team_leader || '',
+          team_primary_color: team?.primary_color || row.team_primary_color || null,
+        } as Player;
+      });
     },
     staleTime: 1000 * 60 * 10, // 10 min
     gcTime: 1000 * 60 * 30,    // 30 min
@@ -144,10 +153,7 @@ export const usePlayers = (teamId?: string) => {
   }, [teamId, queryClient]);
 
   return { 
-    players: (query.data || []).map((player) => ({
-      ...player,
-      photo_url: normalizeImageSrc(player.photo_url),
-    })), 
+    players: query.data || [], 
     loading: query.isLoading && query.data === undefined, 
     error: friendlyError(query.error?.message), 
     refresh: query.refetch 

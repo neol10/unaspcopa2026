@@ -37,6 +37,8 @@ self.addEventListener('push', (event) => {
     icon?: string;
     body?: string;
     title?: string;
+    teamIds?: string[];
+    important?: boolean;
   };
 
   if (pushMeta.action === 'cancel' && pushMeta.tag) {
@@ -83,7 +85,9 @@ self.addEventListener('push', (event) => {
             body: data.body,
             url: data.url || '/',
             icon: data.icon,
-            category: pushMeta.category
+            category: pushMeta.category,
+            teamIds: pushMeta.teamIds,
+            important: pushMeta.important
           }
         });
       }

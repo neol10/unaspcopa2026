@@ -9,6 +9,7 @@ import { useTournamentConfig } from '../../hooks/useTournamentConfig';
 import { useAuthContext } from '../../contexts/AuthContext';
 import AuthModal from '../../components/Auth/AuthModal';
 import { useStandings } from '../../hooks/useStandings';
+import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
 import { supabase } from '../../lib/supabase';
 import { Shield, Timer, Award, Zap, History, Download, Trophy, ArrowRightLeft, TrendingUp, HelpCircle, Copy } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -40,15 +41,33 @@ const MatchCenter: React.FC = () => {
     setSearchParams({ id });
   };
   
+  const { user, role } = useAuthContext();
+  const isAdmin = role === 'admin';
+  const { visibility } = useGroupCVisibility();
+
+  const isTestGroup = (groupName?: string | null) => {
+    const clean = (groupName || '').trim().toUpperCase().replace(/\s+/g, '');
+    return clean === 'C' || clean === 'GRUPOC';
+  };
+
+  const baseMatches = useMemo(() => {
+    if (isAdmin || visibility.matches) return matches;
+    return matches.filter(m => {
+      const isTeamAGroupC = isTestGroup(m.teams_a?.group);
+      const isTeamBGroupC = isTestGroup(m.teams_b?.group);
+      return !isTeamAGroupC && !isTeamBGroupC;
+    });
+  }, [matches, isAdmin, visibility.matches]);
+
   const activeMatch = selectedMatchId 
-    ? matches.find(m => m.id === selectedMatchId) 
-    : matches.find(m => m.status === 'ao_vivo') || matches[0];
+    ? baseMatches.find(m => m.id === selectedMatchId) 
+    : baseMatches.find(m => m.status === 'ao_vivo') || baseMatches[0];
 
   const activeMatchRoundText = activeMatch ? String(activeMatch.round ?? '').toLowerCase() : '';
-  const liveMatchId = matches.find(m => m.status === 'ao_vivo')?.id;
-  const liveCount = matches.filter(m => m.status === 'ao_vivo').length;
-  const upcomingCount = matches.filter(m => m.status === 'agendado').length;
-  const finishedCount = matches.filter(m => m.status === 'finalizado').length;
+  const liveMatchId = baseMatches.find(m => m.status === 'ao_vivo')?.id;
+  const liveCount = baseMatches.filter(m => m.status === 'ao_vivo').length;
+  const upcomingCount = baseMatches.filter(m => m.status === 'agendado').length;
+  const finishedCount = baseMatches.filter(m => m.status === 'finalizado').length;
 
   const getTeamLabel = (name: string | null | undefined, fallback: string) => {
     const trimmed = (name || '').trim();

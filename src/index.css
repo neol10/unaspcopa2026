@@ -76,7 +76,6 @@ body {
   transition: background-color 0.4s ease, color 0.4s ease;
   width: 100%;
   position: relative;
-  overscroll-behavior-y: contain;
 }
 
 #root {
@@ -124,7 +123,6 @@ html {
   scroll-behavior: smooth;
   width: 100%;
   -webkit-text-size-adjust: 100%;
-  overscroll-behavior-y: contain;
 }
 
 @media (prefers-reduced-motion: reduce) {

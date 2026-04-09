@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMatches, Match } from '../../hooks/useMatches';
+import { useAuthContext } from '../../contexts/AuthContext';
+import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
 import { useTournamentConfig } from '../../hooks/useTournamentConfig';
 import { KNOCKOUT_ROUND_LABELS } from '../../lib/tournamentRules';
 import { Trophy, ChevronRight, ChevronLeft, Target, Timer, ZoomIn, ZoomOut } from 'lucide-react';
@@ -58,15 +60,33 @@ const Brackets: React.FC = () => {
     return () => clearTimeout(id);
   }, [loading]);
 
+  const { role } = useAuthContext();
+  const isAdmin = role === 'admin';
+  const { visibility } = useGroupCVisibility();
+
+  const isTestGroup = (groupName?: string | null) => {
+    const clean = (groupName || '').trim().toUpperCase().replace(/\s+/g, '');
+    return clean === 'C' || clean === 'GRUPOC';
+  };
+
+  const baseMatches = useMemo(() => {
+    if (isAdmin || visibility.matches) return matches;
+    return matches.filter(m => {
+      const isTeamAGroupC = isTestGroup(m.teams_a?.group);
+      const isTeamBGroupC = isTestGroup(m.teams_b?.group);
+      return !isTeamAGroupC && !isTeamBGroupC;
+    });
+  }, [matches, isAdmin, visibility.matches]);
+
   const filteredMatches = useMemo(() => {
-    if (activeFilter === 'all') return matches;
+    if (activeFilter === 'all') return baseMatches;
 
     if (activeFilter === 'live') {
-      return matches.filter((m) => m.status === 'ao_vivo');
+      return baseMatches.filter((m) => m.status === 'ao_vivo');
     }
 
     if (activeFilter === 'today') {
-      return matches.filter((m) => {
+      return baseMatches.filter((m) => {
         const date = new Date(m.match_date);
         const now = new Date();
         return date.toDateString() === now.toDateString();
@@ -74,11 +94,11 @@ const Brackets: React.FC = () => {
     }
 
     if (activeFilter === 'favorite' && favoriteTeamId) {
-      return matches.filter((m) => m.team_a_id === favoriteTeamId || m.team_b_id === favoriteTeamId);
+      return baseMatches.filter((m) => m.team_a_id === favoriteTeamId || m.team_b_id === favoriteTeamId);
     }
 
-    return matches;
-  }, [activeFilter, favoriteTeamId, matches]);
+    return baseMatches;
+  }, [activeFilter, favoriteTeamId, baseMatches]);
 
   const sortMatches = useCallback((list: Match[]) => {
     const statusRank = (status: Match['status']) => {
@@ -301,6 +321,7 @@ const Brackets: React.FC = () => {
       return;
     }
 
+    if (e.pointerType === 'touch') return;
     handleMouseDown(e as unknown as React.MouseEvent);
   };
 
@@ -329,6 +350,7 @@ const Brackets: React.FC = () => {
       return;
     }
 
+    if (e.pointerType === 'touch') return;
     handleMouseMove(e as unknown as React.MouseEvent);
   };
 
@@ -354,6 +376,7 @@ const Brackets: React.FC = () => {
       return;
     }
 
+    if (e.pointerType === 'touch') return;
     handleDragEnd();
   };
 

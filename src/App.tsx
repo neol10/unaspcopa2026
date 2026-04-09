@@ -215,7 +215,8 @@ function AppContent() {
 
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'PUSH_NOTIFICATION') {
-        const { title, body, category } = event.data.payload || {};
+        const payload = event.data.payload || {};
+        const { title, body, category, teamIds, important } = payload;
         const messageKey = `${String(category || 'general')}|${String(title || '')}|${String(body || '')}`;
         const now = Date.now();
         const lastShownAt = recentPushToastRef.current.get(messageKey) || 0;
@@ -223,6 +224,27 @@ function AppContent() {
         // Evita toasts duplicados quando o mesmo push chega múltiplas vezes em poucos segundos.
         if (now - lastShownAt < 8000) {
           return;
+        }
+
+        // Filtro de Preferências do Usuário (Local)
+        try {
+          const rawPrefs = localStorage.getItem('copa_unasp_push_preferences_v1');
+          if (rawPrefs) {
+            const prefs = JSON.parse(rawPrefs);
+            const favTeamId = prefs?.favoriteTeamId;
+            
+            // Se o usuário tem um time favorito e o alerta é sobre times específicos (como um gol),
+            // filtramos se o time favorito não estiver envolvido, a menos que seja marcado como importante.
+            if (favTeamId && Array.isArray(teamIds) && teamIds.length > 0 && !important) {
+              const isAboutMyTeam = teamIds.includes(favTeamId);
+              if (!isAboutMyTeam) {
+                console.debug('Toast filtrado: Não envolve o time favorito do usuário.', { title, teamIds, favTeamId });
+                return;
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Falha ao processar filtros de push no cliente:', e);
         }
 
         recentPushToastRef.current.set(messageKey, now);

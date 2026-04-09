@@ -358,6 +358,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       icon: ICON_URL,
       category: category || 'general',
       important: Boolean(important),
+      teamIds: Array.isArray(teamIds) ? teamIds : [],
       tag: tag || undefined,
       action: action || undefined,
     });
