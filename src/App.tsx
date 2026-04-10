@@ -108,7 +108,9 @@ function AppContent() {
     const id = setTimeout(() => setShowSplash(false), 1200);
     return () => clearTimeout(id);
   }, []);
+  useEffect(() => {
     if (authLoading || showSplash) return;
+    if (bootMetricSentRef.current) return;
 
     const navEntry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
     const navStart = navEntry?.startTime ?? 0;
