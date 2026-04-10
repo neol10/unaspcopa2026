@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { ReactNode } from 'react';
 
 export const usePwaNotifications = () => {
   const recentPushToastRef = useRef<Map<string, number>>(new Map());
