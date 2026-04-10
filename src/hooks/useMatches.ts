@@ -90,9 +90,11 @@ export const useMatches = (limit?: number) => {
       }
       return (data as Match[]) || [];
     },
-    staleTime: 1000 * 60 * 10, // 10 min
+    staleTime: 1000 * 30, // 30 segundos
     gcTime: 1000 * 60 * 30,    // 30 min
+    refetchInterval: 1000 * 60, // Fallback: atualiza a cada 1 minuto se o real-time falhar
     refetchOnReconnect: true,
+    refetchOnWindowFocus: true,
     networkMode: 'online',
     initialData: cached?.data ?? [],
     initialDataUpdatedAt: cached?.ts,

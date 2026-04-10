@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 
@@ -77,68 +78,58 @@ export const useTournamentConfig = () => {
         group_c_visibility: normalizeGroupCVisibility((base as { group_c_visibility?: unknown }).group_c_visibility),
       };
     },
-    staleTime: 1000 * 60 * 30, // 30 minutos de cache
+    staleTime: 1000 * 60 * 1, // 1 minuto de cache
     gcTime: 1000 * 60 * 60, // Mantém no cache por 1 hora
+    refetchInterval: 1000 * 60 * 5, // Fallback: atualiza a cada 5 minutos
+    refetchOnWindowFocus: true,
   });
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('public:tournament_config')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tournament_config' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['tournament_config'] });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const saveMutation = useMutation({
     mutationFn: async (updated: Partial<TournamentConfig>) => {
       const currentConfig = query.data || DEFAULT;
       const merged = { ...currentConfig, ...updated };
 
-      const stripGroupVisibility = (value: Record<string, unknown>) => {
-        const next = { ...value };
-        delete next.group_c_visibility;
-        return next;
-      };
-      
       if (currentConfig.id) {
-        let payload: Record<string, unknown> = { ...merged, updated_at: new Date().toISOString() };
+        const payload = { ...merged, updated_at: new Date().toISOString() };
 
-        let result = await supabase
+        const { data, error } = await supabase
           .from('tournament_config')
           .update(payload)
           .eq('id', currentConfig.id)
           .select()
           .single();
 
-        if (result.error && result.error.code === '42703' && 'group_c_visibility' in payload) {
-          payload = stripGroupVisibility(payload);
-          result = await supabase
-            .from('tournament_config')
-            .update(payload)
-            .eq('id', currentConfig.id)
-            .select()
-            .single();
-        }
-
-        if (result.error) throw result.error;
+        if (error) throw error;
         return {
-          ...(result.data as TournamentConfig),
-          group_c_visibility: normalizeGroupCVisibility((result.data as { group_c_visibility?: unknown })?.group_c_visibility),
+          ...(data as TournamentConfig),
+          group_c_visibility: normalizeGroupCVisibility((data as { group_c_visibility?: unknown })?.group_c_visibility),
         };
       } else {
-        let payload: Record<string, unknown> = { ...merged };
+        const payload = { ...merged };
 
-        let result = await supabase
+        const { data, error } = await supabase
           .from('tournament_config')
           .insert([payload])
           .select()
           .single();
 
-        if (result.error && result.error.code === '42703' && 'group_c_visibility' in payload) {
-          payload = stripGroupVisibility(payload);
-          result = await supabase
-            .from('tournament_config')
-            .insert([payload])
-            .select()
-            .single();
-        }
-
-        if (result.error) throw result.error;
+        if (error) throw error;
         return {
-          ...(result.data as TournamentConfig),
-          group_c_visibility: normalizeGroupCVisibility((result.data as { group_c_visibility?: unknown })?.group_c_visibility),
+          ...(data as TournamentConfig),
+          group_c_visibility: normalizeGroupCVisibility((data as { group_c_visibility?: unknown })?.group_c_visibility),
         };
       }
     },

@@ -152,10 +152,12 @@ export const useStandings = () => {
     initialData: cached?.data || undefined,
     initialDataUpdatedAt: cached?.ts,
     placeholderData: (prev) => prev,
-    staleTime: 1000 * 60 * 2, // 2 min
+    staleTime: 1000 * 60 * 1, // 1 min
     gcTime: 1000 * 60 * 10,  // 10 min
+    refetchInterval: 1000 * 60 * 2, // Fallback: atualiza classificacao a cada 2 minutos
     retry: 0,
     refetchOnReconnect: true,
+    refetchOnWindowFocus: true,
     networkMode: 'online',
   });
 

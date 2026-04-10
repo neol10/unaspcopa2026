@@ -60,7 +60,7 @@
 
 @keyframes pulse-green {
   0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7); }
-  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(74, 222, 128, 0); }
+  50% { transform: scale(1.05); box-shadow: 0 0 12px 2px rgba(74, 222, 128, 0.4); }
   100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
 }
 
@@ -324,10 +324,21 @@
 
 .score-numbers .num {
   font-size: 6rem;
-  font-weight: 900;
+  font-weight: 950;
   color: var(--text-main);
   line-height: 1;
-  text-shadow: 0 0 30px var(--border-glow);
+  text-shadow: 0 0 35px var(--secondary-glow);
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.match-badge.ao_vivo + .sb-team .num,
+.ao_vivo .score-numbers .num {
+  animation: live-score-glow 3s ease-in-out infinite;
+}
+
+@keyframes live-score-glow {
+  0%, 100% { text-shadow: 0 0 25px var(--secondary-glow); }
+  50% { text-shadow: 0 0 50px var(--secondary-glow), 0 0 10px var(--secondary-glow); }
 }
 
 .score-numbers .vs {
@@ -740,6 +751,12 @@
 
 .animate-pulse {
   animation: pulse 1.5s infinite;
+}
+
+@keyframes brackets-glow-pulse {
+  0% { transform: translate(0, 0) scale(1); opacity: 0.3; }
+  50% { transform: translate(2%, 2%) scale(1.05); opacity: 0.45; }
+  100% { transform: translate(-1%, -1%) scale(1); opacity: 0.3; }
 }
 
 @keyframes pulse {

@@ -41,89 +41,13 @@ async function withRetry<T>(operation: () => Promise<T>, attempts: number = 2): 
   throw lastError;
 }
 
-const MAX_IMAGE_INPUT_MB = 20;
-const MAX_IMAGE_UPLOAD_MB = 8;
-const COMPRESS_MIN_BYTES = 350 * 1024; // 350KB
-const COMPRESS_MAX_DIM = 1024;
-const COMPRESS_QUALITY = 0.82;
-
-const validateImageFile = (file: File): string | null => {
-  if (!file.type.startsWith('image/')) return 'Arquivo invalido. Envie uma imagem.';
-  const maxInputBytes = MAX_IMAGE_INPUT_MB * 1024 * 1024;
-  if (file.size > maxInputBytes) return `Imagem muito grande. Maximo: ${MAX_IMAGE_INPUT_MB}MB.`;
-  return null;
-};
-
-const validatePreparedImageFile = (file: File): string | null => {
-  const maxUploadBytes = MAX_IMAGE_UPLOAD_MB * 1024 * 1024;
-  if (file.size > maxUploadBytes) return `Nao foi possivel otimizar o suficiente. Tente uma imagem menor (maximo ${MAX_IMAGE_UPLOAD_MB}MB apos compactacao).`;
-  return null;
-};
-
-const prepareImageForUpload = async (file: File): Promise<File> => {
-  if (!file.type.startsWith('image/')) return file;
-
-  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      resolve(img);
-    };
-    img.onerror = (err) => {
-      URL.revokeObjectURL(url);
-      reject(err);
-    };
-    img.src = url;
-  });
-
-  const maxDim = Math.max(image.width, image.height);
-  const scale = Math.min(1, COMPRESS_MAX_DIM / maxDim);
-  const shouldResize = scale < 1;
-  const shouldReencode = file.size >= COMPRESS_MIN_BYTES;
-  if (!shouldResize && !shouldReencode) return file;
-
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.round(image.width * scale);
-  canvas.height = Math.round(image.height * scale);
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return file;
-  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-  // Preferimos WebP para reduzir payload e acelerar carregamento no app.
-  const outputType = 'image/webp';
-  const blob = await new Promise<Blob | null>((resolve) => {
-    canvas.toBlob(resolve, outputType, COMPRESS_QUALITY);
-  });
-  if (!blob) return file;
-  if (blob.size >= file.size && !shouldResize) return file;
-
-  const ext = 'webp';
-  const baseName = file.name.replace(/\.[^.]+$/, '');
-  const fileName = `${baseName}_optimized.${ext}`;
-  return new File([blob], fileName, { type: outputType });
-};
-
-const sanitizeFileBaseName = (name: string) => {
-  const normalized = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  return normalized
-    .replace(/[^a-zA-Z0-9._-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .toLowerCase();
-};
-
-const fileToDataUrl = async (file: File): Promise<string | null> => {
-  try {
-    return await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ''));
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  } catch {
-    return null;
-  }
-};
+import { 
+  prepareImageForUpload, 
+  validateImageFile, 
+  validatePreparedImageFile, 
+  sanitizeFileBaseName, 
+  fileToDataUrl 
+} from '../../lib/imageUtils';
 
 const uploadToStorage = async (file: File, bucket: string = 'images', folder: string = 'team-badges'): Promise<string | null> => {
   try {
@@ -4711,22 +4635,20 @@ const TournamentManagement = () => {
       };
 
       await saveConfig(payload);
+      
+      // Update local storage as a quick-sync cache
       try {
         localStorage.setItem('copa_unasp_group_c_visibility_v1', JSON.stringify(groupCVisibility));
       } catch {
         // ignore local cache errors
       }
+      
+      toast.success('Configurações salvas com sucesso!');
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (err: unknown) {
-      try {
-        localStorage.setItem('copa_unasp_group_c_visibility_v1', JSON.stringify(groupCVisibility));
-        toast.success('Visibilidade do Grupo C salva localmente neste navegador.');
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2500);
-      } catch {
-        toast.error(getErrorMessage(err, 'Erro ao salvar configurações'));
-      }
+      console.error('Failed to save tournament config:', err);
+      toast.error(getErrorMessage(err, 'Erro ao salvar configurações no servidor.'));
     }
   };
 

@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import webpush from 'web-push';
 import type { PushSubscription } from 'web-push';
 import { createClient } from '@supabase/supabase-js';
+import { verifyAuth } from "./_auth";
 
 const readEnv = (...keys: string[]) => {
   for (const key of keys) {
@@ -310,6 +311,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     ensureVapid();
+
+    // --- Security Check: Admin Only ---
+    const { error: authError, statusCode } = await verifyAuth(req.headers.authorization, true);
+    if (authError) {
+      return res.status(statusCode || 401).json({ error: authError });
+    }
 
     const envValidationError = validateSupabaseEnv();
     if (envValidationError) {

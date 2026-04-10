@@ -54,6 +54,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'Missing Supabase config' });
   }
 
+  // --- Security Check: Cron Secret ---
+  const cronSecret = process.env.CRON_SECRET || process.env.VITE_CRON_SECRET;
+  if (cronSecret) {
+    const authHeader = req.headers.authorization;
+    if (authHeader !== `Bearer ${cronSecret}`) {
+      return res.status(401).json({ error: 'Unauthorized: Missing or invalid CRON_SECRET' });
+    }
+  }
+
   try {
     ensureVapid();
 

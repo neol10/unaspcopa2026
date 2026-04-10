@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useDeferredValue } from 'react';
 import { motion } from 'framer-motion';
 import './Rankings.css';
 import { useRankings, RankingPlayer } from '../../hooks/useRankings';
@@ -18,6 +18,7 @@ const Rankings: React.FC = () => {
   const [stuck, setStuck] = useState(false);
   const [downloadingCardKey, setDownloadingCardKey] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const deferredSearchTerm = useDeferredValue(searchTerm);
   const [viewLimit, setViewLimit] = useState<5 | 10>(10);
 
   useEffect(() => {
@@ -118,7 +119,7 @@ const Rankings: React.FC = () => {
     .replace(/[\u0300-\u036f]/g, '');
 
   const filterPlayers = useMemo(() => {
-    const term = normalize(searchTerm.trim());
+    const term = normalize(deferredSearchTerm.trim());
     return (list: RankingPlayer[]) => {
       const filtered = term
         ? list.filter((p) => {
@@ -129,7 +130,7 @@ const Rankings: React.FC = () => {
         : list;
       return filtered.slice(0, viewLimit);
     };
-  }, [searchTerm, viewLimit]);
+  }, [deferredSearchTerm, viewLimit]);
 
   const visibleScorers = filterPlayers(scorers);
   const visibleGoalkeepers = filterPlayers(goalkeepers);

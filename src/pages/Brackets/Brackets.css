@@ -76,8 +76,9 @@
 }
 
 @keyframes brackets-glow-pulse {
-  0% { transform: scale(1); opacity: 0.3; }
-  100% { transform: scale(1.1); opacity: 0.5; }
+  0% { transform: translate(0, 0) scale(1); opacity: 0.3; }
+  50% { transform: translate(2%, 2%) scale(1.05); opacity: 0.45; }
+  100% { transform: translate(-1%, -1%) scale(1); opacity: 0.3; }
 }
 
 /* Extra sparkle at page start (no JS): a brief stronger glow */
@@ -225,7 +226,7 @@
   letter-spacing: 1px;
   font-size: 0.65rem;
   cursor: pointer;
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  transition: background-color 0.2s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.2s cubic-bezier(0.22, 1, 0.36, 1), color 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .filter-chip:hover {
@@ -452,10 +453,10 @@
   border-radius: 16px;
   padding: 1.25rem;
   transition:
-    transform 180ms cubic-bezier(0.4, 0, 0.2, 1),
-    background-color 180ms cubic-bezier(0.4, 0, 0.2, 1),
-    border-color 180ms cubic-bezier(0.4, 0, 0.2, 1),
-    box-shadow 220ms cubic-bezier(0.4, 0, 0.2, 1);
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1);
   position: relative;
   backdrop-filter: blur(14px) saturate(140%);
   -webkit-backdrop-filter: blur(14px) saturate(140%);
@@ -532,7 +533,7 @@
   color: var(--text-dim);
   opacity: 0;
   transform: translate3d(0, -2px, 0);
-  transition: opacity 160ms ease, transform 160ms ease;
+  transition: opacity 160ms cubic-bezier(0.22, 1, 0.36, 1), transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
   margin-bottom: 0.6rem;
 }
 

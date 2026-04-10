@@ -415,9 +415,9 @@ const Home: React.FC = () => {
         
         <motion.div 
           className="hero-content"
-          initial={{ y: 30, opacity: 0 }}
+          initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
+          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
         >
           <div className="hero-badge-v2">
             <div className="badge-pulse"></div>
@@ -435,7 +435,7 @@ const Home: React.FC = () => {
           </p>
           
           <div className="hero-cta-group">
-            <button className="btn-premium" onClick={() => navigate('/central-da-partida')}>
+            <button className="btn-premium shimmer-effect" onClick={() => navigate('/central-da-partida')}>
               Explorar Partidas <ArrowRight size={20} />
             </button>
             <button className="btn-secondary-glass" onClick={() => navigate('/classificacao')}>
@@ -451,7 +451,7 @@ const Home: React.FC = () => {
         initial={{ opacity: 0, y: 24 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
       >
         <div className="poll-feature-card glass">
           <div className="widget-header">
@@ -548,7 +548,7 @@ const Home: React.FC = () => {
         initial={{ opacity: 0, y: 16 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
-        transition={{ duration: 0.45 }}
+        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
       >
         <div className="home-tournament-status-head">
           <div>
@@ -591,7 +591,7 @@ const Home: React.FC = () => {
         initial={{ opacity: 0, y: 24 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
-        transition={{ duration: 0.6 }}
+        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
       >
         <div className="section-head-v2">
           <Calendar size={22} color="var(--accent-blue)" />

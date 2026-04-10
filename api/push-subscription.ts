@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import { verifyAuth } from "./_auth";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -247,7 +248,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const subscription = (payload.subscription || null) as Record<string, unknown> | null;
     const endpoint = typeof subscription?.endpoint === 'string' ? subscription.endpoint : '';
-    const userId = typeof payload.userId === 'string' ? payload.userId : null;
+    const payloadUserId = typeof payload.userId === 'string' ? payload.userId : null;
+
+    // --- Security Check: Identify Verification ---
+    const { user, error: authError } = await verifyAuth(req.headers.authorization);
+    
+    // If a specific userId was sent in payload, it MUST match the token's UID (if token exists)
+    // to prevent spoofing. If no token, we can only allow public/guest subs.
+    let finalUserId = payloadUserId;
+    if (user) {
+      if (payloadUserId && payloadUserId !== user.id) {
+        return res.status(403).json({ error: 'Forbidden: Cannot manage subscriptions for other users' });
+      }
+      finalUserId = user.id;
+    } else if (payloadUserId) {
+      // Trying to set a userId without a token
+      return res.status(401).json({ error: 'Authentication required to set userId' });
+    }
 
     if (!endpoint || !subscription) {
       return res.status(400).json({ error: 'Missing valid subscription payload' });
@@ -261,7 +278,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     await withSupabaseClient(req.headers.authorization, async (client) => {
       await deleteByEndpointBestEffort(client, endpoint);
-      await insertSubscriptionAdaptive(client, endpoint, subscription, userId);
+      await insertSubscriptionAdaptive(client, endpoint, subscription, finalUserId);
     });
 
     return res.status(200).setHeader('Access-Control-Allow-Origin', corsHeaders['Access-Control-Allow-Origin']).json({ ok: true });

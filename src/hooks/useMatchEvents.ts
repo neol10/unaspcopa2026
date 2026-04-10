@@ -89,6 +89,9 @@ export const useMatchEvents = (matchId: string, onNewEvent?: (event: MatchEvent)
     initialData: cached?.data ?? [],
     initialDataUpdatedAt: cached?.ts,
     placeholderData: (prev) => prev,
+    staleTime: 1000 * 15, // 15 segundos
+    refetchInterval: 1000 * 30, // Fallback: atualiza eventos a cada 30 segundos
+    refetchOnWindowFocus: true,
   });
 
   useEffect(() => {
