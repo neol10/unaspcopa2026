@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { verifyAuth } from "./_auth";
+import { verifyAuth } from "./auth";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -251,7 +251,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const payloadUserId = typeof payload.userId === 'string' ? payload.userId : null;
 
     // --- Security Check: Identify Verification ---
-    const { user, error: authError } = await verifyAuth(req.headers.authorization);
+    const { user, error: authError, statusCode } = await verifyAuth(req.headers.authorization);
     
     // If a specific userId was sent in payload, it MUST match the token's UID (if token exists)
     // to prevent spoofing. If no token, we can only allow public/guest subs.
@@ -262,7 +262,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       finalUserId = user.id;
     } else if (payloadUserId) {
-      // Trying to set a userId without a token
+      // Trying to set a userId without a valid token
+      if (authError) {
+        return res.status(statusCode || 401).json({ error: authError });
+      }
       return res.status(401).json({ error: 'Authentication required to set userId' });
     }
 

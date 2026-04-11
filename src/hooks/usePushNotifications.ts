@@ -180,6 +180,12 @@ export const usePushNotifications = () => {
     });
 
     if (!response.ok) {
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const data = (await response.json().catch(() => null)) as { error?: unknown } | null;
+        const msg = typeof data?.error === 'string' ? data.error : '';
+        throw new Error(msg || `push-subscription POST failed (${response.status})`);
+      }
       const text = await response.text().catch(() => '');
       throw new Error(text || `push-subscription POST failed (${response.status})`);
     }
