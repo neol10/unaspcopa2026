@@ -103,6 +103,36 @@ export const usePushNotifications = () => {
   const [loading, setLoading] = useState(true);
   const warnedSyncRef = useRef(false);
 
+  const getPermissionDeniedMessage = () => {
+    if (isIOS()) {
+      return (
+        'Permissão de notificação bloqueada. No iPhone: Ajustes → Notificações → "Copa UNASP" (ou o nome do app) e permita. ' +
+        'Se não aparecer, remova o app da Tela de Início e instale novamente pelo Safari.'
+      );
+    }
+    return (
+      'Permissão de notificação bloqueada para este site. No Android/Chrome: Configurações do site → Notificações → Permitir (ou limpe as permissões do site e tente de novo).'
+    );
+  };
+
+  const ensureNotificationPermission = async () => {
+    if (!('Notification' in window)) {
+      throw new Error('Notificações não suportadas neste navegador.');
+    }
+
+    // Se o usuário já bloqueou, o browser não pergunta de novo.
+    if (Notification.permission === 'denied') {
+      throw new Error(getPermissionDeniedMessage());
+    }
+
+    if (Notification.permission === 'granted') return;
+
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      throw new Error(getPermissionDeniedMessage());
+    }
+  };
+
   const isPushSupported = () => {
     return 'serviceWorker' in navigator && 'PushManager' in window;
   };
@@ -323,14 +353,7 @@ export const usePushNotifications = () => {
         throw new Error('No iPhone, as notificações só funcionam se você adicionar o app à Tela de Início primeiro.');
       }
 
-      if (!('Notification' in window)) {
-        throw new Error('Notificações não suportadas neste navegador.');
-      }
-
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') {
-        throw new Error('Permissão de notificação negada. Verifique as configurações do iOS.');
-      }
+      await ensureNotificationPermission();
 
       const registration = await getServiceWorkerRegistration(true);
       if (!registration) {
@@ -340,6 +363,27 @@ export const usePushNotifications = () => {
 
       const existing = await registration.pushManager.getSubscription();
       if (existing) {
+        // Se a versão está desatualizada (ou o VAPID foi trocado), re-inscrevemos no clique do usuário.
+        if (!isPushSyncCurrent()) {
+          try {
+            await existing.unsubscribe();
+          } catch {
+            // best-effort
+          }
+
+          const vapidPublicKey = await getServerVapidPublicKey();
+          const resubscribed = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+          });
+
+          await syncSubscriptionRecord(resubscribed, preferences, user?.id || null);
+          markPushSyncVersion();
+          setIsSubscribed(true);
+          toast.success('Alertas ativados com sucesso!');
+          return;
+        }
+
         await syncSubscriptionRecord(existing, preferences, user?.id || null);
         markPushSyncVersion();
         setIsSubscribed(true);
