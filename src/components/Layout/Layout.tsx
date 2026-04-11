@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Home, Trophy, BarChart2, Users, Settings, Timer, Sun, Moon, Menu, X, LogIn, User, LogOut, Calendar, Bell, BellOff, Image } from 'lucide-react';
+import { Home, Trophy, BarChart2, Users, Settings, Timer, Sun, Moon, Menu, X, LogIn, User, LogOut, Calendar, Bell, BellOff, Image, Flag } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
@@ -16,6 +16,7 @@ import logo from '../../assets/unasp_logo.png';
 import { prefetchRouteIntent } from '../../lib/routePrefetch';
 import { onGoalOverlay, type GoalOverlayPayload } from '../../lib/goalOverlay';
 import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
+import FeedbackModal from '../Feedback/FeedbackModal';
 import './Layout.css';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -28,11 +29,14 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showPushPrefs, setShowPushPrefs] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   const [goalOverlay, setGoalOverlay] = useState<GoalOverlayPayload | null>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const pagePath = `${location.pathname}${location.search || ''}`;
 
   const isAdminRoute = location.pathname.startsWith('/admin');
   const showContextBar = location.pathname.startsWith('/classificacao');
@@ -383,6 +387,19 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               </div>
             )}
 
+            <button
+              className="theme-toggle"
+              type="button"
+              onClick={() => {
+                setShowFeedbackModal(true);
+                closeMobileMenu();
+              }}
+              aria-label="Reportar problema ou melhoria"
+            >
+              <Flag size={20} />
+              <span>Reportar</span>
+            </button>
+
             <a
               className="theme-toggle"
               href="https://copa-unasp-2026-production.up.railway.app/telao"
@@ -459,6 +476,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       </div>
 
       {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
+      <FeedbackModal
+        open={showFeedbackModal}
+        pagePath={pagePath}
+        onClose={() => setShowFeedbackModal(false)}
+      />
     </div>
   );
 };

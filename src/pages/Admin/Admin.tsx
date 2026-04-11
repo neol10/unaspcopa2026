@@ -133,7 +133,8 @@ const getDeleteMatchErrorMessage = (err: unknown): string => {
 
 const Admin: React.FC = () => {
   const { user, role, loading: authLoading } = useAuthContext();
-  const [activeTab, setActiveTab] = useState<'matches' | 'teams' | 'players' | 'news' | 'gallery' | 'tournament' | 'polls' | 'notifications' | 'errors' | 'users'>('matches');
+  const [activeTab, setActiveTab] = useState<'matches' | 'teams' | 'players' | 'news' | 'gallery' | 'tournament' | 'polls' | 'notifications' | 'errors' | 'users' | 'feedback'>('matches');
+  const [feedbackOpenCount, setFeedbackOpenCount] = useState(0);
   const tabLabels: Record<typeof activeTab, string> = {
     matches: 'Partidas',
     teams: 'Equipes',
@@ -145,6 +146,7 @@ const Admin: React.FC = () => {
     notifications: 'Alertas Push',
     errors: 'Erros',
     users: 'Usuarios',
+    feedback: 'Relatos',
   };
 
   const tabHints: Record<typeof activeTab, string> = {
@@ -158,7 +160,144 @@ const Admin: React.FC = () => {
     notifications: 'Disparo de push segmentado para engajar torcedores.',
     errors: 'Triagem de erros e eventos de performance do cliente.',
     users: 'Auditoria de usuarios que acessaram o aplicativo.',
+    feedback: 'Relatos enviados pelos usuarios para voce concluir.',
   };
+
+  type FeedbackReport = {
+    id: string;
+    category: 'problema' | 'melhoria' | 'outro';
+    message: string;
+    page_path: string | null;
+    user_email: string | null;
+    user_id: string | null;
+    status: 'aberto' | 'concluido';
+    created_at: string;
+    concluded_at: string | null;
+    concluded_by: string | null;
+  };
+
+  const FeedbackReportsPanel: React.FC = () => {
+    const [items, setItems] = useState<FeedbackReport[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const { data, error } = await supabase
+          .from('feedback_reports')
+          .select('id, category, message, page_path, user_email, user_id, status, created_at, concluded_at, concluded_by')
+          .eq('status', 'aberto')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        const next = (data as FeedbackReport[]) || [];
+        setItems(next);
+        setFeedbackOpenCount(next.length);
+      } catch (err: any) {
+        setError(err?.message || 'Erro ao carregar relatos');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    useEffect(() => {
+      void load();
+    }, []);
+
+    const conclude = async (id: string) => {
+      try {
+        const { error } = await supabase
+          .from('feedback_reports')
+          .update({
+            status: 'concluido',
+            concluded_at: new Date().toISOString(),
+            concluded_by: user?.id || null,
+          })
+          .eq('id', id);
+        if (error) throw error;
+
+        toast.success('Relato concluido');
+        setItems((prev) => prev.filter((r) => r.id !== id));
+        setFeedbackOpenCount((prev) => Math.max(0, prev - 1));
+      } catch (err: any) {
+        toast.error(err?.message || 'Erro ao concluir relato');
+      }
+    };
+
+    return (
+      <div className="admin-section glass animate-fade-in">
+        <div className="section-header">
+          <h2>Relatos</h2>
+          <p className="section-subtitle">Mensagens enviadas pelos usuarios (apenas pendentes).</p>
+          <button className="btn-add" onClick={() => void load()} disabled={loading}>
+            <RotateCcw size={18} /> {loading ? 'Atualizando...' : 'Atualizar'}
+          </button>
+        </div>
+
+        {error ? (
+          <div className="admin-empty-state"><p>{error}</p></div>
+        ) : items.length === 0 ? (
+          <div className="admin-empty-state"><p>Nenhum relato pendente.</p></div>
+        ) : (
+          <div className="users-list-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tipo</th>
+                  <th>Mensagem</th>
+                  <th>Pagina</th>
+                  <th>Usuario</th>
+                  <th>Data</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((r) => (
+                  <tr key={r.id}>
+                    <td style={{ textTransform: 'capitalize' }}>{r.category}</td>
+                    <td style={{ maxWidth: 520 }}>
+                      <div style={{ whiteSpace: 'pre-wrap' }}>{r.message}</div>
+                    </td>
+                    <td>{r.page_path || <span style={{ color: '#aaa' }}>—</span>}</td>
+                    <td>{r.user_email || <span style={{ color: '#aaa' }}>Anon</span>}</td>
+                    <td>{new Date(r.created_at).toLocaleString('pt-BR')}</td>
+                    <td>
+                      <button className="btn-save" onClick={() => void conclude(r.id)}>
+                        <CheckCircle size={16} /> Concluir
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  useEffect(() => {
+    if (role !== 'admin') return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('feedback_reports')
+          .select('id')
+          .eq('status', 'aberto');
+        if (error) throw error;
+        const count = Array.isArray(data) ? data.length : 0;
+        if (!cancelled) setFeedbackOpenCount(count);
+      } catch {
+        // se der erro de rede, não trava o admin; o panel recalcula ao abrir
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [role]);
   // --- Listagem de Usuários Logados ---
   type UserProfile = {
     id: string;
@@ -345,6 +484,13 @@ const Admin: React.FC = () => {
                 <Users size={18} />
                 <span>Usuários</span>
               </button>
+              <button
+                className={`tab-btn ${activeTab === 'feedback' ? 'active' : ''}`}
+                onClick={() => setActiveTab('feedback')}
+              >
+                <MessageSquare size={18} />
+                <span>Relatos{feedbackOpenCount > 0 ? ` (${feedbackOpenCount})` : ''}</span>
+              </button>
             </nav>
           </header>
 
@@ -402,6 +548,7 @@ const Admin: React.FC = () => {
             )}
             {activeTab === 'errors' && <ClientErrorsPanel />}
             {activeTab === 'users' && <UsersPanel />}
+            {activeTab === 'feedback' && <FeedbackReportsPanel />}
           </main>
           {ConfirmElement}
         </>
