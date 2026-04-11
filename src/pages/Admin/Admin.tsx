@@ -615,6 +615,9 @@ const sendPushNotification = async (title: string, body: string, options: PushSe
 
   const endpoint = resolvePushApiEndpoint();
 
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+
   try {
     const endpoints = buildPushEndpointCandidates(endpoint);
     let lastStatus = 0;
@@ -623,7 +626,10 @@ const sendPushNotification = async (title: string, body: string, options: PushSe
     for (const candidate of endpoints) {
       const response = await fetch(candidate, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ ...payload, sound: 'default' }),
       });
 
@@ -674,8 +680,14 @@ const sendPushNotification = async (title: string, body: string, options: PushSe
       }
 
       lastStatus = response.status;
-      const rawDetail = await response.text().catch(() => '');
-      lastDetail = rawDetail;
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const json = (await response.json().catch(() => null)) as { error?: unknown } | null;
+        lastDetail = typeof json?.error === 'string' ? json.error : JSON.stringify(json || {});
+      } else {
+        const rawDetail = await response.text().catch(() => '');
+        lastDetail = rawDetail;
+      }
 
       if (response.status === 404) {
         const fallbackCandidates = endpoint.includes('notify-push')
