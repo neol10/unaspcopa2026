@@ -3293,10 +3293,38 @@ const TeamManagement = () => {
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editGroupValue, setEditGroupValue] = useState('');
+  const [supportsTeamPrimaryColor, setSupportsTeamPrimaryColor] = useState(true);
   type TeamFormData = { name: string; group: string; leader: string; badge_url: string; primary_color: string };
   const [newTeamData, setNewTeamData] = useState<TeamFormData>({ name: '', group: '', leader: '', badge_url: '', primary_color: '#E4002B' });
   const [editTeamData, setEditTeamData] = useState<TeamFormData>({ name: '', group: '', leader: '', badge_url: '', primary_color: '#E4002B' });
   const [uploading, setUploading] = useState(false);
+
+  const isPrimaryColorMissingError = (message: string | undefined) => {
+    if (!message) return false;
+    return message.includes("'primary_color'") && message.toLowerCase().includes('schema cache');
+  };
+
+  useEffect(() => {
+    // Detecta se a coluna existe no banco; se não existir, escondemos o campo e não enviamos no payload
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const { error } = await supabase.from('teams').select('id, primary_color').limit(1);
+        if (!cancelled && error && isPrimaryColorMissingError(error.message)) {
+          setSupportsTeamPrimaryColor(false);
+        }
+      } catch (err: unknown) {
+        const msg = (err as { message?: string } | null)?.message;
+        if (!cancelled && isPrimaryColorMissingError(msg)) {
+          setSupportsTeamPrimaryColor(false);
+        }
+      }
+    };
+    void check();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleBadgeUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -3324,22 +3352,40 @@ const TeamManagement = () => {
     setIsSubmittingTeam(true);
     const loadingToast = toast.loading('Criando equipe...');
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         name: newTeamData.name.trim(),
         group: newTeamData.group.trim(),
         leader: newTeamData.leader.trim(),
         badge_url: newTeamData.badge_url?.trim() || null,
-        primary_color: newTeamData.primary_color || null,
       };
 
-      const { error } = await withRetry(async () => {
-        return await withTimeout(
-          supabase.from('teams').insert([payload]),
-          15000,
-          'Tempo limite ao criar equipe'
-        );
-      }, 2);
-      if (error) throw error;
+      if (supportsTeamPrimaryColor) {
+        payload.primary_color = newTeamData.primary_color || null;
+      }
+
+      const insertTeam = async (payloadToInsert: Record<string, unknown>) => {
+        const { error } = await withRetry(async () => {
+          return await withTimeout(
+            supabase.from('teams').insert([payloadToInsert]),
+            15000,
+            'Tempo limite ao criar equipe'
+          );
+        }, 2);
+        if (error) throw error;
+      };
+
+      try {
+        await insertTeam(payload);
+      } catch (err: unknown) {
+        const msg = (err as { message?: string } | null)?.message;
+        if (supportsTeamPrimaryColor && isPrimaryColorMissingError(msg)) {
+          setSupportsTeamPrimaryColor(false);
+          const { primary_color: _ignored, ...payloadNoColor } = payload as { primary_color?: unknown } & Record<string, unknown>;
+          await insertTeam(payloadNoColor);
+        } else {
+          throw err;
+        }
+      }
       setNewTeamData({ name: '', group: '', leader: '', badge_url: '', primary_color: '#E4002B' });
       setIsAdding(false);
       void queryClient.invalidateQueries({ queryKey: ['teams'] });
@@ -3378,12 +3424,33 @@ const TeamManagement = () => {
   const handleUpdateTeam = async (teamId: string, data: Partial<Team>) => {
     const loadingToast = toast.loading('Atualizando equipe...');
     try {
-      const { error } = await withTimeout(
-        supabase.from('teams').update(data).eq('id', teamId),
-        30000,
-        'Tempo limite ao atualizar equipe'
-      );
-      if (error) throw error;
+      const doUpdate = async (dataToUpdate: Partial<Team>) => {
+        const { error } = await withTimeout(
+          supabase.from('teams').update(dataToUpdate).eq('id', teamId),
+          30000,
+          'Tempo limite ao atualizar equipe'
+        );
+        if (error) throw error;
+      };
+
+      const filteredData = { ...data };
+      if (!supportsTeamPrimaryColor) {
+        delete (filteredData as Partial<Team> & { primary_color?: unknown }).primary_color;
+      }
+
+      try {
+        await doUpdate(filteredData);
+      } catch (err: unknown) {
+        const msg = (err as { message?: string } | null)?.message;
+        if (supportsTeamPrimaryColor && isPrimaryColorMissingError(msg)) {
+          setSupportsTeamPrimaryColor(false);
+          const retryData = { ...filteredData };
+          delete (retryData as Partial<Team> & { primary_color?: unknown }).primary_color;
+          await doUpdate(retryData);
+        } else {
+          throw err;
+        }
+      }
       void queryClient.invalidateQueries({ queryKey: ['teams'] });
       void queryClient.invalidateQueries({ queryKey: ['standings'] });
       void queryClient.invalidateQueries({ queryKey: ['rankings'] });
@@ -3469,24 +3536,26 @@ const TeamManagement = () => {
                 onChange={(e) => setNewTeamData({ ...newTeamData, badge_url: e.target.value })}
               />
             </div>
-            <div className="form-group">
-              <label>Cor de Identidade (Primária)</label>
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                <input 
-                  type="color" 
-                  value={newTeamData.primary_color}
-                  onChange={(e) => setNewTeamData({ ...newTeamData, primary_color: e.target.value })}
-                  style={{ width: '50px', height: '40px', padding: '2px', cursor: 'pointer' }}
-                />
-                <input 
-                  type="text" 
-                  value={newTeamData.primary_color}
-                  onChange={(e) => setNewTeamData({ ...newTeamData, primary_color: e.target.value })}
-                  placeholder="#HEX"
-                  style={{ flex: 1 }}
-                />
+            {supportsTeamPrimaryColor && (
+              <div className="form-group">
+                <label>Cor de Identidade (Primária)</label>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <input 
+                    type="color" 
+                    value={newTeamData.primary_color}
+                    onChange={(e) => setNewTeamData({ ...newTeamData, primary_color: e.target.value })}
+                    style={{ width: '50px', height: '40px', padding: '2px', cursor: 'pointer' }}
+                  />
+                  <input 
+                    type="text" 
+                    value={newTeamData.primary_color}
+                    onChange={(e) => setNewTeamData({ ...newTeamData, primary_color: e.target.value })}
+                    placeholder="#HEX"
+                    style={{ flex: 1 }}
+                  />
+                </div>
               </div>
-            </div>
+            )}
           </div>
           <button type="submit" className="btn-save" disabled={isSubmittingTeam || uploading}>
             <Save size={18} /> {isSubmittingTeam ? 'Salvando...' : 'Salvar Equipe'}
@@ -3534,23 +3603,25 @@ const TeamManagement = () => {
                             value={editGroupValue}
                             onChange={e => setEditGroupValue(e.target.value)}
                           />
-                          <div className="form-group-mini">
-                            <label style={{ fontSize: '0.75rem', opacity: 0.8 }}>Cor do Time</label>
-                            <div style={{ display: 'flex', gap: '4px' }}>
-                              <input 
-                                type="color" 
-                                value={editTeamData.primary_color}
-                                onChange={e => setEditTeamData({ ...editTeamData, primary_color: e.target.value })}
-                                style={{ width: '30px', height: '30px', cursor: 'pointer' }}
-                              />
-                              <input 
-                                type="text"
-                                style={{ fontSize: '0.8rem', width: '80px' }}
-                                value={editTeamData.primary_color}
-                                onChange={e => setEditTeamData({ ...editTeamData, primary_color: e.target.value })}
-                              />
+                          {supportsTeamPrimaryColor && (
+                            <div className="form-group-mini">
+                              <label style={{ fontSize: '0.75rem', opacity: 0.8 }}>Cor do Time</label>
+                              <div style={{ display: 'flex', gap: '4px' }}>
+                                <input 
+                                  type="color" 
+                                  value={editTeamData.primary_color}
+                                  onChange={e => setEditTeamData({ ...editTeamData, primary_color: e.target.value })}
+                                  style={{ width: '30px', height: '30px', cursor: 'pointer' }}
+                                />
+                                <input 
+                                  type="text"
+                                  style={{ fontSize: '0.8rem', width: '80px' }}
+                                  value={editTeamData.primary_color}
+                                  onChange={e => setEditTeamData({ ...editTeamData, primary_color: e.target.value })}
+                                />
+                              </div>
                             </div>
-                          </div>
+                          )}
                         </div>
                         <div className="form-actions-mini">
                           <button type="button" className="btn-save-mini" onClick={() => {
@@ -3559,7 +3630,7 @@ const TeamManagement = () => {
                               leader: editTeamData.leader || team.leader,
                               badge_url: editTeamData.badge_url || team.badge_url,
                               group: editGroupValue,
-                              primary_color: editTeamData.primary_color || null
+                              ...(supportsTeamPrimaryColor ? { primary_color: editTeamData.primary_color || null } : {})
                             });
                             setEditingGroupId(null);
                           }}><Save size={14} /> Salvar</button>
