@@ -5,7 +5,7 @@ import { useTeams } from '../../hooks/useTeams';
 import { Shield, ChevronLeft, User, Search, Users, Goal, Footprints, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import PlayerProfileModal from './PlayerProfileModal';
-import { getSuspensionFromCards } from '../../lib/discipline';
+import { getPendingSuspension } from '../../lib/discipline';
 import { downloadSocialPlayerCard } from '../../lib/socialCardExport';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
@@ -464,7 +464,7 @@ const Players: React.FC = () => {
                         <span>C/V</span>
                     </div>
                     <div className="p-cards">
-                      {getSuspensionFromCards(player).isSuspended && (
+                      {getPendingSuspension(player).isSuspended && (
                         <span className="p-suspension-badge">SUSPENSO</span>
                       )}
                     </div>

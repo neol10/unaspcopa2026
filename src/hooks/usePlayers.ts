@@ -12,6 +12,7 @@ export interface Player {
   goals_count: number;
   yellow_cards: number;
   red_cards: number;
+  suspensions_served?: number;
   assists: number;
   clean_sheets?: number;
   bio?: string;

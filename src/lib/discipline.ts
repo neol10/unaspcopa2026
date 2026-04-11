@@ -3,9 +3,21 @@ export type CardCounts = {
   red_cards?: number | null;
 };
 
+export type SuspensionCounts = CardCounts & {
+  suspensions_served?: number | null;
+};
+
 export type SuspensionStatus = {
   isSuspended: boolean;
   suspendedGames: number;
+  reason: 'red' | 'yellow' | null;
+};
+
+export type PendingSuspensionStatus = {
+  isSuspended: boolean;
+  pendingGames: number;
+  earnedGames: number;
+  servedGames: number;
   reason: 'red' | 'yellow' | null;
 };
 
@@ -29,4 +41,30 @@ export const getSuspensionFromCards = (counts: CardCounts): SuspensionStatus => 
   // Prefer red as the primary reason if any.
   const reason: SuspensionStatus['reason'] = reds > 0 ? 'red' : 'yellow';
   return { isSuspended: true, suspendedGames, reason };
+};
+
+// Retorna suspensões pendentes considerando quantas já foram cumpridas (suspensions_served).
+export const getPendingSuspension = (counts: SuspensionCounts): PendingSuspensionStatus => {
+  const earned = getSuspensionFromCards(counts);
+  const earnedGames = earned.suspendedGames;
+  const servedGames = Math.max(0, Number(counts.suspensions_served || 0));
+  const pendingGames = Math.max(0, earnedGames - servedGames);
+
+  if (pendingGames <= 0) {
+    return {
+      isSuspended: false,
+      pendingGames: 0,
+      earnedGames,
+      servedGames,
+      reason: null,
+    };
+  }
+
+  return {
+    isSuspended: true,
+    pendingGames,
+    earnedGames,
+    servedGames,
+    reason: earned.reason,
+  };
 };

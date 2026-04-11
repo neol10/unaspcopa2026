@@ -3689,11 +3689,11 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
   const [uploading, setUploading] = useState(false);
   const [formData, setFormData] = useState({ 
     name: '', number: '', position: 'Ala', photo_url: '', bio: '',
-    goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0'
+    goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0', suspensions_served: '0'
   });
   const [editFormData, setEditFormData] = useState({
     name: '', number: '', position: 'Ala', photo_url: '', bio: '',
-    goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0'
+    goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0', suspensions_served: '0'
   });
 
   useEffect(() => {
@@ -3724,7 +3724,8 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
         supabase.from('players').insert([{
           ...formData,
           team_id: teamId,
-          number: parseInt(formData.number) || 0
+          number: parseInt(formData.number) || 0,
+          suspensions_served: Math.max(0, parseInt((formData as any).suspensions_served) || 0),
         }]),
         30000,
         'Tempo limite ao adicionar atleta'
@@ -3732,7 +3733,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
       if (error) throw error;
       setFormData({ 
         name: '', number: '', position: 'Ala', photo_url: '', bio: '',
-        goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0'
+        goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0', suspensions_served: '0'
       });
       setIsAdding(false);
       void queryClient.invalidateQueries({ queryKey: ['players', teamId] });
@@ -3792,7 +3793,8 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
           assists: parseInt(editFormData.assists) || 0,
           yellow_cards: parseInt(editFormData.yellow_cards) || 0,
           red_cards: parseInt(editFormData.red_cards) || 0,
-          clean_sheets: parseInt(editFormData.clean_sheets) || 0
+          clean_sheets: parseInt(editFormData.clean_sheets) || 0,
+          suspensions_served: Math.max(0, parseInt((editFormData as any).suspensions_served) || 0),
         }).eq('id', playerId),
         30000,
         'Tempo limite ao atualizar atleta'
@@ -3910,6 +3912,14 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
                 <label><Shield size={14} /> Clean Sheets</label>
                 <input type="number" value={formData.clean_sheets} onChange={e => setFormData({...formData, clean_sheets: e.target.value})} />
              </div>
+             <div className="stat-input">
+               <label>Susp. cumpridas</label>
+               <input
+                type="number"
+                value={(formData as any).suspensions_served}
+                onChange={e => setFormData({ ...(formData as any), suspensions_served: e.target.value })}
+               />
+             </div>
           </div>
           <button type="submit" className="btn-save-player" disabled={isSubmittingPlayer}>
             <Save size={14} /> {isSubmittingPlayer ? 'Salvando...' : 'Salvar Atleta'}
@@ -3950,7 +3960,8 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
                       assists: String(p.assists),
                       yellow_cards: String(p.yellow_cards),
                       red_cards: String(p.red_cards),
-                      clean_sheets: String(p.clean_sheets || 0)
+                      clean_sheets: String(p.clean_sheets || 0),
+                      suspensions_served: String((p as any).suspensions_served || 0)
                     });
                   }} title="Editar atleta">
                     <Settings2 size={13} />
@@ -4039,6 +4050,28 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
                 <div className="stat-input">
                   <label><Shield size={14} /> Clean Sheets</label>
                   <input type="number" value={editFormData.clean_sheets} onChange={e => setEditFormData({ ...editFormData, clean_sheets: e.target.value })} />
+                </div>
+                <div className="stat-input">
+                  <label>Susp. cumpridas</label>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <input
+                      type="number"
+                      value={(editFormData as any).suspensions_served}
+                      onChange={e => setEditFormData({ ...(editFormData as any), suspensions_served: e.target.value })}
+                      style={{ flex: 1 }}
+                    />
+                    <button
+                      type="button"
+                      className="btn-cancel"
+                      onClick={() => {
+                        const current = Math.max(0, parseInt((editFormData as any).suspensions_served) || 0);
+                        setEditFormData({ ...(editFormData as any), suspensions_served: String(current + 1) });
+                      }}
+                      title="Marcar 1 jogo de suspensão cumprido"
+                    >
+                      +1
+                    </button>
+                  </div>
                 </div>
               </div>
 
