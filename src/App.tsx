@@ -1,6 +1,19 @@
+import React, { Suspense, useEffect, useRef, useState } from 'react';
+import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Toaster } from 'react-hot-toast';
+import { AnimatePresence, motion } from 'framer-motion';
+
+import Layout from './components/Layout/Layout';
+import InstallPWAPrompt from './components/InstallPrompt/InstallPWAPrompt';
+import ErrorBoundary from './components/ErrorBoundary/ErrorBoundary';
+import SplashScreen from './components/SplashScreen/SplashScreen';
+
 import { TelemetryProvider } from './contexts/TelemetryProvider';
+import { AuthProvider, useAuthContext } from './contexts/AuthContext';
 import { usePwaLifecycle } from './hooks/usePwaLifecycle';
 import { usePwaNotifications } from './hooks/usePwaNotifications';
+import { reportPerformanceMetric } from './lib/clientErrors';
 import { supabase } from './lib/supabase';
 
 const queryClient = new QueryClient({
@@ -91,14 +104,10 @@ const PageTransition: React.FC<{ children: React.ReactNode }> = ({ children }) =
   );
 };
 
-import InstallPWAPrompt from './components/InstallPrompt/InstallPWAPrompt';
-import ErrorBoundary from './components/ErrorBoundary/ErrorBoundary';
-import SplashScreen from './components/SplashScreen/SplashScreen';
-import { useAuthContext } from './contexts/AuthContext';
-
 function AppContent() {
   const { loading: authLoading } = useAuthContext();
   const [showSplash, setShowSplash] = useState(true);
+  const bootMetricSentRef = useRef(false);
 
   // Initialize PWA Lifecycle and Notifications
   usePwaLifecycle();
