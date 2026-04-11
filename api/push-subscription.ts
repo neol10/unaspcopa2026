@@ -76,7 +76,20 @@ const getBase64UrlByteLength = (value: string) => {
   try {
     const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
     const padding = normalized.length % 4 === 0 ? '' : '='.repeat(4 - (normalized.length % 4));
-    return Buffer.from(`${normalized}${padding}`, 'base64').length;
+    const base64 = `${normalized}${padding}`;
+
+    const anyGlobal = globalThis as unknown as { Buffer?: { from?: (input: string, encoding: string) => { length: number } } };
+    if (anyGlobal.Buffer?.from) {
+      return anyGlobal.Buffer.from(base64, 'base64').length;
+    }
+
+    const anyAtob = globalThis as unknown as { atob?: (input: string) => string };
+    if (typeof anyAtob.atob === 'function') {
+      // atob returns a binary string where .length == bytes
+      return anyAtob.atob(base64).length;
+    }
+
+    return -1;
   } catch {
     return -1;
   }
