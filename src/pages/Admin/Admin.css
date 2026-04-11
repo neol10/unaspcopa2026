@@ -4605,6 +4605,12 @@
   overflow: hidden;
 }
 
+@media (min-width: 768px) {
+  .goal-wizard-modal {
+    max-width: 400px;
+  }
+}
+
 .wizard-body {
   min-height: 0;
   overflow-y: auto;
@@ -4613,7 +4619,7 @@
 
 @media (max-width: 640px) {
   .goal-wizard-modal {
-    padding: 1rem;
+    padding: 0.95rem;
     padding-top: 0.75rem;
     border-radius: 20px;
   }
@@ -4621,7 +4627,7 @@
 
 @media (max-width: 420px) {
   .goal-wizard-modal {
-    padding: 0.85rem;
+    padding: 0.8rem;
     padding-top: 0.6rem;
     width: 98%;
   }
@@ -4645,6 +4651,12 @@
   font-weight: 850;
   color: #fff;
   margin: 0;
+}
+
+@media (max-width: 480px) {
+  .wizard-header h3 {
+    font-size: 1rem;
+  }
 }
 
 .wizard-header-main {
@@ -4681,9 +4693,9 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   gap: 0.6rem;
-  max-height: none;
-  overflow: visible;
-  padding-right: 0;
+  max-height: min(40vh, 340px);
+  overflow-y: auto;
+  padding-right: 0.5rem;
   align-content: start;
 }
 
