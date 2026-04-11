@@ -464,9 +464,15 @@ const Players: React.FC = () => {
                         <span>C/V</span>
                     </div>
                     <div className="p-cards">
-                      {getPendingSuspension(player).isSuspended && (
-                        <span className="p-suspension-badge">SUSPENSO</span>
-                      )}
+                      {(() => {
+                        const susp = getPendingSuspension(player);
+                        if (!susp.isSuspended) return null;
+                        return (
+                          <span className="p-suspension-badge" title={`${susp.pendingGames} jogo(s) de suspensão pendente(s)`}>
+                            SUSPENSO ({susp.pendingGames})
+                          </span>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
