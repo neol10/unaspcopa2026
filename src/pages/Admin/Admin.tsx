@@ -3520,6 +3520,11 @@ const TeamManagement = () => {
                             onChange={e => setEditTeamData({ ...editTeamData, name: e.target.value })}
                           />
                           <input
+                            placeholder="Líder/Capitão"
+                            value={editTeamData.leader}
+                            onChange={e => setEditTeamData({ ...editTeamData, leader: e.target.value })}
+                          />
+                          <input
                             placeholder="URL do escudo"
                             value={editTeamData.badge_url}
                             onChange={e => setEditTeamData({ ...editTeamData, badge_url: e.target.value })}
