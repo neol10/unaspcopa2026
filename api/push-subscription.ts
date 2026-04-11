@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import { verifyAuth } from "./auth";
+import { verifyAuth } from "./auth.js";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',

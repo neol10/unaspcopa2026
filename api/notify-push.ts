@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import webpush from 'web-push';
 import type { PushSubscription } from 'web-push';
 import { createClient } from '@supabase/supabase-js';
-import { verifyAuth } from "./auth";
+import { verifyAuth } from "./auth.js";
 
 const readEnv = (...keys: string[]) => {
   for (const key of keys) {
