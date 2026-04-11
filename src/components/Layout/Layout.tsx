@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Home, Trophy, BarChart2, Users, Settings, Timer, Sun, Moon, Menu, X, LogIn, User, LogOut, Calendar, Bell, BellOff, Image, Flag } from 'lucide-react';
@@ -32,6 +32,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   const [goalOverlay, setGoalOverlay] = useState<GoalOverlayPayload | null>(null);
+  const torcidaAudioRef = useRef<HTMLAudioElement | null>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
@@ -98,11 +99,38 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   });
 
   useEffect(() => {
+    // Preload + unlock do áudio (mobile bloqueia autoplay sem gesto do usuário)
+    const audio = new Audio('/sounds/torcida.mp3');
+    audio.preload = 'auto';
+    audio.volume = 0.6;
+    torcidaAudioRef.current = audio;
+
+    let unlocked = false;
+    const tryUnlock = async () => {
+      if (unlocked) return;
+      unlocked = true;
+      try {
+        audio.muted = true;
+        await audio.play();
+        audio.pause();
+        audio.currentTime = 0;
+        audio.muted = false;
+      } catch {
+        // Se falhar, tentamos de novo no próximo gesto
+        unlocked = false;
+      }
+    };
+
+    window.addEventListener('pointerdown', tryUnlock, { passive: true });
+    window.addEventListener('keydown', tryUnlock);
+
     const onOnline = () => setIsOnline(true);
     const onOffline = () => setIsOnline(false);
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
     return () => {
+      window.removeEventListener('pointerdown', tryUnlock);
+      window.removeEventListener('keydown', tryUnlock);
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
     };
@@ -124,10 +152,16 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const unsub = onGoalOverlay((payload) => {
       if (isAdminRoute) return;
       
-      // Reproduzir som de torcida
-      const goalAudio = new Audio('/sounds/torcida.mp3');
-      goalAudio.volume = 0.6;
-      goalAudio.play().catch(e => console.warn('Audio auto-play blocked:', e));
+      // Reproduzir som de torcida (reutiliza elemento para reduzir bloqueios/latência)
+      const goalAudio = torcidaAudioRef.current;
+      if (goalAudio) {
+        try {
+          goalAudio.currentTime = 0;
+        } catch {
+          // ignore
+        }
+        goalAudio.play().catch(e => console.warn('Audio auto-play blocked:', e));
+      }
 
       setGoalOverlay(payload);
       window.setTimeout(() => setGoalOverlay(null), 5000);
