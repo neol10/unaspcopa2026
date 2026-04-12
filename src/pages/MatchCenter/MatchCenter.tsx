@@ -19,6 +19,7 @@ import { useMatchWinnerVoting } from '../../hooks/useMatchWinnerVoting';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { emitGoalOverlay } from '../../lib/goalOverlay';
 import { useDivisionContext } from '../../contexts/DivisionContext';
+import { deriveMatchStatus } from '../../lib/matchStatus';
 
 // Refactored Components & Hooks
 import { MatchSelector } from './components/MatchSelector';
@@ -56,20 +57,28 @@ const MatchCenter: React.FC = () => {
   
   const activeMatch = useMemo(() => {
     if (selectedMatchId) return baseMatches.find(m => m.id === selectedMatchId);
-    return baseMatches.find(m => m.status === 'ao_vivo') || baseMatches[0];
+    const nowMs = Date.now();
+    return baseMatches.find((m) => deriveMatchStatus(m, nowMs) === 'ao_vivo') || baseMatches[0];
   }, [baseMatches, selectedMatchId]);
 
   const handleSelectMatch = (id: string) => {
     setSearchParams({ id });
   };
 
-  const counts = useMemo(() => ({
-    live: baseMatches.filter(m => m.status === 'ao_vivo').length,
-    upcoming: baseMatches.filter(m => m.status === 'agendado').length,
-    finished: baseMatches.filter(m => m.status === 'finalizado').length,
-  }), [baseMatches]);
+  const counts = useMemo(() => {
+    const nowMs = Date.now();
+    const derived = baseMatches.map((m) => deriveMatchStatus(m, nowMs));
+    return {
+      live: derived.filter((s) => s === 'ao_vivo').length,
+      upcoming: derived.filter((s) => s === 'agendado').length,
+      finished: derived.filter((s) => s === 'finalizado').length,
+    };
+  }, [baseMatches]);
 
-  const liveMatchId = baseMatches.find(m => m.status === 'ao_vivo')?.id;
+  const liveMatchId = useMemo(() => {
+    const nowMs = Date.now();
+    return baseMatches.find((m) => deriveMatchStatus(m, nowMs) === 'ao_vivo')?.id;
+  }, [baseMatches]);
   const { players } = usePlayers();
   const { standings } = useStandings();
 
@@ -94,7 +103,7 @@ const MatchCenter: React.FC = () => {
   const { elapsedTime, isPaused } = useMatchTimer(activeMatch);
 
   const matchPeriod = useMemo(() => {
-    if (!activeMatch || activeMatch.status !== 'ao_vivo') return null;
+    if (!activeMatch || deriveMatchStatus(activeMatch) !== 'ao_vivo') return null;
     const hasEndedFirstHalf = events.some(e => e.event_type === 'comentario' && e.commentary?.includes('Fim do 1º Tempo'));
     const hasStartedSecondHalf = events.some(e => e.event_type === 'comentario' && e.commentary?.includes('Início do 2º Tempo'));
     if (hasStartedSecondHalf) return '2º Tempo';
@@ -228,7 +237,7 @@ const MatchCenter: React.FC = () => {
                 winnerVotesError={winnerVotesError}
                 onCastWinnerVote={castWinnerVote}
                 onShowAuthModal={() => setShowAuthModal(true)}
-                getPollQuestion={() => activeMatch.status === 'finalizado' ? 'Quem venceu?' : 'Quem vence?'}
+                getPollQuestion={() => deriveMatchStatus(activeMatch) === 'finalizado' ? 'Quem venceu?' : 'Quem vence?'}
                 isKnockout={isKnockoutRound(String(activeMatch.round))}
               />
 
@@ -246,7 +255,7 @@ const MatchCenter: React.FC = () => {
             </div>
 
             <aside className="match-side">
-              {activeMatch.status === 'ao_vivo' && (
+              {deriveMatchStatus(activeMatch) === 'ao_vivo' && (
                 <div className="standings-impact-widget glass">
                   <div className="side-header">
                     <TrendingUp size={18} color="var(--secondary)" />

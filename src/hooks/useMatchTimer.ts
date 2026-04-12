@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
+import { deriveMatchStatus } from '../lib/matchStatus';
 
 interface MatchTimingInfo {
+  id?: string;
   status: string;
+  match_date?: string | null;
   is_timer_running?: boolean;
   timer_started_at?: string | null;
   timer_offset_seconds: number;
@@ -18,7 +21,8 @@ export const useMatchTimer = (match: MatchTimingInfo | null | undefined) => {
     }
 
     const updateTimer = () => {
-      if (match.status === 'ao_vivo') {
+      const effectiveStatus = deriveMatchStatus(match);
+      if (effectiveStatus === 'ao_vivo') {
         if (match.is_timer_running && match.timer_started_at) {
           const start = new Date(match.timer_started_at).getTime();
           const now = Date.now();
@@ -36,7 +40,7 @@ export const useMatchTimer = (match: MatchTimingInfo | null | undefined) => {
           setElapsedTime(`${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`);
           setIsPaused(true);
         }
-      } else if (match.status === 'finalizado') {
+      } else if (effectiveStatus === 'finalizado') {
         setElapsedTime('Fim');
         setIsPaused(false);
       } else {
@@ -49,7 +53,7 @@ export const useMatchTimer = (match: MatchTimingInfo | null | undefined) => {
     const interval = setInterval(updateTimer, 1000);
 
     return () => clearInterval(interval);
-  }, [match?.id, match?.status, match?.is_timer_running, match?.timer_started_at, match?.timer_offset_seconds]);
+  }, [match?.id, match?.status, match?.match_date, match?.is_timer_running, match?.timer_started_at, match?.timer_offset_seconds]);
 
   return { elapsedTime, isPaused };
 };

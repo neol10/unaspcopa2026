@@ -1,14 +1,18 @@
 import React from 'react';
 import { Shield, Timer, Award, Download, Copy } from 'lucide-react';
+import { deriveMatchStatus } from '../../../lib/matchStatus';
 
 interface ScoreboardProps {
   match: {
     id: string;
     location?: string | null;
     status: string;
+    match_date?: string | null;
     team_a_score: number;
     team_b_score: number;
     is_timer_running?: boolean;
+    timer_started_at?: string | null;
+    timer_offset_seconds?: number | null;
     match_mvp_player_id?: string | null;
     match_mvp_description?: string | null;
     teams_a?: { name: string; badge_url?: string | null };
@@ -33,12 +37,14 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
   onDownloadCard,
   onCopySummary
 }) => {
+  const effectiveStatus = deriveMatchStatus(match);
+
   return (
     <section className="live-scoreboard glass">
       <div className="scoreboard-top">
         <span className="location">{match.location}</span>
-        <div className={`match-badge ${match.status}`}>
-          {match.status === 'ao_vivo' ? 'AO VIVO' : match.status.toUpperCase()}
+        <div className={`match-badge ${effectiveStatus}`}>
+          {effectiveStatus === 'ao_vivo' ? 'AO VIVO' : effectiveStatus.toUpperCase()}
         </div>
       </div>
 
@@ -66,11 +72,11 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
             <span className="vs">:</span>
             <span className="num">{match.team_b_score}</span>
           </div>
-          <div className={`sb-timer active ${match.status === 'ao_vivo' && isPaused ? 'paused' : ''}`}>
-            <Timer size={14} className={match.status === 'ao_vivo' && !isPaused ? 'animate-pulse' : ''} />
+          <div className={`sb-timer active ${effectiveStatus === 'ao_vivo' && isPaused ? 'paused' : ''}`}> 
+            <Timer size={14} className={effectiveStatus === 'ao_vivo' && !isPaused ? 'animate-pulse' : ''} />
             <div className="timer-info-group">
               <span className="elapsed-time">
-                {match.status === 'ao_vivo' && isPaused ? 'PAUSADO' : elapsedTime}
+                {effectiveStatus === 'ao_vivo' && isPaused ? 'PAUSADO' : elapsedTime}
               </span>
               {matchPeriod && (
                 <span className="period-badge">{matchPeriod}</span>
@@ -99,7 +105,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
       
       <div className="scoreboard-bottom">
         <div className="live-progress">
-          <div className="progress-bar" style={{ width: match.status === 'ao_vivo' ? '50%' : '100%' }}></div>
+          <div className="progress-bar" style={{ width: effectiveStatus === 'ao_vivo' ? '50%' : '100%' }}></div>
         </div>
       </div>
 

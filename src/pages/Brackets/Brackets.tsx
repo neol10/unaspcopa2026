@@ -5,6 +5,7 @@ import { useAuthContext } from '../../contexts/AuthContext';
 import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
 import { useTournamentConfig } from '../../hooks/useTournamentConfig';
 import { KNOCKOUT_ROUND_LABELS } from '../../lib/tournamentRules';
+import { deriveMatchStatus } from '../../lib/matchStatus';
 import { Trophy, ChevronRight, ChevronLeft, Target, Timer, ZoomIn, ZoomOut } from 'lucide-react';
 import './Brackets.css';
 
@@ -125,7 +126,7 @@ const Brackets: React.FC = () => {
     if (activeFilter === 'all') return baseMatches;
 
     if (activeFilter === 'live') {
-      return baseMatches.filter((m) => m.status === 'ao_vivo');
+      return baseMatches.filter((m) => deriveMatchStatus(m, nowTs) === 'ao_vivo');
     }
 
     if (activeFilter === 'today') {
@@ -144,18 +145,19 @@ const Brackets: React.FC = () => {
   }, [activeFilter, favoriteTeamId, baseMatches]);
 
   const sortMatches = useCallback((list: Match[]) => {
-    const statusRank = (status: Match['status']) => {
-      if (status === 'ao_vivo') return 0;
-      if (status === 'agendado') return 1;
+    const statusRank = (m: Match) => {
+      const effective = deriveMatchStatus(m, nowTs);
+      if (effective === 'ao_vivo') return 0;
+      if (effective === 'agendado') return 1;
       return 2;
     };
 
     return [...list].sort((a, b) => {
-      const rankDiff = statusRank(a.status) - statusRank(b.status);
+      const rankDiff = statusRank(a) - statusRank(b);
       if (rankDiff !== 0) return rankDiff;
       return new Date(a.match_date).getTime() - new Date(b.match_date).getTime();
     });
-  }, []);
+  }, [nowTs]);
 
   const KO_ROUND_LABELS: Record<number, string> = KNOCKOUT_ROUND_LABELS;
 
@@ -268,7 +270,7 @@ const Brackets: React.FC = () => {
   const scheduleSummary = useMemo(() => {
     const now = new Date();
     const today = now.toDateString();
-    const liveCount = matches.filter((m) => m.status === 'ao_vivo').length;
+    const liveCount = matches.filter((m) => deriveMatchStatus(m, now.getTime()) === 'ao_vivo').length;
     const todayCount = matches.filter((m) => new Date(m.match_date).toDateString() === today).length;
     const upcoming = matches
       .filter((m) => m.status === 'agendado' && new Date(m.match_date).getTime() > now.getTime())
@@ -554,15 +556,17 @@ const Brackets: React.FC = () => {
   };
 
   const MatchBox: React.FC<{ match: Match; isKnockout?: boolean }> = ({ match, isKnockout }) => {
-    const isLive = match.status === 'ao_vivo';
-    const isTeamAWinner = match.status === 'finalizado' && match.team_a_score > match.team_b_score;
-    const isTeamBWinner = match.status === 'finalizado' && match.team_b_score > match.team_a_score;
+    const effectiveStatus = deriveMatchStatus(match, nowTs);
+    const isLive = effectiveStatus === 'ao_vivo';
+    const isFinished = effectiveStatus === 'finalizado';
+    const isTeamAWinner = isFinished && match.team_a_score > match.team_b_score;
+    const isTeamBWinner = isFinished && match.team_b_score > match.team_a_score;
     const liveMinutes = isLive ? getLiveMinutes(match) : null;
-    const countdown = match.status === 'agendado' ? getCountdownLabel(match.match_date) : null;
+    const countdown = effectiveStatus === 'agendado' ? getCountdownLabel(match.match_date) : null;
 
     const getStatusLabel = () => {
       if (isLive) return <span className="live-badge-mini">AO VIVO</span>;
-      if (match.status === 'finalizado') return <span className="finished-label">FIM</span>;
+      if (isFinished) return <span className="finished-label">FIM</span>;
       return <span className="scheduled-label">PREVISTO</span>;
     };
 
@@ -587,7 +591,7 @@ const Brackets: React.FC = () => {
         }}
       >
         <div className={`match-box glass ${isLive ? 'clickable-match' : ''}`}>
-          <div className={`match-status-bar status-${match.status}`}></div>
+          <div className={`match-status-bar status-${effectiveStatus}`}></div>
           <div className="match-header-row" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem', alignItems: 'center' }}>
             <div className="match-time-tiny" style={{ marginBottom: 0 }}>
               {new Date(match.match_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} • {new Date(match.match_date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
@@ -597,23 +601,23 @@ const Brackets: React.FC = () => {
 
           <div className="match-preview">
             <span className="match-meta">{match.location || 'Local a definir'}</span>
-            <span className="match-meta">{match.status === 'agendado' && countdown ? countdown : match.status === 'ao_vivo' && liveMinutes !== null ? `${liveMinutes}' em andamento` : 'Partida encerrada'}</span>
+            <span className="match-meta">{effectiveStatus === 'agendado' && countdown ? countdown : effectiveStatus === 'ao_vivo' && liveMinutes !== null ? `${liveMinutes}' em andamento` : 'Partida encerrada'}</span>
           </div>
 
           <div className="match-mini-timeline">
-            {match.status === 'ao_vivo' && (
+            {effectiveStatus === 'ao_vivo' && (
               <>
                 <span className="timeline-chip live">AO VIVO</span>
                 <span className="timeline-chip">Min {liveMinutes ?? 0}</span>
               </>
             )}
-            {match.status === 'agendado' && countdown && (
+            {effectiveStatus === 'agendado' && countdown && (
               <>
                 <span className="timeline-chip soon">EM BREVE</span>
                 <span className="timeline-chip subtle">{countdown}</span>
               </>
             )}
-            {match.status === 'finalizado' && (
+            {effectiveStatus === 'finalizado' && (
               <>
                 <span className="timeline-chip final">ENCERRADO</span>
                 <span className="timeline-chip subtle">Placar final</span>
@@ -636,7 +640,7 @@ const Brackets: React.FC = () => {
               ) : <div className="team-badge-mini" style={{width: 28, height: 28, background: 'rgba(255,255,255,0.05)', borderRadius: '50%'}}></div>}
               <span>{match.teams_a?.name || 'A definir'}</span>
             </div>
-            <div className="team-score">{match.status !== 'agendado' ? match.team_a_score : '-'}</div>
+            <div className="team-score">{effectiveStatus !== 'agendado' ? match.team_a_score : '-'}</div>
           </div>
           
           <div className={`match-team ${isTeamBWinner ? 'winner' : ''}`}>
@@ -654,7 +658,7 @@ const Brackets: React.FC = () => {
               ) : <div className="team-badge-mini" style={{width: 28, height: 28, background: 'rgba(255,255,255,0.05)', borderRadius: '50%'}}></div>}
               <span>{match.teams_b?.name || 'A definir'}</span>
             </div>
-            <div className="team-score">{match.status !== 'agendado' ? match.team_b_score : '-'}</div>
+            <div className="team-score">{effectiveStatus !== 'agendado' ? match.team_b_score : '-'}</div>
           </div>
         </div>
         {isKnockout && <div className="bracket-connectors"></div>}

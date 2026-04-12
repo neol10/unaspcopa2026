@@ -19,6 +19,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { emitGoalOverlay } from '../../lib/goalOverlay';
 import { useDivisionContext } from '../../contexts/DivisionContext';
 import { detectTournamentPhase } from '../../lib/tournamentRules';
+import { deriveMatchStatus } from '../../lib/matchStatus';
 
 const Home: React.FC = () => {
   const { division } = useDivisionContext();
@@ -68,7 +69,10 @@ const Home: React.FC = () => {
     return finished.length > 0 ? finished[0] : null;
   }, [baseMatches]);
 
-  const liveMatch = useMemo<Match | null>(() => baseMatches.find(m => m.status === 'ao_vivo') || null, [baseMatches]);
+  const liveMatch = useMemo<Match | null>(() => {
+    const nowMs = Date.now();
+    return baseMatches.find((m) => deriveMatchStatus(m, nowMs) === 'ao_vivo') || null;
+  }, [baseMatches]);
   const { events: liveEvents } = useMatchEvents(liveMatch?.id || '');
   const latestLiveEvent = liveEvents?.[0];
   const [lastOverlayEventId, setLastOverlayEventId] = useState<string | null>(null);
@@ -100,7 +104,7 @@ const Home: React.FC = () => {
     const now = new Date();
     const todayStr = now.toDateString();
 
-    const liveCount = baseMatches.filter((m) => m.status === 'ao_vivo').length;
+    const liveCount = baseMatches.filter((m) => deriveMatchStatus(m, now.getTime()) === 'ao_vivo').length;
     const todayCount = baseMatches.filter((m) => new Date(m.match_date).toDateString() === todayStr).length;
     const upcomingCount = baseMatches.filter((m) => m.status === 'agendado' && new Date(m.match_date).getTime() > now.getTime()).length;
 
@@ -117,7 +121,8 @@ const Home: React.FC = () => {
     const updateTimer = () => {
       if (!liveMatch) return;
 
-      if (liveMatch.status === 'ao_vivo') {
+      const effectiveStatus = deriveMatchStatus(liveMatch);
+      if (effectiveStatus === 'ao_vivo') {
         if (liveMatch.is_timer_running && liveMatch.timer_started_at) {
           const start = new Date(liveMatch.timer_started_at).getTime();
           const now = Date.now();
@@ -137,7 +142,7 @@ const Home: React.FC = () => {
     };
 
     updateTimer();
-    if (liveMatch?.status === 'ao_vivo' && liveMatch.is_timer_running) {
+    if (liveMatch && deriveMatchStatus(liveMatch) === 'ao_vivo' && liveMatch.is_timer_running) {
       interval = setInterval(updateTimer, 1000);
     }
     return () => clearInterval(interval);

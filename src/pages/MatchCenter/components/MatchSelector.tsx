@@ -1,10 +1,15 @@
 import React from 'react';
 import { Zap, Shield } from 'lucide-react';
+import { deriveMatchStatus } from '../../../lib/matchStatus';
 
 interface Match {
   id: string;
   round?: number | string | null;
   status: string;
+  match_date?: string | null;
+  is_timer_running?: boolean | null;
+  timer_started_at?: string | null;
+  timer_offset_seconds?: number | null;
   teams_a?: { name: string; badge_url?: string; group?: string };
   teams_b?: { name: string; badge_url?: string; group?: string };
 }
@@ -70,7 +75,7 @@ export const MatchSelector: React.FC<MatchSelectorProps> = ({
         >
           {matches.map(m => (
             <option key={m.id} value={m.id}>
-              {m.status === 'ao_vivo' ? '🔴 ' : ''}
+              {deriveMatchStatus(m) === 'ao_vivo' ? '🔴 ' : ''}
               {getTeamLabel(m.teams_a?.name, 'Equipe A')} x {getTeamLabel(m.teams_b?.name, 'Equipe B')}
             </option>
           ))}
@@ -88,7 +93,7 @@ export const MatchSelector: React.FC<MatchSelectorProps> = ({
             <span className="pill-teams">
               {getTeamShortName(m.teams_a?.name, 'A')} x {getTeamShortName(m.teams_b?.name, 'B')}
             </span>
-            {m.status === 'ao_vivo' && <span className="live-dot-mini"></span>}
+            {deriveMatchStatus(m) === 'ao_vivo' && <span className="live-dot-mini"></span>}
           </button>
         ))}
       </div>
