@@ -1,6 +1,14 @@
 import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { useDivisionContext } from '../contexts/DivisionContext';
+import type { Division } from '../lib/division';
+import {
+  getDivisionColumnStatus,
+  isMissingColumnError,
+  markDivisionColumnMissing,
+  markDivisionColumnPresent,
+} from '../lib/supabaseOptionalColumns';
 
 export interface GroupCVisibilityConfig {
   teams: boolean;
@@ -45,6 +53,7 @@ export const normalizeGroupCVisibility = (raw: unknown): GroupCVisibilityConfig 
 
 export interface TournamentConfig {
   id: string;
+  division?: Division;
   total_rounds: number;
   matches_per_round: number;
   current_phase: 'grupos' | 'oitavas' | 'quartas' | 'semifinal' | 'final';
@@ -63,15 +72,33 @@ const DEFAULT: TournamentConfig = {
 
 export const useTournamentConfig = () => {
   const queryClient = useQueryClient();
+  const { division } = useDivisionContext();
 
   const query = useQuery({
-    queryKey: ['tournament_config'],
+    queryKey: ['tournament_config', division],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('tournament_config')
-        .select('*')
-        .single();
-      if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows found
+      const status = getDivisionColumnStatus();
+
+      const baseQuery = supabase.from('tournament_config').select('*');
+      const q = status === 'missing' ? baseQuery : baseQuery.eq('division', division);
+
+      const { data, error } = await q.maybeSingle();
+      if (error && error.code !== 'PGRST116') {
+        if (status !== 'missing' && isMissingColumnError(error as any, 'division')) {
+          markDivisionColumnMissing();
+          const retry = await supabase.from('tournament_config').select('*').maybeSingle();
+          if (retry.error && retry.error.code !== 'PGRST116') throw retry.error;
+          const base = (retry.data as TournamentConfig) || DEFAULT;
+          return {
+            ...base,
+            group_c_visibility: normalizeGroupCVisibility((base as { group_c_visibility?: unknown }).group_c_visibility),
+          };
+        }
+        throw error;
+      }
+
+      if (status !== 'missing') markDivisionColumnPresent();
+
       const base = (data as TournamentConfig) || DEFAULT;
       return {
         ...base,
@@ -88,53 +115,93 @@ export const useTournamentConfig = () => {
     const channel = supabase
       .channel('public:tournament_config')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tournament_config' }, () => {
-        queryClient.invalidateQueries({ queryKey: ['tournament_config'] });
+        queryClient.invalidateQueries({ queryKey: ['tournament_config', division] });
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [queryClient]);
+  }, [queryClient, division]);
 
   const saveMutation = useMutation({
     mutationFn: async (updated: Partial<TournamentConfig>) => {
       const currentConfig = query.data || DEFAULT;
-      const merged = { ...currentConfig, ...updated };
+      const status = getDivisionColumnStatus();
+      const merged = status === 'missing'
+        ? { ...currentConfig, ...updated }
+        : { ...currentConfig, ...updated, division };
 
       if (currentConfig.id) {
-        const payload = { ...merged, updated_at: new Date().toISOString() };
+        const payload = { ...merged, updated_at: new Date().toISOString() } as Record<string, unknown>;
 
-        const { data, error } = await supabase
-          .from('tournament_config')
-          .update(payload)
-          .eq('id', currentConfig.id)
-          .select()
-          .single();
+        const attemptUpdate = async (payloadToUpdate: Record<string, unknown>) => {
+          return await supabase
+            .from('tournament_config')
+            .update(payloadToUpdate)
+            .eq('id', currentConfig.id)
+            .select()
+            .single();
+        };
 
-        if (error) throw error;
+        const res = await attemptUpdate(payload);
+        if (res.error) {
+          if (status !== 'missing' && isMissingColumnError(res.error as any, 'division')) {
+            markDivisionColumnMissing();
+            const { division: _ignored, ...payloadNoDivision } = payload as { division?: unknown } & Record<string, unknown>;
+            const retry = await attemptUpdate(payloadNoDivision);
+            if (retry.error) throw retry.error;
+            return {
+              ...(retry.data as TournamentConfig),
+              group_c_visibility: normalizeGroupCVisibility((retry.data as { group_c_visibility?: unknown })?.group_c_visibility),
+            };
+          }
+          throw res.error;
+        }
+
+        if (status !== 'missing') markDivisionColumnPresent();
         return {
-          ...(data as TournamentConfig),
-          group_c_visibility: normalizeGroupCVisibility((data as { group_c_visibility?: unknown })?.group_c_visibility),
+          ...(res.data as TournamentConfig),
+          group_c_visibility: normalizeGroupCVisibility((res.data as { group_c_visibility?: unknown })?.group_c_visibility),
         };
       } else {
-        const payload = { ...merged };
+        const payload = { ...merged } as Record<string, unknown>;
+        if (!payload.id) {
+          delete payload.id;
+        }
 
-        const { data, error } = await supabase
-          .from('tournament_config')
-          .insert([payload])
-          .select()
-          .single();
+        const attemptInsert = async (payloadToInsert: Record<string, unknown>) => {
+          return await supabase
+            .from('tournament_config')
+            .insert([payloadToInsert])
+            .select()
+            .single();
+        };
 
-        if (error) throw error;
+        const res = await attemptInsert(payload);
+        if (res.error) {
+          if (status !== 'missing' && isMissingColumnError(res.error as any, 'division')) {
+            markDivisionColumnMissing();
+            const { division: _ignored, ...payloadNoDivision } = payload as { division?: unknown } & Record<string, unknown>;
+            const retry = await attemptInsert(payloadNoDivision);
+            if (retry.error) throw retry.error;
+            return {
+              ...(retry.data as TournamentConfig),
+              group_c_visibility: normalizeGroupCVisibility((retry.data as { group_c_visibility?: unknown })?.group_c_visibility),
+            };
+          }
+          throw res.error;
+        }
+
+        if (status !== 'missing') markDivisionColumnPresent();
         return {
-          ...(data as TournamentConfig),
-          group_c_visibility: normalizeGroupCVisibility((data as { group_c_visibility?: unknown })?.group_c_visibility),
+          ...(res.data as TournamentConfig),
+          group_c_visibility: normalizeGroupCVisibility((res.data as { group_c_visibility?: unknown })?.group_c_visibility),
         };
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tournament_config'] });
+      queryClient.invalidateQueries({ queryKey: ['tournament_config', division] });
     }
   });
 

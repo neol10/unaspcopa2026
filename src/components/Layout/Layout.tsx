@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Home, Trophy, BarChart2, Users, Settings, Timer, Sun, Moon, Menu, X, LogIn, User, LogOut, Calendar, Bell, BellOff, Image, Flag } from 'lucide-react';
+import { Home, Trophy, BarChart2, Users, Settings, Timer, Sun, Moon, Menu, X, LogIn, User, LogOut, Calendar, Bell, BellOff, Image, Flag, ArrowRightLeft } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
@@ -17,12 +17,14 @@ import { prefetchRouteIntent } from '../../lib/routePrefetch';
 import { onGoalOverlay, type GoalOverlayPayload } from '../../lib/goalOverlay';
 import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
 import FeedbackModal from '../Feedback/FeedbackModal';
+import { useDivisionContext } from '../../contexts/DivisionContext';
 import './Layout.css';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { theme, toggleTheme } = useTheme();
   const { user, role, signOut } = useAuthContext();
   const { isSubscribed, subscribe, unsubscribe, preferences, updatePreferences } = usePushNotifications();
+  const { division, label: divisionLabel, toggleDivision } = useDivisionContext();
   const { teams } = useTeams();
   const { visibility } = useGroupCVisibility();
   const { matches } = useMatches();
@@ -151,6 +153,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   useEffect(() => {
     const unsub = onGoalOverlay((payload) => {
       if (isAdminRoute) return;
+
+      if (payload.division && payload.division !== division) return;
       
       // Reproduzir som de torcida (reutiliza elemento para reduzir bloqueios/latência)
       const goalAudio = torcidaAudioRef.current;
@@ -243,6 +247,20 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           </div>
 
           <div className="fifa-streak" style={{ opacity: 0.3, marginBottom: '2rem' }}></div>
+
+          <button
+            className={`division-toggle ${division === 'feminino' ? 'is-feminino' : 'is-masculino'}`}
+            type="button"
+            onClick={() => {
+              toggleDivision();
+              closeMobileMenu();
+            }}
+            aria-label={`Alternar categoria (atual: ${divisionLabel})`}
+            title={`Categoria atual: ${divisionLabel}`}
+          >
+            <ArrowRightLeft size={18} />
+            <span>Categoria: {divisionLabel}</span>
+          </button>
 
           <nav className="sidebar-nav">
             <ul className="nav-links">

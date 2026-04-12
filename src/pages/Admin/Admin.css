@@ -3357,6 +3357,32 @@
     padding: 0.9rem;
     flex-direction: column;
     align-items: stretch;
+
+  .admin-division-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.6rem 0.9rem;
+    border-radius: 12px;
+    border: 1px solid var(--border-light);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-main);
+    font-weight: 900;
+    cursor: pointer;
+    min-height: 40px;
+    white-space: nowrap;
+  }
+
+  .admin-division-toggle:hover {
+    border-color: var(--secondary);
+    color: var(--secondary);
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .admin-division-toggle:focus-visible {
+    outline: 2px solid var(--secondary);
+    outline-offset: 2px;
+  }
   }
 
   .admin-quick-strip__actions {

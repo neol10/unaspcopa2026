@@ -1067,7 +1067,13 @@
   scrollbar-width: none;
   -ms-overflow-style: none;
   -webkit-overflow-scrolling: touch;
-  touch-action: pan-x;
+  touch-action: pan-y;
+}
+
+.brackets-scroll-container.mode-teia {
+  overflow: hidden;
+  touch-action: none;
+  overscroll-behavior: contain;
 }
 
 .brackets-scroll-container:active {

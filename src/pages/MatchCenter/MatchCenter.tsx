@@ -18,6 +18,7 @@ import ShareCard, { useShareCard } from '../../components/ShareCard/ShareCard';
 import { useMatchWinnerVoting } from '../../hooks/useMatchWinnerVoting';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { emitGoalOverlay } from '../../lib/goalOverlay';
+import { useDivisionContext } from '../../contexts/DivisionContext';
 
 // Refactored Components & Hooks
 import { MatchSelector } from './components/MatchSelector';
@@ -29,6 +30,7 @@ import { isKnockoutRound } from '../../lib/matchHelpers';
 import './MatchCenter.css';
 
 const MatchCenter: React.FC = () => {
+  const { division } = useDivisionContext();
   const { matches, loading: matchesLoading, error: matchesError, refresh: refreshMatches } = useMatches();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, role } = useAuthContext();
@@ -80,7 +82,7 @@ const MatchCenter: React.FC = () => {
       const player = players.find(p => p.id === event.player_id);
       const teamName = player?.team_id === activeMatch?.team_a_id ? activeMatch?.teams_a?.name : activeMatch?.teams_b?.name;
       toast.success(`⚽ GOOOOL! ${playerName}`);
-      emitGoalOverlay({ team: teamName || 'GOL!', player: playerName, playerPhotoUrl: player?.photo_url });
+      emitGoalOverlay({ team: teamName || 'GOL!', player: playerName, playerPhotoUrl: player?.photo_url, division });
     } else if (event.event_type === 'amarelo') {
       toast(`🟨 Cartão Amarelo para ${event.players?.name || ''}`, { icon: '🟨' });
     } else if (event.event_type === 'vermelho') {

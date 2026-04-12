@@ -2,6 +2,13 @@ import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { Player } from './usePlayers';
+import { useDivisionContext } from '../contexts/DivisionContext';
+import {
+  getDivisionColumnStatus,
+  isMissingColumnError,
+  markDivisionColumnMissing,
+  markDivisionColumnPresent,
+} from '../lib/supabaseOptionalColumns';
 
 export interface RankingPlayer extends Player {
   team_name?: string;
@@ -13,7 +20,8 @@ export interface RankingPlayer extends Player {
 
 export const useRankings = () => {
   const queryClient = useQueryClient();
-  const CACHE_KEY = 'rankings_cache_v1';
+  const { division } = useDivisionContext();
+  const CACHE_KEY = `rankings_cache_v1_${division}`;
 
   const loadCachedRankings = () => {
     if (typeof window === 'undefined') return null;
@@ -76,38 +84,93 @@ export const useRankings = () => {
   };
 
   const query = useQuery({
-    queryKey: ['rankings'],
+    queryKey: ['rankings', division],
     queryFn: async () => {
-      const playersRes = await supabase
-        .from('players')
-        .select('id, name, number, position, photo_url, goals_count, assists, yellow_cards, red_cards, clean_sheets, team_id, teams:team_id(name, badge_url)');
+      const status = getDivisionColumnStatus();
 
-      if (playersRes.error) throw playersRes.error;
-
-      const safeList = async <T>(fn: () => Promise<{ data: T[] | null; error: unknown }>) => {
+      const safeList = async <T>(
+        primary: () => Promise<{ data: T[] | null; error: unknown }>,
+        fallbackOnMissingDivision?: () => Promise<{ data: T[] | null; error: unknown }>,
+      ) => {
         try {
-          const { data, error } = await fn();
+          const { data, error } = await primary();
           if (error) throw error;
           return (data as T[]) || [];
-        } catch {
+        } catch (err: unknown) {
+          if (fallbackOnMissingDivision && isMissingColumnError(err as any, 'division')) {
+            markDivisionColumnMissing();
+            try {
+              const { data, error } = await fallbackOnMissingDivision();
+              if (error) throw error;
+              return (data as T[]) || [];
+            } catch {
+              return [] as T[];
+            }
+          }
           return [] as T[];
         }
       };
 
+      // Players (precisa, se falhar deve estourar)
+      let playersQ = supabase
+        .from('players')
+        .select('id, name, number, position, photo_url, goals_count, assists, yellow_cards, red_cards, clean_sheets, team_id, teams:team_id(name, badge_url)');
+      if (status !== 'missing') playersQ = playersQ.eq('division', division);
+
+      let playersRes = await playersQ;
+      if (playersRes.error) {
+        if (status !== 'missing' && isMissingColumnError(playersRes.error as any, 'division')) {
+          markDivisionColumnMissing();
+          playersRes = await supabase
+            .from('players')
+            .select('id, name, number, position, photo_url, goals_count, assists, yellow_cards, red_cards, clean_sheets, team_id, teams:team_id(name, badge_url)');
+        }
+      }
+
+      if (playersRes.error) throw playersRes.error;
+      if (status !== 'missing') markDivisionColumnPresent();
+
       const [votesData, eventsData, matchesData] = await Promise.all([
-        safeList<{ player_id: string }>(() => supabase.from('match_mvp_votes').select('player_id')),
+        safeList<{ player_id: string }>(
+          () => {
+            const currentStatus = getDivisionColumnStatus();
+            if (currentStatus === 'missing') {
+              return supabase.from('match_mvp_votes').select('player_id') as any;
+            }
+            return (supabase
+              .from('match_mvp_votes')
+              .select('player_id, matches:match_id!inner(division)')
+              .eq('matches.division', division) as any);
+          },
+          () => supabase.from('match_mvp_votes').select('player_id') as any,
+        ),
         safeList<{
           player_id: string | null;
           assistant_id?: string | null;
           event_type: 'gol' | 'assistencia' | string;
           minute: number;
           metadata?: { goal_type?: string | null } | null;
-          matches?: { round?: unknown } | null;
-        }>(() =>
-          supabase
-            .from('match_events')
-            .select('player_id, assistant_id, event_type, minute, metadata, matches:match_id(round)')
-            .in('event_type', ['gol', 'assistencia']),
+          matches?: { round?: unknown; division?: unknown } | null;
+        }>(
+          () => {
+            const currentStatus = getDivisionColumnStatus();
+            if (currentStatus === 'missing') {
+              return supabase
+                .from('match_events')
+                .select('player_id, assistant_id, event_type, minute, metadata, matches:match_id!inner(round)')
+                .in('event_type', ['gol', 'assistencia']) as any;
+            }
+            return supabase
+              .from('match_events')
+              .select('player_id, assistant_id, event_type, minute, metadata, matches:match_id!inner(round, division)')
+              .eq('matches.division', division)
+              .in('event_type', ['gol', 'assistencia']) as any;
+          },
+          () =>
+            supabase
+              .from('match_events')
+              .select('player_id, assistant_id, event_type, minute, metadata, matches:match_id!inner(round)')
+              .in('event_type', ['gol', 'assistencia']) as any,
         ),
         safeList<{
           round: unknown;
@@ -116,7 +179,15 @@ export const useRankings = () => {
           team_b_id: string;
           team_a_score: number;
           team_b_score: number;
-        }>(() => supabase.from('matches').select('round, status, team_a_id, team_b_id, team_a_score, team_b_score')),
+        }>(
+          () => {
+            const currentStatus = getDivisionColumnStatus();
+            const base = supabase.from('matches').select('round, status, team_a_id, team_b_id, team_a_score, team_b_score');
+            if (currentStatus === 'missing') return base as any;
+            return base.eq('division', division) as any;
+          },
+          () => supabase.from('matches').select('round, status, team_a_id, team_b_id, team_a_score, team_b_score') as any,
+        ),
       ]);
 
       const playersData = playersRes.data || [];
@@ -268,15 +339,15 @@ export const useRankings = () => {
   useEffect(() => {
     const channel = supabase
       .channel('public:rankings_sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, () => queryClient.invalidateQueries({ queryKey: ['rankings'] }))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'match_events' }, () => queryClient.invalidateQueries({ queryKey: ['rankings'] }))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'match_mvp_votes' }, () => queryClient.invalidateQueries({ queryKey: ['rankings'] }))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, () => queryClient.invalidateQueries({ queryKey: ['rankings', division] }))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'match_events' }, () => queryClient.invalidateQueries({ queryKey: ['rankings', division] }))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'match_mvp_votes' }, () => queryClient.invalidateQueries({ queryKey: ['rankings', division] }))
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [queryClient]);
+  }, [queryClient, division]);
 
   const data = query.data || {
     scorers: [], assistants: [], goalkeepers: [], galeraRank: [], disciplined: [], roundMvps: {}, availableRounds: []

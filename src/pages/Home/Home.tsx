@@ -17,9 +17,11 @@ import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
 import { motion, AnimatePresence } from 'framer-motion';
 import { emitGoalOverlay } from '../../lib/goalOverlay';
+import { useDivisionContext } from '../../contexts/DivisionContext';
 import { detectTournamentPhase } from '../../lib/tournamentRules';
 
 const Home: React.FC = () => {
+  const { division } = useDivisionContext();
   const { config } = useTournamentConfig();
   const { news, loading: newsLoading, error: newsError, refresh: refreshNews } = useNews(3);
   const { standings, loading: standingsLoading } = useStandings();
@@ -171,9 +173,10 @@ const Home: React.FC = () => {
       team: matchup,
       player: latestLiveEvent.players?.name || 'Jogador',
       playerPhotoUrl: latestLiveEvent.players?.photo_url,
+      division,
     });
     setLastOverlayEventId(latestLiveEvent.id || null);
-  }, [latestLiveEvent, lastOverlayEventId, liveMatch]);
+  }, [latestLiveEvent, lastOverlayEventId, liveMatch, division]);
 
   useEffect(() => {
     if (!nextMatch) return;

@@ -18,6 +18,8 @@ import { DEFAULT_GROUP_C_VISIBILITY, normalizeGroupCVisibility, type GroupCVisib
 import { toast } from 'react-hot-toast';
 import { useConfirm } from '../../hooks/useConfirm';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useDivisionContext } from '../../contexts/DivisionContext';
+import { isMissingColumnError as isMissingDivisionColumnError, markDivisionColumnMissing } from '../../lib/supabaseOptionalColumns';
 import './Admin.css';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -387,6 +389,7 @@ const Admin: React.FC = () => {
 
   const isAdmin = role === 'admin';
   const { ConfirmElement } = useConfirm();
+  const { division, label: divisionLabel, toggleDivision } = useDivisionContext();
 
   return (
     <div className="admin-container animate-fade-in">
@@ -412,6 +415,17 @@ const Admin: React.FC = () => {
                 <div className="fifa-streak" style={{ marginTop: '0.5rem', opacity: 0.5 }}></div>
               </div>
             </div>
+
+            <button
+              className={`admin-division-toggle ${division === 'feminino' ? 'is-feminino' : 'is-masculino'}`}
+              type="button"
+              onClick={toggleDivision}
+              title={`Categoria atual: ${divisionLabel}`}
+              aria-label={`Alternar categoria (atual: ${divisionLabel})`}
+            >
+              <ArrowRightLeft size={18} />
+              <span>{divisionLabel}</span>
+            </button>
             
             <nav className="admin-tabs">
               <button 
@@ -563,6 +577,7 @@ type PushSendOptions = {
   category?: 'live' | 'results' | 'news' | 'polls' | 'standings' | 'general';
   important?: boolean;
   teamIds?: string[];
+  division?: import('../../lib/division').Division;
 };
 
 let lastPushErrorMessage = '';
@@ -600,8 +615,11 @@ const sendPushNotification = async (title: string, body: string, options: PushSe
     return false;
   }
 
+  const { readStoredDivision } = await import('../../lib/division');
+  const currentDivision = readStoredDivision();
+
   const payload = typeof options === 'string'
-    ? { title: safeTitle, body: safeBody, message: safeBody, url: options }
+    ? { title: safeTitle, body: safeBody, message: safeBody, url: options, division: currentDivision }
     : {
         title: safeTitle,
         body: safeBody,
@@ -611,6 +629,7 @@ const sendPushNotification = async (title: string, body: string, options: PushSe
         important: Boolean(options.important),
         teamIds: options.teamIds || [],
         team_ids: options.teamIds || [],
+        division: options.division || currentDivision,
       };
 
   const endpoint = resolvePushApiEndpoint();
@@ -1408,6 +1427,7 @@ const MatchManagement = () => {
   const { matches, loading, refresh } = useMatches();
   const { teams } = useTeams();
   const queryClient = useQueryClient();
+  const { division } = useDivisionContext();
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -1469,9 +1489,9 @@ const MatchManagement = () => {
   const formatRoundInput = (value: number) => KO_ROUND_LABELS[value] || String(value);
 
   const invalidateCompetitionData = () => {
-    void queryClient.invalidateQueries({ queryKey: ['matches'] });
-    void queryClient.invalidateQueries({ queryKey: ['standings'] });
-    void queryClient.invalidateQueries({ queryKey: ['rankings'] });
+    void queryClient.invalidateQueries({ queryKey: ['matches', division] });
+    void queryClient.invalidateQueries({ queryKey: ['standings', division] });
+    void queryClient.invalidateQueries({ queryKey: ['rankings', division] });
   };
 
   // Agrupar equipes por grupo
@@ -1507,16 +1527,32 @@ const MatchManagement = () => {
 
     setIsSubmittingMatch(true);
     try {
-      const { error } = await withTimeout(
-        supabase.from('matches').insert([{
-          ...formData,
-          match_date: formData.match_date ? new Date(formData.match_date).toISOString() : null,
-          round: currentRound
-        }]),
-        30000,
-        'Tempo limite ao criar partida'
-      );
-      if (error) throw error;
+      const payload = {
+        ...formData,
+        division,
+        match_date: formData.match_date ? new Date(formData.match_date).toISOString() : null,
+        round: currentRound,
+      } as Record<string, unknown>;
+
+      const doInsert = async (payloadToInsert: Record<string, unknown>) => {
+        return await withTimeout(
+          supabase.from('matches').insert([payloadToInsert]),
+          30000,
+          'Tempo limite ao criar partida'
+        );
+      };
+
+      const res = await doInsert(payload);
+      if (res.error) {
+        if (isMissingDivisionColumnError(res.error as any, 'division')) {
+          markDivisionColumnMissing();
+          const { division: _ignored, ...payloadNoDivision } = payload as { division?: unknown } & Record<string, unknown>;
+          const retry = await doInsert(payloadNoDivision);
+          if (retry.error) throw retry.error;
+        } else {
+          throw res.error;
+        }
+      }
       setFormData({ team_a_id: '', team_b_id: '', match_date: '', location: 'Ginásio Principal', status: 'agendado', round: '1' });
       setIsAdding(false);
       void refresh();
@@ -3300,6 +3336,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 const TeamManagement = () => {
   const { teams, loading, refresh } = useTeams();
   const queryClient = useQueryClient();
+  const { division } = useDivisionContext();
   const [isAdding, setIsAdding] = useState(false);
   const [isSubmittingTeam, setIsSubmittingTeam] = useState(false);
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
@@ -3311,9 +3348,23 @@ const TeamManagement = () => {
   const [editTeamData, setEditTeamData] = useState<TeamFormData>({ name: '', group: '', leader: '', badge_url: '', primary_color: '#E4002B' });
   const [uploading, setUploading] = useState(false);
 
-  const isPrimaryColorMissingError = (message: string | undefined) => {
-    if (!message) return false;
-    return message.includes("'primary_color'") && message.toLowerCase().includes('schema cache');
+  const isPrimaryColorMissingError = (err: unknown) => {
+    const e = err as { message?: unknown; details?: unknown; code?: unknown } | null;
+    const message = typeof e?.message === 'string' ? e.message : typeof err === 'string' ? err : '';
+    const details = typeof e?.details === 'string' ? e.details : '';
+    const code = typeof e?.code === 'string' ? e.code : '';
+    const combined = `${message} ${details} ${code}`.toLowerCase();
+
+    if (!combined.includes('primary_color')) return false;
+
+    return (
+      combined.includes('schema cache') ||
+      combined.includes('does not exist') ||
+      combined.includes('could not find') ||
+      combined.includes('unknown field') ||
+      combined.includes('unknown column') ||
+      code.toLowerCase() === 'pgrst204'
+    );
   };
 
   useEffect(() => {
@@ -3322,12 +3373,11 @@ const TeamManagement = () => {
     const check = async () => {
       try {
         const { error } = await supabase.from('teams').select('id, primary_color').limit(1);
-        if (!cancelled && error && isPrimaryColorMissingError(error.message)) {
+        if (!cancelled && error && isPrimaryColorMissingError(error)) {
           setSupportsTeamPrimaryColor(false);
         }
       } catch (err: unknown) {
-        const msg = (err as { message?: string } | null)?.message;
-        if (!cancelled && isPrimaryColorMissingError(msg)) {
+        if (!cancelled && isPrimaryColorMissingError(err)) {
           setSupportsTeamPrimaryColor(false);
         }
       }
@@ -3369,6 +3419,7 @@ const TeamManagement = () => {
         group: newTeamData.group.trim(),
         leader: newTeamData.leader.trim(),
         badge_url: newTeamData.badge_url?.trim() || null,
+        division,
       };
 
       if (supportsTeamPrimaryColor) {
@@ -3389,20 +3440,33 @@ const TeamManagement = () => {
       try {
         await insertTeam(payload);
       } catch (err: unknown) {
-        const msg = (err as { message?: string } | null)?.message;
-        if (supportsTeamPrimaryColor && isPrimaryColorMissingError(msg)) {
+        if (supportsTeamPrimaryColor && isPrimaryColorMissingError(err)) {
           setSupportsTeamPrimaryColor(false);
           const { primary_color: _ignored, ...payloadNoColor } = payload as { primary_color?: unknown } & Record<string, unknown>;
-          await insertTeam(payloadNoColor);
+          try {
+            await insertTeam(payloadNoColor);
+          } catch (err2: unknown) {
+            if (isMissingDivisionColumnError(err2 as any, 'division')) {
+              markDivisionColumnMissing();
+              const { division: _ignoredDivision, ...payloadNoColorNoDivision } = payloadNoColor as { division?: unknown } & Record<string, unknown>;
+              await insertTeam(payloadNoColorNoDivision);
+            } else {
+              throw err2;
+            }
+          }
+        } else if (isMissingDivisionColumnError(err as any, 'division')) {
+          markDivisionColumnMissing();
+          const { division: _ignored, ...payloadNoDivision } = payload as { division?: unknown } & Record<string, unknown>;
+          await insertTeam(payloadNoDivision);
         } else {
           throw err;
         }
       }
       setNewTeamData({ name: '', group: '', leader: '', badge_url: '', primary_color: '#E4002B' });
       setIsAdding(false);
-      void queryClient.invalidateQueries({ queryKey: ['teams'] });
-      void queryClient.invalidateQueries({ queryKey: ['standings'] });
-      void queryClient.invalidateQueries({ queryKey: ['rankings'] });
+      void queryClient.invalidateQueries({ queryKey: ['teams', division] });
+      void queryClient.invalidateQueries({ queryKey: ['standings', division] });
+      void queryClient.invalidateQueries({ queryKey: ['rankings', division] });
       void refresh();
       toast.success('Equipe criada com sucesso!', { id: loadingToast });
     } catch (err: unknown) {
@@ -3422,10 +3486,10 @@ const TeamManagement = () => {
         'Tempo limite ao excluir equipe'
       );
       if (error) throw error;
-      void queryClient.invalidateQueries({ queryKey: ['teams'] });
-      void queryClient.invalidateQueries({ queryKey: ['players'] });
-      void queryClient.invalidateQueries({ queryKey: ['standings'] });
-      void queryClient.invalidateQueries({ queryKey: ['rankings'] });
+      void queryClient.invalidateQueries({ queryKey: ['teams', division] });
+      void queryClient.invalidateQueries({ queryKey: ['players', division] });
+      void queryClient.invalidateQueries({ queryKey: ['standings', division] });
+      void queryClient.invalidateQueries({ queryKey: ['rankings', division] });
       void refresh();
       toast.success('Equipe excluída com sucesso!', { id: loadingToast });
     } catch (err: unknown) {
@@ -3453,8 +3517,7 @@ const TeamManagement = () => {
       try {
         await doUpdate(filteredData);
       } catch (err: unknown) {
-        const msg = (err as { message?: string } | null)?.message;
-        if (supportsTeamPrimaryColor && isPrimaryColorMissingError(msg)) {
+        if (supportsTeamPrimaryColor && isPrimaryColorMissingError(err)) {
           setSupportsTeamPrimaryColor(false);
           const retryData = { ...filteredData };
           delete (retryData as Partial<Team> & { primary_color?: unknown }).primary_color;
@@ -3463,9 +3526,9 @@ const TeamManagement = () => {
           throw err;
         }
       }
-      void queryClient.invalidateQueries({ queryKey: ['teams'] });
-      void queryClient.invalidateQueries({ queryKey: ['standings'] });
-      void queryClient.invalidateQueries({ queryKey: ['rankings'] });
+      void queryClient.invalidateQueries({ queryKey: ['teams', division] });
+      void queryClient.invalidateQueries({ queryKey: ['standings', division] });
+      void queryClient.invalidateQueries({ queryKey: ['rankings', division] });
       void refresh();
       toast.success('Equipe atualizada!', { id: loadingToast });
     } catch (err: unknown) {
@@ -3590,7 +3653,11 @@ const TeamManagement = () => {
                           <div className="image-edit-mini">
                             <label className={`image-upload-container mini ${uploading ? 'uploading' : ''}`} style={{ width: '60px', height: '60px' }}>
                               {uploading ? <div className="spinner mini"></div> : (
-                                <img src={editTeamData.badge_url || team.badge_url} alt="Badge" className="image-preview-badge" />
+                                <img
+                                  src={editTeamData.badge_url || team.badge_url || undefined}
+                                  alt="Badge"
+                                  className="image-preview-badge"
+                                />
                               )}
                               <input type="file" accept="image/*" className="hidden-file-input" onChange={(e) => handleBadgeUpload(e, setEditTeamData)} />
                             </label>
@@ -3694,6 +3761,7 @@ const TeamManagement = () => {
 const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
   const { players, loading } = usePlayers(teamId);
   const queryClient = useQueryClient();
+  const { division } = useDivisionContext();
   const [isAdding, setIsAdding] = useState(false);
   const [isSubmittingPlayer, setIsSubmittingPlayer] = useState(false);
   const [isUpdatingPlayer, setIsUpdatingPlayer] = useState(false);
@@ -3732,25 +3800,41 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
     setIsSubmittingPlayer(true);
     const loadingToast = toast.loading('Adicionando atleta...');
     try {
-      const { error } = await withTimeout(
-        supabase.from('players').insert([{
-          ...formData,
-          team_id: teamId,
-          number: parseInt(formData.number) || 0,
-          suspensions_served: Math.max(0, parseInt((formData as any).suspensions_served) || 0),
-        }]),
-        30000,
-        'Tempo limite ao adicionar atleta'
-      );
-      if (error) throw error;
+      const payload = {
+        ...formData,
+        team_id: teamId,
+        division,
+        number: parseInt(formData.number) || 0,
+        suspensions_served: Math.max(0, parseInt((formData as any).suspensions_served) || 0),
+      } as Record<string, unknown>;
+
+      const doInsert = async (payloadToInsert: Record<string, unknown>) => {
+        return await withTimeout(
+          supabase.from('players').insert([payloadToInsert]),
+          30000,
+          'Tempo limite ao adicionar atleta'
+        );
+      };
+
+      const res = await doInsert(payload);
+      if (res.error) {
+        if (isMissingDivisionColumnError(res.error as any, 'division')) {
+          markDivisionColumnMissing();
+          const { division: _ignored, ...payloadNoDivision } = payload as { division?: unknown } & Record<string, unknown>;
+          const retry = await doInsert(payloadNoDivision);
+          if (retry.error) throw retry.error;
+        } else {
+          throw res.error;
+        }
+      }
       setFormData({ 
         name: '', number: '', position: 'Ala', photo_url: '', bio: '',
         goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0', suspensions_served: '0'
       });
       setIsAdding(false);
-      void queryClient.invalidateQueries({ queryKey: ['players', teamId] });
-      void queryClient.invalidateQueries({ queryKey: ['players', 'all'] });
-      void queryClient.invalidateQueries({ queryKey: ['rankings'] });
+      void queryClient.invalidateQueries({ queryKey: ['players', division, teamId] });
+      void queryClient.invalidateQueries({ queryKey: ['players', division, 'all'] });
+      void queryClient.invalidateQueries({ queryKey: ['rankings', division] });
       toast.success('Atleta adicionado!', { id: loadingToast });
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Erro ao adicionar atleta'), { id: loadingToast });
@@ -3769,9 +3853,9 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
         'Tempo limite ao excluir atleta'
       );
       if (error) throw error;
-      void queryClient.invalidateQueries({ queryKey: ['players', teamId] });
-      void queryClient.invalidateQueries({ queryKey: ['players', 'all'] });
-      void queryClient.invalidateQueries({ queryKey: ['rankings'] });
+      void queryClient.invalidateQueries({ queryKey: ['players', division, teamId] });
+      void queryClient.invalidateQueries({ queryKey: ['players', division, 'all'] });
+      void queryClient.invalidateQueries({ queryKey: ['rankings', division] });
       toast.success('Atleta excluído!', { id: loadingToast });
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Erro ao excluir atleta'), { id: loadingToast });
@@ -3813,9 +3897,9 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
       );
       if (error) throw error;
       setEditingPlayerId(null);
-      void queryClient.invalidateQueries({ queryKey: ['players', teamId] });
-      void queryClient.invalidateQueries({ queryKey: ['players', 'all'] });
-      void queryClient.invalidateQueries({ queryKey: ['rankings'] });
+      void queryClient.invalidateQueries({ queryKey: ['players', division, teamId] });
+      void queryClient.invalidateQueries({ queryKey: ['players', division, 'all'] });
+      void queryClient.invalidateQueries({ queryKey: ['rankings', division] });
       toast.success('Atleta atualizado!', { id: loadingToast });
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Erro ao atualizar atleta'), { id: loadingToast });
@@ -4700,6 +4784,7 @@ const GalleryManagement = () => {
 const TournamentManagement = () => {
   const { config, loading, saveConfig } = useTournamentConfig();
   const { matches } = useMatches();
+  const { division } = useDivisionContext();
 
   type ConfigForm = Pick<TournamentConfig, 'total_rounds' | 'matches_per_round' | 'current_phase' | 'current_round'>;
 
@@ -4906,7 +4991,7 @@ const TournamentManagement = () => {
       
       // Update local storage as a quick-sync cache
       try {
-        localStorage.setItem('copa_unasp_group_c_visibility_v1', JSON.stringify(groupCVisibility));
+        localStorage.setItem(`copa_unasp_group_c_visibility_v1_${division}`, JSON.stringify(groupCVisibility));
       } catch {
         // ignore local cache errors
       }
@@ -5743,6 +5828,7 @@ const GlobalPlayerManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [isSubmittingGlobalPlayer, setIsSubmittingGlobalPlayer] = useState(false);
+  const { division } = useDivisionContext();
   const { teams } = useTeams();
   const { players: allPlayers, loading, refresh: refreshPlayers } = usePlayers();
   const { confirm: confirmAction, ConfirmElement } = useConfirm();
@@ -5795,18 +5881,18 @@ const GlobalPlayerManagement = () => {
       teams: teamName ? { name: teamName } : undefined,
     };
 
-    queryClient.setQueryData(['players', 'all'], (oldData: unknown) => {
+    queryClient.setQueryData(['players', division, 'all'], (oldData: unknown) => {
       const list = Array.isArray(oldData) ? oldData : [];
       return [normalizedPlayer, ...list.filter((item: unknown) => (item as { id?: string })?.id !== player.id)];
     });
 
-    queryClient.setQueryData(['players', player.team_id], (oldData: unknown) => {
+    queryClient.setQueryData(['players', division, player.team_id], (oldData: unknown) => {
       const list = Array.isArray(oldData) ? oldData : [];
       return [normalizedPlayer, ...list.filter((item: unknown) => (item as { id?: string })?.id !== player.id)];
     });
 
     if (previousTeamId && previousTeamId !== player.team_id) {
-      queryClient.setQueryData(['players', previousTeamId], (oldData: unknown) => {
+      queryClient.setQueryData(['players', division, previousTeamId], (oldData: unknown) => {
         const list = Array.isArray(oldData) ? oldData : [];
         return list.filter((item: unknown) => (item as { id?: string })?.id !== player.id);
       });
@@ -5814,13 +5900,13 @@ const GlobalPlayerManagement = () => {
   };
 
   const removePlayerFromCache = (playerId: string, teamId?: string) => {
-    queryClient.setQueryData(['players', 'all'], (oldData: unknown) => {
+    queryClient.setQueryData(['players', division, 'all'], (oldData: unknown) => {
       const list = Array.isArray(oldData) ? oldData : [];
       return list.filter((item: unknown) => (item as { id?: string })?.id !== playerId);
     });
 
     if (teamId) {
-      queryClient.setQueryData(['players', teamId], (oldData: unknown) => {
+      queryClient.setQueryData(['players', division, teamId], (oldData: unknown) => {
         const list = Array.isArray(oldData) ? oldData : [];
         return list.filter((item: unknown) => (item as { id?: string })?.id !== playerId);
       });
@@ -5852,24 +5938,38 @@ const GlobalPlayerManagement = () => {
     try {
       const payload = {
         ...formData,
+        division,
         number: parseInt(formData.number) || 0,
         goals_count: parseInt(formData.goals_count) || 0,
         assists: parseInt(formData.assists) || 0,
         yellow_cards: parseInt(formData.yellow_cards) || 0,
         red_cards: parseInt(formData.red_cards) || 0,
         clean_sheets: parseInt(formData.clean_sheets) || 0,
+      } as Record<string, unknown>;
+
+      const doInsert = async (payloadToInsert: Record<string, unknown>) => {
+        return await withTimeout(
+          supabase
+            .from('players')
+            .insert([payloadToInsert])
+            .select('id, team_id, name, number, position, photo_url, bio, goals_count, assists, yellow_cards, red_cards, clean_sheets, teams(name)')
+            .single(),
+          30000,
+          'Tempo limite ao cadastrar atleta'
+        );
       };
 
-      const { data, error } = await withTimeout(
-        supabase
-          .from('players')
-          .insert([payload])
-          .select('id, team_id, name, number, position, photo_url, bio, goals_count, assists, yellow_cards, red_cards, clean_sheets, teams(name)')
-          .single(),
-        30000,
-        'Tempo limite ao cadastrar atleta'
-      );
-      if (error) throw error;
+      let res = await doInsert(payload);
+      if (res.error) {
+        if (isMissingDivisionColumnError(res.error as any, 'division')) {
+          markDivisionColumnMissing();
+          const { division: _ignored, ...payloadNoDivision } = payload as { division?: unknown } & Record<string, unknown>;
+          res = await doInsert(payloadNoDivision);
+        }
+      }
+
+      if (res.error) throw res.error;
+      const data = res.data;
 
       if (data) {
         upsertPlayerInCache(data as {
@@ -5894,8 +5994,8 @@ const GlobalPlayerManagement = () => {
         goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0'
       });
       setIsAdding(false);
-      void queryClient.invalidateQueries({ queryKey: ['players'] });
-      void queryClient.invalidateQueries({ queryKey: ['rankings'] });
+      void queryClient.invalidateQueries({ queryKey: ['players', division] });
+      void queryClient.invalidateQueries({ queryKey: ['rankings', division] });
       toast.success('Atleta cadastrado com sucesso!', { id: loadingToast });
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Erro ao cadastrar atleta'), { id: loadingToast });
@@ -6004,8 +6104,8 @@ const GlobalPlayerManagement = () => {
       }
 
       setEditingGlobalPlayerId(null);
-      void queryClient.invalidateQueries({ queryKey: ['players'] });
-      void queryClient.invalidateQueries({ queryKey: ['rankings'] });
+      void queryClient.invalidateQueries({ queryKey: ['players', division] });
+      void queryClient.invalidateQueries({ queryKey: ['rankings', division] });
       toast.success('Atleta atualizado com sucesso!', { id: loadingToast });
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Erro ao atualizar atleta'), { id: loadingToast });
@@ -6034,8 +6134,8 @@ const GlobalPlayerManagement = () => {
         setEditingGlobalPlayerId(null);
       }
       removePlayerFromCache(playerId, playerToDelete?.team_id);
-      void queryClient.invalidateQueries({ queryKey: ['players'] });
-      void queryClient.invalidateQueries({ queryKey: ['rankings'] });
+      void queryClient.invalidateQueries({ queryKey: ['players', division] });
+      void queryClient.invalidateQueries({ queryKey: ['rankings', division] });
       toast.success('Atleta excluido com sucesso!', { id: loadingToast });
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Erro ao excluir atleta'), { id: loadingToast });

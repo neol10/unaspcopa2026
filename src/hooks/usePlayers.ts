@@ -1,9 +1,18 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { useDivisionContext } from '../contexts/DivisionContext';
+import type { Division } from '../lib/division';
+import {
+  getDivisionColumnStatus,
+  isMissingColumnError,
+  markDivisionColumnMissing,
+  markDivisionColumnPresent,
+} from '../lib/supabaseOptionalColumns';
 
 export interface Player {
   id: string;
+  division?: Division;
   team_id: string;
   name: string;
   number: number;
@@ -46,7 +55,8 @@ const normalizeImageSrc = (value: string | null | undefined) => {
 
 export const usePlayers = (teamId?: string) => {
   const queryClient = useQueryClient();
-  const cacheKey = `players_cache_v2_${teamId || 'all'}`;
+  const { division } = useDivisionContext();
+  const cacheKey = `players_cache_v2_${division}_${teamId || 'all'}`;
 
   const loadCachedPlayers = () => {
     if (typeof window === 'undefined') return null;
@@ -66,7 +76,7 @@ export const usePlayers = (teamId?: string) => {
   const loadFallbackFromAllCache = () => {
     if (!teamId || typeof window === 'undefined') return null;
     try {
-      const raw = localStorage.getItem('players_cache_v2_all');
+      const raw = localStorage.getItem(`players_cache_v2_${division}_all`);
       if (!raw) return null;
       const parsed = JSON.parse(raw) as { ts: number; data: PlayerRow[] };
       if (!parsed?.ts || !Array.isArray(parsed.data) || parsed.data.length === 0) return null;
@@ -89,12 +99,46 @@ export const usePlayers = (teamId?: string) => {
   };
 
   const query = useQuery({
-    queryKey: ['players', teamId || 'all'],
+    queryKey: ['players', division, teamId || 'all'],
     queryFn: async () => {
-      let q = supabase.from('players').select('*, teams(name, badge_url, group, leader)');
+      const status = getDivisionColumnStatus();
+
+      let q = supabase
+        .from('players')
+        .select('*, teams(name, badge_url, group, leader)');
+
+      if (status !== 'missing') q = q.eq('division', division);
       if (teamId) q = q.eq('team_id', teamId);
+
       const { data, error } = await q.order('name');
-      if (error) throw error;
+      if (error) {
+        if (status !== 'missing' && isMissingColumnError(error, 'division')) {
+          markDivisionColumnMissing();
+          let retryQ = supabase
+            .from('players')
+            .select('*, teams(name, badge_url, group, leader)');
+          if (teamId) retryQ = retryQ.eq('team_id', teamId);
+          const retry = await retryQ.order('name');
+          if (retry.error) throw retry.error;
+          const retryRows = (retry.data as any[]) || [];
+          return retryRows.map((row) => {
+            const team = Array.isArray(row.teams) ? row.teams[0] : row.teams;
+            return {
+              ...row,
+              photo_url: normalizeImageSrc(row.photo_url),
+              team_name: team?.name || row.team_name || 'Equipe',
+              team_badge_url: normalizeImageSrc(team?.badge_url || row.team_badge_url || ''),
+              team_group: team?.group || row.team_group || '',
+              team_leader: team?.leader || row.team_leader || '',
+              team_primary_color: team?.primary_color || row.team_primary_color || null,
+            } as Player;
+          });
+        }
+        throw error;
+      }
+
+      if (status !== 'missing') markDivisionColumnPresent();
+
       const rows = (data as any[]) || [];
       return rows.map((row) => {
         // Robust check for team data (handles object or array from Supabase join)
@@ -144,14 +188,14 @@ export const usePlayers = (teamId?: string) => {
         table: 'players',
         filter: teamId ? `team_id=eq.${teamId}` : undefined
       }, () => {
-        queryClient.invalidateQueries({ queryKey: ['players', teamId || 'all'] });
+        queryClient.invalidateQueries({ queryKey: ['players', division, teamId || 'all'] });
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [teamId, queryClient]);
+  }, [teamId, queryClient, division]);
 
   return { 
     players: query.data || [], 

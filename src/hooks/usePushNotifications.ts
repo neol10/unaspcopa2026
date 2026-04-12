@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAuthContext } from '../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
+import { useDivisionContext } from '../contexts/DivisionContext';
 
 export type PushCategories = {
   live: boolean;
@@ -25,7 +26,7 @@ type PushPreferencesPatch =
 
 const PUSH_PREFS_KEY = 'copa_unasp_push_preferences_v1';
 const PUSH_SYNC_VERSION_KEY = 'copa_unasp_push_sync_version';
-const PUSH_SYNC_VERSION = 'v5';
+const PUSH_SYNC_VERSION = 'v6';
 
 const DEFAULT_PREFERENCES: PushPreferences = {
   categories: {
@@ -98,6 +99,7 @@ const getServerVapidPublicKey = async (): Promise<string> => {
 
 export const usePushNotifications = () => {
   const { user, loading: authLoading } = useAuthContext();
+  const { division } = useDivisionContext();
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [preferences, setPreferences] = useState<PushPreferences>(DEFAULT_PREFERENCES);
   const [loading, setLoading] = useState(true);
@@ -189,7 +191,10 @@ export const usePushNotifications = () => {
   ) => {
     const subscriptionPayload = {
       ...(subscription.toJSON() as Record<string, unknown>),
-      preferences: prefs,
+      preferences: {
+        ...prefs,
+        division,
+      },
     };
 
     const { data: { session } } = await supabase.auth.getSession();
@@ -302,7 +307,7 @@ export const usePushNotifications = () => {
 
     checkAndSyncSubscription();
     return () => { mounted = false; };
-  }, [user, preferences, authLoading]);
+  }, [user, preferences, authLoading, division]);
 
   const updatePreferences = async (patch: PushPreferencesPatch) => {
     const next = {

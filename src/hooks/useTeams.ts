@@ -1,6 +1,14 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { useDivisionContext } from '../contexts/DivisionContext';
+import type { Division } from '../lib/division';
+import {
+  getDivisionColumnStatus,
+  isMissingColumnError,
+  markDivisionColumnMissing,
+  markDivisionColumnPresent,
+} from '../lib/supabaseOptionalColumns';
 
 export interface Team {
   id: string;
@@ -9,6 +17,7 @@ export interface Team {
   group: string;
   leader: string;
   primary_color?: string | null;
+  division?: Division;
 }
 
 const normalizeImageSrc = (value: string | null | undefined) => {
@@ -24,8 +33,9 @@ const normalizeImageSrc = (value: string | null | undefined) => {
 
 export const useTeams = () => {
   const queryClient = useQueryClient();
+  const { division } = useDivisionContext();
 
-  const cacheKey = 'copa_unasp_cache_teams';
+  const cacheKey = `copa_unasp_cache_teams_${division}`;
   const loadCache = () => {
     try {
       const raw = localStorage.getItem(cacheKey);
@@ -56,13 +66,29 @@ export const useTeams = () => {
   };
 
   const query = useQuery({
-    queryKey: ['teams'],
+    queryKey: ['teams', division],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('teams')
-        .select('*')
-        .order('name');
-      if (error) throw error;
+      const status = getDivisionColumnStatus();
+      const base = supabase.from('teams').select('*');
+      const q = status === 'missing' ? base : base.eq('division', division);
+
+      const { data, error } = await q.order('name');
+      if (error) {
+        if (status !== 'missing' && isMissingColumnError(error, 'division')) {
+          markDivisionColumnMissing();
+          const retry = await supabase.from('teams').select('*').order('name');
+          if (retry.error) throw retry.error;
+          const rows = (retry.data as Team[]) || [];
+          return rows.map((team) => ({
+            ...team,
+            badge_url: normalizeImageSrc(team.badge_url),
+          }));
+        }
+        throw error;
+      }
+
+      if (status !== 'missing') markDivisionColumnPresent();
+
       const rows = (data as Team[]) || [];
       return rows.map((team) => ({
         ...team,
@@ -89,14 +115,14 @@ export const useTeams = () => {
     const channel = supabase
       .channel('public:teams_cache')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, () => {
-        queryClient.invalidateQueries({ queryKey: ['teams'] });
+        queryClient.invalidateQueries({ queryKey: ['teams', division] });
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [queryClient]);
+  }, [queryClient, division]);
 
   return { 
     teams: (query.data || []).map((team) => ({

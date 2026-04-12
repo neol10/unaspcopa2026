@@ -17,11 +17,13 @@ const Brackets: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [isPointerDown, setIsPointerDown] = useState(false);
   const startXRef = useRef(0);
+  const startYRef = useRef(0);
   const scrollLeftRef = useRef(0);
   const dragMovedRef = useRef(false);
   const containerLeftRef = useRef(0);
   const dragFrameRef = useRef<number | null>(null);
   const lastDragXRef = useRef(0);
+  const touchIntentRef = useRef<'unknown' | 'horizontal' | 'vertical'>('unknown');
   const [activeFilter, setActiveFilter] = useState<'all' | 'live' | 'today' | 'favorite'>('all');
   const [favoriteTeamId, setFavoriteTeamId] = useState<string | null>(null);
   const [nowTs, setNowTs] = useState(() => Date.now());
@@ -286,14 +288,17 @@ const Brackets: React.FC = () => {
     setIsPointerDown(true);
     setIsDragging(false);
     dragMovedRef.current = false;
+    touchIntentRef.current = 'unknown';
     containerLeftRef.current = scrollRef.current.getBoundingClientRect().left;
     startXRef.current = e.pageX - containerLeftRef.current;
+    startYRef.current = e.pageY;
     scrollLeftRef.current = scrollRef.current.scrollLeft;
   };
 
   const handleDragEnd = () => {
     setIsPointerDown(false);
     setIsDragging(false);
+    touchIntentRef.current = 'unknown';
     if (dragFrameRef.current !== null) {
       window.cancelAnimationFrame(dragFrameRef.current);
       dragFrameRef.current = null;
@@ -350,6 +355,9 @@ const Brackets: React.FC = () => {
     if (viewMode === 'teia') {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      setIsPointerDown(true);
+      setIsDragging(false);
+      dragMovedRef.current = false;
       if (pointersRef.current.size === 1) {
         const currentPan = panRef.current;
         panStartRef.current = { x: e.clientX, y: e.clientY, panX: currentPan.x, panY: currentPan.y };
@@ -359,27 +367,38 @@ const Brackets: React.FC = () => {
         const distance = Math.hypot(p1.x - p2.x, p1.y - p2.y) || 1;
         pinchStartRef.current = { distance, zoom: zoomRef.current };
       }
-      setIsDragging(true);
       return;
     }
 
-    if (e.pointerType === 'touch') return;
+    if (e.pointerType === 'touch') {
+      // Touch (lista): só vira "drag" quando o gesto for horizontal.
+      setIsPointerDown(true);
+      setIsDragging(false);
+      dragMovedRef.current = false;
+      touchIntentRef.current = 'unknown';
+      containerLeftRef.current = scrollRef.current.getBoundingClientRect().left;
+      startXRef.current = e.pageX - containerLeftRef.current;
+      startYRef.current = e.pageY;
+      scrollLeftRef.current = scrollRef.current.scrollLeft;
+      return;
+    }
     handleMouseDown(e as unknown as React.MouseEvent);
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (viewMode === 'teia') {
-      e.preventDefault();
       if (!pointersRef.current.has(e.pointerId)) return;
       pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
       const pointers = Array.from(pointersRef.current.values());
       if (pointers.length >= 2 && pinchStartRef.current) {
+        e.preventDefault();
         const [p1, p2] = pointers;
         const distance = Math.hypot(p1.x - p2.x, p1.y - p2.y) || 1;
         const nextZoom = clamp((pinchStartRef.current.zoom * distance) / pinchStartRef.current.distance, 0.6, 2.2);
         zoomRef.current = nextZoom;
         scheduleApplyTeiaTransform();
         dragMovedRef.current = true;
+        if (!isDragging) setIsDragging(true);
         return;
       }
       if (!panStartRef.current) return;
@@ -389,12 +408,39 @@ const Brackets: React.FC = () => {
       if (exceededThreshold && !dragMovedRef.current) {
         dragMovedRef.current = true;
       }
+      if (exceededThreshold && !isDragging) {
+        setIsDragging(true);
+      }
+      if (exceededThreshold) {
+        e.preventDefault();
+      }
       panRef.current = { x: panStartRef.current.panX + dx, y: panStartRef.current.panY + dy };
       scheduleApplyTeiaTransform();
       return;
     }
 
-    if (e.pointerType === 'touch') return;
+    if (e.pointerType === 'touch') {
+      if (!scrollRef.current) return;
+      if (!isPointerDown) return;
+
+      const dx = e.pageX - containerLeftRef.current - startXRef.current;
+      const dy = e.pageY - startYRef.current;
+      const exceededThreshold = Math.abs(dx) + Math.abs(dy) > 8;
+
+      if (touchIntentRef.current === 'unknown' && exceededThreshold) {
+        touchIntentRef.current = Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical';
+      }
+
+      if (touchIntentRef.current !== 'horizontal') {
+        return;
+      }
+
+      dragMovedRef.current = true;
+      if (!isDragging) setIsDragging(true);
+      e.preventDefault();
+      handleDragMove(e.pageX);
+      return;
+    }
     handleMouseMove(e as unknown as React.MouseEvent);
   };
 
@@ -417,6 +463,7 @@ const Brackets: React.FC = () => {
       setZoom(zoomRef.current);
       setPan(panRef.current);
 
+      setIsPointerDown(false);
       setIsDragging(false);
       if (dragMovedRef.current) {
         window.setTimeout(() => {
@@ -426,7 +473,10 @@ const Brackets: React.FC = () => {
       return;
     }
 
-    if (e.pointerType === 'touch') return;
+    if (e.pointerType === 'touch') {
+      handleDragEnd();
+      return;
+    }
     handleDragEnd();
   };
 

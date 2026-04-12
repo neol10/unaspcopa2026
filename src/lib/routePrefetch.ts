@@ -1,5 +1,12 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { supabase } from './supabase';
+import { readStoredDivision } from './division';
+import {
+  getDivisionColumnStatus,
+  isMissingColumnError,
+  markDivisionColumnMissing,
+} from './supabaseOptionalColumns';
+
 
 const prefetchedRoutes = new Set<string>();
 
@@ -16,25 +23,52 @@ const routeChunkPrefetchers: Record<string, () => Promise<unknown>> = {
 };
 
 const prefetchQueriesByRoute = async (path: string, queryClient: QueryClient) => {
+  const division = readStoredDivision();
+  const withDivision = getDivisionColumnStatus() !== 'missing';
+
   if (path === '/classificacao') {
     await Promise.all([
       queryClient.prefetchQuery({
-        queryKey: ['teams'],
+        queryKey: ['teams', division],
         queryFn: async () => {
-          const { data, error } = await supabase.from('teams').select('*').order('name');
-          if (error) throw error;
+          const base = supabase.from('teams').select('*');
+          const q = withDivision ? base.eq('division', division) : base;
+          const { data, error } = await q.order('name');
+          if (error) {
+            if (withDivision && isMissingColumnError(error as any, 'division')) {
+              markDivisionColumnMissing();
+              const retry = await supabase.from('teams').select('*').order('name');
+              if (retry.error) throw retry.error;
+              return retry.data ?? [];
+            }
+            throw error;
+          }
           return data ?? [];
         },
         staleTime: 60_000,
       }),
       queryClient.prefetchQuery({
-        queryKey: ['matches', 'all'],
+        queryKey: ['matches', division, 'all'],
         queryFn: async () => {
-          const { data, error } = await supabase
+          const base = supabase
             .from('matches')
             .select('id, team_a_id, team_b_id, team_a_score, team_b_score, match_date, location, status, round')
             .order('match_date', { ascending: true });
-          if (error) throw error;
+
+          const q = withDivision ? base.eq('division', division) : base;
+          const { data, error } = await q;
+          if (error) {
+            if (withDivision && isMissingColumnError(error as any, 'division')) {
+              markDivisionColumnMissing();
+              const retry = await supabase
+                .from('matches')
+                .select('id, team_a_id, team_b_id, team_a_score, team_b_score, match_date, location, status, round')
+                .order('match_date', { ascending: true });
+              if (retry.error) throw retry.error;
+              return retry.data ?? [];
+            }
+            throw error;
+          }
           return data ?? [];
         },
         staleTime: 30_000,
@@ -45,10 +79,20 @@ const prefetchQueriesByRoute = async (path: string, queryClient: QueryClient) =>
 
   if (path === '/equipes') {
     await queryClient.prefetchQuery({
-      queryKey: ['teams'],
+      queryKey: ['teams', division],
       queryFn: async () => {
-        const { data, error } = await supabase.from('teams').select('*').order('name');
-        if (error) throw error;
+        const base = supabase.from('teams').select('*');
+        const q = withDivision ? base.eq('division', division) : base;
+        const { data, error } = await q.order('name');
+        if (error) {
+          if (withDivision && isMissingColumnError(error as any, 'division')) {
+            markDivisionColumnMissing();
+            const retry = await supabase.from('teams').select('*').order('name');
+            if (retry.error) throw retry.error;
+            return retry.data ?? [];
+          }
+          throw error;
+        }
         return data ?? [];
       },
       staleTime: 60_000,
@@ -59,19 +103,39 @@ const prefetchQueriesByRoute = async (path: string, queryClient: QueryClient) =>
   if (path === '/jogadores') {
     await Promise.all([
       queryClient.prefetchQuery({
-        queryKey: ['players', 'all'],
+        queryKey: ['players', division, 'all'],
         queryFn: async () => {
-          const { data, error } = await supabase.from('players').select('*, teams(name)').order('name');
-          if (error) throw error;
+          const base = supabase.from('players').select('*, teams(name)');
+          const q = withDivision ? base.eq('division', division) : base;
+          const { data, error } = await q.order('name');
+          if (error) {
+            if (withDivision && isMissingColumnError(error as any, 'division')) {
+              markDivisionColumnMissing();
+              const retry = await supabase.from('players').select('*, teams(name)').order('name');
+              if (retry.error) throw retry.error;
+              return retry.data ?? [];
+            }
+            throw error;
+          }
           return data ?? [];
         },
         staleTime: 60_000,
       }),
       queryClient.prefetchQuery({
-        queryKey: ['teams'],
+        queryKey: ['teams', division],
         queryFn: async () => {
-          const { data, error } = await supabase.from('teams').select('*').order('name');
-          if (error) throw error;
+          const base = supabase.from('teams').select('*');
+          const q = withDivision ? base.eq('division', division) : base;
+          const { data, error } = await q.order('name');
+          if (error) {
+            if (withDivision && isMissingColumnError(error as any, 'division')) {
+              markDivisionColumnMissing();
+              const retry = await supabase.from('teams').select('*').order('name');
+              if (retry.error) throw retry.error;
+              return retry.data ?? [];
+            }
+            throw error;
+          }
           return data ?? [];
         },
         staleTime: 60_000,
@@ -82,13 +146,27 @@ const prefetchQueriesByRoute = async (path: string, queryClient: QueryClient) =>
 
   if (path === '/central-da-partida' || path === '/jogos') {
     await queryClient.prefetchQuery({
-      queryKey: ['matches', 'all'],
+      queryKey: ['matches', division, 'all'],
       queryFn: async () => {
-        const { data, error } = await supabase
+        const base = supabase
           .from('matches')
           .select('id, team_a_id, team_b_id, team_a_score, team_b_score, match_date, location, status, round')
           .order('match_date', { ascending: true });
-        if (error) throw error;
+
+        const q = withDivision ? base.eq('division', division) : base;
+        const { data, error } = await q;
+        if (error) {
+          if (withDivision && isMissingColumnError(error as any, 'division')) {
+            markDivisionColumnMissing();
+            const retry = await supabase
+              .from('matches')
+              .select('id, team_a_id, team_b_id, team_a_score, team_b_score, match_date, location, status, round')
+              .order('match_date', { ascending: true });
+            if (retry.error) throw retry.error;
+            return retry.data ?? [];
+          }
+          throw error;
+        }
         return data ?? [];
       },
       staleTime: 30_000,
@@ -119,9 +197,11 @@ const prefetchQueriesByRoute = async (path: string, queryClient: QueryClient) =>
 
 export const prefetchRouteIntent = (path: string, queryClient: QueryClient) => {
   if (!path) return;
-  if (prefetchedRoutes.has(path)) return;
+  const division = readStoredDivision();
+  const cacheKey = `${path}::${division}`;
+  if (prefetchedRoutes.has(cacheKey)) return;
 
-  prefetchedRoutes.add(path);
+  prefetchedRoutes.add(cacheKey);
 
   const prefetchChunk = routeChunkPrefetchers[path];
   if (prefetchChunk) {

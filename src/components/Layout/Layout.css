@@ -481,6 +481,39 @@
   animation: bell-ring 2s infinite ease-in-out;
 }
 
+.division-toggle {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-main);
+  border: 1px solid var(--border-light);
+  padding: 0.8rem 1.25rem;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-weight: 800;
+  font-size: 0.9rem;
+  transition: all var(--transition-fast);
+  cursor: pointer;
+  margin-bottom: 1rem;
+  min-height: 44px;
+}
+
+.division-toggle:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
+}
+
+.division-toggle:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--secondary);
+  color: var(--secondary);
+}
+
+.division-toggle.is-feminino {
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
 .push-toggle.locked {
   opacity: 0.55;
   cursor: not-allowed;

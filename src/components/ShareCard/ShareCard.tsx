@@ -7,7 +7,7 @@ import './ShareCard.css';
 import type { Match } from '../../hooks/useMatches';
 
 interface ShareCardProps {
-  match: Match;
+  match?: Match | null;
   mvpPlayer?: { name: string } | null;
 }
 
@@ -53,24 +53,24 @@ const ShareCard: React.FC<ShareCardProps & { innerRef: React.RefObject<HTMLDivEl
           <div className="score-display-premium">
             <div className="team-block">
               <div className="badge-frame">
-                {match.teams_a?.badge_url && <img src={match.teams_a.badge_url} alt="" />}
+                {match?.teams_a?.badge_url && <img src={match.teams_a?.badge_url} alt="" />}
                 <div className="glow"></div>
               </div>
-              <span className="team-name-social">{match.teams_a?.name}</span>
+              <span className="team-name-social">{match?.teams_a?.name || 'Equipe A'}</span>
             </div>
 
             <div className="score-numbers">
-              <span className="social-score">{match.team_a_score}</span>
+              <span className="social-score">{match?.team_a_score ?? 0}</span>
               <span className="vs-social">x</span>
-              <span className="social-score">{match.team_b_score}</span>
+              <span className="social-score">{match?.team_b_score ?? 0}</span>
             </div>
 
             <div className="team-block">
               <div className="badge-frame">
-                {match.teams_b?.badge_url && <img src={match.teams_b.badge_url} alt="" />}
+                {match?.teams_b?.badge_url && <img src={match.teams_b?.badge_url} alt="" />}
                 <div className="glow"></div>
               </div>
-              <span className="team-name-social">{match.teams_b?.name}</span>
+              <span className="team-name-social">{match?.teams_b?.name || 'Equipe B'}</span>
             </div>
           </div>
 

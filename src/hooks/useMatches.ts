@@ -1,9 +1,18 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { useDivisionContext } from '../contexts/DivisionContext';
+import type { Division } from '../lib/division';
+import {
+  getDivisionColumnStatus,
+  isMissingColumnError,
+  markDivisionColumnMissing,
+  markDivisionColumnPresent,
+} from '../lib/supabaseOptionalColumns';
 
 export interface Match {
   id: string;
+  division?: Division;
   team_a_id: string;
   team_b_id: string;
   team_a_score: number;
@@ -23,8 +32,9 @@ export interface Match {
 
 export const useMatches = (limit?: number) => {
   const queryClient = useQueryClient();
+  const { division } = useDivisionContext();
 
-  const cacheKey = `copa_unasp_cache_matches_${limit || 'all'}`;
+  const cacheKey = `copa_unasp_cache_matches_${division}_${limit || 'all'}`;
   const loadCache = () => {
     try {
       const raw = localStorage.getItem(cacheKey);
@@ -57,8 +67,10 @@ export const useMatches = (limit?: number) => {
   };
 
   const query = useQuery({
-    queryKey: ['matches', limit || 'all'],
+    queryKey: ['matches', division, limit || 'all'],
     queryFn: async () => {
+      const status = getDivisionColumnStatus();
+
       let q = supabase
         .from('matches')
         .select(`
@@ -81,13 +93,49 @@ export const useMatches = (limit?: number) => {
         `)
         .order('match_date', { ascending: true });
 
+      if (status !== 'missing') q = q.eq('division', division);
+
       if (limit) q = q.limit(limit);
 
       const { data, error } = await q;
       if (error) {
+        if (status !== 'missing' && isMissingColumnError(error, 'division')) {
+          markDivisionColumnMissing();
+
+          let retryQ = supabase
+            .from('matches')
+            .select(`
+              id,
+              team_a_id,
+              team_b_id,
+              team_a_score,
+              team_b_score,
+              match_date,
+              location,
+              status,
+              round,
+              match_mvp_player_id,
+              match_mvp_description,
+              timer_started_at,
+              timer_offset_seconds,
+              is_timer_running,
+              teams_a:teams!team_a_id(name, badge_url, group),
+              teams_b:teams!team_b_id(name, badge_url, group)
+            `)
+            .order('match_date', { ascending: true });
+          if (limit) retryQ = retryQ.limit(limit);
+
+          const retry = await retryQ;
+          if (retry.error) throw retry.error;
+          return (retry.data as Match[]) || [];
+        }
+
         console.error('Supabase Matches Error:', error);
         throw error;
       }
+
+      if (status !== 'missing') markDivisionColumnPresent();
+
       return (data as Match[]) || [];
     },
     staleTime: 1000 * 30, // 30 segundos
@@ -113,14 +161,14 @@ export const useMatches = (limit?: number) => {
     const channel = supabase
       .channel('public:matches')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => {
-        queryClient.invalidateQueries({ queryKey: ['matches'] });
+        queryClient.invalidateQueries({ queryKey: ['matches', division] });
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [queryClient]);
+  }, [queryClient, division]);
 
   return { 
     matches: query.data || [], 

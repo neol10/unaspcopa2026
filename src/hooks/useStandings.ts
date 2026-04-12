@@ -1,6 +1,13 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { useDivisionContext } from '../contexts/DivisionContext';
+import {
+  getDivisionColumnStatus,
+  isMissingColumnError,
+  markDivisionColumnMissing,
+  markDivisionColumnPresent,
+} from '../lib/supabaseOptionalColumns';
 
 export interface Standing {
   team_id: string;
@@ -21,7 +28,8 @@ export interface Standing {
 
 export const useStandings = () => {
   const queryClient = useQueryClient();
-  const CACHE_KEY = 'standings_cache_v1';
+  const { division } = useDivisionContext();
+  const CACHE_KEY = `standings_cache_v1_${division}`;
 
   const loadCachedStandings = () => {
     if (typeof window === 'undefined') return null;
@@ -48,22 +56,51 @@ export const useStandings = () => {
   const cached = loadCachedStandings();
 
   const query = useQuery({
-    queryKey: ['standings'],
+    queryKey: ['standings', division],
     queryFn: async () => {
-      // 1-2. Buscar dados em paralelo
-      // Importante: evitamos um timeout manual aqui para não "cortar" requests
-      // lentos (ex.: Supabase acordando). O próprio fetch do Supabase já tem timeout.
-      const [teamsRes, matchesRes] = await Promise.all([
-        supabase.from('teams').select('id, name, group, badge_url'),
-        supabase
+      const status = getDivisionColumnStatus();
+
+      const buildTeamsQuery = (withDivision: boolean) => {
+        let q = supabase.from('teams').select('id, name, group, badge_url');
+        if (withDivision) q = q.eq('division', division);
+        return q;
+      };
+
+      const buildMatchesQuery = (withDivision: boolean) => {
+        let q = supabase
           .from('matches')
           .select('team_a_id, team_b_id, team_a_score, team_b_score, match_date, status')
           .in('status', ['finalizado', 'ao_vivo'])
-          .order('match_date', { ascending: true }),
+          .order('match_date', { ascending: true });
+        if (withDivision) q = q.eq('division', division);
+        return q;
+      };
+
+      // 1-2. Buscar dados em paralelo
+      // Importante: evitamos um timeout manual aqui para não "cortar" requests
+      // lentos (ex.: Supabase acordando). O próprio fetch do Supabase já tem timeout.
+      const withDivision = status !== 'missing';
+      let [teamsRes, matchesRes] = await Promise.all([
+        buildTeamsQuery(withDivision),
+        buildMatchesQuery(withDivision),
       ]);
+
+      const missingDivision =
+        (teamsRes.error && isMissingColumnError(teamsRes.error as any, 'division')) ||
+        (matchesRes.error && isMissingColumnError(matchesRes.error as any, 'division'));
+
+      if (withDivision && missingDivision) {
+        markDivisionColumnMissing();
+        [teamsRes, matchesRes] = await Promise.all([
+          buildTeamsQuery(false),
+          buildMatchesQuery(false),
+        ]);
+      }
 
       if (teamsRes.error) throw teamsRes.error;
       if (matchesRes.error) throw matchesRes.error;
+
+      if (withDivision && !missingDivision) markDivisionColumnPresent();
 
       const teams = teamsRes.data || [];
       const matches = matchesRes.data || [];
@@ -166,17 +203,17 @@ export const useStandings = () => {
     const channel = supabase
       .channel('public:standings_calc')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => {
-        queryClient.invalidateQueries({ queryKey: ['standings'] });
+        queryClient.invalidateQueries({ queryKey: ['standings', division] });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, () => {
-        queryClient.invalidateQueries({ queryKey: ['standings'] });
+        queryClient.invalidateQueries({ queryKey: ['standings', division] });
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [queryClient]);
+  }, [queryClient, division]);
 
   const friendlyError = (raw: string | undefined) => {
     if (!raw) return null;

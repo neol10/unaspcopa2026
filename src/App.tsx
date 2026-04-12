@@ -11,10 +11,17 @@ import SplashScreen from './components/SplashScreen/SplashScreen';
 
 import { TelemetryProvider } from './contexts/TelemetryProvider';
 import { AuthProvider, useAuthContext } from './contexts/AuthContext';
+import { DivisionProvider } from './contexts/DivisionContext';
 import { usePwaLifecycle } from './hooks/usePwaLifecycle';
 import { usePwaNotifications } from './hooks/usePwaNotifications';
 import { reportPerformanceMetric } from './lib/clientErrors';
 import { supabase } from './lib/supabase';
+import { useDivisionContext } from './contexts/DivisionContext';
+import {
+  getDivisionColumnStatus,
+  isMissingColumnError,
+  markDivisionColumnMissing,
+} from './lib/supabaseOptionalColumns';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -106,6 +113,7 @@ const PageTransition: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
 function AppContent() {
   const { loading: authLoading } = useAuthContext();
+  const { division } = useDivisionContext();
   const [showSplash, setShowSplash] = useState(true);
   const bootMetricSentRef = useRef(false);
 
@@ -137,13 +145,22 @@ function AppContent() {
     const performPrefetch = async () => {
       try {
         await queryClient.prefetchQuery({
-          queryKey: ['teams'],
+          queryKey: ['teams', division],
           queryFn: async () => {
-            const { data, error } = await supabase
-              .from('teams')
-              .select('*')
-              .order('name');
-            if (error) throw error;
+            const status = getDivisionColumnStatus();
+            const base = supabase.from('teams').select('*');
+            const q = status === 'missing' ? base : base.eq('division', division);
+
+            const { data, error } = await q.order('name');
+            if (error) {
+              if (status !== 'missing' && isMissingColumnError(error as any, 'division')) {
+                markDivisionColumnMissing();
+                const retry = await supabase.from('teams').select('*').order('name');
+                if (retry.error) throw retry.error;
+                return retry.data;
+              }
+              throw error;
+            }
             return data;
           },
         });
@@ -190,7 +207,7 @@ function AppContent() {
         }
       };
     }
-  }, []);
+  }, [division]);
 
   if (authLoading && showSplash) return <SplashScreen />;
 
@@ -226,11 +243,13 @@ function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <TelemetryProvider>
-            <Router>
-              <AppContent />
-            </Router>
-          </TelemetryProvider>
+          <DivisionProvider>
+            <TelemetryProvider>
+              <Router>
+                <AppContent />
+              </Router>
+            </TelemetryProvider>
+          </DivisionProvider>
         </AuthProvider>
       </QueryClientProvider>
     </ErrorBoundary>

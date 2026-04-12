@@ -102,6 +102,7 @@ type SubscriptionRow = {
       onlyImportant?: boolean;
       favoriteTeamId?: string | null;
       preGameReminder?: boolean;
+      division?: 'masculino' | 'feminino';
     };
   };
 };
@@ -116,6 +117,7 @@ type SubscriptionRowLegacy = {
     onlyImportant?: boolean;
     favoriteTeamId?: string | null;
     preGameReminder?: boolean;
+    division?: 'masculino' | 'feminino';
   } | null;
 };
 
@@ -128,6 +130,13 @@ type NotifyPayload = {
   teamIds?: string[];
   tag?: string;
   action?: 'notify' | 'cancel';
+  division?: 'masculino' | 'feminino';
+};
+
+const normalizeDivision = (value: unknown): 'masculino' | 'feminino' | null => {
+  if (value === 'feminino') return 'feminino';
+  if (value === 'masculino') return 'masculino';
+  return null;
 };
 
 const shouldReceiveNotification = (
@@ -136,6 +145,12 @@ const shouldReceiveNotification = (
 ): boolean => {
   const prefs = row.subscription?.preferences;
   if (!prefs) return true;
+
+  const payloadDivision = normalizeDivision(payload.division);
+  if (payloadDivision) {
+    const subscriptionDivision = normalizeDivision(prefs.division) || 'masculino';
+    if (subscriptionDivision !== payloadDivision) return false;
+  }
 
   if (prefs.onlyImportant && !payload.important) return false;
 
@@ -335,7 +350,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(500).json({ error: envValidationError });
     }
 
-    const { title, body, url, category, important, teamIds, tag, action } =
+    const { title, body, url, category, important, teamIds, tag, action, division } =
       ((typeof req.body === 'string' ? JSON.parse(req.body) : req.body) ?? {}) as NotifyPayload;
 
     if (!title || !body) {
@@ -380,6 +395,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       teamIds: Array.isArray(teamIds) ? teamIds : [],
       tag: tag || undefined,
       action: action || undefined,
+      division: normalizeDivision(division) || undefined,
     });
 
     const validSubscriptions = (subscriptions as SubscriptionRow[]).filter((row) =>
@@ -399,7 +415,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const eligibleSubscriptions = validSubscriptions.filter((row) =>
-      shouldReceiveNotification(row, { title, body, url, category, important, teamIds }),
+      shouldReceiveNotification(row, { title, body, url, category, important, teamIds, division }),
     );
 
     if (eligibleSubscriptions.length === 0) {

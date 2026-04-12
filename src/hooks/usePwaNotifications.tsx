@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
+import { useDivisionContext } from '../contexts/DivisionContext';
 
 export const usePwaNotifications = () => {
   const recentPushToastRef = useRef<Map<string, number>>(new Map());
+  const { division } = useDivisionContext();
 
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
@@ -55,8 +57,13 @@ export const usePwaNotifications = () => {
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'PUSH_NOTIFICATION') {
         const payload = event.data.payload || {};
-        const { title, body, category, teamIds, important, url } = payload;
-        const messageKey = `${String(category || 'general')}|${String(title || '')}|${String(body || '')}`;
+        const { title, body, category, teamIds, important, url, division: payloadDivision } = payload;
+
+        if (payloadDivision === 'masculino' || payloadDivision === 'feminino') {
+          if (payloadDivision !== division) return;
+        }
+
+        const messageKey = `${String(payloadDivision || 'any')}|${String(category || 'general')}|${String(title || '')}|${String(body || '')}`;
         const now = Date.now();
         const lastShownAt = recentPushToastRef.current.get(messageKey) || 0;
 
@@ -79,8 +86,14 @@ export const usePwaNotifications = () => {
 
         recentPushToastRef.current.set(messageKey, now);
         
+        const text = `${String(title || '')} ${String(body || '')}`;
+        const looksLikeGoal =
+          category === 'gol' ||
+          /\bgol\b/i.test(text) ||
+          /go+ool/i.test(text);
+
         // Dynamic effects
-        if (category === 'gol') {
+        if (looksLikeGoal) {
           triggerConfetti();
           playNotificationSound('gol');
         } else {
@@ -108,7 +121,7 @@ export const usePwaNotifications = () => {
           </div>
         ), {
           id: `push-${messageKey}`,
-          icon: category === 'gol' ? '⚽' : '🔔',
+          icon: looksLikeGoal ? '⚽' : '🔔',
           duration: 8000,
         });
       }
@@ -116,5 +129,5 @@ export const usePwaNotifications = () => {
 
     navigator.serviceWorker.addEventListener('message', handleMessage);
     return () => navigator.serviceWorker.removeEventListener('message', handleMessage);
-  }, []);
+  }, [division]);
 };
