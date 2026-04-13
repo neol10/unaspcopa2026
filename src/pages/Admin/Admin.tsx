@@ -4064,7 +4064,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
                       }}
                     />
                   </div>
-                  <div className="image-upload-container" style={{ width: '160px', height: '160px', overflow: 'hidden' }}>
+                  <div className="image-upload-container" style={{ width: '220px', height: '220px', overflow: 'hidden' }}>
                     <img
                       src={clearPhotoCropFromUrl(formData.photo_url)}
                       alt="Preview grande"
@@ -4268,7 +4268,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
                           }}
                         />
                       </div>
-                      <div className="image-upload-container" style={{ width: '160px', height: '160px', overflow: 'hidden' }}>
+                      <div className="image-upload-container" style={{ width: '220px', height: '220px', overflow: 'hidden' }}>
                         <img
                           src={clearPhotoCropFromUrl(editFormData.photo_url)}
                           alt="Preview grande"
@@ -6954,7 +6954,7 @@ const GlobalPlayerManagement = () => {
                       }}
                     />
                   </div>
-                  <div className="image-upload-container" style={{ width: '160px', height: '160px', overflow: 'hidden' }}>
+                  <div className="image-upload-container" style={{ width: '220px', height: '220px', overflow: 'hidden' }}>
                     <img
                       src={clearPhotoCropFromUrl(formData.photo_url)}
                       alt="Preview grande"
@@ -7149,7 +7149,7 @@ const GlobalPlayerManagement = () => {
                           }}
                         />
                       </div>
-                      <div className="image-upload-container" style={{ width: '160px', height: '160px', overflow: 'hidden' }}>
+                      <div className="image-upload-container" style={{ width: '220px', height: '220px', overflow: 'hidden' }}>
                         <img
                           src={clearPhotoCropFromUrl(editFormData.photo_url)}
                           alt="Preview grande"
