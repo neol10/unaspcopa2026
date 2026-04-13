@@ -5827,6 +5827,10 @@ const PollManagement = () => {
 const GlobalPlayerManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  const [isBulkAdding, setIsBulkAdding] = useState(false);
+  const [bulkText, setBulkText] = useState('');
+  const [bulkTeamOverrideId, setBulkTeamOverrideId] = useState('');
+  const [bulkImporting, setBulkImporting] = useState(false);
   const [isSubmittingGlobalPlayer, setIsSubmittingGlobalPlayer] = useState(false);
   const { division } = useDivisionContext();
   const { teams } = useTeams();
@@ -5846,6 +5850,240 @@ const GlobalPlayerManagement = () => {
     name: '', number: '', position: 'Ala', team_id: '', photo_url: '', bio: '',
     goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0'
   });
+
+  const normalizeKey = (value: string) => {
+    return (value || '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ');
+  };
+
+  const cleanTeamHeader = (value: string) => {
+    return (value || '')
+      .trim()
+      .replace(/^\*+/, '')
+      .replace(/\*+$/, '')
+      .replace(/[:\-–—]+\s*$/, '')
+      .trim();
+  };
+
+  const mapPositionToken = (raw: string | null) => {
+    const key = normalizeKey(raw || '').replace(/[^a-z0-9]/g, '');
+    if (!key) return 'Ala';
+    if (key.startsWith('gol') || key.startsWith('gk') || key.startsWith('goleiro')) return 'Goleiro';
+    if (key.startsWith('fix')) return 'Fixo';
+    if (key.startsWith('ala')) return 'Ala';
+    if (key.startsWith('piv')) return 'Pivô';
+    return 'Ala';
+  };
+
+  const parseBulkText = (text: string) => {
+    const rawLines = String(text || '').split(/\r?\n/);
+    const lines = rawLines
+      .map((l) => l.replace(/•/g, '').trim())
+      .filter(Boolean);
+
+    if (lines.length === 0) {
+      return { teamName: null as string | null, rows: [] as Array<{ name: string; position: string }> };
+    }
+
+    const teamName = cleanTeamHeader(lines[0]);
+    const rows: Array<{ name: string; position: string; raw: string }> = [];
+
+    for (const rawLine of lines.slice(1)) {
+      const line = rawLine.trim();
+      if (!line) continue;
+
+      const m = line.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
+      const name = (m ? m[1] : line).trim().replace(/\s+/g, ' ');
+      const position = mapPositionToken(m ? m[2] : null);
+      if (!name) continue;
+      rows.push({ name, position, raw: rawLine });
+    }
+
+    return { teamName, rows };
+  };
+
+  const bulkParsed = useMemo(() => parseBulkText(bulkText), [bulkText]);
+
+  const findTeamIdByName = (teamName: string | null) => {
+    const key = normalizeKey(teamName || '');
+    if (!key) return null;
+
+    const list = teams || [];
+
+    // 1) Match exato
+    const exact = list.find((t) => normalizeKey(t.name) === key);
+    if (exact?.id) return exact.id;
+
+    // 2) Match por "contém" (se for único)
+    const hits = list.filter((t) => {
+      const tKey = normalizeKey(t.name);
+      return tKey.includes(key) || key.includes(tKey);
+    });
+    if (hits.length === 1) return hits[0].id;
+
+    return null;
+  };
+
+  const chunkArray = <T,>(arr: T[], size: number) => {
+    const safe = Math.max(1, Math.floor(size || 1));
+    const out: T[][] = [];
+    for (let i = 0; i < arr.length; i += safe) out.push(arr.slice(i, i + safe));
+    return out;
+  };
+
+  const bulkPlan = useMemo(() => {
+    const { teamName, rows } = bulkParsed;
+    const autoTeamId = findTeamIdByName(teamName);
+    const resolvedTeamId = bulkTeamOverrideId || autoTeamId || '';
+
+    const seenInPaste = new Set<string>();
+    let duplicatesInPaste = 0;
+    const uniqueRows = rows.filter((r) => {
+      const key = normalizeKey(r.name);
+      if (!key) return false;
+      if (seenInPaste.has(key)) {
+        duplicatesInPaste += 1;
+        return false;
+      }
+      seenInPaste.add(key);
+      return true;
+    });
+
+    const existingNames = new Set(
+      resolvedTeamId
+        ? (allPlayers || [])
+            .filter((p) => p.team_id === resolvedTeamId)
+            .map((p) => normalizeKey(p.name))
+            .filter(Boolean)
+        : []
+    );
+
+    let alreadyExists = 0;
+    const toCreate = uniqueRows.filter((r) => {
+      const key = normalizeKey(r.name);
+      if (resolvedTeamId && existingNames.has(key)) {
+        alreadyExists += 1;
+        return false;
+      }
+      return true;
+    });
+
+    return {
+      teamName,
+      autoTeamId,
+      resolvedTeamId,
+      totalParsed: rows.length,
+      duplicatesInPaste,
+      alreadyExists,
+      toCreate,
+    };
+  }, [bulkParsed, bulkTeamOverrideId, allPlayers, teams]);
+
+  const handleBulkImport = async () => {
+    if (bulkImporting) return;
+    if (uploading) {
+      toast.error('Aguarde uploads terminarem antes de importar.');
+      return;
+    }
+
+    const { teamName } = bulkParsed;
+    if (!teamName) {
+      toast.error('Cole a lista com o nome da equipe na primeira linha.');
+      return;
+    }
+    if (!bulkPlan.totalParsed || bulkPlan.totalParsed === 0) {
+      toast.error('Nenhum atleta encontrado na lista.');
+      return;
+    }
+
+    const teamId = bulkPlan.resolvedTeamId || null;
+    if (!teamId) {
+      toast.error(`Equipe \"${teamName}\" nao encontrada automaticamente. Selecione manualmente.`);
+      return;
+    }
+
+    const toInsert = bulkPlan.toCreate.map((r) => ({
+      division,
+      team_id: teamId,
+      name: r.name,
+      number: 0,
+      position: r.position,
+      photo_url: '',
+      bio: '',
+      goals_count: 0,
+      assists: 0,
+      yellow_cards: 0,
+      red_cards: 0,
+      clean_sheets: 0,
+    })) as Array<Record<string, unknown>>;
+
+    if (toInsert.length === 0) {
+      toast('Nada para importar (todos ja existem ou sao duplicados).');
+      return;
+    }
+
+    setBulkImporting(true);
+    const chunks = chunkArray(toInsert, 50);
+    const loadingToast = toast.loading(`Importando ${toInsert.length} atletas (0/${chunks.length} lotes)...`);
+
+    try {
+      const doInsertMany = async (payloadRows: Array<Record<string, unknown>>) => {
+        return await withTimeout(
+          supabase
+            .from('players')
+            .insert(payloadRows)
+            .select('id, team_id, name, number, position, photo_url, bio, goals_count, assists, yellow_cards, red_cards, clean_sheets, teams(name)'),
+          45000,
+          'Tempo limite ao importar atletas'
+        );
+      };
+
+      let insertedTotal = 0;
+      const insertedRows: any[] = [];
+
+      for (let i = 0; i < chunks.length; i += 1) {
+        const chunk = chunks[i];
+        let res = await withRetry(async () => await doInsertMany(chunk), 2);
+
+        if (res.error && isMissingDivisionColumnError(res.error as any, 'division')) {
+          markDivisionColumnMissing();
+          const rowsNoDivision = chunk.map((row) => {
+            const { division: _ignored, ...rest } = row as { division?: unknown } & Record<string, unknown>;
+            return rest;
+          });
+          res = await withRetry(async () => await doInsertMany(rowsNoDivision), 2);
+        }
+
+        if (res.error) throw res.error;
+        const data = Array.isArray(res.data) ? res.data : [];
+        insertedTotal += data.length || chunk.length;
+        insertedRows.push(...data);
+
+        toast.loading(`Importando ${toInsert.length} atletas (${i + 1}/${chunks.length} lotes)...`, { id: loadingToast });
+      }
+
+      if (insertedRows.length > 0) {
+        insertedRows.forEach((p) => upsertPlayerInCache(p as any));
+      }
+
+      void queryClient.invalidateQueries({ queryKey: ['players', division] });
+      void queryClient.invalidateQueries({ queryKey: ['rankings', division] });
+      void refreshPlayers();
+
+      toast.success(`Importados ${insertedTotal} atletas!`, { id: loadingToast });
+      setBulkText('');
+      setBulkTeamOverrideId('');
+      setIsBulkAdding(false);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao importar atletas'), { id: loadingToast });
+    } finally {
+      setBulkImporting(false);
+    }
+  };
 
   useEffect(() => {
     if (!editingGlobalPlayerId) return undefined;
@@ -6154,9 +6392,26 @@ const GlobalPlayerManagement = () => {
       <div className="section-header">
         <div className="header-title-box">
           <h2>Gestão Global de Atletas</h2>
-          <button className="btn-add" onClick={() => setIsAdding(!isAdding)}>
-            {isAdding ? 'Cancelar' : <><Plus size={18} /> Novo Atleta</>}
-          </button>
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <button className="btn-add" type="button" onClick={() => {
+              setIsBulkAdding((v) => {
+                const next = !v;
+                if (next) setIsAdding(false);
+                return next;
+              });
+            }}>
+              {isBulkAdding ? 'Cancelar importacao' : 'Importar lista'}
+            </button>
+            <button className="btn-add" type="button" onClick={() => {
+              setIsAdding((v) => {
+                const next = !v;
+                if (next) setIsBulkAdding(false);
+                return next;
+              });
+            }}>
+              {isAdding ? 'Cancelar' : <><Plus size={18} /> Novo Atleta</>}
+            </button>
+          </div>
         </div>
         <div className="search-bar glass">
           <Search size={18} />
@@ -6168,6 +6423,58 @@ const GlobalPlayerManagement = () => {
           />
         </div>
       </div>
+
+      {isBulkAdding && (
+        <form
+          className="admin-form glass mt-2 mb-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleBulkImport();
+          }}
+        >
+          <div className="form-grid">
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+              <label>Lista (1ª linha = equipe)</label>
+              <textarea
+                rows={6}
+                value={bulkText}
+                onChange={(e) => setBulkText(e.target.value)}
+                placeholder={
+                  'ARGENTINA\n' +
+                  'Asafhe Vieira (gol)\n' +
+                  '• Leonardo Pauluk (ala)\n' +
+                  '• Robson Gabriel (pivo)\n'
+                }
+              />
+              <small style={{ opacity: 0.8 }}>
+                Previa: {bulkPlan.totalParsed} atleta(s){bulkPlan.teamName ? ` • Equipe: ${bulkPlan.teamName}` : ''}
+                {bulkPlan.duplicatesInPaste > 0 ? ` • Duplicados na lista: ${bulkPlan.duplicatesInPaste}` : ''}
+                {bulkPlan.alreadyExists > 0 ? ` • Ja existem: ${bulkPlan.alreadyExists}` : ''}
+                {bulkPlan.toCreate.length > 0 ? ` • Vai importar: ${bulkPlan.toCreate.length}` : ''}
+              </small>
+            </div>
+            <div className="form-group">
+              <label>Equipe (opcional: selecionar manualmente)</label>
+              <select value={bulkTeamOverrideId} onChange={(e) => setBulkTeamOverrideId(e.target.value)}>
+                <option value="">Auto: {bulkPlan.teamName || '---'}</option>
+                {[...(teams || [])].sort((a, b) => a.name.localeCompare(b.name)).map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} ({t.group || 'Sem Grupo'})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            className="btn-save mt-3"
+            disabled={bulkImporting || bulkPlan.totalParsed === 0 || bulkPlan.toCreate.length === 0 || !bulkPlan.teamName}
+          >
+            <Save size={18} /> {bulkImporting ? 'Importando...' : `Importar ${bulkPlan.toCreate.length} atleta(s)`}
+          </button>
+        </form>
+      )}
 
       {isAdding && (
         <form className="admin-form glass mt-2 mb-2" onSubmit={handleAddPlayer}>
