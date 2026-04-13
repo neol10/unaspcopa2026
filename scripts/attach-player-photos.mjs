@@ -11,6 +11,7 @@
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
@@ -24,6 +25,7 @@ const FOLDER = 'player-photos';
 const help = `\
 Uso:
   node scripts/attach-player-photos.mjs --photosDir "C:\\caminho\\para\\fotos" [--division masculino|feminino] [--overwrite] [--dryRun]
+  node scripts/attach-player-photos.mjs --pdfPath "C:\\caminho\\para\\carteirinhas.pdf" [--division masculino|feminino] [--overwrite] [--dryRun]
 
 Env (obrigatório):
   SUPABASE_URL (ou VITE_SUPABASE_URL)
@@ -31,6 +33,7 @@ Env (obrigatório):
 
 Opções:
   --photosDir   Pasta com as fotos (nome do arquivo = nome do atleta)
+  --pdfPath     PDF com 1 pessoa por página (o nome é lido do texto do PDF; gera imagens temporárias)
   --division    Filtra atletas por divisão (se a coluna existir)
   --overwrite   Sobrescreve photo_url mesmo se já existir
   --dryRun      Não faz upload nem update (só simula e imprime relatório)
@@ -40,10 +43,11 @@ Opções:
 `;
 
 const parseArgs = (argv) => {
-  const out = { photosDir: '', division: '', overwrite: false, dryRun: false };
+  const out = { photosDir: '', pdfPath: '', division: '', overwrite: false, dryRun: false };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--photosDir') out.photosDir = argv[i + 1] || '';
+    if (a === '--pdfPath') out.pdfPath = argv[i + 1] || '';
     if (a === '--division') out.division = (argv[i + 1] || '').toLowerCase();
     if (a === '--overwrite') out.overwrite = true;
     if (a === '--dryRun') out.dryRun = true;
@@ -184,6 +188,94 @@ const listImagesRecursive = async (dir) => {
   return out;
 };
 
+const sanitizeFileName = (value) => {
+  return String(value || '')
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+const inferNameFromPdfPageText = (items) => {
+  const list = Array.isArray(items) ? items : [];
+  const rows = list
+    .map((it) => {
+      const str = String(it?.str || '').trim();
+      const x = Number(it?.transform?.[4] ?? 0);
+      const y = Number(it?.transform?.[5] ?? 0);
+      return { str, x, y };
+    })
+    .filter((x) => x.str && x.str.length >= 3);
+
+  if (!rows.length) return '';
+
+  // pega o texto mais "no topo"; em empate, o mais à esquerda e com mais chars
+  const maxY = Math.max(...rows.map((r) => r.y));
+  const topBand = rows.filter((r) => Math.abs(r.y - maxY) <= 4);
+  const candidates = (topBand.length ? topBand : rows)
+    .sort((a, b) => {
+      if (b.y !== a.y) return b.y - a.y;
+      if (a.x !== b.x) return a.x - b.x;
+      return (b.str.length || 0) - (a.str.length || 0);
+    });
+
+  // às vezes vem "Turma:" etc — tenta ficar com uma linha "parecida com nome"
+  for (const c of candidates.slice(0, 10)) {
+    if (/^(turma|ra|n[ºo]|data|idade|autoriza)/i.test(c.str)) continue;
+    return c.str;
+  }
+  return candidates[0]?.str || '';
+};
+
+const extractImagesFromPdf = async (pdfPath) => {
+  const abs = path.resolve(process.cwd(), pdfPath);
+  const buf = await fs.readFile(abs);
+
+  const [{ createCanvas }, pdfjs] = await Promise.all([
+    import('@napi-rs/canvas').then((m) => ({ createCanvas: m.createCanvas })),
+    import('pdfjs-dist/legacy/build/pdf.mjs').then((m) => m.default || m),
+  ]);
+
+  const loadingTask = pdfjs.getDocument({ data: buf, disableWorker: true });
+  const pdf = await loadingTask.promise;
+
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'copaunasp-photos-pdf-'));
+  const scale = 2.0;
+
+  let generated = 0;
+  let unnamed = 0;
+
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum += 1) {
+    const page = await pdf.getPage(pageNum);
+    const viewport = page.getViewport({ scale });
+    const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
+    const ctx = canvas.getContext('2d');
+
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    let name = '';
+    try {
+      const text = await page.getTextContent();
+      name = inferNameFromPdfPageText(text?.items);
+    } catch {
+      // sem texto extraível
+    }
+
+    if (!name) {
+      unnamed += 1;
+      name = `pagina_${pageNum}`;
+    }
+
+    const fileName = sanitizeFileName(name) || `pagina_${pageNum}`;
+    const outPath = path.join(tmpDir, `${fileName}.png`);
+    const png = canvas.toBuffer('image/png');
+    await fs.writeFile(outPath, png);
+    generated += 1;
+  }
+
+  return { tmpDir, generated, unnamed };
+};
+
 const pickBestFileForKey = (files) => {
   // se houver duplicados pro mesmo nome, escolhe o maior (normalmente melhor qualidade)
   return [...files].sort((a, b) => (b.size || 0) - (a.size || 0))[0] || null;
@@ -199,7 +291,7 @@ const mustEnv = (names) => {
 
 const main = async () => {
   const args = parseArgs(process.argv.slice(2));
-  if (!args.photosDir) {
+  if (!args.photosDir && !args.pdfPath) {
     console.error(help);
     process.exit(1);
   }
@@ -216,7 +308,19 @@ const main = async () => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const photosDir = path.resolve(process.cwd(), args.photosDir);
+  let photosDir = '';
+  let pdfTmp = null;
+  if (args.pdfPath) {
+    const extracted = await extractImagesFromPdf(args.pdfPath);
+    pdfTmp = extracted;
+    photosDir = extracted.tmpDir;
+    console.log('PDF:', path.resolve(process.cwd(), args.pdfPath));
+    console.log('Paginas geradas:', extracted.generated, '• Sem nome:', extracted.unnamed);
+    console.log('Pasta temporaria:', photosDir);
+  } else {
+    photosDir = path.resolve(process.cwd(), args.photosDir);
+  }
+
   const images = await listImagesRecursive(photosDir);
   if (!images.length) {
     console.error(`Nenhuma imagem encontrada em: ${photosDir}`);
