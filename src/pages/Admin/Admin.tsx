@@ -30,6 +30,14 @@ const vibrate = (ms: number) => {
   }
 };
 
+const maskPlayerName = (value: unknown) => {
+  return String(value ?? '').toUpperCase();
+};
+
+const normalizePlayerName = (value: unknown) => {
+  return maskPlayerName(value).trim().replace(/\s+/g, ' ');
+};
+
 async function withRetry<T>(operation: () => Promise<T>, attempts: number = 2): Promise<T> {
   let lastError: unknown;
   for (let i = 0; i < attempts; i += 1) {
@@ -3802,6 +3810,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
     try {
       const payload = {
         ...formData,
+        name: normalizePlayerName(formData.name),
         team_id: teamId,
         division,
         number: parseInt(formData.number) || 0,
@@ -3884,6 +3893,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
       const { error } = await withTimeout(
         supabase.from('players').update({
           ...editFormData,
+          name: normalizePlayerName(editFormData.name),
           number: parseInt(editFormData.number) || 0,
           goals_count: parseInt(editFormData.goals_count) || 0,
           assists: parseInt(editFormData.assists) || 0,
@@ -3929,7 +3939,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
                 placeholder="Ex: João Silva"
                 required
                 value={formData.name}
-                onChange={e => setFormData({...formData, name: e.target.value})}
+                onChange={e => setFormData({ ...formData, name: maskPlayerName(e.target.value) })}
               />
             </div>
             <div className="player-form-field">
@@ -4047,7 +4057,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
                   <button className="btn-player-edit" type="button" onClick={() => {
                     setEditingPlayerId(p.id);
                     setEditFormData({ 
-                      name: p.name, 
+                      name: maskPlayerName(p.name), 
                       number: String(p.number), 
                       position: p.position, 
                       photo_url: p.photo_url || '', 
@@ -4086,7 +4096,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
               <div className="form-grid">
                 <div className="form-group">
                   <label>Nome</label>
-                  <input type="text" required value={editFormData.name} onChange={e => setEditFormData({ ...editFormData, name: e.target.value })} />
+                  <input type="text" required value={editFormData.name} onChange={e => setEditFormData({ ...editFormData, name: maskPlayerName(e.target.value) })} />
                 </div>
                 <div className="form-group">
                   <label>Nº</label>
@@ -5897,7 +5907,7 @@ const GlobalPlayerManagement = () => {
       if (!line) continue;
 
       const m = line.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
-      const name = (m ? m[1] : line).trim().replace(/\s+/g, ' ');
+      const name = normalizePlayerName((m ? m[1] : line).trim());
       const position = mapPositionToken(m ? m[2] : null);
       if (!name) continue;
       rows.push({ name, position, raw: rawLine });
@@ -6009,7 +6019,7 @@ const GlobalPlayerManagement = () => {
     const toInsert = bulkPlan.toCreate.map((r) => ({
       division,
       team_id: teamId,
-      name: r.name,
+      name: normalizePlayerName(r.name),
       number: 0,
       position: r.position,
       photo_url: '',
@@ -6176,6 +6186,7 @@ const GlobalPlayerManagement = () => {
     try {
       const payload = {
         ...formData,
+        name: normalizePlayerName(formData.name),
         division,
         number: parseInt(formData.number) || 0,
         goals_count: parseInt(formData.goals_count) || 0,
@@ -6258,7 +6269,7 @@ const GlobalPlayerManagement = () => {
   }) => {
     setEditingGlobalPlayerId(p.id);
     setEditFormData({
-      name: p.name,
+      name: maskPlayerName(p.name),
       number: String(p.number || 0),
       position: p.position || 'Ala',
       team_id: p.team_id || '',
@@ -6303,7 +6314,7 @@ const GlobalPlayerManagement = () => {
         supabase
           .from('players')
           .update({
-            name: editFormData.name,
+            name: normalizePlayerName(editFormData.name),
             number: parseInt(editFormData.number) || 0,
             position: editFormData.position,
             team_id: editFormData.team_id,
@@ -6481,7 +6492,7 @@ const GlobalPlayerManagement = () => {
           <div className="form-grid">
             <div className="form-group">
               <label>Nome do Atleta</label>
-              <input type="text" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ex: Lucas Silva" />
+              <input type="text" required value={formData.name} onChange={e => setFormData({ ...formData, name: maskPlayerName(e.target.value) })} placeholder="Ex: Lucas Silva" />
             </div>
             <div className="form-group">
               <label>Equipe</label>
@@ -6613,7 +6624,7 @@ const GlobalPlayerManagement = () => {
               <div className="form-grid">
                 <div className="form-group">
                   <label>Nome do Atleta</label>
-                  <input type="text" required value={editFormData.name} onChange={e => setEditFormData({ ...editFormData, name: e.target.value })} />
+                  <input type="text" required value={editFormData.name} onChange={e => setEditFormData({ ...editFormData, name: maskPlayerName(e.target.value) })} />
                 </div>
                 <div className="form-group">
                   <label>Equipe</label>
