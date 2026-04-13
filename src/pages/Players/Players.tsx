@@ -24,6 +24,7 @@ const Players: React.FC = () => {
   const [sortBy, setSortBy] = useState<'name' | 'goals' | 'assists' | 'cards'>('name');
   const [stuck, setStuck] = useState(false);
   const [brokenImageMap, setBrokenImageMap] = useState<Record<string, true>>({});
+  const [widePhotoMap, setWidePhotoMap] = useState<Record<string, true>>({});
   const [downloadingPlayerId, setDownloadingPlayerId] = useState<string | null>(null);
   const isAdmin = authRole === 'admin';
 
@@ -40,6 +41,10 @@ const Players: React.FC = () => {
 
   const markImageBroken = (key: string) => {
     setBrokenImageMap((prev) => (prev[key] ? prev : { ...prev, [key]: true }));
+  };
+
+  const markPhotoWide = (key: string) => {
+    setWidePhotoMap((prev) => (prev[key] ? prev : { ...prev, [key]: true }));
   };
 
   const hashToHue = (seed: string) => {
@@ -412,10 +417,19 @@ const Players: React.FC = () => {
                         src={normalizeImageSrc(player.photo_url || '')} 
                         alt={player.name} 
                         className="p-photo" 
+                        style={widePhotoMap[playerImageKey] ? { objectPosition: 'left center' } : undefined}
                         width="120" 
                         height="120" 
                         loading="lazy" 
                         decoding="async" 
+                        onLoad={(e) => {
+                          const el = e.currentTarget;
+                          const w = Number(el.naturalWidth || 0);
+                          const h = Number(el.naturalHeight || 0);
+                          if (!w || !h) return;
+                          const ratio = w / h;
+                          if (ratio >= 1.35) markPhotoWide(playerImageKey);
+                        }}
                         onError={() => markImageBroken(playerImageKey)}
                       />
                     ) : (
