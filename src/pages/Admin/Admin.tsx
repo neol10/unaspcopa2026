@@ -5841,6 +5841,7 @@ const GlobalPlayerManagement = () => {
   const [bulkText, setBulkText] = useState('');
   const [bulkTeamOverrideId, setBulkTeamOverrideId] = useState('');
   const [bulkImporting, setBulkImporting] = useState(false);
+  const [fixingNamesUppercase, setFixingNamesUppercase] = useState(false);
   const [isSubmittingGlobalPlayer, setIsSubmittingGlobalPlayer] = useState(false);
   const { division } = useDivisionContext();
   const { teams } = useTeams();
@@ -6161,6 +6162,74 @@ const GlobalPlayerManagement = () => {
     }
   };
 
+  const handleFixNamesUppercase = async () => {
+    if (fixingNamesUppercase) return;
+    if (loading) {
+      toast.error('Aguarde terminar de carregar os atletas.');
+      return;
+    }
+
+    const list = Array.isArray(allPlayers) ? allPlayers : [];
+    const toFix = list
+      .map((p: any) => {
+        const normalized = normalizePlayerName(p?.name);
+        return {
+          player: p,
+          normalized,
+          needsFix: Boolean(p?.id) && Boolean(normalized) && normalized !== p?.name,
+        };
+      })
+      .filter((x) => x.needsFix);
+
+    if (toFix.length === 0) {
+      toast('Nenhum nome para corrigir.');
+      return;
+    }
+
+    const ok = await confirmAction({
+      title: 'Corrigir nomes para MAIÚSCULO',
+      description: `Isso vai atualizar ${toFix.length} atleta(s) no banco. Deseja continuar?`,
+      variant: 'danger',
+    });
+    if (!ok) return;
+
+    setFixingNamesUppercase(true);
+    const chunks = chunkArray(toFix, 10);
+    const loadingToast = toast.loading(`Corrigindo nomes (0/${toFix.length})...`);
+
+    try {
+      let fixed = 0;
+      for (let i = 0; i < chunks.length; i += 1) {
+        const chunk = chunks[i];
+        await Promise.all(
+          chunk.map(async ({ player, normalized }) => {
+            const { error } = await withTimeout(
+              supabase
+                .from('players')
+                .update({ name: normalized })
+                .eq('id', player.id),
+              30000,
+              'Tempo limite ao corrigir nome'
+            );
+            if (error) throw error;
+            fixed += 1;
+            upsertPlayerInCache({ ...(player as any), name: normalized } as any);
+          })
+        );
+
+        toast.loading(`Corrigindo nomes (${fixed}/${toFix.length})...`, { id: loadingToast });
+      }
+
+      void queryClient.invalidateQueries({ queryKey: ['players', division] });
+      void refreshPlayers();
+      toast.success(`Corrigidos ${fixed} atleta(s)!`, { id: loadingToast });
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao corrigir nomes'), { id: loadingToast });
+    } finally {
+      setFixingNamesUppercase(false);
+    }
+  };
+
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -6404,6 +6473,14 @@ const GlobalPlayerManagement = () => {
         <div className="header-title-box">
           <h2>Gestão Global de Atletas</h2>
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <button
+              className="btn-add"
+              type="button"
+              disabled={fixingNamesUppercase || loading}
+              onClick={() => void handleFixNamesUppercase()}
+            >
+              {fixingNamesUppercase ? 'Corrigindo nomes...' : 'Corrigir nomes (MAIÚSCULO)'}
+            </button>
             <button className="btn-add" type="button" onClick={() => {
               setIsBulkAdding((v) => {
                 const next = !v;
