@@ -20,6 +20,7 @@ import { useConfirm } from '../../hooks/useConfirm';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useDivisionContext } from '../../contexts/DivisionContext';
 import { isMissingColumnError as isMissingDivisionColumnError, markDivisionColumnMissing } from '../../lib/supabaseOptionalColumns';
+import { clearPhotoCropFromUrl, parsePhotoCropFromUrl, setPhotoCropOnUrl } from '../../lib/photoCrop';
 import './Admin.css';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -36,6 +37,20 @@ const maskPlayerName = (value: unknown) => {
 
 const normalizePlayerName = (value: unknown) => {
   return maskPlayerName(value).trim().replace(/\s+/g, ' ');
+};
+
+const getPhotoCropXY = (photoUrl: string) => {
+  const parsed = parsePhotoCropFromUrl(photoUrl);
+  const x = typeof parsed.crop?.x === 'number' && Number.isFinite(parsed.crop.x) ? parsed.crop.x : 50;
+  const y = typeof parsed.crop?.y === 'number' && Number.isFinite(parsed.crop.y) ? parsed.crop.y : 50;
+  const cx = Math.min(100, Math.max(0, x));
+  const cy = Math.min(100, Math.max(0, y));
+  return {
+    x: cx,
+    y: cy,
+    objectPosition: `${cx}% ${cy}%`,
+    src: parsed.src || clearPhotoCropFromUrl(photoUrl),
+  };
 };
 
 async function withRetry<T>(operation: () => Promise<T>, attempts: number = 2): Promise<T> {
@@ -3975,7 +3990,12 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
                       <div className="spinner"></div>
                     </div>
                   ) : formData.photo_url ? (
-                    <img src={formData.photo_url} alt="Preview" className="image-preview-badge" />
+                    <img
+                      src={clearPhotoCropFromUrl(formData.photo_url)}
+                      alt="Preview"
+                      className="image-preview-badge"
+                      style={{ objectFit: 'cover', objectPosition: getPhotoCropXY(formData.photo_url).objectPosition }}
+                    />
                   ) : (
                     <div className="upload-icon-box">
                       <Camera size={20} />
@@ -3990,6 +4010,42 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
                   />
                 </label>
               </div>
+              {formData.photo_url && (
+                <div style={{ display: 'grid', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <div style={{ display: 'grid', gap: '0.25rem' }}>
+                    <small>Horizontal: {Math.round(getPhotoCropXY(formData.photo_url).x)}%</small>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={getPhotoCropXY(formData.photo_url).x}
+                      onChange={(e) => {
+                        const nextX = Number(e.target.value);
+                        setFormData((prev) => {
+                          const current = getPhotoCropXY(prev.photo_url);
+                          return { ...prev, photo_url: setPhotoCropOnUrl(prev.photo_url, nextX, current.y) };
+                        });
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: 'grid', gap: '0.25rem' }}>
+                    <small>Vertical: {Math.round(getPhotoCropXY(formData.photo_url).y)}%</small>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={getPhotoCropXY(formData.photo_url).y}
+                      onChange={(e) => {
+                        const nextY = Number(e.target.value);
+                        setFormData((prev) => {
+                          const current = getPhotoCropXY(prev.photo_url);
+                          return { ...prev, photo_url: setPhotoCropOnUrl(prev.photo_url, current.x, nextY) };
+                        });
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
             <div className="player-form-field">
               <label>Bio/Histórico</label>
@@ -4119,7 +4175,12 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
                   <div className="image-upload-wrapper">
                     <label className={`image-upload-container ${uploading ? 'uploading' : ''}`} style={{ width: '80px', height: '80px' }}>
                       {uploading ? <div className="spinner"></div> : editFormData.photo_url ? (
-                        <img src={editFormData.photo_url} alt="Preview" className="image-preview-badge" />
+                        <img
+                          src={clearPhotoCropFromUrl(editFormData.photo_url)}
+                          alt="Preview"
+                          className="image-preview-badge"
+                          style={{ objectFit: 'cover', objectPosition: getPhotoCropXY(editFormData.photo_url).objectPosition }}
+                        />
                       ) : (
                         <div className="upload-icon-box">
                           <Camera size={20} />
@@ -4129,6 +4190,42 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
                       <input type="file" accept="image/*" className="hidden-file-input" onChange={handleEditPhotoUpload} />
                     </label>
                   </div>
+                  {editFormData.photo_url && (
+                    <div style={{ display: 'grid', gap: '0.5rem', marginTop: '0.5rem' }}>
+                      <div style={{ display: 'grid', gap: '0.25rem' }}>
+                        <small>Horizontal: {Math.round(getPhotoCropXY(editFormData.photo_url).x)}%</small>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={getPhotoCropXY(editFormData.photo_url).x}
+                          onChange={(e) => {
+                            const nextX = Number(e.target.value);
+                            setEditFormData((prev) => {
+                              const current = getPhotoCropXY(prev.photo_url);
+                              return { ...prev, photo_url: setPhotoCropOnUrl(prev.photo_url, nextX, current.y) };
+                            });
+                          }}
+                        />
+                      </div>
+                      <div style={{ display: 'grid', gap: '0.25rem' }}>
+                        <small>Vertical: {Math.round(getPhotoCropXY(editFormData.photo_url).y)}%</small>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={getPhotoCropXY(editFormData.photo_url).y}
+                          onChange={(e) => {
+                            const nextY = Number(e.target.value);
+                            setEditFormData((prev) => {
+                              const current = getPhotoCropXY(prev.photo_url);
+                              return { ...prev, photo_url: setPhotoCropOnUrl(prev.photo_url, current.x, nextY) };
+                            });
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="form-group">
                   <label>Bio/Histórico</label>
@@ -6728,7 +6825,12 @@ const GlobalPlayerManagement = () => {
               <div className="image-upload-wrapper">
                 <label className={`image-upload-container ${uploading ? 'uploading' : ''}`} style={{ width: '80px', height: '80px' }}>
                   {uploading ? <div className="spinner"></div> : formData.photo_url ? (
-                    <img src={formData.photo_url} alt="Preview" className="image-preview-badge" />
+                    <img
+                      src={clearPhotoCropFromUrl(formData.photo_url)}
+                      alt="Preview"
+                      className="image-preview-badge"
+                      style={{ objectFit: 'cover', objectPosition: getPhotoCropXY(formData.photo_url).objectPosition }}
+                    />
                   ) : (
                     <div className="upload-icon-box">
                       <Camera size={20} />
@@ -6748,6 +6850,45 @@ const GlobalPlayerManagement = () => {
                 onChange={e => setFormData({ ...formData, photo_url: e.target.value })}
               />
             </div>
+            {formData.photo_url && (
+              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                <label>Recorte (posicionamento)</label>
+                <div style={{ display: 'grid', gap: '0.5rem' }}>
+                  <div style={{ display: 'grid', gap: '0.25rem' }}>
+                    <small>Horizontal: {Math.round(getPhotoCropXY(formData.photo_url).x)}%</small>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={getPhotoCropXY(formData.photo_url).x}
+                      onChange={(e) => {
+                        const nextX = Number(e.target.value);
+                        setFormData((prev) => {
+                          const current = getPhotoCropXY(prev.photo_url);
+                          return { ...prev, photo_url: setPhotoCropOnUrl(prev.photo_url, nextX, current.y) };
+                        });
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: 'grid', gap: '0.25rem' }}>
+                    <small>Vertical: {Math.round(getPhotoCropXY(formData.photo_url).y)}%</small>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={getPhotoCropXY(formData.photo_url).y}
+                      onChange={(e) => {
+                        const nextY = Number(e.target.value);
+                        setFormData((prev) => {
+                          const current = getPhotoCropXY(prev.photo_url);
+                          return { ...prev, photo_url: setPhotoCropOnUrl(prev.photo_url, current.x, nextY) };
+                        });
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="form-group">
               <label>Bio / Observações</label>
               <textarea rows={2} value={formData.bio} onChange={e => setFormData({...formData, bio: e.target.value})} placeholder="Breve descrição..." />
@@ -6875,6 +7016,45 @@ const GlobalPlayerManagement = () => {
                   <label>URL da Foto</label>
                   <input type="url" value={editFormData.photo_url} onChange={e => setEditFormData({ ...editFormData, photo_url: e.target.value })} />
                 </div>
+                {editFormData.photo_url && (
+                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <label>Recorte (posicionamento)</label>
+                    <div style={{ display: 'grid', gap: '0.5rem' }}>
+                      <div style={{ display: 'grid', gap: '0.25rem' }}>
+                        <small>Horizontal: {Math.round(getPhotoCropXY(editFormData.photo_url).x)}%</small>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={getPhotoCropXY(editFormData.photo_url).x}
+                          onChange={(e) => {
+                            const nextX = Number(e.target.value);
+                            setEditFormData((prev) => {
+                              const current = getPhotoCropXY(prev.photo_url);
+                              return { ...prev, photo_url: setPhotoCropOnUrl(prev.photo_url, nextX, current.y) };
+                            });
+                          }}
+                        />
+                      </div>
+                      <div style={{ display: 'grid', gap: '0.25rem' }}>
+                        <small>Vertical: {Math.round(getPhotoCropXY(editFormData.photo_url).y)}%</small>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={getPhotoCropXY(editFormData.photo_url).y}
+                          onChange={(e) => {
+                            const nextY = Number(e.target.value);
+                            setEditFormData((prev) => {
+                              const current = getPhotoCropXY(prev.photo_url);
+                              return { ...prev, photo_url: setPhotoCropOnUrl(prev.photo_url, current.x, nextY) };
+                            });
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="form-group">
                   <label>Bio / Observações</label>
                   <textarea rows={2} value={editFormData.bio} onChange={e => setEditFormData({ ...editFormData, bio: e.target.value })} />

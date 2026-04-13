@@ -9,6 +9,7 @@ import { getPendingSuspension } from '../../lib/discipline';
 import { downloadSocialPlayerCard } from '../../lib/socialCardExport';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
+import { parsePhotoCropFromUrl } from '../../lib/photoCrop';
 import './Players.css';
 
 const Players: React.FC = () => {
@@ -24,7 +25,6 @@ const Players: React.FC = () => {
   const [sortBy, setSortBy] = useState<'name' | 'goals' | 'assists' | 'cards'>('name');
   const [stuck, setStuck] = useState(false);
   const [brokenImageMap, setBrokenImageMap] = useState<Record<string, true>>({});
-  const [widePhotoMap, setWidePhotoMap] = useState<Record<string, true>>({});
   const [downloadingPlayerId, setDownloadingPlayerId] = useState<string | null>(null);
   const isAdmin = authRole === 'admin';
 
@@ -43,9 +43,6 @@ const Players: React.FC = () => {
     setBrokenImageMap((prev) => (prev[key] ? prev : { ...prev, [key]: true }));
   };
 
-  const markPhotoWide = (key: string) => {
-    setWidePhotoMap((prev) => (prev[key] ? prev : { ...prev, [key]: true }));
-  };
 
   const hashToHue = (seed: string) => {
     let hash = 0;
@@ -413,25 +410,22 @@ const Players: React.FC = () => {
                   
                   <div className="p-photo-wrapper">
                     {hasValidPhoto ? (
-                      <img 
-                        src={normalizeImageSrc(player.photo_url || '')} 
+                      (() => {
+                        const parsed = parsePhotoCropFromUrl(player.photo_url || '');
+                        return (
+                          <img 
+                            src={normalizeImageSrc(parsed.src || '')} 
                         alt={player.name} 
                         className="p-photo" 
-                        style={widePhotoMap[playerImageKey] ? { objectPosition: 'left center' } : undefined}
+                            style={parsed.objectPosition ? { objectPosition: parsed.objectPosition } : undefined}
                         width="120" 
                         height="120" 
                         loading="lazy" 
                         decoding="async" 
-                        onLoad={(e) => {
-                          const el = e.currentTarget;
-                          const w = Number(el.naturalWidth || 0);
-                          const h = Number(el.naturalHeight || 0);
-                          if (!w || !h) return;
-                          const ratio = w / h;
-                          if (ratio >= 1.35) markPhotoWide(playerImageKey);
-                        }}
                         onError={() => markImageBroken(playerImageKey)}
-                      />
+                          />
+                        );
+                      })()
                     ) : (
                       <div className="p-photo-placeholder">
                         <User size={32} color="rgba(255,255,255,0.15)" />

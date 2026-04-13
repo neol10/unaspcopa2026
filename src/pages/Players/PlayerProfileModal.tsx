@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Trophy, ShieldAlert, User, Hash, Timer, Goal, Footprints } from 'lucide-react';
 import { Player } from '../../hooks/usePlayers';
+import { parsePhotoCropFromUrl } from '../../lib/photoCrop';
 import './PlayerProfileModal.css';
 
 interface PlayerProfileModalProps {
@@ -84,6 +85,8 @@ const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose
 
   if (!player) return null;
 
+  const parsedPhoto = parsePhotoCropFromUrl(player.photo_url || '');
+
   const toneSeed = `${teamName || player.team_name || ''}-${player.team_id || ''}`;
   const tone = getTeamModalTone(toneSeed, player.team_primary_color);
 
@@ -117,9 +120,10 @@ const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose
                 <div className="player-photo-wrapper">
                   {player.photo_url && brokenPhotoUrl !== player.photo_url ? (
                     <img 
-                      src={normalizeImageSrc(player.photo_url)} 
+                      src={normalizeImageSrc(parsedPhoto.src)} 
                       alt={player.name} 
                       className="player-large-photo" 
+                      style={parsedPhoto.objectPosition ? { objectPosition: parsedPhoto.objectPosition } : undefined}
                       width="160" 
                       height="160" 
                       loading="lazy" 
