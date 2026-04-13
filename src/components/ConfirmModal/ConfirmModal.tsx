@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, X } from 'lucide-react';
 import './ConfirmModal.css';
@@ -46,7 +47,7 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
     };
   }, [open]);
 
-  return (
+  const content = (
     <AnimatePresence>
       {open && (
         <motion.div
@@ -91,6 +92,9 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
       )}
     </AnimatePresence>
   );
+
+  if (typeof document === 'undefined') return content;
+  return createPortal(content, document.body);
 };
 
 export default ConfirmModal;
