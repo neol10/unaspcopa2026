@@ -412,17 +412,24 @@ const Players: React.FC = () => {
                     {hasValidPhoto ? (
                       (() => {
                         const parsed = parsePhotoCropFromUrl(player.photo_url || '');
+                        const z = parsed.crop?.z && Number.isFinite(parsed.crop.z) ? parsed.crop.z : 100;
+                        const scale = Math.max(50, Math.min(300, z)) / 100;
+                        const objectPosition = parsed.objectPosition;
                         return (
                           <img 
                             src={normalizeImageSrc(parsed.src || '')} 
-                        alt={player.name} 
-                        className="p-photo" 
-                            style={parsed.objectPosition ? { objectPosition: parsed.objectPosition } : undefined}
-                        width="120" 
-                        height="120" 
-                        loading="lazy" 
-                        decoding="async" 
-                        onError={() => markImageBroken(playerImageKey)}
+                            alt={player.name} 
+                            className="p-photo" 
+                            style={
+                              objectPosition
+                                ? { objectPosition, transform: scale !== 1 ? `scale(${scale})` : undefined, transformOrigin: objectPosition }
+                                : (scale !== 1 ? { transform: `scale(${scale})` } : undefined)
+                            }
+                            width="120" 
+                            height="120" 
+                            loading="lazy" 
+                            decoding="async" 
+                            onError={() => markImageBroken(playerImageKey)}
                           />
                         );
                       })()

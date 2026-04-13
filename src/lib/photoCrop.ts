@@ -1,4 +1,4 @@
-export type PhotoCrop = { x: number; y: number };
+export type PhotoCrop = { x: number; y: number; z?: number };
 
 const clamp01 = (value: number) => {
   if (!Number.isFinite(value)) return 0;
@@ -17,22 +17,29 @@ export const parsePhotoCropFromUrl = (url: string): { src: string; crop: PhotoCr
   const src = base || String(url || '').trim();
   if (!hash) return { src, crop: null };
 
-  const m = hash.match(/^pos=(\d{1,3})(?:[,x](\d{1,3}))?$/i);
+  // Formatos suportados (retrocompativel):
+  // - #pos=x
+  // - #pos=x,y
+  // - #pos=x,y,z   (z = zoom em %, ex.: 140)
+  const m = hash.match(/^pos=(\d{1,3})(?:[,x](\d{1,3}))?(?:[,x](\d{1,3}))?$/i);
   if (!m) return { src, crop: null };
 
   const x = clamp01(Number(m[1]));
   const y = clamp01(Number(m[2] ?? '50'));
-  const crop = { x, y };
+  const zRaw = Number(m[3] ?? '100');
+  const z = Number.isFinite(zRaw) ? Math.max(50, Math.min(300, zRaw)) : 100;
+  const crop = { x, y, z };
   return { src, crop, objectPosition: `${x}% ${y}%` };
 };
 
-export const setPhotoCropOnUrl = (url: string, x: number, y: number) => {
+export const setPhotoCropOnUrl = (url: string, x: number, y: number, z?: number) => {
   const raw = String(url || '').trim();
   if (!raw) return '';
   const { base } = splitHash(raw);
   const cx = Math.round(clamp01(x));
   const cy = Math.round(clamp01(y));
-  return `${base || raw}#pos=${cx},${cy}`;
+  const zSafe = Number.isFinite(Number(z)) ? Math.max(50, Math.min(300, Math.round(Number(z)))) : 100;
+  return `${base || raw}#pos=${cx},${cy},${zSafe}`;
 };
 
 export const clearPhotoCropFromUrl = (url: string) => {

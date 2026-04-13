@@ -86,6 +86,8 @@ const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose
   if (!player) return null;
 
   const parsedPhoto = parsePhotoCropFromUrl(player.photo_url || '');
+  const z = parsedPhoto.crop?.z && Number.isFinite(parsedPhoto.crop.z) ? parsedPhoto.crop.z : 100;
+  const scale = Math.max(50, Math.min(300, z)) / 100;
 
   const toneSeed = `${teamName || player.team_name || ''}-${player.team_id || ''}`;
   const tone = getTeamModalTone(toneSeed, player.team_primary_color);
@@ -123,7 +125,11 @@ const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose
                       src={normalizeImageSrc(parsedPhoto.src)} 
                       alt={player.name} 
                       className="player-large-photo" 
-                      style={parsedPhoto.objectPosition ? { objectPosition: parsedPhoto.objectPosition } : undefined}
+                      style={
+                        parsedPhoto.objectPosition
+                          ? { objectPosition: parsedPhoto.objectPosition, transform: scale !== 1 ? `scale(${scale})` : undefined, transformOrigin: parsedPhoto.objectPosition }
+                          : (scale !== 1 ? { transform: `scale(${scale})` } : undefined)
+                      }
                       width="160" 
                       height="160" 
                       loading="lazy" 
