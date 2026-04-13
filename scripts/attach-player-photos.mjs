@@ -34,6 +34,9 @@ Opções:
   --division    Filtra atletas por divisão (se a coluna existir)
   --overwrite   Sobrescreve photo_url mesmo se já existir
   --dryRun      Não faz upload nem update (só simula e imprime relatório)
+\nNotas:
+  - Se a imagem for muito “larga” (ex.: carteirinha com texto), o script recorta automaticamente o lado esquerdo
+    e gera uma foto quadrada (JPG) antes do upload.
 `;
 
 const parseArgs = (argv) => {
@@ -91,6 +94,69 @@ const guessContentType = (ext) => {
   if (e === '.webp') return 'image/webp';
   if (e === '.avif') return 'image/avif';
   return 'application/octet-stream';
+};
+
+const getSharp = async () => {
+  try {
+    const mod = await import('sharp');
+    return mod.default || mod;
+  } catch {
+    return null;
+  }
+};
+
+const transformForPlayerPhoto = async (inputBuffer, originalExt) => {
+  const sharp = await getSharp();
+  if (!sharp) {
+    return {
+      buffer: inputBuffer,
+      ext: originalExt,
+      contentType: guessContentType(originalExt),
+    };
+  }
+
+  try {
+    const img = sharp(inputBuffer, { failOn: 'none' }).rotate();
+    const meta = await img.metadata();
+    const width = Number(meta?.width || 0);
+    const height = Number(meta?.height || 0);
+    if (!width || !height) {
+      return {
+        buffer: inputBuffer,
+        ext: originalExt,
+        contentType: guessContentType(originalExt),
+      };
+    }
+
+    const ratio = width / height;
+    const isWideCard = ratio >= 1.35 && width >= 320;
+    const target = 512;
+
+    let pipeline = sharp(inputBuffer, { failOn: 'none' }).rotate();
+
+    if (isWideCard) {
+      // Carteirinha costuma ter retrato à esquerda e texto à direita.
+      // Recorta a faixa esquerda (altura inteira), depois torna quadrado.
+      const cropWidth = Math.max(1, Math.min(height, Math.round(width * 0.38)));
+      pipeline = pipeline.extract({ left: 0, top: 0, width: cropWidth, height });
+    }
+
+    const outBuffer = await pipeline
+      .resize(target, target, {
+        fit: 'cover',
+        position: isWideCard ? 'left' : 'attention',
+      })
+      .jpeg({ quality: 82, mozjpeg: true })
+      .toBuffer();
+
+    return { buffer: outBuffer, ext: '.jpg', contentType: 'image/jpeg' };
+  } catch {
+    return {
+      buffer: inputBuffer,
+      ext: originalExt,
+      contentType: guessContentType(originalExt),
+    };
+  }
 };
 
 const listImagesRecursive = async (dir) => {
@@ -272,8 +338,11 @@ const main = async () => {
     await Promise.all(
       chunk.map(async ({ player, file }) => {
         try {
-          const buf = await fs.readFile(file.fullPath);
-          const ext = file.ext.toLowerCase();
+          const rawBuf = await fs.readFile(file.fullPath);
+          const originalExt = file.ext.toLowerCase();
+          const transformed = await transformForPlayerPhoto(rawBuf, originalExt);
+          const buf = transformed.buffer;
+          const ext = transformed.ext.toLowerCase();
           const safeKey = normalizePlayerKey(player.name).slice(0, 60) || player.id;
           const storagePath = `${FOLDER}/${safeKey}_${player.id}${ext}`;
 
@@ -281,7 +350,7 @@ const main = async () => {
           const uploadRes = await supabase.storage
             .from(BUCKET)
             .upload(storagePath, buf, {
-              contentType: guessContentType(ext),
+              contentType: transformed.contentType || guessContentType(ext),
               cacheControl: '3600',
               upsert: true,
             });
