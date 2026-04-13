@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase, supabaseStorage } from '../../lib/supabase';
 import { Trophy, Users, Calendar, Plus, Save, Trash2, Shield, ChevronDown, ChevronUp, Newspaper, CheckCircle, Play, Camera, Search, Settings2, Vote, ShieldAlert, Bell, Star, CreditCard, Target, Square, ArrowRightLeft, MessageSquare, Zap, Clock, Pause, RotateCcw, Coffee, Flag } from 'lucide-react';
@@ -5842,6 +5842,8 @@ const GlobalPlayerManagement = () => {
   const [bulkTeamOverrideId, setBulkTeamOverrideId] = useState('');
   const [bulkImporting, setBulkImporting] = useState(false);
   const [fixingNamesUppercase, setFixingNamesUppercase] = useState(false);
+  const [photoBulkImporting, setPhotoBulkImporting] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
   const [isSubmittingGlobalPlayer, setIsSubmittingGlobalPlayer] = useState(false);
   const { division } = useDivisionContext();
   const { teams } = useTeams();
@@ -5869,6 +5871,11 @@ const GlobalPlayerManagement = () => {
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/\s+/g, ' ');
+  };
+
+  const normalizePhotoFileKey = (fileName: string) => {
+    const base = String(fileName || '').replace(/\.[^.]+$/, '');
+    return normalizeKey(base).replace(/[^a-z0-9]/g, '');
   };
 
   const cleanTeamHeader = (value: string) => {
@@ -6230,6 +6237,109 @@ const GlobalPlayerManagement = () => {
     }
   };
 
+  const handlePickPhotos = () => {
+    if (photoBulkImporting) return;
+    photoInputRef.current?.click();
+  };
+
+  const handleAttachPhotosFromFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    if (photoBulkImporting) return;
+    if (loading) {
+      toast.error('Aguarde terminar de carregar os atletas.');
+      return;
+    }
+
+    const playersList = Array.isArray(allPlayers) ? allPlayers : [];
+    const playersByKey = new Map<string, any[]>();
+    for (const p of playersList as any[]) {
+      const key = normalizeKey(String(p?.name || '')).replace(/[^a-z0-9]/g, '');
+      if (!key) continue;
+      const arr = playersByKey.get(key) || [];
+      arr.push(p);
+      playersByKey.set(key, arr);
+    }
+
+    const selected = Array.from(files);
+    const matches: Array<{ file: File; player: any }> = [];
+    let skippedNoMatch = 0;
+    let skippedAmbiguous = 0;
+
+    for (const f of selected) {
+      const key = normalizePhotoFileKey(f.name);
+      const candidates = key ? playersByKey.get(key) : null;
+      if (!candidates || candidates.length === 0) {
+        skippedNoMatch += 1;
+        continue;
+      }
+      if (candidates.length > 1) {
+        skippedAmbiguous += 1;
+        continue;
+      }
+      matches.push({ file: f, player: candidates[0] });
+    }
+
+    if (matches.length === 0) {
+      toast('Nenhuma foto bateu com atletas pelo nome do arquivo.');
+      return;
+    }
+
+    const ok = await confirmAction({
+      title: 'Vincular fotos aos atletas',
+      description:
+        `Selecionadas: ${selected.length}. ` +
+        `Vai vincular: ${matches.length}. ` +
+        `Sem match: ${skippedNoMatch}. ` +
+        `Ambiguas (nome repetido): ${skippedAmbiguous}. ` +
+        'Continuar?',
+      variant: 'warning',
+    });
+    if (!ok) return;
+
+    setPhotoBulkImporting(true);
+    const loadingToast = toast.loading(`Vinculando fotos (0/${matches.length})...`);
+
+    try {
+      const chunks = chunkArray(matches, 5);
+      let done = 0;
+
+      for (let i = 0; i < chunks.length; i += 1) {
+        const chunk = chunks[i];
+        await Promise.all(
+          chunk.map(async ({ file, player }) => {
+            const url = await uploadToStorage(file, 'images', 'player-photos');
+            if (!url) throw new Error('Falha no upload da foto');
+
+            const { error } = await withTimeout(
+              supabase
+                .from('players')
+                .update({ photo_url: url })
+                .eq('id', player.id),
+              30000,
+              'Tempo limite ao vincular foto'
+            );
+            if (error) throw error;
+
+            done += 1;
+            upsertPlayerInCache({ ...(player as any), photo_url: url } as any);
+          })
+        );
+
+        toast.loading(`Vinculando fotos (${done}/${matches.length})...`, { id: loadingToast });
+      }
+
+      void queryClient.invalidateQueries({ queryKey: ['players', division] });
+      void queryClient.invalidateQueries({ queryKey: ['rankings', division] });
+      void refreshPlayers();
+      toast.success(`Fotos vinculadas: ${done}!`, { id: loadingToast });
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao vincular fotos'), { id: loadingToast });
+    } finally {
+      setPhotoBulkImporting(false);
+      if (photoInputRef.current) photoInputRef.current.value = '';
+    }
+  };
+
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -6473,6 +6583,23 @@ const GlobalPlayerManagement = () => {
         <div className="header-title-box">
           <h2>Gestão Global de Atletas</h2>
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <input
+              ref={photoInputRef}
+              type="file"
+              multiple
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={(e) => void handleAttachPhotosFromFiles(e.target.files)}
+            />
+            <button
+              className="btn-add"
+              type="button"
+              disabled={photoBulkImporting || loading}
+              onClick={handlePickPhotos}
+              title="Selecione as fotos (pode selecionar a pasta toda). O sistema só vincula as que baterem com atletas pelo nome do arquivo."
+            >
+              {photoBulkImporting ? 'Vinculando fotos...' : 'Vincular fotos (lote)'}
+            </button>
             <button
               className="btn-add"
               type="button"
