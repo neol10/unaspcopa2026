@@ -21,8 +21,8 @@ app.use(express.json());
 // Observação importante para os alunos:
 // esses dados somem quando o servidor reinicia
 const tarefas = [
-  { id: 1, descricao: "Estudar química", concluida: false },
-  { id: 2, descricao: "Criar páginas no Figma", concluida: true }
+  { id: 1, descricao: "Estudar química", concluida: false, noite: 1 },
+  { id: 2, descricao: "Criar páginas no Figma", concluida: true, noite: 1 }
 ];
 
 // ========================================
@@ -86,11 +86,12 @@ function obterTarefaPorId(id) {
  * A descrição é limpa com trim() para remover espaços extras
  * Toda nova tarefa começa com concluida = false
  */
-function criarNovaTarefa(descricao) {
+function criarNovaTarefa(descricao, noite) {
   const novaTarefa = {
     id: gerarNovoId(),
     descricao: descricao.trim(),
-    concluida: false
+    concluida: false,
+    noite: noite !== undefined ? noite : 1
   };
 
   tarefas.push(novaTarefa);
@@ -107,7 +108,7 @@ function criarNovaTarefa(descricao) {
  * - a tarefa atualizada, se encontrar
  * - null, se não encontrar
  */
-function atualizarTarefa(id, novaDescricao, novoStatus) {
+function atualizarTarefa(id, novaDescricao, novoStatus, novaNoite) {
   const indice = encontrarIndiceTarefa(id);
 
   if (indice === -1) return null;
@@ -122,6 +123,11 @@ function atualizarTarefa(id, novaDescricao, novoStatus) {
   // Atualiza o status apenas se ele foi enviado
   if (novoStatus !== undefined) {
     tarefa.concluida = novoStatus;
+  }
+
+  // Atualiza a noite apenas se ela foi enviada
+  if (novaNoite !== undefined) {
+    tarefa.noite = novaNoite;
   }
 
   return tarefa;
@@ -196,16 +202,21 @@ app.get("/tarefas/:id", (req, res) => {
  * Cria uma nova tarefa
  */
 app.post("/tarefas", (req, res) => {
-  // Pega a descrição enviada no corpo da requisição
-  const { descricao } = req.body;
+  // Pega a descrição e noite enviadas no corpo da requisição
+  const { descricao, noite } = req.body;
 
   // Valida se a descrição foi enviada corretamente
   if (typeof descricao !== "string" || descricao.trim() === "") {
     return res.status(400).json({ erro: "Descrição é obrigatória" });
   }
 
+  // Valida a noite, se enviada
+  if (noite !== undefined && (typeof noite !== "number" || noite < 1)) {
+    return res.status(400).json({ erro: "Noite deve ser um número maior que 0" });
+  }
+
   // Cria a nova tarefa
-  const tarefaCriada = criarNovaTarefa(descricao);
+  const tarefaCriada = criarNovaTarefa(descricao, noite);
 
   // Retorna status 201 (criado com sucesso)
   res.status(201).json({
@@ -223,7 +234,7 @@ app.patch("/tarefas/:id", (req, res) => {
   const idNumero = Number(req.params.id);
 
   // Pega os dados enviados no corpo da requisição
-  const { descricao, concluida } = req.body;
+  const { descricao, concluida, noite } = req.body;
 
   // Valida o id
   if (Number.isNaN(idNumero)) {
@@ -243,8 +254,13 @@ app.patch("/tarefas/:id", (req, res) => {
     return res.status(400).json({ erro: "concluida deve ser boolean" });
   }
 
+  // Valida a noite, se enviada
+  if (noite !== undefined && (typeof noite !== "number" || noite < 1)) {
+    return res.status(400).json({ erro: "Noite deve ser um número maior que 0" });
+  }
+
   // Tenta atualizar a tarefa
-  const tarefaAtualizada = atualizarTarefa(idNumero, descricao, concluida);
+  const tarefaAtualizada = atualizarTarefa(idNumero, descricao, concluida, noite);
 
   // Se não encontrar a tarefa, retorna erro 404
   if (!tarefaAtualizada) {
