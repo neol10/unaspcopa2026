@@ -49,6 +49,6 @@
     "vite": "5.4.11",
     "vite-plugin-pwa": "0.21.1",
     "vitest": "^4.1.2"
->>>>>>> d34ebce7aaee96dd5a1f25210c2487ab280c5129
+  }
   }
 }
