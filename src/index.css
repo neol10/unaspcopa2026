@@ -1,0 +1,277 @@
+:root {
+  /* Color Palette - Official World Cup 2026 Shades */
+  --primary: #E4002B; /* Official Red - Higher Contrast */
+  --secondary: #FFD700; /* Trophy Gold */
+  --gold-main: #FFD700;
+  --gold-glow: rgba(255, 215, 0, 0.4);
+  
+  /* Brand Colors from Logo */
+  --accent-navy: #1C237E;  /* FIFA Navy */
+  --accent-blue: #00A9E0;  /* Sky Blue */
+  --vibrant-green: #34A853; /* Official Green */
+  --vibrant-red: #E4002B;   /* Official Red */
+  
+  /* Dark Mode Foundation - Deep & Elegant */
+  --bg-main: #050b1f;
+  --bg-sidebar: rgba(9, 16, 38, 0.96);
+  --bg-card: rgba(14, 24, 52, 0.86);
+  --bg-glass: rgba(255, 255, 255, 0.05);
+  
+  /* Text & Contrast */
+  --text-main: #ffffff;
+  --text-muted: #cbd5e1;
+  --text-dim: #94a3b8;
+  
+  /* Borders & Glassmorphism */
+  --border-light: rgba(255, 255, 255, 0.12);
+  --border-glow: rgba(255, 255, 255, 0.25);
+  
+  /* Transitions & Shadows */
+  --transition-smooth: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  --transition-fast: all 0.15s ease;
+  --shadow-glow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+  --primary-glow: 0 0 20px rgba(255, 215, 0, 0.2);
+  
+  /* Spacing & Radii */
+  --radius-lg: 24px;
+  --radius-md: 16px;
+  --radius-sm: 8px;
+  --gap-base: 2rem;
+}
+
+[data-theme='light'] {
+  --bg-main: #f6f8fc;
+  --bg-sidebar: #ffffff;
+  --bg-card: rgba(255, 255, 255, 0.95);
+  --bg-glass: rgba(2, 6, 23, 0.04);
+  
+  --text-main: #0f172a;
+  --text-muted: #334155;
+  --text-dim: #475569;
+  
+  --border-light: rgba(15, 23, 42, 0.12);
+  --border-glow: rgba(15, 23, 42, 0.18);
+  
+  --shadow-glow: 0 8px 28px 0 rgba(15, 23, 42, 0.08);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', 'Manrope', system-ui, -apple-system, sans-serif;
+  background-color: var(--bg-main);
+  background-image: radial-gradient(circle at 18% 18%, rgba(0, 169, 224, 0.16) 0%, transparent 42%), radial-gradient(circle at 82% 12%, rgba(0, 169, 224, 0.12) 0%, transparent 40%), linear-gradient(140deg, #02040c 0%, #081635 45%, #061b3b 100%);
+  background-attachment: scroll;
+  color: var(--text-main);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  margin: 0;
+  overflow-x: hidden; /* Prevent horizontal shift */
+  overflow-y: scroll;
+  transition: background-color 0.4s ease, color 0.4s ease;
+  width: 100%;
+  position: relative;
+}
+
+#root {
+  overflow-x: hidden;
+  width: 100%;
+  min-height: 100vh;
+}
+
+[data-theme='light'] body {
+  background-image: radial-gradient(circle at 10% 10%, rgba(0, 169, 224, 0.2) 0%, transparent 50%), radial-gradient(circle at 88% 8%, rgba(228, 0, 43, 0.18) 0%, transparent 52%), radial-gradient(circle at 52% 92%, rgba(52, 168, 83, 0.2) 0%, transparent 56%), linear-gradient(140deg, #f4f8ff 0%, #e8f0ff 45%, #edf4ff 100%);
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+  transition: var(--transition-fast);
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  outline: none;
+  font-family: inherit;
+  transition: var(--transition-fast);
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
+}
+
+/* FIFA 2026 Brand Streak */
+.fifa-streak {
+  height: 4px;
+  width: 100%;
+  background: linear-gradient(90deg, #34A853 0%, #00A9E0 33%, #E4002B 66%, #FFD700 100%);
+  border-radius: 2px;
+}
+
+html {
+  scroll-behavior: smooth;
+  width: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+::selection {
+  background: var(--secondary);
+  color: #000;
+}
+
+/* Glassmorphism Classes */
+.glass {
+  background: var(--bg-card);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--border-light);
+  box-shadow: 
+    0 8px 32px 0 rgba(0, 0, 0, 0.4),
+    inset 0 1px 1px rgba(255, 255, 255, 0.05);
+  transition: var(--transition-smooth);
+}
+
+.glass-premium {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 215, 0, 0.2);
+  box-shadow: 
+    0 10px 40px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 215, 0, 0.1);
+}
+
+[data-theme='light'] .glass {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(15, 23, 42, 0.12);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+
+.glass-hover:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--secondary);
+  box-shadow: 0 0 25px rgba(251, 191, 36, 0.15);
+  transform: translateY(-4px) scale(1.01);
+}
+
+[data-theme='light'] .glass-hover:hover {
+  background: rgba(2, 6, 23, 0.04);
+  border-color: rgba(15, 23, 42, 0.2);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+}
+
+.premium-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.premium-card::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    45deg,
+    transparent 0%,
+    rgba(255, 215, 0, 0.03) 45%,
+    rgba(255, 215, 0, 0.05) 50%,
+    rgba(255, 215, 0, 0.03) 55%,
+    transparent 100%
+  );
+  transform: rotate(45deg);
+  transition: 0.6s;
+  pointer-events: none;
+}
+
+.premium-card:hover::after {
+  transform: rotate(45deg) translate(20%, 20%);
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 50%, #94a3b8 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+@keyframes shimmer-sweep {
+  0% { transform: translateX(-100%) rotate(45deg); }
+  20%, 100% { transform: translateX(200%) rotate(45deg); }
+}
+
+.shimmer-effect {
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer-effect::after {
+  content: '';
+  position: absolute;
+  top: -100%;
+  left: -100%;
+  width: 50%;
+  height: 300%;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(255, 255, 255, 0.15),
+    transparent
+  );
+  transform: rotate(45deg);
+  animation: shimmer-sweep 4s infinite;
+  pointer-events: none;
+}
+.animate-fade-in {
+  animation: fadeIn 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-main);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-light);
+  border-radius: 5px;
+  border: 2px solid var(--bg-main);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-dim);
+}

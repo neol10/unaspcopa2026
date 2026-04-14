@@ -1,0 +1,515 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { usePlayers, Player } from '../../hooks/usePlayers';
+import { useTeams } from '../../hooks/useTeams';
+import { Shield, ChevronLeft, User, Search, Users, Goal, Footprints, Download } from 'lucide-react';
+import toast from 'react-hot-toast';
+import PlayerProfileModal from './PlayerProfileModal';
+import { getPendingSuspension } from '../../lib/discipline';
+import { downloadSocialPlayerCard } from '../../lib/socialCardExport';
+import { useAuthContext } from '../../contexts/AuthContext';
+import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
+import { parsePhotoCropFromUrl } from '../../lib/photoCrop';
+import './Players.css';
+
+const Players: React.FC = () => {
+  const { teamId } = useParams<{ teamId: string }>();
+  const navigate = useNavigate();
+  const { role: authRole } = useAuthContext();
+  const { visibility } = useGroupCVisibility();
+  const { players, loading: playersLoading, error: playersError, refresh: refreshPlayers } = usePlayers(teamId);
+  const { teams } = useTeams();
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedPosition, setSelectedPosition] = useState('all');
+  const [sortBy, setSortBy] = useState<'name' | 'goals' | 'assists' | 'cards'>('name');
+  const [stuck, setStuck] = useState(false);
+  const [brokenImageMap, setBrokenImageMap] = useState<Record<string, true>>({});
+  const [downloadingPlayerId, setDownloadingPlayerId] = useState<string | null>(null);
+  const isAdmin = authRole === 'admin';
+
+  const normalizeImageSrc = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) return trimmed;
+    try {
+      return encodeURI(trimmed);
+    } catch {
+      return trimmed;
+    }
+  };
+
+  const markImageBroken = (key: string) => {
+    setBrokenImageMap((prev) => (prev[key] ? prev : { ...prev, [key]: true }));
+  };
+
+
+  const hashToHue = (seed: string) => {
+    let hash = 0;
+    for (let i = 0; i < seed.length; i += 1) {
+      hash = (hash * 31 + seed.charCodeAt(i)) % 360;
+    }
+    return Math.abs(hash % 360);
+  };
+
+  const hexToHue = (hex: string) => {
+    let r = 0, g = 0, b = 0;
+    if (hex.length === 4) {
+      r = parseInt(hex[1] + hex[1], 16);
+      g = parseInt(hex[2] + hex[2], 16);
+      b = parseInt(hex[3] + hex[3], 16);
+    } else if (hex.length === 7) {
+      r = parseInt(hex.slice(1, 3), 16);
+      g = parseInt(hex.slice(3, 5), 16);
+      b = parseInt(hex.slice(5, 7), 16);
+    }
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    let h = (max + min) / 2;
+    if (max === min) {
+      h = 0;
+    } else {
+      const d = max - min;
+      switch (max) {
+        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+        case g: h = (b - r) / d + 2; break;
+        case b: h = (r - g) / d + 4; break;
+      }
+      h /= 6;
+    }
+    return Math.round(h * 360);
+  };
+
+  const getTeamCardTone = (seedRaw: string, primaryColor?: string | null) => {
+    let hue: number;
+    if (primaryColor && /^#[0-9A-F]{3,6}$/i.test(primaryColor)) {
+      hue = hexToHue(primaryColor);
+    } else {
+      const seed = seedRaw.trim() || 'team-default';
+      hue = hashToHue(seed);
+    }
+
+    // Retornamos um tema base elegante (azul suave) se não estivermos no modo "brand"
+    // O usuário solicitou "cor base normal" no site.
+    const baseHue = 215; // Azul Copa Unasp
+    return {
+      cardBg: `hsla(${baseHue}, 85%, 55%, 0.08)`,
+      cardBorder: `hsla(${baseHue}, 85%, 62%, 0.22)`,
+      cardGlow: `hsla(${baseHue}, 95%, 60%, 0.12)`,
+      chipBg: `hsla(${baseHue}, 85%, 55%, 0.12)`,
+      chipBorder: `hsla(${baseHue}, 90%, 66%, 0.26)`,
+    };
+  };
+
+  useEffect(() => {
+    if (!playersLoading) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setStuck(false);
+      return;
+    }
+    const id = setTimeout(() => setStuck(true), 15000);
+    return () => clearTimeout(id);
+  }, [playersLoading]);
+  
+  const normalize = (value: string) => value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  const isTestGroup = (groupName?: string | null) => {
+    const clean = (groupName || '').trim().toUpperCase().replace(/\s+/g, '');
+    return clean === 'C' || clean === 'GRUPOC';
+  };
+
+  const basePlayers = isAdmin
+    ? players
+    : visibility.players
+    ? players
+    : players.filter((p) => !isTestGroup(p.team_group));
+
+  const team = teams.find(t => t.id === teamId);
+  const teamFromPlayers = useMemo(() => {
+    if (!teamId || basePlayers.length === 0) return null;
+    const first = basePlayers[0];
+    return {
+      name: first.team_name,
+      badge_url: first.team_badge_url,
+      group: first.team_group,
+      leader: first.team_leader,
+    };
+  }, [teamId, basePlayers]);
+
+  const resolvedTeamName = team?.name || teamFromPlayers?.name || 'Equipe';
+  const resolvedTeamBadge = team?.badge_url || teamFromPlayers?.badge_url || '';
+  const resolvedTeamGroup = team?.group || teamFromPlayers?.group || '';
+  const resolvedTeamLeader = team?.leader || teamFromPlayers?.leader || '';
+  const isGlobalView = !teamId;
+  const teamBadgeKey = teamId ? `team-badge-${teamId}` : 'team-badge-global';
+
+  const positionOptions = Array.from(new Set(basePlayers.map((p) => p.position).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+
+  const filteredPlayers = useMemo(() => {
+    const term = normalize(searchTerm.trim());
+    const list = basePlayers.filter((p) => {
+      const matchesPosition = selectedPosition === 'all' || p.position === selectedPosition;
+      if (!matchesPosition) return false;
+      if (!term) return true;
+      const byName = normalize(p.name || '').includes(term);
+      const byPosition = normalize(p.position || '').includes(term);
+      const byTeam = normalize(p.team_name || '').includes(term);
+      return byName || byPosition || byTeam;
+    });
+
+    const sorted = [...list].sort((a, b) => {
+      if (sortBy === 'goals') return (b.goals_count || 0) - (a.goals_count || 0) || a.name.localeCompare(b.name);
+      if (sortBy === 'assists') return (b.assists || 0) - (a.assists || 0) || a.name.localeCompare(b.name);
+      if (sortBy === 'cards') {
+        const cardsA = (a.yellow_cards || 0) + (a.red_cards || 0) * 2;
+        const cardsB = (b.yellow_cards || 0) + (b.red_cards || 0) * 2;
+        return cardsB - cardsA || a.name.localeCompare(b.name);
+      }
+      return a.name.localeCompare(b.name);
+    });
+
+    return sorted;
+  }, [basePlayers, searchTerm, selectedPosition, sortBy]);
+
+  const handleDownloadPlayerCard = async (player: Player) => {
+    const playerTeamName = player.team_name || teams.find((t) => t.id === player.team_id)?.name || resolvedTeamName;
+    const fileSafeName = player.name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+
+    setDownloadingPlayerId(player.id);
+    try {
+      await downloadSocialPlayerCard({
+        fileName: `card-jogador-${fileSafeName || player.id}`,
+        category: 'Jogador em Destaque',
+        subtitle: 'Estatisticas oficiais da Copa Unasp',
+        theme: 'blue',
+        player: { 
+          name: player.name, 
+          teamName: playerTeamName, 
+          position: player.position, 
+          photoUrl: player.photo_url, 
+          teamBadgeUrl: player.team_badge_url || resolvedTeamBadge,
+          teamPrimaryColor: player.team_primary_color
+        },
+        stats: [
+          { label: 'Gols', value: player.goals_count || 0 },
+          { label: 'Assistencias', value: player.assists || 0 },
+          { label: 'Cartoes', value: (player.yellow_cards || 0) + (player.red_cards || 0) },
+        ],
+      });
+      toast.success(`Card de ${player.name} baixado!`);
+    } catch (error) {
+      console.error('Erro ao baixar card de jogador:', error);
+      toast.error('Nao foi possivel baixar o card deste jogador.');
+    } finally {
+      setDownloadingPlayerId(null);
+    }
+  };
+
+  if ((stuck || (!navigator.onLine && playersLoading)) && basePlayers.length === 0) {
+    return (
+      <div className="error-state glass" style={{ margin: '2rem auto', maxWidth: 720 }}>
+        <p style={{ marginBottom: '0.75rem' }}>
+          {!navigator.onLine
+            ? 'Sem conexão no momento. Os jogadores vão carregar assim que a internet voltar.'
+            : 'Demorou muito para carregar os jogadores.'}
+        </p>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => refreshPlayers()}>
+            Tentar novamente
+          </button>
+          <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => window.location.reload()}>
+            Recarregar página
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (playersLoading && basePlayers.length === 0) return (
+    <div className="players-loading">
+      <div className="spinner"></div>
+      <p>Convocando atletas...</p>
+    </div>
+  );
+  
+  if (playersError && basePlayers.length === 0) {
+    return (
+      <div className="error-state glass" style={{ margin: '2rem auto', maxWidth: 720 }}>
+        <p style={{ marginBottom: '0.75rem' }}>Erro ao carregar jogadores: {playersError}</p>
+        <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => refreshPlayers()}>
+          Tentar novamente
+        </button>
+      </div>
+    );
+  }
+
+  if (teamId && !isAdmin && !visibility.players && isTestGroup(resolvedTeamGroup)) {
+    return (
+      <div className="error-state glass" style={{ margin: '2rem auto', maxWidth: 720 }}>
+        <p style={{ marginBottom: '0.75rem' }}>Equipe indisponivel para usuarios nao-admin.</p>
+        <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => navigate('/equipes')}>
+          Voltar para equipes
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="players-page animate-fade-in">
+      {teamId && (
+        <button className="btn-back-v2 glass" onClick={() => navigate('/equipes')}>
+          <ChevronLeft size={18} /> 
+          <span>Voltar para Arena</span>
+        </button>
+      )}
+
+      <header className={`team-profile-header glass ${isGlobalView ? 'global-hub' : ''}`}>
+        <div className="profile-branding">
+          <div className="profile-badge-box">
+            {isGlobalView ? (
+              <Users size={64} color="var(--secondary)" />
+            ) : resolvedTeamBadge && !brokenImageMap[teamBadgeKey] ? (
+              <img 
+                src={normalizeImageSrc(resolvedTeamBadge)} 
+                alt={resolvedTeamName} 
+                className="profile-badge-img" 
+                width="64" 
+                height="64" 
+                loading="lazy" 
+                decoding="async" 
+                onError={() => markImageBroken(teamBadgeKey)}
+              />
+            ) : (
+              <Shield size={64} color="var(--secondary)" />
+            )}
+          </div>
+          <div className="profile-info-group">
+            <h1>{isGlobalView ? 'Central de Atletas' : resolvedTeamName}</h1>
+            <div className="profile-tags">
+               {isGlobalView ? (
+                 <span className="profile-tag group">Copa Unasp 2026</span>
+               ) : (
+                 <>
+                   <span className="profile-tag group">{resolvedTeamGroup}</span>
+                   <span className="profile-tag captain">Líder: {resolvedTeamLeader}</span>
+                 </>
+               )}
+            </div>
+          </div>
+        </div>
+
+        <div className="search-players-box glass">
+          <Search size={18} color="var(--text-dim)" />
+          <input 
+            type="text" 
+            placeholder="Pesquisar atleta ou posição..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+
+        <div className="players-filters glass">
+          <select value={selectedPosition} onChange={(e) => setSelectedPosition(e.target.value)}>
+            <option value="all">Todas as posições</option>
+            {positionOptions.map((position) => (
+              <option key={position} value={position}>
+                {position}
+              </option>
+            ))}
+          </select>
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as 'name' | 'goals' | 'assists' | 'cards')}>
+            <option value="name">Ordem A-Z</option>
+            <option value="goals">Mais gols</option>
+            <option value="assists">Mais assistencias</option>
+            <option value="cards">Mais cartoes</option>
+          </select>
+        </div>
+
+        <div className="profile-highlights glass">
+          <div className="h-stat">
+            <strong>{filteredPlayers.length}</strong>
+            <span>{searchTerm ? 'Encontrados' : 'Atletas'}</span>
+          </div>
+        </div>
+      </header>
+
+      <section className="roster-grid-section">
+        <div className="roster-header">
+           <User size={20} color="var(--secondary)" />
+           <h2>Elenco Oficial</h2>
+        </div>
+        
+        <div className="players-v2-grid">
+          {filteredPlayers.length > 0 ? (
+            filteredPlayers.map((player) => {
+              const playerImageKey = `player-photo-${player.id}`;
+              const hasValidPhoto = Boolean(player.photo_url && !brokenImageMap[playerImageKey]);
+              const teamSeed = isGlobalView
+                ? `${player.team_name || ''}-${player.team_id || ''}`
+                : `${resolvedTeamName}-${teamId || ''}`;
+              const tone = getTeamCardTone(teamSeed, player.team_primary_color);
+              return (
+                <div 
+                  key={player.id} 
+                  className="player-card-v2 glass team-tinted" 
+                  onClick={() => setSelectedPlayer(player)}
+                  style={{
+                    cursor: 'pointer',
+                    '--team-card-bg': tone.cardBg,
+                    '--team-card-border': tone.cardBorder,
+                    '--team-card-glow': tone.cardGlow,
+                    '--team-chip-bg': tone.chipBg,
+                    '--team-chip-border': tone.chipBorder,
+                  } as React.CSSProperties}
+                >
+                  <div className="p-header">
+                    <div className="p-team-badge-chip" title={player.team_name || 'Equipe'}>
+                      {player.team_badge_url && !brokenImageMap[`team-chip-${player.team_id}`] ? (
+                        <img
+                          src={normalizeImageSrc(player.team_badge_url)}
+                          alt={player.team_name || 'Equipe'}
+                          className="p-team-badge-img"
+                          width="22"
+                          height="22"
+                          loading="lazy"
+                          decoding="async"
+                          onError={() => markImageBroken(`team-chip-${player.team_id}`)}
+                        />
+                      ) : (
+                        <Shield size={16} color="var(--secondary)" />
+                      )}
+                    </div>
+                    <div className="p-header-actions">
+                      {authRole === 'admin' && (
+                        <button
+                          type="button"
+                          className="player-card-download-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownloadPlayerCard(player);
+                          }}
+                          disabled={downloadingPlayerId === player.id}
+                          aria-label={`Baixar card de ${player.name}`}
+                          title="Baixar card individual"
+                        >
+                          <Download size={14} />
+                          <span>{downloadingPlayerId === player.id ? 'Gerando...' : 'Card'}</span>
+                        </button>
+                      )}
+                      <div className="p-position">{player.position}</div>
+                    </div>
+                  </div>
+                  
+                  <div className="p-photo-wrapper">
+                    {hasValidPhoto ? (
+                      (() => {
+                        const parsed = parsePhotoCropFromUrl(player.photo_url || '');
+                        const z = parsed.crop?.z && Number.isFinite(parsed.crop.z) ? parsed.crop.z : 100;
+                        const scale = Math.max(50, Math.min(300, z)) / 100;
+                        const objectPosition = parsed.objectPosition;
+                        return (
+                          <img 
+                            src={normalizeImageSrc(parsed.src || '')} 
+                            alt={player.name} 
+                            className="p-photo" 
+                            style={
+                              objectPosition
+                                ? { objectPosition, transform: scale !== 1 ? `scale(${scale})` : undefined, transformOrigin: objectPosition }
+                                : (scale !== 1 ? { transform: `scale(${scale})` } : undefined)
+                            }
+                            width="120" 
+                            height="120" 
+                            loading="lazy" 
+                            decoding="async" 
+                            onError={() => markImageBroken(playerImageKey)}
+                          />
+                        );
+                      })()
+                    ) : (
+                      <div className="p-photo-placeholder">
+                        <User size={32} color="rgba(255,255,255,0.15)" />
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="p-info">
+                     <h3>{player.name}</h3>
+                     {isGlobalView && (
+                       <div className="p-team-name">
+                         {player.team_name || 'Time não encontrado'}
+                       </div>
+                     )}
+                  </div>
+                  
+                  <div className="p-stats-v2">
+                    <div className="p-stat-box">
+                       <div className="p-stat-icon-wrap goal">
+                         <Goal size={14} color="var(--secondary)" className="p-stat-icon" />
+                       </div>
+                       <strong>{player.goals_count}</strong>
+                        <span>G</span>
+                    </div>
+                    <div className="p-stat-box">
+                       <div className="p-stat-icon-wrap assist">
+                         <Footprints size={14} color="#00b0ff" className="p-stat-icon" />
+                       </div>
+                       <strong>{player.assists}</strong>
+                        <span>A</span>
+                    </div>
+                    <div className="p-stat-box">
+                        <div className="p-stat-icon-wrap yellow-card">
+                         <div className="p-card-icon yellow" />
+                        </div>
+                       <strong>{player.yellow_cards}</strong>
+                        <span>C/A</span>
+                    </div>
+                    <div className="p-stat-box">
+                        <div className="p-stat-icon-wrap red-card">
+                         <div className="p-card-icon red" />
+                        </div>
+                       <strong>{player.red_cards}</strong>
+                        <span>C/V</span>
+                    </div>
+                    <div className="p-cards">
+                      {(() => {
+                        const susp = getPendingSuspension(player);
+                        if (!susp.isSuspended) return null;
+                        return (
+                          <span className="p-suspension-badge" title={`${susp.pendingGames} jogo(s) de suspensão pendente(s)`}>
+                            SUSPENSO ({susp.pendingGames})
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="empty-elenco glass">
+              <p>{searchTerm ? 'Nenhum atleta encontrado com esse nome.' : 'O vestiário está vazio. Nenhum atleta cadastrado.'}</p>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {selectedPlayer && (
+        <PlayerProfileModal 
+          player={selectedPlayer} 
+          onClose={() => setSelectedPlayer(null)} 
+          teamName={selectedPlayer?.team_name || teams.find(t => t.id === selectedPlayer?.team_id)?.name}
+        />
+      )}
+    </div>
+  );
+};
+
+export default Players;

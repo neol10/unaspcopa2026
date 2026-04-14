@@ -1,29 +1,54 @@
 {
-  "name": "js-basico",
-  "version": "1.0.0",
-  "main": "index.js",
+  "name": "copaunasp",
+  "private": true,
+  "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "batata": "node src/index.js",
-    "dev": "np src/server.js"
+    "dev": "vite",
+    "dev:clean": "node scripts/dev-clean.mjs",
+    "build": "vite build",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "smoke": "node scripts/smoke-check.mjs"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/h-fcosta/js-basico.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/h-fcosta/js-basico/issues"
-  },
-  "homepage": "https://github.com/h-fcosta/js-basico#readme",
-  "description": "",
   "dependencies": {
-    "express": "^5.2.1"
+    "@supabase/supabase-js": "^2.99.1",
+    "@tanstack/react-query": "^5.90.21",
+    "canvas-confetti": "^1.9.4",
+    "framer-motion": "^12.36.0",
+    "html-to-image": "^1.11.13",
+    "lucide-react": "^0.577.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-hot-toast": "^2.6.0",
+    "react-router-dom": "^7.13.1",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "@eslint/js": "^9.39.4",
+    "@napi-rs/canvas": "^0.1.97",
+    "@types/canvas-confetti": "^1.9.0",
+    "@types/node": "^20.17.10",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "@types/web-push": "^3.6.4",
+    "@vercel/node": "^3.2.27",
+    "@vitejs/plugin-react": "4.3.4",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.4.0",
+    "pdfjs-dist": "^5.6.205",
+    "sharp": "^0.34.5",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.56.1",
+    "vite": "5.4.11",
+    "vite-plugin-pwa": "0.21.1",
+    "vitest": "^4.1.2"
+>>>>>>> d34ebce7aaee96dd5a1f25210c2487ab280c5129
   }
 }

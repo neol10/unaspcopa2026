@@ -1,0 +1,180 @@
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '../lib/supabase';
+import { useDivisionContext } from '../contexts/DivisionContext';
+import type { Division } from '../lib/division';
+import {
+  getDivisionColumnStatus,
+  isMissingColumnError,
+  markDivisionColumnMissing,
+  markDivisionColumnPresent,
+} from '../lib/supabaseOptionalColumns';
+
+export interface Match {
+  id: string;
+  division?: Division;
+  team_a_id: string;
+  team_b_id: string;
+  team_a_score: number;
+  team_b_score: number;
+  match_date: string;
+  location: string;
+  status: 'agendado' | 'ao_vivo' | 'finalizado';
+  round: number;
+  match_mvp_player_id?: string | null;
+  match_mvp_description?: string | null;
+  timer_started_at?: string | null;
+  timer_offset_seconds: number;
+  is_timer_running: boolean;
+  teams_a?: { name: string; badge_url: string; group: string };
+  teams_b?: { name: string; badge_url: string; group: string };
+}
+
+export const useMatches = (limit?: number) => {
+  const queryClient = useQueryClient();
+  const { division } = useDivisionContext();
+
+  const cacheKey = `copa_unasp_cache_matches_${division}_${limit || 'all'}`;
+  const loadCache = () => {
+    try {
+      const raw = localStorage.getItem(cacheKey);
+      if (!raw) return null as null | { ts: number; data: Match[] };
+      const parsed = JSON.parse(raw) as { ts: number; data: Match[] };
+      if (!parsed?.ts || !Array.isArray(parsed.data)) return null;
+      // Aceita cache de até 24h (só para "pintar" rápido no refresh)
+      if (Date.now() - parsed.ts > 24 * 60 * 60 * 1000) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  };
+
+  const saveCache = (data: Match[]) => {
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data }));
+    } catch {
+      // ignore
+    }
+  };
+
+  const cached = loadCache();
+
+  const friendlyError = (raw: string | undefined) => {
+    if (!raw) return null;
+    if (raw.includes('Request timeout')) return 'Tempo limite ao carregar partidas';
+    if (raw.toLowerCase().includes('abort')) return 'Tempo limite ao carregar partidas';
+    return raw;
+  };
+
+  const query = useQuery({
+    queryKey: ['matches', division, limit || 'all'],
+    queryFn: async () => {
+      const status = getDivisionColumnStatus();
+
+      let q = supabase
+        .from('matches')
+        .select(`
+          id,
+          team_a_id,
+          team_b_id,
+          team_a_score,
+          team_b_score,
+          match_date,
+          location,
+          status,
+          round,
+          match_mvp_player_id,
+          match_mvp_description,
+          timer_started_at,
+          timer_offset_seconds,
+          is_timer_running,
+          teams_a:teams!team_a_id(name, badge_url, group),
+          teams_b:teams!team_b_id(name, badge_url, group)
+        `)
+        .order('match_date', { ascending: true });
+
+      if (status !== 'missing') q = q.eq('division', division);
+
+      if (limit) q = q.limit(limit);
+
+      const { data, error } = await q;
+      if (error) {
+        if (status !== 'missing' && isMissingColumnError(error, 'division')) {
+          markDivisionColumnMissing();
+
+          let retryQ = supabase
+            .from('matches')
+            .select(`
+              id,
+              team_a_id,
+              team_b_id,
+              team_a_score,
+              team_b_score,
+              match_date,
+              location,
+              status,
+              round,
+              match_mvp_player_id,
+              match_mvp_description,
+              timer_started_at,
+              timer_offset_seconds,
+              is_timer_running,
+              teams_a:teams!team_a_id(name, badge_url, group),
+              teams_b:teams!team_b_id(name, badge_url, group)
+            `)
+            .order('match_date', { ascending: true });
+          if (limit) retryQ = retryQ.limit(limit);
+
+          const retry = await retryQ;
+          if (retry.error) throw retry.error;
+          return (retry.data as Match[]) || [];
+        }
+
+        console.error('Supabase Matches Error:', error);
+        throw error;
+      }
+
+      if (status !== 'missing') markDivisionColumnPresent();
+
+      return (data as Match[]) || [];
+    },
+    staleTime: 1000 * 30, // 30 segundos
+    gcTime: 1000 * 60 * 30,    // 30 min
+    refetchInterval: 1000 * 60, // Fallback: atualiza a cada 1 minuto se o real-time falhar
+    refetchOnReconnect: true,
+    refetchOnWindowFocus: true,
+    networkMode: 'online',
+    initialData: cached?.data ?? [],
+    initialDataUpdatedAt: cached?.ts,
+    placeholderData: (prev) => prev,
+  });
+
+  useEffect(() => {
+    if (query.status === 'success' && Array.isArray(query.data) && query.data.length > 0) {
+      saveCache(query.data);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query.status, query.data]);
+
+  useEffect(() => {
+    // Subscribe to changes
+    const channel = supabase
+      .channel('public:matches')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['matches', division] });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient, division]);
+
+  return { 
+    matches: query.data || [], 
+    loading: query.isLoading && query.data === undefined, 
+    error: friendlyError(query.error?.message), 
+    refresh: query.refetch 
+  };
+};
+

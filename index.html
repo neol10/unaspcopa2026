@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" href="/favicon.png" sizes="32x32" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Copa Unasp - Portal Oficial</title>
+    
+    <!-- PWA Config -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#05070a" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f8fafc" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Copa Unasp" />
+    <meta name="application-name" content="Copa Unasp 2026" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- SEO & Social Sharing -->
+    <meta name="description" content="O palco da glória suprema. Acompanhe a maior competição universitária do Unasp - Tabela, Rankings e Placar Ao Vivo com cobertura completa." />
+    <meta name="keywords" content="Copa Unasp, Unasp, Futsal, Esporte Universitário, Rankings, Artilharia" />
+    <meta property="og:title" content="Copa Unasp 2026 - Portal Oficial" />
+    <meta property="og:description" content="Acompanhe a maior competição universitária do Unasp em tempo real. Classificação, artilharia e cobertura completa." />
+    <meta property="og:image" content="/icon-512.png" />
+    <meta property="og:url" content="https://copaunasp.vercel.app" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Copa Unasp 2026" />
+    <meta name="twitter:description" content="Resultados e estatísticas em tempo real." />
+    <meta name="twitter:image" content="/icon-512.png" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      (function () {
+        try {
+          var isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+          if (!isLocalhost) return;
+          if (!('serviceWorker' in navigator)) return;
+
+          var key = 'sw_cleared_once';
+          if (sessionStorage.getItem(key) === '1') return;
+
+          navigator.serviceWorker
+            .getRegistrations()
+            .then(function (regs) {
+              return Promise.all(regs.map(function (r) { return r.unregister(); }));
+            })
+            .then(function () {
+              if (!('caches' in window)) return;
+              return caches.keys().then(function (keys) {
+                return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+              });
+            })
+            .finally(function () {
+              sessionStorage.setItem(key, '1');
+              location.reload();
+            });
+        } catch (e) {
+          // noop
+        }
+      })();
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
