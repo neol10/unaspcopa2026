@@ -5176,6 +5176,7 @@ const TournamentManagement = () => {
     current_round: 1,
   });
   const [saved, setSaved] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
   const [manualPhaseOverride, setManualPhaseOverride] = useState(false);
   const [groupCVisibility, setGroupCVisibility] = useState<GroupCVisibilityConfig>(DEFAULT_GROUP_C_VISIBILITY);
 
@@ -5248,6 +5249,7 @@ const TournamentManagement = () => {
 
   React.useEffect(() => {
     if (!loading && config.id) {
+      if (isDirty) return;
       setForm({
         total_rounds: config.total_rounds,
         matches_per_round: config.matches_per_round,
@@ -5264,6 +5266,7 @@ const TournamentManagement = () => {
     config.current_phase,
     config.current_round,
     config.group_c_visibility,
+    isDirty,
   ]);
 
   React.useEffect(() => {
@@ -5388,6 +5391,7 @@ const TournamentManagement = () => {
       toast.success('Configurações salvas com sucesso!');
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
+      setIsDirty(false);
     } catch (err: unknown) {
       console.error('Failed to save tournament config:', err);
       toast.error(getErrorMessage(err, 'Erro ao salvar configurações no servidor.'));
@@ -5416,7 +5420,10 @@ const TournamentManagement = () => {
             <input
               type="checkbox"
               checked={manualPhaseOverride}
-              onChange={(e) => setManualPhaseOverride(e.target.checked)}
+              onChange={(e) => {
+                setManualPhaseOverride(e.target.checked);
+                setIsDirty(true);
+              }}
             />
             Override manual de fase
           </label>
@@ -5432,7 +5439,10 @@ const TournamentManagement = () => {
                 <button
                   type="button"
                   className="btn-secondary"
-                  onClick={() => setManualPhaseOverride(true)}
+                  onClick={() => {
+                    setManualPhaseOverride(true);
+                    setIsDirty(true);
+                  }}
                 >
                   Mudar fase
                 </button>
@@ -5440,7 +5450,10 @@ const TournamentManagement = () => {
                 <button
                   type="button"
                   className="btn-secondary"
-                  onClick={() => setManualPhaseOverride(false)}
+                  onClick={() => {
+                    setManualPhaseOverride(false);
+                    setIsDirty(true);
+                  }}
                 >
                   Voltar p/ automático
                 </button>
@@ -5449,7 +5462,10 @@ const TournamentManagement = () => {
             {manualPhaseOverride ? (
               <select
                 value={form.current_phase}
-                onChange={e => setForm({ ...form, current_phase: e.target.value as TournamentConfig['current_phase'] })}
+                onChange={e => {
+                  setForm({ ...form, current_phase: e.target.value as TournamentConfig['current_phase'] });
+                  setIsDirty(true);
+                }}
               >
                 <option value="grupos" disabled={usedPhases.has('grupos') && form.current_phase !== 'grupos'}>
                   Fase de Grupos{usedPhases.has('grupos') && form.current_phase !== 'grupos' ? ' (ja usada)' : ''}
@@ -5491,6 +5507,7 @@ const TournamentManagement = () => {
                   total_rounds: nextTotal,
                   current_round: Math.min(prev.current_round || 1, nextTotal),
                 }));
+                setIsDirty(true);
               }}
             />
             <span className="form-hint">Ex: 5 noites → depois vai ao Mata-Mata</span>
@@ -5509,6 +5526,7 @@ const TournamentManagement = () => {
                 if (!manualPhaseOverride) return;
                 const nextValue = Math.max(1, Math.min(20, parseInt(e.target.value) || 1));
                 setForm({ ...form, matches_per_round: nextValue });
+                setIsDirty(true);
               }}
             />
             <span className="form-hint">
@@ -5525,7 +5543,10 @@ const TournamentManagement = () => {
               <select
                 value={form.current_round}
                 disabled={!manualPhaseOverride}
-                onChange={(e) => setForm({ ...form, current_round: parseInt(e.target.value) || 1 })}
+                onChange={(e) => {
+                  setForm({ ...form, current_round: parseInt(e.target.value) || 1 });
+                  setIsDirty(true);
+                }}
               >
                 {Array.from({ length: form.total_rounds }, (_, i) => i + 1).map(r => (
                   <option key={r} value={r}>Noite {r}</option>
@@ -5550,7 +5571,10 @@ const TournamentManagement = () => {
               <input
                 type="checkbox"
                 checked={groupCVisibility.teams}
-                onChange={(e) => setGroupCVisibility((prev) => ({ ...prev, teams: e.target.checked }))}
+                onChange={(e) => {
+                  setGroupCVisibility((prev) => ({ ...prev, teams: e.target.checked }));
+                  setIsDirty(true);
+                }}
               />
               <span>Menu Equipes</span>
             </label>
@@ -5558,7 +5582,10 @@ const TournamentManagement = () => {
               <input
                 type="checkbox"
                 checked={groupCVisibility.players}
-                onChange={(e) => setGroupCVisibility((prev) => ({ ...prev, players: e.target.checked }))}
+                onChange={(e) => {
+                  setGroupCVisibility((prev) => ({ ...prev, players: e.target.checked }));
+                  setIsDirty(true);
+                }}
               />
               <span>Menu Jogadores</span>
             </label>
@@ -5566,7 +5593,10 @@ const TournamentManagement = () => {
               <input
                 type="checkbox"
                 checked={groupCVisibility.standings}
-                onChange={(e) => setGroupCVisibility((prev) => ({ ...prev, standings: e.target.checked }))}
+                onChange={(e) => {
+                  setGroupCVisibility((prev) => ({ ...prev, standings: e.target.checked }));
+                  setIsDirty(true);
+                }}
               />
               <span>Menu Classificacao</span>
             </label>
@@ -5574,7 +5604,10 @@ const TournamentManagement = () => {
               <input
                 type="checkbox"
                 checked={groupCVisibility.favorite_team_menu}
-                onChange={(e) => setGroupCVisibility((prev) => ({ ...prev, favorite_team_menu: e.target.checked }))}
+                onChange={(e) => {
+                  setGroupCVisibility((prev) => ({ ...prev, favorite_team_menu: e.target.checked }));
+                  setIsDirty(true);
+                }}
               />
               <span>Seletor de Time Favorito</span>
             </label>
