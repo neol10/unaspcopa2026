@@ -553,20 +553,37 @@ const Brackets: React.FC = () => {
   };
 
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    if (viewMode !== 'teia') return;
-    e.preventDefault();
-    const delta = -e.deltaY * 0.0006;
-    zoomRef.current = clamp(zoomRef.current + delta, 0.8, 1.6);
-    scheduleApplyTeiaTransform();
+    if (viewMode === 'teia') {
+      e.preventDefault();
+      const delta = -e.deltaY * 0.0006;
+      zoomRef.current = clamp(zoomRef.current + delta, 0.8, 1.6);
+      scheduleApplyTeiaTransform();
 
-    if (teiaWheelCommitRef.current !== null) {
-      window.clearTimeout(teiaWheelCommitRef.current);
+      if (teiaWheelCommitRef.current !== null) {
+        window.clearTimeout(teiaWheelCommitRef.current);
+      }
+      teiaWheelCommitRef.current = window.setTimeout(() => {
+        teiaWheelCommitRef.current = null;
+        setZoom(zoomRef.current);
+        setPan(panRef.current);
+      }, 120);
+      return;
     }
-    teiaWheelCommitRef.current = window.setTimeout(() => {
-      teiaWheelCommitRef.current = null;
-      setZoom(zoomRef.current);
-      setPan(panRef.current);
-    }, 120);
+
+    // Lista (/jogos): permite navegar com scroll do mouse/trackpad (sem depender de "arrastar").
+    const container = scrollRef.current;
+    if (!container) return;
+    const maxScrollLeft = container.scrollWidth - container.clientWidth;
+    if (maxScrollLeft <= 0) return;
+
+    const primaryDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    const next = clamp(container.scrollLeft + primaryDelta, 0, maxScrollLeft);
+    const willMove = Math.abs(next - container.scrollLeft) > 0.5;
+
+    if (willMove) {
+      e.preventDefault();
+      container.scrollLeft = next;
+    }
   };
 
   const scrollToPhase = (phase: string) => {
@@ -934,26 +951,35 @@ const Brackets: React.FC = () => {
         )}
       </div>
 
-      {knockoutRounds.length > 0 && viewMode === 'list' && (
-        <div className="phase-jump-nav glass">
-          {knockoutRounds.map(r => (
-            <button key={r} onClick={() => scrollToPhase(r)} className="jump-btn">
-              {r}
-            </button>
-          ))}
-          {groupRounds.length > 0 && (
-             <button onClick={() => {
-                if (scrollRef.current) scrollRef.current.scrollTo({ left: 3000, behavior: 'smooth' });
-             }} className="jump-btn">
-                Fase Grupos
-             </button>
-          )}
+      {viewMode === 'list' && groupRounds.length > 0 && (
+        <div className="phase-jump-nav glass" aria-label="Navegação por noites/rodadas">
+          {groupRounds.map((roundName) => {
+            const isCurrent =
+              config.current_phase === 'grupos' &&
+              (groupUnit === 'round'
+                ? (roundsMap[roundName] || []).some(
+                    (m) => (m.round ?? 0) < 1000 && (m.round ?? 0) === config.current_round,
+                  )
+                : (roundsMap[roundName] || []).some((m) => (m.night ?? null) === config.current_round));
+
+            return (
+              <button
+                key={roundName}
+                onClick={() => scrollToPhase(roundName)}
+                className={`jump-btn ${isCurrent ? 'active' : ''}`}
+                type="button"
+                aria-pressed={isCurrent}
+              >
+                {formatRoundName(roundName)}
+              </button>
+            );
+          })}
         </div>
       )}
 
       {sortedRounds.length > 0 && viewMode === 'list' && (
         <div className="scroll-hint">
-          <ChevronLeft size={16} /> Arraste para navegar <ChevronRight size={16} />
+          <ChevronLeft size={16} /> Role o mouse, use o trackpad ou arraste para navegar <ChevronRight size={16} />
         </div>
       )}
 

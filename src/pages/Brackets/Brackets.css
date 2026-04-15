@@ -266,6 +266,17 @@
   -webkit-overflow-scrolling: touch;
 }
 
+.brackets-scroll-container.mode-list {
+  scroll-snap-type: x mandatory;
+  scroll-padding-left: 4rem;
+  scroll-padding-right: 4rem;
+  cursor: auto;
+}
+
+.brackets-scroll-container.mode-list.dragging {
+  cursor: grabbing;
+}
+
 .brackets-scroll-container::-webkit-scrollbar {
   height: 6px;
 }
@@ -344,6 +355,11 @@
   gap: 2rem;
   min-width: 300px;
   max-width: 300px;
+}
+
+.brackets-scroll-container.mode-list .bracket-round,
+.brackets-scroll-container.mode-list .knockout-cta {
+  scroll-snap-align: start;
 }
 
 .bracket-match {
@@ -899,6 +915,12 @@
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
 }
 
+.jump-btn.active {
+  background: rgba(251, 191, 36, 0.18);
+  border-color: rgba(251, 191, 36, 0.4);
+  color: var(--secondary);
+}
+
 .jump-btn:active {
   transform: translateY(0);
 }
@@ -920,6 +942,11 @@
   .brackets-page {
     padding: 1.5rem 0.5rem;
     gap: 1.25rem;
+  }
+
+  .brackets-scroll-container.mode-list {
+    scroll-padding-left: 1rem;
+    scroll-padding-right: 1rem;
   }
 
   .brackets-scroll-content {
