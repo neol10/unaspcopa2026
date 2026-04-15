@@ -8,6 +8,7 @@ type MaybePostgrestError = {
 type OptionalColumnStatus = 'unknown' | 'present' | 'missing';
 
 let divisionColumnStatus: OptionalColumnStatus = 'unknown';
+let nightColumnStatus: OptionalColumnStatus = 'unknown';
 
 export const getDivisionColumnStatus = (): OptionalColumnStatus => divisionColumnStatus;
 export const markDivisionColumnMissing = () => {
@@ -16,6 +17,16 @@ export const markDivisionColumnMissing = () => {
 
 export const markDivisionColumnPresent = () => {
   divisionColumnStatus = 'present';
+};
+
+export const getNightColumnStatus = (): OptionalColumnStatus => nightColumnStatus;
+
+export const markNightColumnMissing = () => {
+  nightColumnStatus = 'missing';
+};
+
+export const markNightColumnPresent = () => {
+  nightColumnStatus = 'present';
 };
 
 export const isMissingColumnError = (err: MaybePostgrestError, column: string) => {

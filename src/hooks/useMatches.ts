@@ -5,9 +5,12 @@ import { useDivisionContext } from '../contexts/DivisionContext';
 import type { Division } from '../lib/division';
 import {
   getDivisionColumnStatus,
+  getNightColumnStatus,
   isMissingColumnError,
   markDivisionColumnMissing,
   markDivisionColumnPresent,
+  markNightColumnMissing,
+  markNightColumnPresent,
 } from '../lib/supabaseOptionalColumns';
 
 export interface Match {
@@ -21,6 +24,7 @@ export interface Match {
   location: string;
   status: 'agendado' | 'ao_vivo' | 'finalizado';
   round: number;
+  night?: number | null;
   match_mvp_player_id?: string | null;
   match_mvp_description?: string | null;
   timer_started_at?: string | null;
@@ -69,74 +73,72 @@ export const useMatches = (limit?: number) => {
   const query = useQuery({
     queryKey: ['matches', division, limit || 'all'],
     queryFn: async () => {
-      const status = getDivisionColumnStatus();
+      const divisionStatus = getDivisionColumnStatus();
+      const nightStatus = getNightColumnStatus();
 
-      let q = supabase
-        .from('matches')
-        .select(`
-          id,
-          team_a_id,
-          team_b_id,
-          team_a_score,
-          team_b_score,
-          match_date,
-          location,
-          status,
-          round,
-          match_mvp_player_id,
-          match_mvp_description,
-          timer_started_at,
-          timer_offset_seconds,
-          is_timer_running,
-          teams_a:teams!team_a_id(name, badge_url, group),
-          teams_b:teams!team_b_id(name, badge_url, group)
-        `)
-        .order('match_date', { ascending: true });
+      const buildSelect = (includeNight: boolean) => {
+        const fields = [
+          'id',
+          'team_a_id',
+          'team_b_id',
+          'team_a_score',
+          'team_b_score',
+          'match_date',
+          'location',
+          'status',
+          'round',
+          ...(includeNight ? ['night'] : []),
+          'match_mvp_player_id',
+          'match_mvp_description',
+          'timer_started_at',
+          'timer_offset_seconds',
+          'is_timer_running',
+          'teams_a:teams!team_a_id(name, badge_url, group)',
+          'teams_b:teams!team_b_id(name, badge_url, group)',
+        ];
+        return fields.join(',\n');
+      };
 
-      if (status !== 'missing') q = q.eq('division', division);
+      const fetchOnce = async (opts: { includeDivision: boolean; includeNight: boolean }) => {
+        let q = supabase
+          .from('matches')
+          .select(buildSelect(opts.includeNight))
+          .order('match_date', { ascending: true });
 
-      if (limit) q = q.limit(limit);
+        if (opts.includeDivision) q = q.eq('division', division);
+        if (limit) q = q.limit(limit);
 
-      const { data, error } = await q;
-      if (error) {
-        if (status !== 'missing' && isMissingColumnError(error, 'division')) {
+        return await q;
+      };
+
+      let includeDivision = divisionStatus !== 'missing';
+      let includeNight = nightStatus !== 'missing';
+
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const { data, error } = await fetchOnce({ includeDivision, includeNight });
+        if (!error) {
+          if (includeDivision) markDivisionColumnPresent();
+          if (includeNight) markNightColumnPresent();
+          return (data as Match[]) || [];
+        }
+
+        if (includeDivision && isMissingColumnError(error, 'division')) {
           markDivisionColumnMissing();
+          includeDivision = false;
+          continue;
+        }
 
-          let retryQ = supabase
-            .from('matches')
-            .select(`
-              id,
-              team_a_id,
-              team_b_id,
-              team_a_score,
-              team_b_score,
-              match_date,
-              location,
-              status,
-              round,
-              match_mvp_player_id,
-              match_mvp_description,
-              timer_started_at,
-              timer_offset_seconds,
-              is_timer_running,
-              teams_a:teams!team_a_id(name, badge_url, group),
-              teams_b:teams!team_b_id(name, badge_url, group)
-            `)
-            .order('match_date', { ascending: true });
-          if (limit) retryQ = retryQ.limit(limit);
-
-          const retry = await retryQ;
-          if (retry.error) throw retry.error;
-          return (retry.data as Match[]) || [];
+        if (includeNight && isMissingColumnError(error, 'night')) {
+          markNightColumnMissing();
+          includeNight = false;
+          continue;
         }
 
         console.error('Supabase Matches Error:', error);
         throw error;
       }
 
-      if (status !== 'missing') markDivisionColumnPresent();
-
-      return (data as Match[]) || [];
+      return [];
     },
     staleTime: 1000 * 30, // 30 segundos
     gcTime: 1000 * 60 * 30,    // 30 min

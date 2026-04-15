@@ -5,9 +5,12 @@ import { Player } from './usePlayers';
 import { useDivisionContext } from '../contexts/DivisionContext';
 import {
   getDivisionColumnStatus,
+  getNightColumnStatus,
   isMissingColumnError,
   markDivisionColumnMissing,
   markDivisionColumnPresent,
+  markNightColumnMissing,
+  markNightColumnPresent,
 } from '../lib/supabaseOptionalColumns';
 
 export interface RankingPlayer extends Player {
@@ -150,21 +153,41 @@ export const useRankings = () => {
           event_type: 'gol' | 'assistencia' | string;
           minute: number;
           metadata?: { goal_type?: string | null } | null;
-          matches?: { round?: unknown; division?: unknown } | null;
+          matches?: { round?: unknown; night?: unknown; division?: unknown } | null;
         }>(
           () => {
             const currentStatus = getDivisionColumnStatus();
-            if (currentStatus === 'missing') {
-              return supabase
+            const includeNightInitial = getNightColumnStatus() !== 'missing';
+
+            const fetchOnce = async (includeNight: boolean) => {
+              const nightSelect = includeNight ? 'round, night' : 'round';
+              if (currentStatus === 'missing') {
+                return await (supabase
+                  .from('match_events')
+                  .select(`player_id, assistant_id, event_type, minute, metadata, matches:match_id!inner(${nightSelect})`)
+                  .in('event_type', ['gol', 'assistencia']) as any);
+              }
+
+              return await (supabase
                 .from('match_events')
-                .select('player_id, assistant_id, event_type, minute, metadata, matches:match_id!inner(round)')
-                .in('event_type', ['gol', 'assistencia']) as any;
-            }
-            return supabase
-              .from('match_events')
-              .select('player_id, assistant_id, event_type, minute, metadata, matches:match_id!inner(round, division)')
-              .eq('matches.division', division)
-              .in('event_type', ['gol', 'assistencia']) as any;
+                .select(`player_id, assistant_id, event_type, minute, metadata, matches:match_id!inner(${nightSelect}, division)`)
+                .eq('matches.division', division)
+                .in('event_type', ['gol', 'assistencia']) as any);
+            };
+
+            return (async () => {
+              let includeNight = includeNightInitial;
+              let res = await fetchOnce(includeNight);
+
+              if (includeNight && res?.error && isMissingColumnError(res.error as any, 'night')) {
+                markNightColumnMissing();
+                includeNight = false;
+                res = await fetchOnce(includeNight);
+              }
+
+              if (includeNight && !res?.error) markNightColumnPresent();
+              return res;
+            })() as any;
           },
           () =>
             supabase
@@ -174,6 +197,7 @@ export const useRankings = () => {
         ),
         safeList<{
           round: unknown;
+          night?: unknown;
           status: unknown;
           team_a_id: string;
           team_b_id: string;
@@ -182,30 +206,66 @@ export const useRankings = () => {
         }>(
           () => {
             const currentStatus = getDivisionColumnStatus();
-            const base = supabase.from('matches').select('round, status, team_a_id, team_b_id, team_a_score, team_b_score');
-            if (currentStatus === 'missing') return base as any;
-            return base.eq('division', division) as any;
+            const includeNightInitial = getNightColumnStatus() !== 'missing';
+
+            const fetchOnce = async (includeNight: boolean) => {
+              const base = supabase.from('matches').select(
+                includeNight
+                  ? 'round, night, status, team_a_id, team_b_id, team_a_score, team_b_score'
+                  : 'round, status, team_a_id, team_b_id, team_a_score, team_b_score'
+              );
+              if (currentStatus === 'missing') return await (base as any);
+              return await (base.eq('division', division) as any);
+            };
+
+            return (async () => {
+              let includeNight = includeNightInitial;
+              let res = await fetchOnce(includeNight);
+
+              if (includeNight && res?.error && isMissingColumnError(res.error as any, 'night')) {
+                markNightColumnMissing();
+                includeNight = false;
+                res = await fetchOnce(includeNight);
+              }
+
+              if (includeNight && !res?.error) markNightColumnPresent();
+              return res;
+            })() as any;
           },
-          () => supabase.from('matches').select('round, status, team_a_id, team_b_id, team_a_score, team_b_score') as any,
+          () => {
+            const includeNight = getNightColumnStatus() !== 'missing';
+            return supabase
+              .from('matches')
+              .select(includeNight
+                ? 'round, night, status, team_a_id, team_b_id, team_a_score, team_b_score'
+                : 'round, status, team_a_id, team_b_id, team_a_score, team_b_score') as any;
+          },
         ),
       ]);
 
       const playersData = playersRes.data || [];
 
-      // --- RODADAS FINALIZADAS ---
-      // A rodada só é considerada finalizada quando TODAS as partidas daquela rodada estão com status 'finalizado'
-      const roundTotals: Record<string, { total: number; finalized: number }> = {};
-      matchesData.forEach(m => {
-        const round = String(m.round ?? '').trim();
-        if (!round) return;
-        if (!roundTotals[round]) roundTotals[round] = { total: 0, finalized: 0 };
-        roundTotals[round].total += 1;
-        if (m.status === 'finalizado') roundTotals[round].finalized += 1;
+      // --- NOITES FINALIZADAS (fase de grupos) ---
+      // A noite só é considerada finalizada quando TODAS as partidas daquela noite estão com status 'finalizado'.
+      // Mata-mata (round >= 1000) nao entra nessa conta.
+      const nightTotals: Record<string, { total: number; finalized: number }> = {};
+      matchesData.forEach((m) => {
+        const roundValue = Number(m.round || 0);
+        if (!Number.isFinite(roundValue) || roundValue >= 1000) return;
+
+        const nightValue = (m as any).night;
+        const nightKey = nightValue === null || nightValue === undefined ? '' : String(nightValue).trim();
+        if (!nightKey) return;
+
+        if (!nightTotals[nightKey]) nightTotals[nightKey] = { total: 0, finalized: 0 };
+        nightTotals[nightKey].total += 1;
+        if (m.status === 'finalizado') nightTotals[nightKey].finalized += 1;
       });
-      const completedRounds = new Set(
-        Object.entries(roundTotals)
+
+      const completedNights = new Set(
+        Object.entries(nightTotals)
           .filter(([, v]) => v.total > 0 && v.finalized === v.total)
-          .map(([round]) => round),
+          .map(([night]) => night),
       );
 
       // Contabilizar votos por jogador
@@ -265,33 +325,38 @@ export const useRankings = () => {
         })
         .slice(0, 10);
 
-      // --- LOGICA CRAQUE DA RODADA ---
+      // --- LOGICA CRAQUE DA NOITE ---
       const roundStats: Record<string, Record<string, { points: number, goals: number, firstEvent: number }>> = {};
       const roundsFound = new Set<string>();
 
       eventsData.forEach(ev => {
-        const round = String(ev.matches?.round ?? '').trim();
-        if (!round) return;
-        // Só computa “Craque da Rodada” para rodadas finalizadas
-        if (!completedRounds.has(round)) return;
-        roundsFound.add(String(round));
+        const roundValue = Number(ev.matches?.round || 0);
+        if (!Number.isFinite(roundValue) || roundValue >= 1000) return;
 
-        if (!roundStats[round]) roundStats[round] = {};
+        const nightValue = ev.matches?.night;
+        const nightKey = nightValue === null || nightValue === undefined ? '' : String(nightValue).trim();
+        if (!nightKey) return;
+
+        // Só computa “Craque da Noite” para noites finalizadas
+        if (!completedNights.has(nightKey)) return;
+        roundsFound.add(nightKey);
+
+        if (!roundStats[nightKey]) roundStats[nightKey] = {};
 
         // Gols
         if (ev.event_type === 'gol' && ev.metadata?.goal_type !== 'contra' && ev.player_id) {
-          if (!roundStats[round][ev.player_id]) roundStats[round][ev.player_id] = { points: 0, goals: 0, firstEvent: ev.minute };
-          roundStats[round][ev.player_id].points += 1;
-          roundStats[round][ev.player_id].goals += 1;
-          if (ev.minute < roundStats[round][ev.player_id].firstEvent) roundStats[round][ev.player_id].firstEvent = ev.minute;
+          if (!roundStats[nightKey][ev.player_id]) roundStats[nightKey][ev.player_id] = { points: 0, goals: 0, firstEvent: ev.minute };
+          roundStats[nightKey][ev.player_id].points += 1;
+          roundStats[nightKey][ev.player_id].goals += 1;
+          if (ev.minute < roundStats[nightKey][ev.player_id].firstEvent) roundStats[nightKey][ev.player_id].firstEvent = ev.minute;
         }
 
         // Assistências
         const assId = ev.assistant_id || (ev.event_type === 'assistencia' ? ev.player_id : null);
         if (assId) {
-          if (!roundStats[round][assId]) roundStats[round][assId] = { points: 0, goals: 0, firstEvent: ev.minute };
-          roundStats[round][assId].points += 1;
-          if (ev.minute < roundStats[round][assId].firstEvent) roundStats[round][assId].firstEvent = ev.minute;
+          if (!roundStats[nightKey][assId]) roundStats[nightKey][assId] = { points: 0, goals: 0, firstEvent: ev.minute };
+          roundStats[nightKey][assId].points += 1;
+          if (ev.minute < roundStats[nightKey][assId].firstEvent) roundStats[nightKey][assId].firstEvent = ev.minute;
         }
       });
 

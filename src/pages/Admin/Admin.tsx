@@ -19,7 +19,7 @@ import { toast } from 'react-hot-toast';
 import { useConfirm } from '../../hooks/useConfirm';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useDivisionContext } from '../../contexts/DivisionContext';
-import { isMissingColumnError as isMissingDivisionColumnError, markDivisionColumnMissing } from '../../lib/supabaseOptionalColumns';
+import { isMissingColumnError as isMissingDivisionColumnError, markDivisionColumnMissing, markNightColumnMissing } from '../../lib/supabaseOptionalColumns';
 import { clearPhotoCropFromUrl, parsePhotoCropFromUrl, setPhotoCropOnUrl } from '../../lib/photoCrop';
 import './Admin.css';
 
@@ -1477,6 +1477,7 @@ const MatchManagement = () => {
     location: string;
     status: Match['status'];
     round: string;
+    night: string;
   };
 
   const [formData, setFormData] = useState<MatchFormData>({ 
@@ -1485,7 +1486,8 @@ const MatchManagement = () => {
     match_date: '', 
     location: 'Ginásio Principal',
     status: 'agendado',
-    round: '1' 
+    round: '1',
+    night: ''
   });
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -1511,7 +1513,19 @@ const MatchManagement = () => {
     return null;
   };
 
-  const formatRoundLabel = (value: number) => KO_ROUND_LABELS[value] || `${value}ª Rodada`;
+  const parseNightInput = (value: string): number | null => {
+    const raw = value.trim();
+    if (!raw) return null;
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
+    return null;
+  };
+
+  const formatRoundLabel = (value: number) => {
+    if (KO_ROUND_LABELS[value]) return KO_ROUND_LABELS[value];
+    if (value >= 1000) return `Fase ${value}`;
+    return `${value}ª Rodada`;
+  };
 
   const formatRoundInput = (value: number) => KO_ROUND_LABELS[value] || String(value);
 
@@ -1535,30 +1549,58 @@ const MatchManagement = () => {
     if (isSubmittingMatch) return;
     if (formData.team_a_id === formData.team_b_id) return toast.error('Selecione times diferentes!');
     
-    // Validação: Impedir que o mesmo time jogue duas vezes na mesma rodada
-    const currentRound = parseRoundInput(formData.round) || 0;
-    if (!currentRound) {
-      return toast.error('Rodada inválida. Use um número ou: Oitavas, Quartas, Semi, Final, 3o Lugar.');
+    // Regra de conflito:
+    // - Fase de grupos: time nao pode jogar 2x na mesma Noite (night)
+    // - Mata-mata (round >= 1000): continua por fase/round
+    const inputRound = parseRoundInput(formData.round) || 0;
+    if (!inputRound) {
+      return toast.error('Fase/Rodada inválida. Use um número ou: Oitavas, Quartas, Semi, Final, 3o Lugar.');
     }
-    const teamACollision = matches.find(m => m.round === currentRound && (m.team_a_id === formData.team_a_id || m.team_b_id === formData.team_a_id));
-    const teamBCollision = matches.find(m => m.round === currentRound && (m.team_a_id === formData.team_b_id || m.team_b_id === formData.team_b_id));
+    const isKnockout = inputRound >= 1000;
+    const currentNight = isKnockout ? null : parseNightInput(formData.night);
+
+    if (!isKnockout && !currentNight) {
+      return toast.error('Noite inválida. Use um número: 1, 2, 3...');
+    }
+
+    const currentRound = isKnockout ? inputRound : (currentNight || 0);
+
+    const teamACollision = isKnockout
+      ? matches.find(m => m.round === currentRound && (m.team_a_id === formData.team_a_id || m.team_b_id === formData.team_a_id))
+      : matches.find(m => (m as Match).night === currentNight && (m.team_a_id === formData.team_a_id || m.team_b_id === formData.team_a_id));
+    const teamBCollision = isKnockout
+      ? matches.find(m => m.round === currentRound && (m.team_a_id === formData.team_b_id || m.team_b_id === formData.team_b_id))
+      : matches.find(m => (m as Match).night === currentNight && (m.team_a_id === formData.team_b_id || m.team_b_id === formData.team_b_id));
 
     if (teamACollision) {
       const teamName = teams.find(t => t.id === formData.team_a_id)?.name;
-      return toast.error(`Erro: O time ${teamName} já possui uma partida na rodada ${currentRound}!`);
+      return toast.error(
+        isKnockout
+          ? `Erro: O time ${teamName} já possui uma partida na fase ${formatRoundLabel(currentRound)}!`
+          : `Erro: O time ${teamName} já possui uma partida na noite ${currentNight}!`
+      );
     }
     if (teamBCollision) {
       const teamName = teams.find(t => t.id === formData.team_b_id)?.name;
-      return toast.error(`Erro: O time ${teamName} já possui uma partida na rodada ${currentRound}!`);
+      return toast.error(
+        isKnockout
+          ? `Erro: O time ${teamName} já possui uma partida na fase ${formatRoundLabel(currentRound)}!`
+          : `Erro: O time ${teamName} já possui uma partida na noite ${currentNight}!`
+      );
     }
 
     setIsSubmittingMatch(true);
     try {
+      const nightValue = isKnockout ? null : currentNight;
       const payload = {
-        ...formData,
-        division,
+        team_a_id: formData.team_a_id,
+        team_b_id: formData.team_b_id,
         match_date: formData.match_date ? new Date(formData.match_date).toISOString() : null,
+        location: formData.location,
+        status: formData.status,
+        division,
         round: currentRound,
+        night: nightValue,
       } as Record<string, unknown>;
 
       const doInsert = async (payloadToInsert: Record<string, unknown>) => {
@@ -1571,16 +1613,28 @@ const MatchManagement = () => {
 
       const res = await doInsert(payload);
       if (res.error) {
-        if (isMissingDivisionColumnError(res.error as any, 'division')) {
-          markDivisionColumnMissing();
-          const { division: _ignored, ...payloadNoDivision } = payload as { division?: unknown } & Record<string, unknown>;
-          const retry = await doInsert(payloadNoDivision);
+        const missingDivision = isMissingDivisionColumnError(res.error as any, 'division');
+        const missingNight = isMissingDivisionColumnError(res.error as any, 'night');
+
+        if (missingDivision || missingNight) {
+          if (missingDivision) markDivisionColumnMissing();
+          if (missingNight) markNightColumnMissing();
+
+          const base = payload as { division?: unknown; night?: unknown } & Record<string, unknown>;
+          const { division: _ignoredDivision, night: _ignoredNight, ...rest } = base;
+          const retryPayload: Record<string, unknown> = {
+            ...rest,
+            ...(missingDivision ? {} : { division: base.division }),
+            ...(missingNight ? {} : { night: base.night }),
+          };
+
+          const retry = await doInsert(retryPayload);
           if (retry.error) throw retry.error;
         } else {
           throw res.error;
         }
       }
-      setFormData({ team_a_id: '', team_b_id: '', match_date: '', location: 'Ginásio Principal', status: 'agendado', round: '1' });
+      setFormData({ team_a_id: '', team_b_id: '', match_date: '', location: 'Ginásio Principal', status: 'agendado', round: '1', night: '' });
       setIsAdding(false);
       void refresh();
       invalidateCompetitionData();
@@ -1755,37 +1809,74 @@ const MatchManagement = () => {
   };
 
   const handleUpdateMatch = async (id: string, data: MatchFormData) => {
-    // Validação: Impedir que o mesmo time jogue duas vezes na mesma rodada (ignorando a própria partida sendo editada)
-    const currentRound = parseRoundInput(data.round) || 0;
-    if (!currentRound) {
-      return toast.error('Rodada inválida. Use um número ou: Oitavas, Quartas, Semi, Final, 3o Lugar.');
+    const inputRound = parseRoundInput(data.round) || 0;
+    if (!inputRound) {
+      return toast.error('Fase/Rodada inválida. Use um número ou: Oitavas, Quartas, Semi, Final, 3o Lugar.');
     }
-    const teamACollision = matches.find(m => m.id !== id && m.round === currentRound && (m.team_a_id === data.team_a_id || m.team_b_id === data.team_a_id));
-    const teamBCollision = matches.find(m => m.id !== id && m.round === currentRound && (m.team_a_id === data.team_b_id || m.team_b_id === data.team_b_id));
+    const isKnockout = inputRound >= 1000;
+    const currentNight = isKnockout ? null : parseNightInput(data.night);
+    if (!isKnockout && !currentNight) {
+      return toast.error('Noite inválida. Use um número: 1, 2, 3...');
+    }
+
+    const currentRound = isKnockout ? inputRound : (currentNight || 0);
+
+    const teamACollision = isKnockout
+      ? matches.find(m => m.id !== id && m.round === currentRound && (m.team_a_id === data.team_a_id || m.team_b_id === data.team_a_id))
+      : matches.find(m => m.id !== id && (m as Match).night === currentNight && (m.team_a_id === data.team_a_id || m.team_b_id === data.team_a_id));
+    const teamBCollision = isKnockout
+      ? matches.find(m => m.id !== id && m.round === currentRound && (m.team_a_id === data.team_b_id || m.team_b_id === data.team_b_id))
+      : matches.find(m => m.id !== id && (m as Match).night === currentNight && (m.team_a_id === data.team_b_id || m.team_b_id === data.team_b_id));
 
     if (teamACollision) {
       const teamName = teams.find(t => t.id === data.team_a_id)?.name;
-      return toast.error(`Erro: O time ${teamName} já possui outra partida na rodada ${currentRound}!`);
+      return toast.error(
+        isKnockout
+          ? `Erro: O time ${teamName} já possui outra partida na fase ${formatRoundLabel(currentRound)}!`
+          : `Erro: O time ${teamName} já possui outra partida na noite ${currentNight}!`
+      );
     }
     if (teamBCollision) {
       const teamName = teams.find(t => t.id === data.team_b_id)?.name;
-      return toast.error(`Erro: O time ${teamName} já possui outra partida na rodada ${currentRound}!`);
+      return toast.error(
+        isKnockout
+          ? `Erro: O time ${teamName} já possui outra partida na fase ${formatRoundLabel(currentRound)}!`
+          : `Erro: O time ${teamName} já possui outra partida na noite ${currentNight}!`
+      );
     }
 
     try {
-      const { error } = await withTimeout(
-        supabase.from('matches').update({
-          team_a_id: data.team_a_id,
-          team_b_id: data.team_b_id,
-          match_date: data.match_date ? new Date(data.match_date).toISOString() : null,
-          location: data.location,
-          status: data.status,
-          round: currentRound
-        }).eq('id', id),
-        30000,
-        'Tempo limite ao atualizar partida'
-      );
-      if (error) throw error;
+      const nightValue = isKnockout ? null : currentNight;
+
+      const updatePayload = {
+        team_a_id: data.team_a_id,
+        team_b_id: data.team_b_id,
+        match_date: data.match_date ? new Date(data.match_date).toISOString() : null,
+        location: data.location,
+        status: data.status,
+        round: currentRound,
+        night: nightValue,
+      } as Record<string, unknown>;
+
+      const doUpdate = async (payloadToUpdate: Record<string, unknown>) => {
+        return await withTimeout(
+          supabase.from('matches').update(payloadToUpdate).eq('id', id),
+          30000,
+          'Tempo limite ao atualizar partida'
+        );
+      };
+
+      const res = await doUpdate(updatePayload);
+      if (res.error) {
+        if (isMissingDivisionColumnError(res.error as any, 'night')) {
+          markNightColumnMissing();
+          const { night: _ignored, ...noNight } = updatePayload as { night?: unknown } & Record<string, unknown>;
+          const retry = await doUpdate(noNight);
+          if (retry.error) throw retry.error;
+        } else {
+          throw res.error;
+        }
+      }
       setEditingMatchId(null);
       void refresh();
       invalidateCompetitionData();
@@ -1800,22 +1891,47 @@ const MatchManagement = () => {
     const teamA = (m.teams_a?.name || '').toLowerCase();
     const teamB = (m.teams_b?.name || '').toLowerCase();
     const round = String(m.round || '');
-    return teamA.includes(s) || teamB.includes(s) || round.includes(s);
+    const night = String((m as Match).night || '');
+    return teamA.includes(s) || teamB.includes(s) || round.includes(s) || night.includes(s);
   });
 
-  // Times ocupados na rodada selecionada (Nova Partida)
-  const busyTeamIdsInRound = new Set(
-    (matches || [])
-      .filter(m => m.round === (parseRoundInput(formData.round) || 1))
-      .flatMap(m => [m.team_a_id, m.team_b_id])
-  );
+  const isKnockoutForm = (parseRoundInput(formData.round) || 0) >= 1000;
 
-  // Times ocupados na rodada da partida sendo editada (Ignorando a própria partida)
-  const getBusyTeamIdsForEdit = (matchId: string, round: number) => {
+  // Times ocupados na noite selecionada (grupos) ou na fase/rodada selecionada (mata-mata)
+  const busyTeamIdsInSlot = (() => {
+    const inputRound = parseRoundInput(formData.round) || 0;
+    const isKnockout = inputRound >= 1000;
+    const nightValue = isKnockout ? null : parseNightInput(formData.night);
+    const roundValue = inputRound || 1;
+
+    if (isKnockout) {
+      return new Set(
+        (matches || [])
+          .filter((m) => m.round === roundValue)
+          .flatMap((m) => [m.team_a_id, m.team_b_id])
+      );
+    }
+
+    if (!nightValue) return new Set<string>();
     return new Set(
       (matches || [])
-        .filter(m => m.id !== matchId && m.round === round)
-        .flatMap(m => [m.team_a_id, m.team_b_id])
+        .filter((m) => (m as Match).night === nightValue)
+        .flatMap((m) => [m.team_a_id, m.team_b_id])
+    );
+  })();
+
+  // Times ocupados na noite/fase da partida sendo editada (Ignorando a própria partida)
+  const getBusyTeamIdsForEdit = (matchId: string, round: number, night: number | null) => {
+    const isKnockout = round >= 1000;
+    return new Set(
+      (matches || [])
+        .filter((m) => {
+          if (m.id === matchId) return false;
+          if (isKnockout) return m.round === round;
+          if (!night) return false;
+          return (m as Match).night === night;
+        })
+        .flatMap((m) => [m.team_a_id, m.team_b_id])
     );
   };
 
@@ -1851,7 +1967,7 @@ const MatchManagement = () => {
                 <select required value={formData.team_a_id} onChange={e => setFormData({...formData, team_a_id: e.target.value})}>
                   <option value="">Selecione...</option>
                   {Object.keys(groupedTeams).sort().map(group => {
-                    const availableTeamsInGroup = (groupedTeams[group] || []).filter((t) => !busyTeamIdsInRound.has(t.id) || t.id === formData.team_a_id);
+                    const availableTeamsInGroup = (groupedTeams[group] || []).filter((t) => !busyTeamIdsInSlot.has(t.id) || t.id === formData.team_a_id);
                     if (availableTeamsInGroup.length === 0) return null;
                     return (
                       <optgroup key={group} label={`Grupo ${group}`}>
@@ -1868,7 +1984,7 @@ const MatchManagement = () => {
                 <select required value={formData.team_b_id} onChange={e => setFormData({...formData, team_b_id: e.target.value})}>
                   <option value="">Selecione...</option>
                   {Object.keys(groupedTeams).sort().map(group => {
-                    const availableTeamsInGroup = (groupedTeams[group] || []).filter((t) => !busyTeamIdsInRound.has(t.id) || t.id === formData.team_b_id);
+                    const availableTeamsInGroup = (groupedTeams[group] || []).filter((t) => !busyTeamIdsInSlot.has(t.id) || t.id === formData.team_b_id);
                     if (availableTeamsInGroup.length === 0) return null;
                     return (
                       <optgroup key={group} label={`Grupo ${group}`}>
@@ -1885,8 +2001,46 @@ const MatchManagement = () => {
                  <input type="datetime-local" required value={formData.match_date} onChange={e => setFormData({...formData, match_date: e.target.value})} />
                </div>
                <div className="form-group">
-                 <label>Rodada</label>
-                 <input type="text" placeholder="Ex: 1, 2, Oitavas" required value={formData.round} onChange={e => setFormData({...formData, round: e.target.value})} list="round-options" />
+                 <label>Fase/Rodada</label>
+                 <input
+                   type="text"
+                   placeholder="Ex: 1, 2, Oitavas"
+                   required
+                   value={formData.round}
+                   onChange={e => {
+                     const next = e.target.value;
+                     const nextRound = parseRoundInput(next) || 0;
+                     const nextIsKnockout = nextRound >= 1000;
+                     setFormData(prev => ({
+                       ...prev,
+                       round: next,
+                       night: nextIsKnockout ? '' : prev.night,
+                     }));
+                   }}
+                   list="round-options"
+                 />
+               </div>
+               <div className="form-group">
+                 <label>Noite</label>
+                 <input
+                   type="text"
+                   placeholder={isKnockoutForm ? 'Nao se aplica no mata-mata' : 'Ex: 1, 2, 3'}
+                   value={isKnockoutForm ? '' : formData.night}
+                   disabled={isKnockoutForm}
+                   required={!isKnockoutForm}
+                   onChange={e => {
+                     const nextNight = e.target.value;
+                     setFormData(prev => {
+                       const nextNightNum = parseNightInput(nextNight);
+                       // Na fase de grupos, round acompanha a Noite para manter consistencia no sistema.
+                       return {
+                         ...prev,
+                         night: nextNight,
+                         round: nextNightNum ? String(nextNightNum) : prev.round,
+                       };
+                     });
+                   }}
+                 />
                </div>
            </div>
            <datalist id="round-options">
@@ -1915,7 +2069,7 @@ const MatchManagement = () => {
           <Search size={18} />
           <input 
             type="text" 
-            placeholder="Buscar por equipe ou rodada..." 
+            placeholder="Buscar por equipe, fase/rodada ou noite..." 
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
           />
@@ -1948,7 +2102,13 @@ const MatchManagement = () => {
                         )}
                       </strong>
                       <div className="match-meta-admin">
-                        <span className="round-badge">{formatRoundLabel(match.round)}</span>
+                        {match.round >= 1000 ? (
+                          <span className="round-badge">{formatRoundLabel(match.round)}</span>
+                        ) : ((match as Match).night ? (
+                          <span className="round-badge">Noite {(match as Match).night}</span>
+                        ) : (
+                          <span className="round-badge">Sem Noite</span>
+                        ))}
                         <span className="match-date">{new Date(match.match_date).toLocaleString('pt-BR')}</span>
                       </div>
                     </div>
@@ -1965,7 +2125,8 @@ const MatchManagement = () => {
                            match_date: formatDatetimeLocal(match.match_date),
                            location: match.location,
                            status: match.status,
-                           round: formatRoundInput(match.round)
+                           round: formatRoundInput(match.round),
+                           night: match.round >= 1000 ? '' : String((match as Match).night || '')
                          });
                       }}><Settings2 size={18} /></button>
                       <button className="btn-icon play" title="Começar Jogo" onClick={() => { vibrate(60); updateStatus(match.id, 'ao_vivo', match); }}><Play size={18} /></button>
@@ -2010,7 +2171,7 @@ const MatchManagement = () => {
                       <label>Equipe A</label>
                       <select value={formData.team_a_id} onChange={e => setFormData({...formData, team_a_id: e.target.value})}>
                         {teams
-                          .filter(t => !getBusyTeamIdsForEdit(match.id, parseRoundInput(formData.round) || 1).has(t.id) || t.id === match.team_a_id)
+                          .filter(t => !getBusyTeamIdsForEdit(match.id, parseRoundInput(formData.round) || 1, parseNightInput(formData.night)).has(t.id) || t.id === match.team_a_id)
                           .map(t => <option key={t.id} value={t.id}>{t.name}</option>)
                         }
                       </select>
@@ -2019,7 +2180,7 @@ const MatchManagement = () => {
                       <label>Equipe B</label>
                       <select value={formData.team_b_id} onChange={e => setFormData({...formData, team_b_id: e.target.value})}>
                         {teams
-                          .filter(t => !getBusyTeamIdsForEdit(match.id, parseRoundInput(formData.round) || 1).has(t.id) || t.id === match.team_b_id)
+                          .filter(t => !getBusyTeamIdsForEdit(match.id, parseRoundInput(formData.round) || 1, parseNightInput(formData.night)).has(t.id) || t.id === match.team_b_id)
                           .map(t => <option key={t.id} value={t.id}>{t.name}</option>)
                         }
                       </select>
@@ -2029,8 +2190,42 @@ const MatchManagement = () => {
                       <input type="datetime-local" value={formData.match_date} onChange={e => setFormData({...formData, match_date: e.target.value})} />
                     </div>
                     <div className="form-group">
-                      <label>Rodada</label>
-                      <input type="text" value={formData.round} onChange={e => setFormData({...formData, round: e.target.value})} list="round-options" />
+                      <label>Fase/Rodada</label>
+                      <input
+                        type="text"
+                        value={formData.round}
+                        onChange={e => {
+                          const next = e.target.value;
+                          const nextRound = parseRoundInput(next) || 0;
+                          const nextIsKnockout = nextRound >= 1000;
+                          setFormData(prev => ({
+                            ...prev,
+                            round: next,
+                            night: nextIsKnockout ? '' : prev.night,
+                          }));
+                        }}
+                        list="round-options"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Noite</label>
+                      <input
+                        type="text"
+                        value={(parseRoundInput(formData.round) || 0) >= 1000 ? '' : formData.night}
+                        disabled={(parseRoundInput(formData.round) || 0) >= 1000}
+                        required={(parseRoundInput(formData.round) || 0) < 1000}
+                        onChange={e => {
+                          const nextNight = e.target.value;
+                          setFormData(prev => {
+                            const nextNightNum = parseNightInput(nextNight);
+                            return {
+                              ...prev,
+                              night: nextNight,
+                              round: nextNightNum ? String(nextNightNum) : prev.round,
+                            };
+                          });
+                        }}
+                      />
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '1rem' }}>
@@ -2065,7 +2260,13 @@ const MatchManagement = () => {
                         {match.teams_b?.badge_url && <img src={match.teams_b.badge_url} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} />}
                       </strong>
                       <div className="match-meta-admin">
-                        <span className="round-badge">{formatRoundLabel(match.round)}</span>
+                        {match.round >= 1000 ? (
+                          <span className="round-badge">{formatRoundLabel(match.round)}</span>
+                        ) : ((match as Match).night ? (
+                          <span className="round-badge">Noite {(match as Match).night}</span>
+                        ) : (
+                          <span className="round-badge">Sem Noite</span>
+                        ))}
                         <span className="match-date">{new Date(match.match_date).toLocaleDateString('pt-BR')}</span>
                       </div>
                     </div>
@@ -2082,7 +2283,8 @@ const MatchManagement = () => {
                         match_date: formatDatetimeLocal(match.match_date),
                         location: match.location,
                         status: match.status,
-                        round: formatRoundInput(match.round)
+                        round: formatRoundInput(match.round),
+                        night: match.round >= 1000 ? '' : String((match as Match).night || '')
                       });
                   }}><Settings2 size={16} /></button>
                   <button 
@@ -2124,6 +2326,26 @@ const MatchManagement = () => {
                     <div className="form-group">
                       <label>Partida / Data</label>
                       <input type="datetime-local" value={formData.match_date} onChange={e => setFormData({...formData, match_date: e.target.value})} />
+                    </div>
+                    <div className="form-group">
+                      <label>Noite</label>
+                      <input
+                        type="text"
+                        value={(parseRoundInput(formData.round) || 0) >= 1000 ? '' : formData.night}
+                        disabled={(parseRoundInput(formData.round) || 0) >= 1000}
+                        required={(parseRoundInput(formData.round) || 0) < 1000}
+                        onChange={e => {
+                          const nextNight = e.target.value;
+                          setFormData(prev => {
+                            const nextNightNum = parseNightInput(nextNight);
+                            return {
+                              ...prev,
+                              night: nextNight,
+                              round: nextNightNum ? String(nextNightNum) : prev.round,
+                            };
+                          });
+                        }}
+                      />
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '1rem' }}>
@@ -4367,17 +4589,17 @@ const NewsManagement = () => {
   }> = [
     {
       id: 'rodada-confirmada',
-      label: 'Rodada confirmada',
+      label: 'Noite confirmada',
       category: 'rodada',
-      title: 'Rodada confirmada para este fim de semana',
+      title: 'Noite confirmada para este fim de semana',
       summary: 'Horarios e confrontos oficiais ja estao definidos.',
-      content: 'A organizacao confirmou os jogos da proxima rodada. Confira os confrontos e acompanhe em tempo real no aplicativo.',
+      content: 'A organizacao confirmou os jogos da proxima noite. Confira os confrontos e acompanhe em tempo real no aplicativo.',
     },
     {
       id: 'resultado-oficial',
       label: 'Resultado oficial',
       category: 'resultado',
-      title: 'Resultado oficial da rodada publicado',
+      title: 'Resultado oficial da noite publicado',
       summary: 'Classificacao e destaques atualizados.',
       content: 'Os resultados oficiais foram processados e a classificacao ja esta atualizada no app. Veja os destaques e estatisticas dos jogos.',
     },
@@ -4385,7 +4607,7 @@ const NewsManagement = () => {
       id: 'bastidores',
       label: 'Bastidores',
       category: 'bastidores',
-      title: 'Bastidores da rodada: preparacao das equipes',
+      title: 'Bastidores da noite: preparacao das equipes',
       summary: 'Veja momentos especiais antes do apito inicial.',
       content: 'Reunimos imagens e historias dos bastidores para aproximar os torcedores da experiencia da Copa.',
     },
@@ -4539,7 +4761,7 @@ const NewsManagement = () => {
               <label>Categoria Editorial (apoio interno)</label>
               <select value={newsCategory} onChange={(e) => setNewsCategory(e.target.value as typeof newsCategory)}>
                 <option value="geral">Geral</option>
-                <option value="rodada">Rodada</option>
+                <option value="rodada">Noite</option>
                 <option value="resultado">Resultado</option>
                 <option value="bastidores">Bastidores</option>
                 <option value="aviso">Aviso</option>
@@ -4553,7 +4775,7 @@ const NewsManagement = () => {
                 required 
                 value={formData.title}
                 onChange={(e) => setFormData({...formData, title: e.target.value})}
-                placeholder="Ex: Rodada 5 confirmada"
+                placeholder="Ex: Noite 5 confirmada"
               />
               <div className="news-title-quality" aria-live="polite">
                 <span className={`news-quality-chip ${titleQuality.tone}`}>{titleQuality.label}</span>
@@ -4793,7 +5015,7 @@ const GalleryManagement = () => {
                 required
                 value={formData.title}
                 onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
-                placeholder="Ex: Bastidores da rodada"
+                placeholder="Ex: Bastidores da noite"
               />
             </div>
             <div className="form-group">
@@ -4961,13 +5183,13 @@ const TournamentManagement = () => {
     return (matches || []).filter((match) => typeof match.round === 'number' && match.round > 0 && match.round < 1000);
   }, [matches]);
 
-  const roundStats = React.useMemo(() => {
+  const nightStats = React.useMemo(() => {
     const stats = new Map<number, { count: number; pending: boolean }>();
 
     groupMatches.forEach((match) => {
-      const round = match.round;
-      const current = stats.get(round) || { count: 0, pending: false };
-      stats.set(round, {
+      const night = match.night ?? match.round;
+      const current = stats.get(night) || { count: 0, pending: false };
+      stats.set(night, {
         count: current.count + 1,
         pending: current.pending || match.status !== 'finalizado',
       });
@@ -4977,27 +5199,27 @@ const TournamentManagement = () => {
   }, [groupMatches]);
 
   const autoRound = React.useMemo(() => {
-    if (roundStats.size === 0) return 1;
+    if (nightStats.size === 0) return 1;
 
-    const pendingRounds = Array.from(roundStats.entries())
+    const pendingRounds = Array.from(nightStats.entries())
       .filter(([, data]) => data.pending)
       .map(([round]) => round)
       .sort((a, b) => a - b);
 
     if (pendingRounds.length > 0) return pendingRounds[0];
 
-    const maxRound = Math.max(...Array.from(roundStats.keys()));
+    const maxRound = Math.max(...Array.from(nightStats.keys()));
     if (maxRound >= (config.total_rounds || 1)) return Math.max(config.total_rounds || 1, 1);
     return maxRound + 1;
-  }, [roundStats, config.total_rounds]);
+  }, [nightStats, config.total_rounds]);
 
   const autoMatchesPerRound = React.useMemo(() => {
-    if (roundStats.size === 0) return Math.max(config.matches_per_round || 1, 1);
-    const currentCount = roundStats.get(autoRound)?.count ?? 0;
+    if (nightStats.size === 0) return Math.max(config.matches_per_round || 1, 1);
+    const currentCount = nightStats.get(autoRound)?.count ?? 0;
     if (currentCount > 0) return Math.max(currentCount, 1);
-    const maxCount = Math.max(...Array.from(roundStats.values()).map((data) => data.count));
+    const maxCount = Math.max(...Array.from(nightStats.values()).map((data) => data.count));
     return Math.max(maxCount, 1);
-  }, [roundStats, config.matches_per_round, autoRound]);
+  }, [nightStats, config.matches_per_round, autoRound]);
 
   const usedPhases = React.useMemo(() => {
     const used = new Set<TournamentConfig['current_phase']>();
@@ -5228,21 +5450,21 @@ const TournamentManagement = () => {
             </span>
           </div>
 
-          {/* Total de Rodadas */}
+          {/* Total de Noites */}
           <div className="form-group">
-            <label>Total de Rodadas (Fase de Grupos)</label>
+            <label>Total de Noites (Fase de Grupos)</label>
             <input
               type="number"
               min={1} max={20}
               value={form.total_rounds}
               onChange={e => setForm({ ...form, total_rounds: parseInt(e.target.value) || 1 })}
             />
-            <span className="form-hint">Ex: 5 rodadas → depois vai ao Mata-Mata</span>
+            <span className="form-hint">Ex: 5 noites → depois vai ao Mata-Mata</span>
           </div>
 
-          {/* Partidas por Rodada */}
+          {/* Partidas por Noite */}
           <div className="form-group">
-            <label>Partidas por Rodada</label>
+            <label>Partidas por Noite</label>
             <input
               type="number"
               min={1} max={20}
@@ -5253,19 +5475,19 @@ const TournamentManagement = () => {
             <span className="form-hint">Atualizado automaticamente com base nas partidas da fase de grupos</span>
           </div>
 
-          {/* Rodada Atual */}
+          {/* Noite Atual */}
           {autoPhase === 'grupos' && (
             <div className="form-group">
-              <label>Rodada Atual</label>
+              <label>Noite Atual</label>
               <select
                 value={form.current_round}
                 disabled
               >
                 {Array.from({ length: form.total_rounds }, (_, i) => i + 1).map(r => (
-                  <option key={r} value={r}>{r}ª Rodada</option>
+                  <option key={r} value={r}>Noite {r}</option>
                 ))}
               </select>
-              <span className="form-hint">Avanca quando todos os jogos da rodada finalizam; se nao houver jogos, fica aguardando</span>
+              <span className="form-hint">Avanca quando todos os jogos da noite finalizam; se nao houver jogos, fica aguardando</span>
             </div>
           )}
         </div>
@@ -5328,11 +5550,11 @@ const TournamentManagement = () => {
           {autoPhase === 'grupos' && (
             <>
               <div className="t-summary-item">
-                <span className="t-summary-label">Rodada</span>
-                <span className="t-summary-value">{form.current_round}ª de {form.total_rounds}</span>
+                <span className="t-summary-label">Noite</span>
+                <span className="t-summary-value">{form.current_round} de {form.total_rounds}</span>
               </div>
               <div className="t-summary-item">
-                <span className="t-summary-label">Jogos/Rodada</span>
+                <span className="t-summary-label">Jogos/Noite</span>
                 <span className="t-summary-value">{form.matches_per_round}</span>
               </div>
             </>
@@ -5413,8 +5635,8 @@ const PollManagement = () => {
   const pollPresets: Array<{ id: string; label: string; question: string; options: string[] }> = [
     {
       id: 'mvp-rodada',
-      label: 'Craque da rodada',
-      question: 'Quem foi o craque da rodada?',
+      label: 'Craque da noite',
+      question: 'Quem foi o craque da noite?',
       options: ['Jogador 1', 'Jogador 2', 'Jogador 3'],
     },
     {
@@ -5426,7 +5648,7 @@ const PollManagement = () => {
     {
       id: 'melhor-jogo',
       label: 'Melhor jogo',
-      question: 'Qual foi o melhor jogo da rodada?',
+      question: 'Qual foi o melhor jogo da noite?',
       options: ['Jogo 1', 'Jogo 2', 'Jogo 3'],
     },
     {

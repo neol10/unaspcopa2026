@@ -232,12 +232,12 @@ const Rankings: React.FC = () => {
       </section>
 
       <div className="rankings-featured-grid">
-        {/* Craque da Rodada - NOVO */}
+        {/* Craque da Noite - NOVO */}
         <section className="round-mvp-highlight glass animate-slide-up">
           <div className="panel-header-v2">
             <div className="header-title-group">
                <Trophy size={18} color="var(--secondary)" />
-               <h3>Craque da Rodada</h3>
+              <h3>Craque da Noite</h3>
             </div>
             
             <div className="round-selector-tabs">
@@ -249,7 +249,7 @@ const Rankings: React.FC = () => {
                   type="button"
                   aria-pressed={selectedRound === r}
                 >
-                  {r}ª R
+                  N{r}
                 </button>
               ))}
             </div>
@@ -286,7 +286,7 @@ const Rankings: React.FC = () => {
                <div className="winner-details">
                   <h4>{roundWinner.name}</h4>
                   <span className="winner-team">{roundWinner.team_name}</span>
-                  <p className="winner-reason">Destaque estatístico da {selectedRound}ª rodada.</p>
+                  <p className="winner-reason">Destaque estatístico da Noite {selectedRound}.</p>
                   {authRole === 'admin' && (
                     <button
                       type="button"
@@ -296,11 +296,11 @@ const Rankings: React.FC = () => {
                         handleDownloadRankingCard(
                           `mvp-${selectedRound}-${roundWinner.id}`,
                           roundWinner,
-                          'Craque da Rodada',
-                          `${selectedRound}a rodada da Copa Unasp`,
+                          'Craque da Noite',
+                          `Noite ${selectedRound} da Copa Unasp`,
                           'gold',
                           [
-                            { label: 'Rodada', value: selectedRound || '-' },
+                            { label: 'Noite', value: selectedRound || '-' },
                             { label: 'Status', value: 'Destaque' },
                             { label: 'Categoria', value: 'MVP' },
                           ],
@@ -317,7 +317,7 @@ const Rankings: React.FC = () => {
           ) : (
             <div className="round-empty-state">
                <Zap size={24} opacity={0.3} />
-               <p>Selecione uma rodada finalizada.</p>
+               <p>Selecione uma noite finalizada.</p>
             </div>
           )}
         </section>

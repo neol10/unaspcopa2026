@@ -47,7 +47,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
             {tab === 'login' ? <LogIn size={28} /> : <UserPlus size={28} />}
           </div>
           <h2>{tab === 'login' ? 'Entrar' : 'Criar Conta'}</h2>
-          <p>{tab === 'login' ? 'Acesse para votar no Craque da Rodada!' : 'Crie sua conta e participe da Copa!'}</p>
+          <p>{tab === 'login' ? 'Acesse para votar no Craque da Noite!' : 'Crie sua conta e participe da Copa!'}</p>
         </div>
 
         <div className="auth-tabs">

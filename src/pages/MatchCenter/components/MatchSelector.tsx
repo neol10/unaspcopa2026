@@ -18,7 +18,8 @@ interface MatchSelectorProps {
   matches: Match[];
   activeMatchId: string | null;
   onSelectMatch: (id: string) => void;
-  activeMatchRound?: number | string | null;
+  desktopTitle?: string;
+  activeGroupChip?: string | null;
   counts: {
     live: number;
     upcoming: number;
@@ -30,7 +31,8 @@ export const MatchSelector: React.FC<MatchSelectorProps> = ({
   matches,
   activeMatchId,
   onSelectMatch,
-  activeMatchRound,
+  desktopTitle = 'Partidas',
+  activeGroupChip,
   counts
 }) => {
   const getTeamLabel = (name: string | null | undefined, fallback: string) => {
@@ -48,7 +50,7 @@ export const MatchSelector: React.FC<MatchSelectorProps> = ({
       <div className="selector-header-row">
         <div className="selector-title">
           <Zap size={16} color="var(--secondary)" />
-          <span className="desktop-only">Rodada Atual</span>
+          <span className="desktop-only">{desktopTitle}</span>
           <span className="mobile-only">Partidas</span>
         </div>
         <div className="live-status-badge">
@@ -61,8 +63,8 @@ export const MatchSelector: React.FC<MatchSelectorProps> = ({
         <span className="summary-chip summary-live">Ao vivo: {counts.live}</span>
         <span className="summary-chip">Agendados: {counts.upcoming}</span>
         <span className="summary-chip">Finalizados: {counts.finished}</span>
-        {activeMatchRound && (
-          <span className="summary-chip summary-round">Rodada {activeMatchRound}</span>
+        {activeGroupChip && (
+          <span className="summary-chip summary-round">{activeGroupChip}</span>
         )}
       </div>
 

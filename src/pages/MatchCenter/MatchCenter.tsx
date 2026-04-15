@@ -20,6 +20,7 @@ import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { emitGoalOverlay } from '../../lib/goalOverlay';
 import { useDivisionContext } from '../../contexts/DivisionContext';
 import { deriveMatchStatus } from '../../lib/matchStatus';
+import { KNOCKOUT_ROUND_LABELS } from '../../lib/tournamentRules';
 
 // Refactored Components & Hooks
 import { MatchSelector } from './components/MatchSelector';
@@ -178,8 +179,35 @@ const MatchCenter: React.FC = () => {
 
   const selectorMatches = useMemo(() => {
     if (!activeMatch) return matches;
-    return matches.filter(m => m.round === activeMatch.round).sort((a,b) => (a.match_date || '').localeCompare(b.match_date || ''));
+    const activeRound = activeMatch.round || 0;
+    const isKnockoutByRound = activeRound >= 1000;
+
+    if (isKnockoutByRound) {
+      return matches
+        .filter((m) => m.round === activeRound)
+        .sort((a, b) => (a.match_date || '').localeCompare(b.match_date || ''));
+    }
+
+    // Fase de grupos: 100% por Noite (numero). Sem fallback por data.
+    const activeNight = activeMatch.night ?? null;
+    return matches
+      .filter((m) => (m.round || 0) < 1000)
+      .filter((m) => (m.night ?? null) === activeNight)
+      .sort((a, b) => (a.match_date || '').localeCompare(b.match_date || ''));
   }, [matches, activeMatch]);
+
+  const selectorDesktopTitle = useMemo(() => {
+    const round = activeMatch?.round || 0;
+    return round >= 1000 ? 'Fase Atual' : 'Noite Atual';
+  }, [activeMatch]);
+
+  const selectorActiveChip = useMemo(() => {
+    if (!activeMatch) return null;
+    const round = activeMatch.round || 0;
+    if (round >= 1000) return KNOCKOUT_ROUND_LABELS[round] || `Fase ${round}`;
+    const night = activeMatch.night ?? null;
+    return night ? `Noite ${night}` : 'Sem Noite';
+  }, [activeMatch]);
 
   if (matchesLoading && matches.length === 0) return <div className="match-center p-8"><Skeleton width="100%" height="400px" /></div>;
 
@@ -208,7 +236,8 @@ const MatchCenter: React.FC = () => {
         matches={selectorMatches} 
         activeMatchId={activeMatch?.id || null} 
         onSelectMatch={handleSelectMatch}
-        activeMatchRound={activeMatch?.round}
+        desktopTitle={selectorDesktopTitle}
+        activeGroupChip={selectorActiveChip}
         counts={counts}
       />
 
@@ -329,16 +358,18 @@ const MatchCenter: React.FC = () => {
                 </div>
               )}
 
-              <div className="round-mvp-widget glass">
-                <div className="side-header"><Award size={18} /> <h3>Craque da Rodada</h3></div>
-                {roundMvpLoading ? <Skeleton height="100px" /> : (
-                  <div className="mvp-ranking-list">
-                    {roundVotes.slice(0, 3).map((v, i) => (
-                      <div key={v.player_id} className="mvp-rank-item">#{i+1} {v.players?.name} ({v.count} votos)</div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              {config.current_phase === 'grupos' && (
+                <div className="round-mvp-widget glass">
+                  <div className="side-header"><Award size={18} /> <h3>Craque da Noite</h3></div>
+                  {roundMvpLoading ? <Skeleton height="100px" /> : (
+                    <div className="mvp-ranking-list">
+                      {roundVotes.slice(0, 3).map((v, i) => (
+                        <div key={v.player_id} className="mvp-rank-item">#{i+1} {v.players?.name} ({v.count} votos)</div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </aside>
           </>
         )}

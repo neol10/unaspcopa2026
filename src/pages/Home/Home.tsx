@@ -18,7 +18,7 @@ import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
 import { motion, AnimatePresence } from 'framer-motion';
 import { emitGoalOverlay } from '../../lib/goalOverlay';
 import { useDivisionContext } from '../../contexts/DivisionContext';
-import { detectTournamentPhase } from '../../lib/tournamentRules';
+import { detectTournamentPhase, KNOCKOUT_ROUND_LABELS } from '../../lib/tournamentRules';
 import { deriveMatchStatus } from '../../lib/matchStatus';
 
 const Home: React.FC = () => {
@@ -99,6 +99,20 @@ const Home: React.FC = () => {
   }, [baseMatches]);
 
   const effectivePhase = config.current_phase || autoPhase;
+
+  const nextMatchKicker = useMemo(() => {
+    if (!nextMatch) return null;
+    const round = nextMatch.round || 0;
+    const isKnockout = round >= 1000;
+
+    if (isKnockout) {
+      return (KNOCKOUT_ROUND_LABELS[round] || 'MATA-MATA').toUpperCase();
+    }
+
+    const night = nextMatch.night ?? null;
+    if (night === 1) return 'ESTREIA';
+    return night ? `NOITE ${night}` : 'SEM NOITE';
+  }, [nextMatch]);
 
   const quickSnapshot = useMemo(() => {
     const now = new Date();
@@ -564,7 +578,7 @@ const Home: React.FC = () => {
             <h3>{phaseLabelMap[effectivePhase] || 'Fase atual'}</h3>
             <p>
               {effectivePhase === 'grupos'
-                ? `${config.current_round}ª rodada de ${config.total_rounds}`
+                ? `Noite ${config.current_round} de ${config.total_rounds}`
                 : 'Chaveamento eliminatório em andamento'}
             </p>
           </div>
@@ -742,7 +756,7 @@ const Home: React.FC = () => {
               <div className="countdown-label">
                 <Timer size={16} className="animate-pulse" />
                 PRÓXIMO GRANDE JOGO <span className="dot">•</span>
-                <span style={{color: 'white', letterSpacing: '1px'}}>{nextMatch.round === 1 ? 'ESTREIA' : `${nextMatch.round}ª RODADA`}</span>
+                <span style={{color: 'white', letterSpacing: '1px'}}>{nextMatchKicker || ''}</span>
               </div>
               <div className="next-match-teams">
                 <div className="mini-team">

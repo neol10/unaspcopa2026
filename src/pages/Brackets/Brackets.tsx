@@ -6,6 +6,7 @@ import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
 import { useTournamentConfig } from '../../hooks/useTournamentConfig';
 import { KNOCKOUT_ROUND_LABELS } from '../../lib/tournamentRules';
 import { deriveMatchStatus } from '../../lib/matchStatus';
+// Noite oficial e numerica: o agrupamento da fase de grupos usa match.night.
 import { Trophy, ChevronRight, ChevronLeft, Target, Timer, ZoomIn, ZoomOut } from 'lucide-react';
 import './Brackets.css';
 
@@ -163,12 +164,28 @@ const Brackets: React.FC = () => {
 
   const getRoundKey = (round: number) => KO_ROUND_LABELS[round] || String(round);
 
-  // Agrupa partidas por 'round' dinamicamente - MEMOIZED
+  const toPhaseIdKey = (value: string) => {
+    return value
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+  };
+
+  const getListGroupKey = (m: Match) => {
+    const roundCode = m.round ?? 0;
+    if (roundCode >= 1000) return getRoundKey(roundCode);
+    if (m.night !== null && m.night !== undefined) return `noite-${m.night}`;
+    return 'noite-sem';
+  };
+
+  // Agrupa partidas por Noite (fase de grupos) e por Fase/Rodada (mata-mata)
   const roundsMap = useMemo(() => {
     return filteredMatches.reduce((acc, m) => {
-      const roundName = m.round ? getRoundKey(m.round) : 'Rodada Geral';
-      if (!acc[roundName]) acc[roundName] = [];
-      acc[roundName].push(m);
+      const key = getListGroupKey(m);
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(m);
       return acc;
     }, {} as Record<string, Match[]>);
   }, [filteredMatches]);
@@ -181,13 +198,14 @@ const Brackets: React.FC = () => {
     });
   }, [roundsMap]);
 
-  // Auto-scroll para a rodada atual
+  // Auto-scroll para a noite atual (fase de grupos) ou fase atual (mata-mata)
   useEffect(() => {
     if (!loading && matches.length > 0 && config && !hasScrolled) {
       const timer = setTimeout(() => {
-        let targetId = '';
+        let targetPhaseKey = '';
         if (config.current_phase === 'grupos') {
-          targetId = `phase-${config.current_round}`;
+          const targetMatch = filteredMatches.find((m) => (m.night ?? null) === config.current_round) || null;
+          targetPhaseKey = targetMatch ? getListGroupKey(targetMatch) : `noite-${config.current_round}`;
         } else {
           // Busca nos rounds carregados um que contenha a fase atual
           const targetRound = sortedRounds.find(r => 
@@ -195,21 +213,30 @@ const Brackets: React.FC = () => {
             (config.current_phase === 'semifinal' && r.toLowerCase().includes('semi'))
           );
           if (targetRound) {
-            targetId = `phase-${targetRound.toLowerCase().replace(/\s+/g, '-')}`;
+            targetPhaseKey = targetRound;
           }
         }
 
-        if (targetId) {
-          scrollToPhase(targetId);
+        if (targetPhaseKey) {
+          scrollToPhase(targetPhaseKey);
           setHasScrolled(true);
         }
       }, 500); 
       return () => clearTimeout(timer);
     }
-  }, [loading, matches, config, hasScrolled, sortedRounds]);
+  }, [loading, matches, config, hasScrolled, sortedRounds, filteredMatches]);
 
   const formatRoundName = (name: string) => {
-    if (/^\d+$/.test(name)) return `${name}ª Rodada`;
+    if (name.startsWith('noite-')) {
+      const n = name.replace('noite-', '').trim();
+      return n ? `Noite ${n}` : 'Noite';
+    }
+    if (name === 'noite-sem') return 'Sem Noite';
+    if (/^\d+$/.test(name)) {
+      const n = Number(name);
+      if (Number.isFinite(n) && n >= 1000) return `Fase ${name}`;
+      return `${name}ª Rodada`;
+    }
     if (name.toLowerCase().includes('rodada')) return name;
     return name.charAt(0).toUpperCase() + name.slice(1);
   };
@@ -500,7 +527,7 @@ const Brackets: React.FC = () => {
   };
 
   const scrollToPhase = (phase: string) => {
-    const element = document.getElementById(`phase-${phase.toLowerCase().replace(/\s+/g, '-')}`);
+    const element = document.getElementById(`phase-${toPhaseIdKey(phase)}`);
     if (element && scrollRef.current) {
       const container = scrollRef.current;
       const offset = element.offsetLeft - 64; 
@@ -942,11 +969,13 @@ const Brackets: React.FC = () => {
                 </div>
               )}
               {groupRounds.map((roundName) => {
-                const isCurrent = config.current_phase === 'grupos' && String(config.current_round) === roundName;
+                const isCurrent =
+                  config.current_phase === 'grupos' &&
+                  (roundsMap[roundName] || []).some((m) => (m.night ?? null) === config.current_round);
                 return (
                   <div 
                     key={roundName} 
-                    id={`phase-${roundName.toLowerCase().replace(/\s+/g, '-')}`}
+                    id={`phase-${toPhaseIdKey(roundName)}`}
                     className="bracket-round"
                   >
                     <h3 className="round-title">
