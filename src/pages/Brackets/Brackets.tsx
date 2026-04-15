@@ -38,6 +38,8 @@ const Brackets: React.FC = () => {
   const viewModeTouchedRef = useRef(false);
   const teiaApplyFrameRef = useRef<number | null>(null);
   const teiaWheelCommitRef = useRef<number | null>(null);
+  const wheelTargetLeftRef = useRef<number | null>(null);
+  const wheelAnimFrameRef = useRef<number | null>(null);
 
   const { config } = useTournamentConfig();
   const [hasScrolled, setHasScrolled] = useState(false);
@@ -76,6 +78,11 @@ const Brackets: React.FC = () => {
         window.clearTimeout(teiaWheelCommitRef.current);
         teiaWheelCommitRef.current = null;
       }
+      if (wheelAnimFrameRef.current !== null) {
+        window.cancelAnimationFrame(wheelAnimFrameRef.current);
+        wheelAnimFrameRef.current = null;
+      }
+      wheelTargetLeftRef.current = null;
     };
   }, []);
 
@@ -357,6 +364,7 @@ const Brackets: React.FC = () => {
   // Lógica de Mouse Drag
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!scrollRef.current) return;
+    cancelWheelAnimation();
     setIsPointerDown(true);
     setIsDragging(false);
     dragMovedRef.current = false;
@@ -444,6 +452,7 @@ const Brackets: React.FC = () => {
 
     if (e.pointerType === 'touch') {
       // Touch (lista): só vira "drag" quando o gesto for horizontal.
+      cancelWheelAnimation();
       setIsPointerDown(true);
       setIsDragging(false);
       dragMovedRef.current = false;
@@ -552,6 +561,41 @@ const Brackets: React.FC = () => {
     handleDragEnd();
   };
 
+  const cancelWheelAnimation = () => {
+    if (wheelAnimFrameRef.current !== null) {
+      window.cancelAnimationFrame(wheelAnimFrameRef.current);
+      wheelAnimFrameRef.current = null;
+    }
+    wheelTargetLeftRef.current = null;
+  };
+
+  const startWheelAnimationIfNeeded = () => {
+    if (wheelAnimFrameRef.current !== null) return;
+
+    const tick = () => {
+      const container = scrollRef.current;
+      const target = wheelTargetLeftRef.current;
+      if (!container || target === null) {
+        wheelAnimFrameRef.current = null;
+        return;
+      }
+
+      const current = container.scrollLeft;
+      const next = current + (target - current) * 0.22;
+      container.scrollLeft = next;
+
+      if (Math.abs(target - next) < 0.5) {
+        container.scrollLeft = target;
+        wheelAnimFrameRef.current = null;
+        return;
+      }
+
+      wheelAnimFrameRef.current = window.requestAnimationFrame(tick);
+    };
+
+    wheelAnimFrameRef.current = window.requestAnimationFrame(tick);
+  };
+
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     if (viewMode === 'teia') {
       e.preventDefault();
@@ -570,19 +614,22 @@ const Brackets: React.FC = () => {
       return;
     }
 
-    // Lista (/jogos): permite navegar com scroll do mouse/trackpad (sem depender de "arrastar").
+    // Lista (/jogos): navegação com "inércia" (fica menos estático do que setar scrollLeft seco).
+    if (isPointerDown) return;
+
     const container = scrollRef.current;
     if (!container) return;
     const maxScrollLeft = container.scrollWidth - container.clientWidth;
     if (maxScrollLeft <= 0) return;
 
     const primaryDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-    const next = clamp(container.scrollLeft + primaryDelta, 0, maxScrollLeft);
-    const willMove = Math.abs(next - container.scrollLeft) > 0.5;
+    const base = wheelTargetLeftRef.current ?? container.scrollLeft;
+    const target = clamp(base + primaryDelta, 0, maxScrollLeft);
 
-    if (willMove) {
+    if (Math.abs(target - base) > 0.5) {
       e.preventDefault();
-      container.scrollLeft = next;
+      wheelTargetLeftRef.current = target;
+      startWheelAnimationIfNeeded();
     }
   };
 
