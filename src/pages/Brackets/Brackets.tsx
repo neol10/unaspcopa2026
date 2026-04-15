@@ -376,6 +376,8 @@ const Brackets: React.FC = () => {
   };
 
   const handleDragEnd = () => {
+    const shouldSnap = viewMode === 'list' && dragMovedRef.current;
+
     setIsPointerDown(false);
     setIsDragging(false);
     touchIntentRef.current = 'unknown';
@@ -383,6 +385,14 @@ const Brackets: React.FC = () => {
       window.cancelAnimationFrame(dragFrameRef.current);
       dragFrameRef.current = null;
     }
+
+    if (shouldSnap) {
+      cancelWheelAnimation();
+      window.requestAnimationFrame(() => {
+        snapToNearestListItem();
+      });
+    }
+
     if (dragMovedRef.current) {
       window.setTimeout(() => {
         dragMovedRef.current = false;
@@ -633,12 +643,87 @@ const Brackets: React.FC = () => {
     }
   };
 
+  const PHASE_SCROLL_OFFSET_PX = 64;
+
+  const getScrollBehavior = (): ScrollBehavior => {
+    if (typeof window === 'undefined' || !window.matchMedia) return 'smooth';
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+  };
+
+  const getListSnapLefts = () => {
+    const container = scrollRef.current;
+    if (!container) return [] as number[];
+
+    const items = container.querySelectorAll<HTMLElement>(
+      '.brackets-scroll-content > .knockout-cta, .brackets-scroll-content > .bracket-round',
+    );
+
+    const lefts = Array.from(items)
+      .map((el) => el.offsetLeft - PHASE_SCROLL_OFFSET_PX)
+      .filter((n) => Number.isFinite(n));
+
+    lefts.sort((a, b) => a - b);
+
+    // Remove duplicados (pode acontecer em alguns layouts/resizes).
+    return lefts.filter((v, idx) => idx === 0 || Math.abs(v - lefts[idx - 1]) > 0.5);
+  };
+
+  const scrollListToLeft = (left: number) => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const maxScrollLeft = container.scrollWidth - container.clientWidth;
+    if (maxScrollLeft <= 0) return;
+
+    cancelWheelAnimation();
+
+    const clampedLeft = clamp(left, 0, maxScrollLeft);
+    container.scrollTo({ left: clampedLeft, behavior: getScrollBehavior() });
+  };
+
+  const snapToNearestListItem = () => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const maxScrollLeft = container.scrollWidth - container.clientWidth;
+    if (maxScrollLeft <= 0) return;
+
+    const snapLefts = getListSnapLefts();
+    if (snapLefts.length === 0) return;
+
+    const current = container.scrollLeft;
+    let best = snapLefts[0];
+    for (const candidate of snapLefts) {
+      if (Math.abs(candidate - current) < Math.abs(best - current)) best = candidate;
+    }
+
+    scrollListToLeft(best);
+  };
+
+  const scrollListByOne = (dir: -1 | 1) => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const maxScrollLeft = container.scrollWidth - container.clientWidth;
+    if (maxScrollLeft <= 0) return;
+
+    const snapLefts = getListSnapLefts();
+    if (snapLefts.length === 0) return;
+
+    const current = container.scrollLeft;
+    let closestIdx = 0;
+    for (let i = 1; i < snapLefts.length; i++) {
+      if (Math.abs(snapLefts[i] - current) < Math.abs(snapLefts[closestIdx] - current)) {
+        closestIdx = i;
+      }
+    }
+
+    const nextIdx = clamp(closestIdx + dir, 0, snapLefts.length - 1);
+    scrollListToLeft(snapLefts[nextIdx]);
+  };
+
   const scrollToPhase = (phase: string) => {
     const element = document.getElementById(`phase-${toPhaseIdKey(phase)}`);
     if (element && scrollRef.current) {
-      const container = scrollRef.current;
-      const offset = element.offsetLeft - 64; 
-      container.scrollTo({ left: offset, behavior: 'smooth' });
+      const offset = element.offsetLeft - PHASE_SCROLL_OFFSET_PX;
+      scrollListToLeft(offset);
     }
   };
 
@@ -1030,20 +1115,44 @@ const Brackets: React.FC = () => {
         </div>
       )}
 
-      <div 
-        className={`brackets-scroll-container ${isDragging ? 'dragging' : ''} mode-${viewMode}`}
-        ref={scrollRef}
-        onPointerDown={handlePointerDown}
-        onPointerLeave={handlePointerUp}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-        onPointerMove={handlePointerMove}
-        onWheel={handleWheel}
-      >
-        <div
-          className="brackets-scroll-content"
-          ref={viewMode === 'teia' ? teiaContentRef : undefined}
+      <div className="brackets-scroll-wrapper">
+        {viewMode === 'list' && (groupRounds.length + (knockoutRounds.length > 0 ? 1 : 0)) > 1 && (
+          <>
+            <button
+              className="brackets-scroll-arrow left"
+              type="button"
+              aria-label="Voltar"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => scrollListByOne(-1)}
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <button
+              className="brackets-scroll-arrow right"
+              type="button"
+              aria-label="Avançar"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => scrollListByOne(1)}
+            >
+              <ChevronRight size={18} />
+            </button>
+          </>
+        )}
+
+        <div 
+          className={`brackets-scroll-container ${isDragging ? 'dragging' : ''} mode-${viewMode}`}
+          ref={scrollRef}
+          onPointerDown={handlePointerDown}
+          onPointerLeave={handlePointerUp}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          onPointerMove={handlePointerMove}
+          onWheel={handleWheel}
         >
+          <div
+            className="brackets-scroll-content"
+            ref={viewMode === 'teia' ? teiaContentRef : undefined}
+          >
           {viewMode === 'teia' ? (
             /* Layout de Chaveamento Dinamico (Modo Teia) */
             <div className="knockout-tree-container">
@@ -1121,6 +1230,7 @@ const Brackets: React.FC = () => {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );
