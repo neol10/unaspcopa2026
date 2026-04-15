@@ -5297,12 +5297,12 @@ const TournamentManagement = () => {
       let changed = false;
       let next = prev;
 
-      if (prev.current_round !== autoRound) {
+      if (!manualPhaseOverride && prev.current_round !== autoRound) {
         next = { ...next, current_round: autoRound };
         changed = true;
       }
 
-      if (prev.matches_per_round !== autoMatchesPerRound) {
+      if (!manualPhaseOverride && prev.matches_per_round !== autoMatchesPerRound) {
         next = { ...next, matches_per_round: autoMatchesPerRound };
         changed = true;
       }
@@ -5329,11 +5329,11 @@ const TournamentManagement = () => {
       nextUpdates.current_phase = desiredPhase;
     }
 
-    if (config.current_round !== autoRound) {
+    if (!manualPhaseOverride && config.current_round !== autoRound) {
       nextUpdates.current_round = autoRound;
     }
 
-    if (config.matches_per_round !== autoMatchesPerRound) {
+    if (!manualPhaseOverride && config.matches_per_round !== autoMatchesPerRound) {
       nextUpdates.matches_per_round = autoMatchesPerRound;
     }
 
@@ -5387,7 +5387,7 @@ const TournamentManagement = () => {
   };
 
   const phaseLabel: Record<string, string> = {
-    grupos: '1ª Fase (Grupos)',
+    grupos: 'Fase de Grupos',
     oitavas: 'Oitavas de Final',
     quartas: 'Quartas de Final',
     semifinal: 'Semifinal',
@@ -5425,7 +5425,7 @@ const TournamentManagement = () => {
                 onChange={e => setForm({ ...form, current_phase: e.target.value as TournamentConfig['current_phase'] })}
               >
                 <option value="grupos" disabled={usedPhases.has('grupos') && form.current_phase !== 'grupos'}>
-                  1ª Fase (Grupos){usedPhases.has('grupos') && form.current_phase !== 'grupos' ? ' (ja usada)' : ''}
+                  Fase de Grupos{usedPhases.has('grupos') && form.current_phase !== 'grupos' ? ' (ja usada)' : ''}
                 </option>
                 <option value="oitavas" disabled={usedPhases.has('oitavas') && form.current_phase !== 'oitavas'}>
                   Oitavas de Final{usedPhases.has('oitavas') && form.current_phase !== 'oitavas' ? ' (ja usada)' : ''}
@@ -5446,7 +5446,7 @@ const TournamentManagement = () => {
             <span className="form-hint">
               {manualPhaseOverride
                 ? 'Forcando fase manualmente para o sistema inteiro.'
-                : 'Detectada automaticamente pelas partidas de mata-mata (Oitavas, Quartas, Semi e Final)'}
+                : 'Detectada automaticamente pelas partidas cadastradas (grupos e mata-mata).'}
             </span>
           </div>
 
@@ -5469,25 +5469,38 @@ const TournamentManagement = () => {
               type="number"
               min={1} max={20}
               value={form.matches_per_round}
-              readOnly
-              aria-readonly="true"
+              readOnly={!manualPhaseOverride}
+              aria-readonly={manualPhaseOverride ? 'false' : 'true'}
+              onChange={(e) => {
+                if (!manualPhaseOverride) return;
+                setForm({ ...form, matches_per_round: parseInt(e.target.value) || 1 });
+              }}
             />
-            <span className="form-hint">Atualizado automaticamente com base nas partidas da fase de grupos</span>
+            <span className="form-hint">
+              {manualPhaseOverride
+                ? 'Defina manualmente se precisar (emergencia).'
+                : 'Atualizado automaticamente com base nas partidas da fase de grupos'}
+            </span>
           </div>
 
           {/* Noite Atual */}
-          {autoPhase === 'grupos' && (
+          {(manualPhaseOverride ? form.current_phase : autoPhase) === 'grupos' && (
             <div className="form-group">
               <label>Noite Atual</label>
               <select
                 value={form.current_round}
-                disabled
+                disabled={!manualPhaseOverride}
+                onChange={(e) => setForm({ ...form, current_round: parseInt(e.target.value) || 1 })}
               >
                 {Array.from({ length: form.total_rounds }, (_, i) => i + 1).map(r => (
                   <option key={r} value={r}>Noite {r}</option>
                 ))}
               </select>
-              <span className="form-hint">Avanca quando todos os jogos da noite finalizam; se nao houver jogos, fica aguardando</span>
+              <span className="form-hint">
+                {manualPhaseOverride
+                  ? 'Defina manualmente a Noite Atual (emergencia).'
+                  : 'Avanca quando todos os jogos da noite finalizam; se nao houver jogos, fica aguardando'}
+              </span>
             </div>
           )}
         </div>
