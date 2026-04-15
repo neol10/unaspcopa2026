@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useMatches } from '../../hooks/useMatches';
+import { useMatches, type Match } from '../../hooks/useMatches';
 import { useMatchEvents, type MatchEvent } from '../../hooks/useMatchEvents';
 import { usePlayers } from '../../hooks/usePlayers';
 import { useMvpVoting } from '../../hooks/useMvpVoting';
@@ -38,6 +38,7 @@ const MatchCenter: React.FC = () => {
   const { user, role } = useAuthContext();
   const isAdmin = role === 'admin';
   const { visibility } = useGroupCVisibility();
+  const { config } = useTournamentConfig();
   
   const isTestGroup = (groupName?: string | null) => {
     const clean = (groupName || '').trim().toUpperCase().replace(/\s+/g, '');
@@ -57,14 +58,102 @@ const MatchCenter: React.FC = () => {
   const selectedMatchId = searchParams.get('id');
   
   const activeMatch = useMemo(() => {
-    if (selectedMatchId) return baseMatches.find(m => m.id === selectedMatchId);
+    if (selectedMatchId) {
+      const byId = baseMatches.find(m => m.id === selectedMatchId);
+      if (byId) return byId;
+    }
+
     const nowMs = Date.now();
-    return baseMatches.find((m) => deriveMatchStatus(m, nowMs) === 'ao_vivo') || baseMatches[0];
-  }, [baseMatches, selectedMatchId]);
+    const live = baseMatches.find((m) => deriveMatchStatus(m, nowMs) === 'ao_vivo');
+    if (live) return live;
+
+    // Preferir a unidade atual (Noite/Rodada) da fase de grupos, conforme config.
+    if (config.current_phase === 'grupos') {
+      const groupUnit = config.group_unit || 'night';
+      const currentSlot = config.current_round || 1;
+
+      const inCurrentSlot = baseMatches
+        .filter((m) => (m.round || 0) < 1000)
+        .filter((m) => (groupUnit === 'night' ? (m.night ?? null) : (m.round ?? null)) === currentSlot)
+        .sort((a, b) => new Date(a.match_date).getTime() - new Date(b.match_date).getTime());
+
+      return inCurrentSlot.find((m) => m.status !== 'finalizado') || inCurrentSlot[0] || baseMatches[0];
+    }
+
+    return baseMatches[0];
+  }, [baseMatches, selectedMatchId, config.current_phase, config.current_round, config.group_unit]);
 
   const handleSelectMatch = (id: string) => {
     setSearchParams({ id });
   };
+
+  // Ao finalizar uma partida, avança automaticamente para a próxima da mesma unidade.
+  // Se a unidade acabou, tenta ir para a próxima unidade com jogos pendentes.
+  const lastFinalizedRef = useRef<{ id: string | null; status: Match['status'] | null }>({ id: null, status: null });
+
+  useEffect(() => {
+    const currentId = activeMatch?.id || null;
+    const currentStatus = activeMatch?.status || null;
+    const prev = lastFinalizedRef.current;
+
+    const justFinalized = Boolean(
+      activeMatch &&
+      prev.id === currentId &&
+      prev.status !== 'finalizado' &&
+      currentStatus === 'finalizado'
+    );
+
+    lastFinalizedRef.current = { id: currentId, status: currentStatus };
+
+    if (!justFinalized || !activeMatch) return;
+
+    const byDate = (a: Match, b: Match) => new Date(a.match_date).getTime() - new Date(b.match_date).getTime();
+    const activeRound = activeMatch.round || 0;
+
+    if (activeRound >= 1000) {
+      const samePhase = [...baseMatches].filter((m) => m.round === activeRound).sort(byDate);
+      const next = samePhase.find((m) => m.status !== 'finalizado');
+      if (next) setSearchParams({ id: next.id }, { replace: true });
+      return;
+    }
+
+    const groupUnit = config.group_unit || 'night';
+    const groupMatches = baseMatches.filter((m) => (m.round || 0) < 1000);
+    const currentSlot = groupUnit === 'night' ? (activeMatch.night ?? null) : (activeMatch.round ?? null);
+    if (!currentSlot) return;
+
+    const inSlot = groupMatches
+      .filter((m) => (groupUnit === 'night' ? (m.night ?? null) : (m.round ?? null)) === currentSlot)
+      .sort(byDate);
+
+    const nextInSlot = inSlot.find((m) => m.status !== 'finalizado');
+    if (nextInSlot) {
+      setSearchParams({ id: nextInSlot.id }, { replace: true });
+      return;
+    }
+
+    const slotValues = Array.from(
+      new Set(
+        groupMatches
+          .map((m) => (groupUnit === 'night' ? (m.night ?? null) : (m.round ?? null)))
+          .filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+      )
+    ).sort((a, b) => a - b);
+
+    const nextSlot = slotValues.find((v) =>
+      v > currentSlot &&
+      groupMatches.some((m) => (groupUnit === 'night' ? (m.night ?? null) : (m.round ?? null)) === v && m.status !== 'finalizado')
+    );
+    if (!nextSlot) return;
+
+    const nextMatch =
+      groupMatches
+        .filter((m) => (groupUnit === 'night' ? (m.night ?? null) : (m.round ?? null)) === nextSlot)
+        .sort(byDate)
+        .find((m) => m.status !== 'finalizado') || null;
+
+    if (nextMatch) setSearchParams({ id: nextMatch.id }, { replace: true });
+  }, [activeMatch, baseMatches, config.group_unit, setSearchParams]);
 
   const counts = useMemo(() => {
     const nowMs = Date.now();
@@ -113,7 +202,6 @@ const MatchCenter: React.FC = () => {
   }, [activeMatch, events]);
 
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const { config } = useTournamentConfig();
   const { voteCounts: roundVotes, loading: roundMvpLoading, error: roundMvpError, refresh: refreshRoundMvp } = useMvpVoting(String(config.current_round));
   const { votes: winnerVotes, userVote: winnerUserVote, vote: castWinnerVote, error: winnerVotesError } = useMatchWinnerVoting(activeMatch?.id || '');
   const { cardRef, downloadCard } = useShareCard();

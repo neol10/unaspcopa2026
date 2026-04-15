@@ -198,7 +198,32 @@ const Brackets: React.FC = () => {
   }, [filteredMatches, groupUnit]);
 
   const sortedRounds = useMemo(() => {
+    const parseGroupKey = (key: string) => {
+      if (key === 'noite-sem') return { unit: 'night' as const, value: null as number | null };
+      if (key.startsWith('noite-')) {
+        const n = Number(key.replace('noite-', '').trim());
+        return { unit: 'night' as const, value: Number.isFinite(n) ? n : null };
+      }
+      if (key === 'rodada-sem') return { unit: 'round' as const, value: null as number | null };
+      if (key.startsWith('rodada-')) {
+        const n = Number(key.replace('rodada-', '').trim());
+        return { unit: 'round' as const, value: Number.isFinite(n) ? n : null };
+      }
+      return null;
+    };
+
     return Object.keys(roundsMap).sort((a, b) => {
+      const ga = parseGroupKey(a);
+      const gb = parseGroupKey(b);
+
+      // Para fase de grupos, ordena por número (Noite/Rodada) para evitar inversão por data.
+      if (ga && gb) {
+        if (ga.value === null && gb.value === null) return 0;
+        if (ga.value === null) return 1;
+        if (gb.value === null) return -1;
+        return ga.value - gb.value;
+      }
+
       const dateA = new Date(roundsMap[a][0].match_date).getTime();
       const dateB = new Date(roundsMap[b][0].match_date).getTime();
       return dateA - dateB;
