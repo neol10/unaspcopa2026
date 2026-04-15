@@ -40,7 +40,6 @@ const Brackets: React.FC = () => {
   const teiaWheelCommitRef = useRef<number | null>(null);
   const wheelTargetLeftRef = useRef<number | null>(null);
   const wheelAnimFrameRef = useRef<number | null>(null);
-  const wheelIdleTimeoutRef = useRef<number | null>(null);
 
   const { config } = useTournamentConfig();
   const [hasScrolled, setHasScrolled] = useState(false);
@@ -83,12 +82,7 @@ const Brackets: React.FC = () => {
         window.cancelAnimationFrame(wheelAnimFrameRef.current);
         wheelAnimFrameRef.current = null;
       }
-      if (wheelIdleTimeoutRef.current !== null) {
-        window.clearTimeout(wheelIdleTimeoutRef.current);
-        wheelIdleTimeoutRef.current = null;
-      }
       wheelTargetLeftRef.current = null;
-      scrollRef.current?.classList.remove('wheeling');
     };
   }, []);
 
@@ -582,29 +576,7 @@ const Brackets: React.FC = () => {
       window.cancelAnimationFrame(wheelAnimFrameRef.current);
       wheelAnimFrameRef.current = null;
     }
-    if (wheelIdleTimeoutRef.current !== null) {
-      window.clearTimeout(wheelIdleTimeoutRef.current);
-      wheelIdleTimeoutRef.current = null;
-    }
     wheelTargetLeftRef.current = null;
-    scrollRef.current?.classList.remove('wheeling');
-  };
-
-  const markWheelInteraction = () => {
-    const container = scrollRef.current;
-    if (!container) return;
-
-    container.classList.add('wheeling');
-
-    if (wheelIdleTimeoutRef.current !== null) {
-      window.clearTimeout(wheelIdleTimeoutRef.current);
-    }
-
-    wheelIdleTimeoutRef.current = window.setTimeout(() => {
-      wheelIdleTimeoutRef.current = null;
-      container.classList.remove('wheeling');
-      snapToNearestListItem();
-    }, 140);
   };
 
   const startWheelAnimationIfNeeded = () => {
@@ -666,7 +638,6 @@ const Brackets: React.FC = () => {
 
     if (Math.abs(target - base) > 0.5) {
       e.preventDefault();
-      markWheelInteraction();
       wheelTargetLeftRef.current = target;
       startWheelAnimationIfNeeded();
     }

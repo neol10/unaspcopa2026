@@ -347,10 +347,6 @@
   scroll-snap-type: none;
 }
 
-.brackets-scroll-container.mode-list.wheeling {
-  scroll-snap-type: none;
-}
-
 .brackets-scroll-container::-webkit-scrollbar {
   height: 6px;
 }
@@ -553,21 +549,6 @@
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
   will-change: transform;
   transform: translateZ(0);
-}
-
-/* Durante interação (arrasto/rolagem), reduz efeitos caros pra evitar engasgos */
-.brackets-scroll-container.dragging .match-box,
-.brackets-scroll-container.wheeling .match-box {
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .brackets-scroll-container.dragging .match-box,
-  .brackets-scroll-container.wheeling .match-box {
-    transition: none;
-  }
 }
 
 .match-box::before {
