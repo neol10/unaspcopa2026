@@ -9,6 +9,7 @@ type OptionalColumnStatus = 'unknown' | 'present' | 'missing';
 
 let divisionColumnStatus: OptionalColumnStatus = 'unknown';
 let nightColumnStatus: OptionalColumnStatus = 'unknown';
+let groupUnitColumnStatus: OptionalColumnStatus = 'unknown';
 
 export const getDivisionColumnStatus = (): OptionalColumnStatus => divisionColumnStatus;
 export const markDivisionColumnMissing = () => {
@@ -27,6 +28,16 @@ export const markNightColumnMissing = () => {
 
 export const markNightColumnPresent = () => {
   nightColumnStatus = 'present';
+};
+
+export const getGroupUnitColumnStatus = (): OptionalColumnStatus => groupUnitColumnStatus;
+
+export const markGroupUnitColumnMissing = () => {
+  groupUnitColumnStatus = 'missing';
+};
+
+export const markGroupUnitColumnPresent = () => {
+  groupUnitColumnStatus = 'present';
 };
 
 export const isMissingColumnError = (err: MaybePostgrestError, column: string) => {

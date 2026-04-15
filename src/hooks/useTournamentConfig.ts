@@ -5,9 +5,12 @@ import { useDivisionContext } from '../contexts/DivisionContext';
 import type { Division } from '../lib/division';
 import {
   getDivisionColumnStatus,
+  getGroupUnitColumnStatus,
   isMissingColumnError,
   markDivisionColumnMissing,
   markDivisionColumnPresent,
+  markGroupUnitColumnMissing,
+  markGroupUnitColumnPresent,
 } from '../lib/supabaseOptionalColumns';
 
 export interface GroupCVisibilityConfig {
@@ -58,6 +61,7 @@ export interface TournamentConfig {
   matches_per_round: number;
   current_phase: 'grupos' | 'oitavas' | 'quartas' | 'semifinal' | 'final';
   current_round: number;
+  group_unit?: 'night' | 'round';
   group_c_visibility?: GroupCVisibilityConfig;
 }
 
@@ -67,6 +71,7 @@ const DEFAULT: TournamentConfig = {
   matches_per_round: 4,
   current_phase: 'grupos',
   current_round: 1,
+  group_unit: 'night',
   group_c_visibility: DEFAULT_GROUP_C_VISIBILITY,
 };
 
@@ -91,6 +96,7 @@ export const useTournamentConfig = () => {
           const base = (retry.data as TournamentConfig) || DEFAULT;
           return {
             ...base,
+            group_unit: (base.group_unit || 'night') as TournamentConfig['group_unit'],
             group_c_visibility: normalizeGroupCVisibility((base as { group_c_visibility?: unknown }).group_c_visibility),
           };
         }
@@ -102,6 +108,7 @@ export const useTournamentConfig = () => {
       const base = (data as TournamentConfig) || DEFAULT;
       return {
         ...base,
+        group_unit: (base.group_unit || 'night') as TournamentConfig['group_unit'],
         group_c_visibility: normalizeGroupCVisibility((base as { group_c_visibility?: unknown }).group_c_visibility),
       };
     },
@@ -128,6 +135,7 @@ export const useTournamentConfig = () => {
     mutationFn: async (updated: Partial<TournamentConfig>) => {
       const currentConfig = query.data || DEFAULT;
       const status = getDivisionColumnStatus();
+      const groupUnitStatus = getGroupUnitColumnStatus();
       const merged = status === 'missing'
         ? { ...currentConfig, ...updated }
         : { ...currentConfig, ...updated, division };
@@ -146,22 +154,40 @@ export const useTournamentConfig = () => {
 
         const res = await attemptUpdate(payload);
         if (res.error) {
-          if (status !== 'missing' && isMissingColumnError(res.error as any, 'division')) {
-            markDivisionColumnMissing();
-            const { division: _ignored, ...payloadNoDivision } = payload as { division?: unknown } & Record<string, unknown>;
-            const retry = await attemptUpdate(payloadNoDivision);
+          const missingDivision = status !== 'missing' && isMissingColumnError(res.error as any, 'division');
+          const missingGroupUnit = groupUnitStatus !== 'missing' && isMissingColumnError(res.error as any, 'group_unit');
+
+          if (missingDivision || missingGroupUnit) {
+            if (missingDivision) markDivisionColumnMissing();
+            if (missingGroupUnit) markGroupUnitColumnMissing();
+
+            const base = payload as { division?: unknown; group_unit?: unknown } & Record<string, unknown>;
+            const { division: _ignoredDivision, group_unit: _ignoredGroupUnit, ...rest } = base;
+            const retryPayload: Record<string, unknown> = {
+              ...rest,
+              ...(missingDivision ? {} : { division: base.division }),
+              ...(missingGroupUnit ? {} : { group_unit: base.group_unit }),
+            };
+
+            const retry = await attemptUpdate(retryPayload);
             if (retry.error) throw retry.error;
+            if (!missingDivision) markDivisionColumnPresent();
+            if (!missingGroupUnit) markGroupUnitColumnPresent();
             return {
               ...(retry.data as TournamentConfig),
+              group_unit: ((retry.data as TournamentConfig)?.group_unit || 'night') as TournamentConfig['group_unit'],
               group_c_visibility: normalizeGroupCVisibility((retry.data as { group_c_visibility?: unknown })?.group_c_visibility),
             };
           }
+
           throw res.error;
         }
 
         if (status !== 'missing') markDivisionColumnPresent();
+        if (groupUnitStatus !== 'missing') markGroupUnitColumnPresent();
         return {
           ...(res.data as TournamentConfig),
+          group_unit: ((res.data as TournamentConfig)?.group_unit || 'night') as TournamentConfig['group_unit'],
           group_c_visibility: normalizeGroupCVisibility((res.data as { group_c_visibility?: unknown })?.group_c_visibility),
         };
       } else {
@@ -180,22 +206,40 @@ export const useTournamentConfig = () => {
 
         const res = await attemptInsert(payload);
         if (res.error) {
-          if (status !== 'missing' && isMissingColumnError(res.error as any, 'division')) {
-            markDivisionColumnMissing();
-            const { division: _ignored, ...payloadNoDivision } = payload as { division?: unknown } & Record<string, unknown>;
-            const retry = await attemptInsert(payloadNoDivision);
+          const missingDivision = status !== 'missing' && isMissingColumnError(res.error as any, 'division');
+          const missingGroupUnit = groupUnitStatus !== 'missing' && isMissingColumnError(res.error as any, 'group_unit');
+
+          if (missingDivision || missingGroupUnit) {
+            if (missingDivision) markDivisionColumnMissing();
+            if (missingGroupUnit) markGroupUnitColumnMissing();
+
+            const base = payload as { division?: unknown; group_unit?: unknown } & Record<string, unknown>;
+            const { division: _ignoredDivision, group_unit: _ignoredGroupUnit, ...rest } = base;
+            const retryPayload: Record<string, unknown> = {
+              ...rest,
+              ...(missingDivision ? {} : { division: base.division }),
+              ...(missingGroupUnit ? {} : { group_unit: base.group_unit }),
+            };
+
+            const retry = await attemptInsert(retryPayload);
             if (retry.error) throw retry.error;
+            if (!missingDivision) markDivisionColumnPresent();
+            if (!missingGroupUnit) markGroupUnitColumnPresent();
             return {
               ...(retry.data as TournamentConfig),
+              group_unit: ((retry.data as TournamentConfig)?.group_unit || 'night') as TournamentConfig['group_unit'],
               group_c_visibility: normalizeGroupCVisibility((retry.data as { group_c_visibility?: unknown })?.group_c_visibility),
             };
           }
+
           throw res.error;
         }
 
         if (status !== 'missing') markDivisionColumnPresent();
+        if (groupUnitStatus !== 'missing') markGroupUnitColumnPresent();
         return {
           ...(res.data as TournamentConfig),
+          group_unit: ((res.data as TournamentConfig)?.group_unit || 'night') as TournamentConfig['group_unit'],
           group_c_visibility: normalizeGroupCVisibility((res.data as { group_c_visibility?: unknown })?.group_c_visibility),
         };
       }
@@ -208,6 +252,7 @@ export const useTournamentConfig = () => {
   return { 
     config: {
       ...(query.data || DEFAULT),
+      group_unit: ((query.data || DEFAULT).group_unit || 'night') as TournamentConfig['group_unit'],
       group_c_visibility: normalizeGroupCVisibility((query.data || DEFAULT).group_c_visibility),
     }, 
     loading: query.isLoading && query.data === undefined, 

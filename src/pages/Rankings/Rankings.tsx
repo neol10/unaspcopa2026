@@ -9,9 +9,11 @@ import Skeleton, { SkeletonRankingRow } from '../../components/Skeleton/Skeleton
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { downloadSocialPlayerCard } from '../../lib/socialCardExport';
 import { useAuthContext } from '../../contexts/AuthContext';
+import { useTournamentConfig } from '../../hooks/useTournamentConfig';
 
 const Rankings: React.FC = () => {
   const { scorers, assistants, goalkeepers, disciplined, roundMvps, availableRounds, loading, error, refresh } = useRankings();
+  const { config } = useTournamentConfig();
   const { role: authRole } = useAuthContext();
   const [selectedPlayer, setSelectedPlayer] = useState<RankingPlayer | null>(null);
   const [selectedRound, setSelectedRound] = useState<string | null>(null);
@@ -112,6 +114,10 @@ const Rankings: React.FC = () => {
   const hasScorers = scorers.length > 0;
   const top3Scorers = scorers.slice(0, 3);
   const roundWinner = selectedRound ? roundMvps[selectedRound] : null;
+
+  const groupUnit = config?.group_unit === 'round' ? 'round' : 'night';
+  const unitLabel = groupUnit === 'round' ? 'Rodada' : 'Noite';
+  const unitChipPrefix = groupUnit === 'round' ? 'R' : 'N';
 
   const normalize = (value: string) => value
     .toLowerCase()
@@ -232,12 +238,12 @@ const Rankings: React.FC = () => {
       </section>
 
       <div className="rankings-featured-grid">
-        {/* Craque da Noite - NOVO */}
+        {/* Craque da Unidade (Noite/Rodada) */}
         <section className="round-mvp-highlight glass animate-slide-up">
           <div className="panel-header-v2">
             <div className="header-title-group">
                <Trophy size={18} color="var(--secondary)" />
-              <h3>Craque da Noite</h3>
+              <h3>Craque da {unitLabel}</h3>
             </div>
             
             <div className="round-selector-tabs">
@@ -249,7 +255,7 @@ const Rankings: React.FC = () => {
                   type="button"
                   aria-pressed={selectedRound === r}
                 >
-                  N{r}
+                  {unitChipPrefix}{r}
                 </button>
               ))}
             </div>
@@ -286,7 +292,7 @@ const Rankings: React.FC = () => {
                <div className="winner-details">
                   <h4>{roundWinner.name}</h4>
                   <span className="winner-team">{roundWinner.team_name}</span>
-                  <p className="winner-reason">Destaque estatístico da Noite {selectedRound}.</p>
+                  <p className="winner-reason">Destaque estatístico da {unitLabel} {selectedRound}.</p>
                   {authRole === 'admin' && (
                     <button
                       type="button"
@@ -296,11 +302,11 @@ const Rankings: React.FC = () => {
                         handleDownloadRankingCard(
                           `mvp-${selectedRound}-${roundWinner.id}`,
                           roundWinner,
-                          'Craque da Noite',
-                          `Noite ${selectedRound} da Copa Unasp`,
+                          `Craque da ${unitLabel}`,
+                          `${unitLabel} ${selectedRound} da Copa Unasp`,
                           'gold',
                           [
-                            { label: 'Noite', value: selectedRound || '-' },
+                            { label: unitLabel, value: selectedRound || '-' },
                             { label: 'Status', value: 'Destaque' },
                             { label: 'Categoria', value: 'MVP' },
                           ],
@@ -317,7 +323,7 @@ const Rankings: React.FC = () => {
           ) : (
             <div className="round-empty-state">
                <Zap size={24} opacity={0.3} />
-               <p>Selecione uma noite finalizada.</p>
+               <p>Selecione uma {unitLabel.toLowerCase()} finalizada.</p>
             </div>
           )}
         </section>

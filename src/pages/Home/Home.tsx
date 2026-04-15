@@ -99,6 +99,8 @@ const Home: React.FC = () => {
   }, [baseMatches]);
 
   const effectivePhase = config.current_phase || autoPhase;
+  const groupUnit = config.group_unit || 'night';
+  const groupUnitLabel = groupUnit === 'night' ? 'NOITE' : 'RODADA';
 
   const nextMatchKicker = useMemo(() => {
     if (!nextMatch) return null;
@@ -109,10 +111,10 @@ const Home: React.FC = () => {
       return (KNOCKOUT_ROUND_LABELS[round] || 'MATA-MATA').toUpperCase();
     }
 
-    const night = nextMatch.night ?? null;
-    if (night === 1) return 'ESTREIA';
-    return night ? `NOITE ${night}` : 'SEM NOITE';
-  }, [nextMatch]);
+    const slotValue = groupUnit === 'night' ? (nextMatch.night ?? null) : (nextMatch.round ?? null);
+    if (slotValue === 1) return 'ESTREIA';
+    return slotValue ? `${groupUnitLabel} ${slotValue}` : `SEM ${groupUnitLabel}`;
+  }, [nextMatch, groupUnit, groupUnitLabel]);
 
   const quickSnapshot = useMemo(() => {
     const now = new Date();
@@ -578,7 +580,7 @@ const Home: React.FC = () => {
             <h3>{phaseLabelMap[effectivePhase] || 'Fase atual'}</h3>
             <p>
               {effectivePhase === 'grupos'
-                ? `Noite ${config.current_round} de ${config.total_rounds}`
+                ? `${groupUnit === 'night' ? 'Noite' : 'Rodada'} ${config.current_round} de ${config.total_rounds}`
                 : 'Chaveamento eliminatório em andamento'}
             </p>
           </div>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Mail, Lock, LogIn, UserPlus, AlertCircle } from 'lucide-react';
 import { useAuthContext } from '../../contexts/AuthContext';
+import { useTournamentConfig } from '../../hooks/useTournamentConfig';
 import './AuthModal.css';
 
 interface AuthModalProps {
@@ -9,6 +10,8 @@ interface AuthModalProps {
 
 const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
   const { signIn, signUp } = useAuthContext();
+  const { config } = useTournamentConfig();
+  const unitLabel = config?.group_unit === 'round' ? 'Rodada' : 'Noite';
   const [tab, setTab] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -47,7 +50,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose }) => {
             {tab === 'login' ? <LogIn size={28} /> : <UserPlus size={28} />}
           </div>
           <h2>{tab === 'login' ? 'Entrar' : 'Criar Conta'}</h2>
-          <p>{tab === 'login' ? 'Acesse para votar no Craque da Noite!' : 'Crie sua conta e participe da Copa!'}</p>
+          <p>{tab === 'login' ? `Acesse para votar no Craque da ${unitLabel}!` : 'Crie sua conta e participe da Copa!'}</p>
         </div>
 
         <div className="auth-tabs">

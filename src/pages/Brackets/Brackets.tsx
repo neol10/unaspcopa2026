@@ -6,7 +6,6 @@ import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
 import { useTournamentConfig } from '../../hooks/useTournamentConfig';
 import { KNOCKOUT_ROUND_LABELS } from '../../lib/tournamentRules';
 import { deriveMatchStatus } from '../../lib/matchStatus';
-// Noite oficial e numerica: o agrupamento da fase de grupos usa match.night.
 import { Trophy, ChevronRight, ChevronLeft, Target, Timer, ZoomIn, ZoomOut } from 'lucide-react';
 import './Brackets.css';
 
@@ -162,6 +161,8 @@ const Brackets: React.FC = () => {
 
   const KO_ROUND_LABELS: Record<number, string> = KNOCKOUT_ROUND_LABELS;
 
+  const groupUnit = config?.group_unit === 'round' ? 'round' : 'night';
+
   const getRoundKey = (round: number) => KO_ROUND_LABELS[round] || String(round);
 
   const toPhaseIdKey = (value: string) => {
@@ -176,11 +177,17 @@ const Brackets: React.FC = () => {
   const getListGroupKey = (m: Match) => {
     const roundCode = m.round ?? 0;
     if (roundCode >= 1000) return getRoundKey(roundCode);
+
+    if (groupUnit === 'round') {
+      if (roundCode) return `rodada-${roundCode}`;
+      return 'rodada-sem';
+    }
+
     if (m.night !== null && m.night !== undefined) return `noite-${m.night}`;
     return 'noite-sem';
   };
 
-  // Agrupa partidas por Noite (fase de grupos) e por Fase/Rodada (mata-mata)
+  // Agrupa partidas por Noite/Rodada (fase de grupos) e por Fase/Rodada (mata-mata)
   const roundsMap = useMemo(() => {
     return filteredMatches.reduce((acc, m) => {
       const key = getListGroupKey(m);
@@ -188,7 +195,7 @@ const Brackets: React.FC = () => {
       acc[key].push(m);
       return acc;
     }, {} as Record<string, Match[]>);
-  }, [filteredMatches]);
+  }, [filteredMatches, groupUnit]);
 
   const sortedRounds = useMemo(() => {
     return Object.keys(roundsMap).sort((a, b) => {
@@ -198,14 +205,20 @@ const Brackets: React.FC = () => {
     });
   }, [roundsMap]);
 
-  // Auto-scroll para a noite atual (fase de grupos) ou fase atual (mata-mata)
+  // Auto-scroll para a unidade atual (fase de grupos) ou fase atual (mata-mata)
   useEffect(() => {
     if (!loading && matches.length > 0 && config && !hasScrolled) {
       const timer = setTimeout(() => {
         let targetPhaseKey = '';
         if (config.current_phase === 'grupos') {
-          const targetMatch = filteredMatches.find((m) => (m.night ?? null) === config.current_round) || null;
-          targetPhaseKey = targetMatch ? getListGroupKey(targetMatch) : `noite-${config.current_round}`;
+          if (groupUnit === 'round') {
+            const targetMatch =
+              filteredMatches.find((m) => (m.round ?? 0) < 1000 && (m.round ?? 0) === config.current_round) || null;
+            targetPhaseKey = targetMatch ? getListGroupKey(targetMatch) : `rodada-${config.current_round}`;
+          } else {
+            const targetMatch = filteredMatches.find((m) => (m.night ?? null) === config.current_round) || null;
+            targetPhaseKey = targetMatch ? getListGroupKey(targetMatch) : `noite-${config.current_round}`;
+          }
         } else {
           // Busca nos rounds carregados um que contenha a fase atual
           const targetRound = sortedRounds.find(r => 
@@ -224,9 +237,14 @@ const Brackets: React.FC = () => {
       }, 500); 
       return () => clearTimeout(timer);
     }
-  }, [loading, matches, config, hasScrolled, sortedRounds, filteredMatches]);
+  }, [loading, matches, config, hasScrolled, sortedRounds, filteredMatches, groupUnit]);
 
   const formatRoundName = (name: string) => {
+    if (name.startsWith('rodada-')) {
+      const n = name.replace('rodada-', '').trim();
+      return n ? `Rodada ${n}` : 'Rodada';
+    }
+    if (name === 'rodada-sem') return 'Sem Rodada';
     if (name.startsWith('noite-')) {
       const n = name.replace('noite-', '').trim();
       return n ? `Noite ${n}` : 'Noite';
@@ -971,7 +989,11 @@ const Brackets: React.FC = () => {
               {groupRounds.map((roundName) => {
                 const isCurrent =
                   config.current_phase === 'grupos' &&
-                  (roundsMap[roundName] || []).some((m) => (m.night ?? null) === config.current_round);
+                  (groupUnit === 'round'
+                    ? (roundsMap[roundName] || []).some(
+                        (m) => (m.round ?? 0) < 1000 && (m.round ?? 0) === config.current_round,
+                      )
+                    : (roundsMap[roundName] || []).some((m) => (m.night ?? null) === config.current_round));
                 return (
                   <div 
                     key={roundName} 

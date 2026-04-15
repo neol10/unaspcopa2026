@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { Player } from './usePlayers';
 import { useDivisionContext } from '../contexts/DivisionContext';
+import { useTournamentConfig } from './useTournamentConfig';
 import {
   getDivisionColumnStatus,
   getNightColumnStatus,
@@ -24,7 +25,9 @@ export interface RankingPlayer extends Player {
 export const useRankings = () => {
   const queryClient = useQueryClient();
   const { division } = useDivisionContext();
-  const CACHE_KEY = `rankings_cache_v1_${division}`;
+  const { config } = useTournamentConfig();
+  const groupUnit = config?.group_unit === 'round' ? 'round' : 'night';
+  const CACHE_KEY = `rankings_cache_v1_${division}_${groupUnit}`;
 
   const loadCachedRankings = () => {
     if (typeof window === 'undefined') return null;
@@ -87,7 +90,7 @@ export const useRankings = () => {
   };
 
   const query = useQuery({
-    queryKey: ['rankings', division],
+    queryKey: ['rankings', division, groupUnit],
     queryFn: async () => {
       const status = getDivisionColumnStatus();
 
@@ -245,27 +248,27 @@ export const useRankings = () => {
 
       const playersData = playersRes.data || [];
 
-      // --- NOITES FINALIZADAS (fase de grupos) ---
-      // A noite só é considerada finalizada quando TODAS as partidas daquela noite estão com status 'finalizado'.
-      // Mata-mata (round >= 1000) nao entra nessa conta.
-      const nightTotals: Record<string, { total: number; finalized: number }> = {};
+      // --- UNIDADES FINALIZADAS (fase de grupos) ---
+      // A unidade (Noite ou Rodada) só é considerada finalizada quando TODAS as partidas daquela unidade
+      // estão com status 'finalizado'. Mata-mata (round >= 1000) nao entra nessa conta.
+      const unitTotals: Record<string, { total: number; finalized: number }> = {};
       matchesData.forEach((m) => {
         const roundValue = Number(m.round || 0);
         if (!Number.isFinite(roundValue) || roundValue >= 1000) return;
 
-        const nightValue = (m as any).night;
-        const nightKey = nightValue === null || nightValue === undefined ? '' : String(nightValue).trim();
-        if (!nightKey) return;
+        const unitValue = groupUnit === 'round' ? roundValue : (m as any).night;
+        const unitKey = unitValue === null || unitValue === undefined ? '' : String(unitValue).trim();
+        if (!unitKey) return;
 
-        if (!nightTotals[nightKey]) nightTotals[nightKey] = { total: 0, finalized: 0 };
-        nightTotals[nightKey].total += 1;
-        if (m.status === 'finalizado') nightTotals[nightKey].finalized += 1;
+        if (!unitTotals[unitKey]) unitTotals[unitKey] = { total: 0, finalized: 0 };
+        unitTotals[unitKey].total += 1;
+        if (m.status === 'finalizado') unitTotals[unitKey].finalized += 1;
       });
 
-      const completedNights = new Set(
-        Object.entries(nightTotals)
+      const completedUnits = new Set(
+        Object.entries(unitTotals)
           .filter(([, v]) => v.total > 0 && v.finalized === v.total)
-          .map(([night]) => night),
+          .map(([unit]) => unit),
       );
 
       // Contabilizar votos por jogador
@@ -325,7 +328,7 @@ export const useRankings = () => {
         })
         .slice(0, 10);
 
-      // --- LOGICA CRAQUE DA NOITE ---
+      // --- LOGICA CRAQUE DA UNIDADE (NOITE/RODADA) ---
       const roundStats: Record<string, Record<string, { points: number, goals: number, firstEvent: number }>> = {};
       const roundsFound = new Set<string>();
 
@@ -333,30 +336,30 @@ export const useRankings = () => {
         const roundValue = Number(ev.matches?.round || 0);
         if (!Number.isFinite(roundValue) || roundValue >= 1000) return;
 
-        const nightValue = ev.matches?.night;
-        const nightKey = nightValue === null || nightValue === undefined ? '' : String(nightValue).trim();
-        if (!nightKey) return;
+        const unitValue = groupUnit === 'round' ? roundValue : ev.matches?.night;
+        const unitKey = unitValue === null || unitValue === undefined ? '' : String(unitValue).trim();
+        if (!unitKey) return;
 
-        // Só computa “Craque da Noite” para noites finalizadas
-        if (!completedNights.has(nightKey)) return;
-        roundsFound.add(nightKey);
+        // Só computa “Craque” para unidades finalizadas
+        if (!completedUnits.has(unitKey)) return;
+        roundsFound.add(unitKey);
 
-        if (!roundStats[nightKey]) roundStats[nightKey] = {};
+        if (!roundStats[unitKey]) roundStats[unitKey] = {};
 
         // Gols
         if (ev.event_type === 'gol' && ev.metadata?.goal_type !== 'contra' && ev.player_id) {
-          if (!roundStats[nightKey][ev.player_id]) roundStats[nightKey][ev.player_id] = { points: 0, goals: 0, firstEvent: ev.minute };
-          roundStats[nightKey][ev.player_id].points += 1;
-          roundStats[nightKey][ev.player_id].goals += 1;
-          if (ev.minute < roundStats[nightKey][ev.player_id].firstEvent) roundStats[nightKey][ev.player_id].firstEvent = ev.minute;
+          if (!roundStats[unitKey][ev.player_id]) roundStats[unitKey][ev.player_id] = { points: 0, goals: 0, firstEvent: ev.minute };
+          roundStats[unitKey][ev.player_id].points += 1;
+          roundStats[unitKey][ev.player_id].goals += 1;
+          if (ev.minute < roundStats[unitKey][ev.player_id].firstEvent) roundStats[unitKey][ev.player_id].firstEvent = ev.minute;
         }
 
         // Assistências
         const assId = ev.assistant_id || (ev.event_type === 'assistencia' ? ev.player_id : null);
         if (assId) {
-          if (!roundStats[nightKey][assId]) roundStats[nightKey][assId] = { points: 0, goals: 0, firstEvent: ev.minute };
-          roundStats[nightKey][assId].points += 1;
-          if (ev.minute < roundStats[nightKey][assId].firstEvent) roundStats[nightKey][assId].firstEvent = ev.minute;
+          if (!roundStats[unitKey][assId]) roundStats[unitKey][assId] = { points: 0, goals: 0, firstEvent: ev.minute };
+          roundStats[unitKey][assId].points += 1;
+          if (ev.minute < roundStats[unitKey][assId].firstEvent) roundStats[unitKey][assId].firstEvent = ev.minute;
         }
       });
 

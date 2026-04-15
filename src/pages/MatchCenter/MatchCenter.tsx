@@ -182,32 +182,38 @@ const MatchCenter: React.FC = () => {
     const activeRound = activeMatch.round || 0;
     const isKnockoutByRound = activeRound >= 1000;
 
+    const groupUnit = config.group_unit || 'night';
+
     if (isKnockoutByRound) {
       return matches
         .filter((m) => m.round === activeRound)
         .sort((a, b) => (a.match_date || '').localeCompare(b.match_date || ''));
     }
 
-    // Fase de grupos: 100% por Noite (numero). Sem fallback por data.
-    const activeNight = activeMatch.night ?? null;
+    // Fase de grupos: por Noite ou Rodada (configuravel). Sem fallback por data.
+    const activeSlot = groupUnit === 'night' ? (activeMatch.night ?? null) : (activeMatch.round ?? null);
     return matches
       .filter((m) => (m.round || 0) < 1000)
-      .filter((m) => (m.night ?? null) === activeNight)
+      .filter((m) => (groupUnit === 'night' ? (m.night ?? null) : (m.round ?? null)) === activeSlot)
       .sort((a, b) => (a.match_date || '').localeCompare(b.match_date || ''));
-  }, [matches, activeMatch]);
+  }, [matches, activeMatch, config.group_unit]);
 
   const selectorDesktopTitle = useMemo(() => {
     const round = activeMatch?.round || 0;
-    return round >= 1000 ? 'Fase Atual' : 'Noite Atual';
-  }, [activeMatch]);
+    if (round >= 1000) return 'Fase Atual';
+    const groupUnit = config.group_unit || 'night';
+    return `${groupUnit === 'night' ? 'Noite' : 'Rodada'} Atual`;
+  }, [activeMatch, config.group_unit]);
 
   const selectorActiveChip = useMemo(() => {
     if (!activeMatch) return null;
     const round = activeMatch.round || 0;
     if (round >= 1000) return KNOCKOUT_ROUND_LABELS[round] || `Fase ${round}`;
-    const night = activeMatch.night ?? null;
-    return night ? `Noite ${night}` : 'Sem Noite';
-  }, [activeMatch]);
+    const groupUnit = config.group_unit || 'night';
+    const label = groupUnit === 'night' ? 'Noite' : 'Rodada';
+    const slot = groupUnit === 'night' ? (activeMatch.night ?? null) : (activeMatch.round ?? null);
+    return slot ? `${label} ${slot}` : `Sem ${label}`;
+  }, [activeMatch, config.group_unit]);
 
   if (matchesLoading && matches.length === 0) return <div className="match-center p-8"><Skeleton width="100%" height="400px" /></div>;
 
@@ -360,7 +366,7 @@ const MatchCenter: React.FC = () => {
 
               {config.current_phase === 'grupos' && (
                 <div className="round-mvp-widget glass">
-                  <div className="side-header"><Award size={18} /> <h3>Craque da Noite</h3></div>
+                  <div className="side-header"><Award size={18} /> <h3>Craque da {config.group_unit === 'round' ? 'Rodada' : 'Noite'}</h3></div>
                   {roundMvpLoading ? <Skeleton height="100px" /> : (
                     <div className="mvp-ranking-list">
                       {roundVotes.slice(0, 3).map((v, i) => (

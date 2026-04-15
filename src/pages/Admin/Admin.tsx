@@ -10,7 +10,7 @@ import { useGallery, type GalleryItem } from '../../hooks/useGallery';
 import { useMatches, type Match } from '../../hooks/useMatches';
 import { useMatchEvents, type MatchEvent } from '../../hooks/useMatchEvents';
 import { useTournamentConfig, type TournamentConfig } from '../../hooks/useTournamentConfig';
-import { usePolls, type Poll, type PollOption } from '../../hooks/usePolls';
+import { type Poll, type PollOption } from '../../hooks/usePolls';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { withTimeout } from '../../lib/withTimeout';
 import { detectTournamentPhase, KNOCKOUT_PHASE_BY_ROUND, KNOCKOUT_ROUND_LABELS } from '../../lib/tournamentRules';
@@ -25,9 +25,9 @@ import './Admin.css';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const vibrate = (ms: number) => {
+const vibrate = (pattern: number | number[]) => {
   if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
-    window.navigator.vibrate(ms);
+    window.navigator.vibrate(pattern);
   }
 };
 
@@ -1455,6 +1455,9 @@ const MatchManagement = () => {
   const { teams } = useTeams();
   const queryClient = useQueryClient();
   const { division } = useDivisionContext();
+  const { config } = useTournamentConfig();
+  const groupUnit = config?.group_unit === 'round' ? 'round' : 'night';
+  const groupUnitLabel = groupUnit === 'round' ? 'Rodada' : 'Noite';
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -1550,34 +1553,56 @@ const MatchManagement = () => {
     if (formData.team_a_id === formData.team_b_id) return toast.error('Selecione times diferentes!');
     
     // Regra de conflito:
-    // - Fase de grupos: time nao pode jogar 2x na mesma Noite (night)
+    // - Fase de grupos: time nao pode jogar 2x na mesma Unidade (Noite/Rodada)
     // - Mata-mata (round >= 1000): continua por fase/round
-    const inputRound = parseRoundInput(formData.round) || 0;
-    if (!inputRound) {
+    const parsedRound = parseRoundInput(formData.round) || 0;
+    if (!parsedRound) {
       return toast.error('Fase/Rodada inválida. Use um número ou: Oitavas, Quartas, Semi, Final, 3o Lugar.');
     }
-    const isKnockout = inputRound >= 1000;
-    const currentNight = isKnockout ? null : parseNightInput(formData.night);
+    const isKnockout = parsedRound >= 1000;
 
-    if (!isKnockout && !currentNight) {
-      return toast.error('Noite inválida. Use um número: 1, 2, 3...');
+    let currentRound = 0;
+    let nightValue: number | null = null;
+    let slotLabel = groupUnitLabel;
+    let slotValue: number | null = null;
+
+    if (isKnockout) {
+      currentRound = parsedRound;
+      slotLabel = 'Fase';
+      slotValue = parsedRound;
+      nightValue = null;
+    } else if (groupUnit === 'night') {
+      const currentNight = parseNightInput(formData.night);
+      if (!currentNight) {
+        return toast.error('Noite inválida. Use um número: 1, 2, 3...');
+      }
+      currentRound = currentNight;
+      nightValue = currentNight;
+      slotValue = currentNight;
+    } else {
+      // groupUnit === 'round'
+      currentRound = parsedRound;
+      nightValue = null;
+      slotValue = parsedRound;
     }
-
-    const currentRound = isKnockout ? inputRound : (currentNight || 0);
 
     const teamACollision = isKnockout
       ? matches.find(m => m.round === currentRound && (m.team_a_id === formData.team_a_id || m.team_b_id === formData.team_a_id))
-      : matches.find(m => (m as Match).night === currentNight && (m.team_a_id === formData.team_a_id || m.team_b_id === formData.team_a_id));
+      : (groupUnit === 'night'
+          ? matches.find(m => (m as Match).night === nightValue && (m.team_a_id === formData.team_a_id || m.team_b_id === formData.team_a_id))
+          : matches.find(m => (m.round || 0) < 1000 && m.round === currentRound && (m.team_a_id === formData.team_a_id || m.team_b_id === formData.team_a_id)));
     const teamBCollision = isKnockout
       ? matches.find(m => m.round === currentRound && (m.team_a_id === formData.team_b_id || m.team_b_id === formData.team_b_id))
-      : matches.find(m => (m as Match).night === currentNight && (m.team_a_id === formData.team_b_id || m.team_b_id === formData.team_b_id));
+      : (groupUnit === 'night'
+          ? matches.find(m => (m as Match).night === nightValue && (m.team_a_id === formData.team_b_id || m.team_b_id === formData.team_b_id))
+          : matches.find(m => (m.round || 0) < 1000 && m.round === currentRound && (m.team_a_id === formData.team_b_id || m.team_b_id === formData.team_b_id)));
 
     if (teamACollision) {
       const teamName = teams.find(t => t.id === formData.team_a_id)?.name;
       return toast.error(
         isKnockout
           ? `Erro: O time ${teamName} já possui uma partida na fase ${formatRoundLabel(currentRound)}!`
-          : `Erro: O time ${teamName} já possui uma partida na noite ${currentNight}!`
+          : `Erro: O time ${teamName} já possui uma partida na ${slotLabel.toLowerCase()} ${slotValue}!`
       );
     }
     if (teamBCollision) {
@@ -1585,13 +1610,12 @@ const MatchManagement = () => {
       return toast.error(
         isKnockout
           ? `Erro: O time ${teamName} já possui uma partida na fase ${formatRoundLabel(currentRound)}!`
-          : `Erro: O time ${teamName} já possui uma partida na noite ${currentNight}!`
+          : `Erro: O time ${teamName} já possui uma partida na ${slotLabel.toLowerCase()} ${slotValue}!`
       );
     }
 
     setIsSubmittingMatch(true);
     try {
-      const nightValue = isKnockout ? null : currentNight;
       const payload = {
         team_a_id: formData.team_a_id,
         team_b_id: formData.team_b_id,
@@ -1774,66 +1798,54 @@ const MatchManagement = () => {
 
   const [editingMatchId, setEditingMatchId] = useState<string | null>(null);
 
-  const sendLivePhaseNotification = (match: Match, phase: 'pausa' | 'intervalo' | 'retomada') => {
-    const teamA = match.teams_a?.name || 'Equipe A';
-    const teamB = match.teams_b?.name || 'Equipe B';
-
-    if (phase === 'pausa') {
-      sendPushNotification('⏸️ Jogo Pausado', `${teamA} x ${teamB} está em pausa técnica.`, {
-        url: '/central-da-partida',
-        category: 'live',
-        teamIds: [match.team_a_id, match.team_b_id],
-      });
-      toast.success('Alerta de pausa enviado.');
-      return;
-    }
-
-    if (phase === 'intervalo') {
-      sendPushNotification('🕒 Intervalo de Jogo', `${teamA} x ${teamB} foi para o intervalo.`, {
-        url: '/central-da-partida',
-        category: 'live',
-        important: true,
-        teamIds: [match.team_a_id, match.team_b_id],
-      });
-      toast.success('Alerta de intervalo enviado.');
-      return;
-    }
-
-    sendPushNotification('▶️ Bola Rolando de Novo', `${teamA} x ${teamB} voltou para o segundo tempo.`, {
-      url: '/central-da-partida',
-      category: 'live',
-      important: true,
-      teamIds: [match.team_a_id, match.team_b_id],
-    });
-    toast.success('Alerta de retomada enviado.');
-  };
-
   const handleUpdateMatch = async (id: string, data: MatchFormData) => {
-    const inputRound = parseRoundInput(data.round) || 0;
-    if (!inputRound) {
+    const parsedRound = parseRoundInput(data.round) || 0;
+    if (!parsedRound) {
       return toast.error('Fase/Rodada inválida. Use um número ou: Oitavas, Quartas, Semi, Final, 3o Lugar.');
     }
-    const isKnockout = inputRound >= 1000;
-    const currentNight = isKnockout ? null : parseNightInput(data.night);
-    if (!isKnockout && !currentNight) {
-      return toast.error('Noite inválida. Use um número: 1, 2, 3...');
-    }
+    const isKnockout = parsedRound >= 1000;
 
-    const currentRound = isKnockout ? inputRound : (currentNight || 0);
+    let currentRound = 0;
+    let nightValue: number | null = null;
+    let slotLabel = groupUnitLabel;
+    let slotValue: number | null = null;
+
+    if (isKnockout) {
+      currentRound = parsedRound;
+      slotLabel = 'Fase';
+      slotValue = parsedRound;
+      nightValue = null;
+    } else if (groupUnit === 'night') {
+      const currentNight = parseNightInput(data.night);
+      if (!currentNight) {
+        return toast.error('Noite inválida. Use um número: 1, 2, 3...');
+      }
+      currentRound = currentNight;
+      nightValue = currentNight;
+      slotValue = currentNight;
+    } else {
+      currentRound = parsedRound;
+      nightValue = null;
+      slotValue = parsedRound;
+    }
 
     const teamACollision = isKnockout
       ? matches.find(m => m.id !== id && m.round === currentRound && (m.team_a_id === data.team_a_id || m.team_b_id === data.team_a_id))
-      : matches.find(m => m.id !== id && (m as Match).night === currentNight && (m.team_a_id === data.team_a_id || m.team_b_id === data.team_a_id));
+      : (groupUnit === 'night'
+          ? matches.find(m => m.id !== id && (m as Match).night === nightValue && (m.team_a_id === data.team_a_id || m.team_b_id === data.team_a_id))
+          : matches.find(m => m.id !== id && (m.round || 0) < 1000 && m.round === currentRound && (m.team_a_id === data.team_a_id || m.team_b_id === data.team_a_id)));
     const teamBCollision = isKnockout
       ? matches.find(m => m.id !== id && m.round === currentRound && (m.team_a_id === data.team_b_id || m.team_b_id === data.team_b_id))
-      : matches.find(m => m.id !== id && (m as Match).night === currentNight && (m.team_a_id === data.team_b_id || m.team_b_id === data.team_b_id));
+      : (groupUnit === 'night'
+          ? matches.find(m => m.id !== id && (m as Match).night === nightValue && (m.team_a_id === data.team_b_id || m.team_b_id === data.team_b_id))
+          : matches.find(m => m.id !== id && (m.round || 0) < 1000 && m.round === currentRound && (m.team_a_id === data.team_b_id || m.team_b_id === data.team_b_id)));
 
     if (teamACollision) {
       const teamName = teams.find(t => t.id === data.team_a_id)?.name;
       return toast.error(
         isKnockout
           ? `Erro: O time ${teamName} já possui outra partida na fase ${formatRoundLabel(currentRound)}!`
-          : `Erro: O time ${teamName} já possui outra partida na noite ${currentNight}!`
+          : `Erro: O time ${teamName} já possui outra partida na ${slotLabel.toLowerCase()} ${slotValue}!`
       );
     }
     if (teamBCollision) {
@@ -1841,13 +1853,11 @@ const MatchManagement = () => {
       return toast.error(
         isKnockout
           ? `Erro: O time ${teamName} já possui outra partida na fase ${formatRoundLabel(currentRound)}!`
-          : `Erro: O time ${teamName} já possui outra partida na noite ${currentNight}!`
+          : `Erro: O time ${teamName} já possui outra partida na ${slotLabel.toLowerCase()} ${slotValue}!`
       );
     }
 
     try {
-      const nightValue = isKnockout ? null : currentNight;
-
       const updatePayload = {
         team_a_id: data.team_a_id,
         team_b_id: data.team_b_id,
@@ -1901,7 +1911,6 @@ const MatchManagement = () => {
   const busyTeamIdsInSlot = (() => {
     const inputRound = parseRoundInput(formData.round) || 0;
     const isKnockout = inputRound >= 1000;
-    const nightValue = isKnockout ? null : parseNightInput(formData.night);
     const roundValue = inputRound || 1;
 
     if (isKnockout) {
@@ -1912,10 +1921,20 @@ const MatchManagement = () => {
       );
     }
 
-    if (!nightValue) return new Set<string>();
+    if (groupUnit === 'night') {
+      const nightValue = parseNightInput(formData.night);
+      if (!nightValue) return new Set<string>();
+      return new Set(
+        (matches || [])
+          .filter((m) => (m as Match).night === nightValue)
+          .flatMap((m) => [m.team_a_id, m.team_b_id])
+      );
+    }
+
     return new Set(
       (matches || [])
-        .filter((m) => (m as Match).night === nightValue)
+        .filter((m) => (m.round || 0) < 1000)
+        .filter((m) => m.round === roundValue)
         .flatMap((m) => [m.team_a_id, m.team_b_id])
     );
   })();
@@ -1928,8 +1947,11 @@ const MatchManagement = () => {
         .filter((m) => {
           if (m.id === matchId) return false;
           if (isKnockout) return m.round === round;
-          if (!night) return false;
-          return (m as Match).night === night;
+          if (groupUnit === 'night') {
+            if (!night) return false;
+            return (m as Match).night === night;
+          }
+          return (m.round || 0) < 1000 && m.round === round;
         })
         .flatMap((m) => [m.team_a_id, m.team_b_id])
     );
@@ -2014,34 +2036,36 @@ const MatchManagement = () => {
                      setFormData(prev => ({
                        ...prev,
                        round: next,
-                       night: nextIsKnockout ? '' : prev.night,
+                        night: groupUnit === 'night' && nextIsKnockout ? '' : prev.night,
                      }));
                    }}
                    list="round-options"
                  />
                </div>
-               <div className="form-group">
-                 <label>Noite</label>
-                 <input
-                   type="text"
-                   placeholder={isKnockoutForm ? 'Nao se aplica no mata-mata' : 'Ex: 1, 2, 3'}
-                   value={isKnockoutForm ? '' : formData.night}
-                   disabled={isKnockoutForm}
-                   required={!isKnockoutForm}
-                   onChange={e => {
-                     const nextNight = e.target.value;
-                     setFormData(prev => {
-                       const nextNightNum = parseNightInput(nextNight);
-                       // Na fase de grupos, round acompanha a Noite para manter consistencia no sistema.
-                       return {
-                         ...prev,
-                         night: nextNight,
-                         round: nextNightNum ? String(nextNightNum) : prev.round,
-                       };
-                     });
-                   }}
-                 />
-               </div>
+                 {groupUnit === 'night' && (
+                   <div className="form-group">
+                     <label>Noite</label>
+                     <input
+                       type="text"
+                       placeholder={isKnockoutForm ? 'Nao se aplica no mata-mata' : 'Ex: 1, 2, 3'}
+                       value={isKnockoutForm ? '' : formData.night}
+                       disabled={isKnockoutForm}
+                       required={!isKnockoutForm}
+                       onChange={e => {
+                         const nextNight = e.target.value;
+                         setFormData(prev => {
+                           const nextNightNum = parseNightInput(nextNight);
+                           // Na fase de grupos, round acompanha a Noite para manter consistencia no sistema.
+                           return {
+                             ...prev,
+                             night: nextNight,
+                             round: nextNightNum ? String(nextNightNum) : prev.round,
+                           };
+                         });
+                       }}
+                     />
+                   </div>
+                 )}
            </div>
            <datalist id="round-options">
              <option value="1" />
@@ -2069,7 +2093,7 @@ const MatchManagement = () => {
           <Search size={18} />
           <input 
             type="text" 
-            placeholder="Buscar por equipe, fase/rodada ou noite..." 
+            placeholder={`Buscar por equipe, fase/rodada ou ${groupUnit === 'night' ? 'noite' : 'rodada'}...`} 
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
           />
@@ -2104,11 +2128,13 @@ const MatchManagement = () => {
                       <div className="match-meta-admin">
                         {match.round >= 1000 ? (
                           <span className="round-badge">{formatRoundLabel(match.round)}</span>
+                        ) : (groupUnit === 'round' ? (
+                          <span className="round-badge">Rodada {match.round}</span>
                         ) : ((match as Match).night ? (
                           <span className="round-badge">Noite {(match as Match).night}</span>
                         ) : (
                           <span className="round-badge">Sem Noite</span>
-                        ))}
+                        )))}
                         <span className="match-date">{new Date(match.match_date).toLocaleString('pt-BR')}</span>
                       </div>
                     </div>
@@ -2126,7 +2152,7 @@ const MatchManagement = () => {
                            location: match.location,
                            status: match.status,
                            round: formatRoundInput(match.round),
-                           night: match.round >= 1000 ? '' : String((match as Match).night || '')
+                           night: match.round >= 1000 || groupUnit === 'round' ? '' : String((match as Match).night || '')
                          });
                       }}><Settings2 size={18} /></button>
                       <button className="btn-icon play" title="Começar Jogo" onClick={() => { vibrate(60); updateStatus(match.id, 'ao_vivo', match); }}><Play size={18} /></button>
@@ -2171,7 +2197,7 @@ const MatchManagement = () => {
                       <label>Equipe A</label>
                       <select value={formData.team_a_id} onChange={e => setFormData({...formData, team_a_id: e.target.value})}>
                         {teams
-                          .filter(t => !getBusyTeamIdsForEdit(match.id, parseRoundInput(formData.round) || 1, parseNightInput(formData.night)).has(t.id) || t.id === match.team_a_id)
+                          .filter(t => !getBusyTeamIdsForEdit(match.id, parseRoundInput(formData.round) || 1, groupUnit === 'night' ? parseNightInput(formData.night) : null).has(t.id) || t.id === match.team_a_id)
                           .map(t => <option key={t.id} value={t.id}>{t.name}</option>)
                         }
                       </select>
@@ -2180,7 +2206,7 @@ const MatchManagement = () => {
                       <label>Equipe B</label>
                       <select value={formData.team_b_id} onChange={e => setFormData({...formData, team_b_id: e.target.value})}>
                         {teams
-                          .filter(t => !getBusyTeamIdsForEdit(match.id, parseRoundInput(formData.round) || 1, parseNightInput(formData.night)).has(t.id) || t.id === match.team_b_id)
+                          .filter(t => !getBusyTeamIdsForEdit(match.id, parseRoundInput(formData.round) || 1, groupUnit === 'night' ? parseNightInput(formData.night) : null).has(t.id) || t.id === match.team_b_id)
                           .map(t => <option key={t.id} value={t.id}>{t.name}</option>)
                         }
                       </select>
@@ -2201,32 +2227,34 @@ const MatchManagement = () => {
                           setFormData(prev => ({
                             ...prev,
                             round: next,
-                            night: nextIsKnockout ? '' : prev.night,
+                            night: groupUnit === 'night' && nextIsKnockout ? '' : prev.night,
                           }));
                         }}
                         list="round-options"
                       />
                     </div>
-                    <div className="form-group">
-                      <label>Noite</label>
-                      <input
-                        type="text"
-                        value={(parseRoundInput(formData.round) || 0) >= 1000 ? '' : formData.night}
-                        disabled={(parseRoundInput(formData.round) || 0) >= 1000}
-                        required={(parseRoundInput(formData.round) || 0) < 1000}
-                        onChange={e => {
-                          const nextNight = e.target.value;
-                          setFormData(prev => {
-                            const nextNightNum = parseNightInput(nextNight);
-                            return {
-                              ...prev,
-                              night: nextNight,
-                              round: nextNightNum ? String(nextNightNum) : prev.round,
-                            };
-                          });
-                        }}
-                      />
-                    </div>
+                    {groupUnit === 'night' && (
+                      <div className="form-group">
+                        <label>Noite</label>
+                        <input
+                          type="text"
+                          value={(parseRoundInput(formData.round) || 0) >= 1000 ? '' : formData.night}
+                          disabled={(parseRoundInput(formData.round) || 0) >= 1000}
+                          required={(parseRoundInput(formData.round) || 0) < 1000}
+                          onChange={e => {
+                            const nextNight = e.target.value;
+                            setFormData(prev => {
+                              const nextNightNum = parseNightInput(nextNight);
+                              return {
+                                ...prev,
+                                night: nextNight,
+                                round: nextNightNum ? String(nextNightNum) : prev.round,
+                              };
+                            });
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
                   <div style={{ display: 'flex', gap: '1rem' }}>
                     <button className="btn-save" onClick={() => handleUpdateMatch(match.id, formData)}><Save size={18} /> Atualizar</button>
@@ -2262,11 +2290,13 @@ const MatchManagement = () => {
                       <div className="match-meta-admin">
                         {match.round >= 1000 ? (
                           <span className="round-badge">{formatRoundLabel(match.round)}</span>
+                        ) : (groupUnit === 'round' ? (
+                          <span className="round-badge">Rodada {match.round}</span>
                         ) : ((match as Match).night ? (
                           <span className="round-badge">Noite {(match as Match).night}</span>
                         ) : (
                           <span className="round-badge">Sem Noite</span>
-                        ))}
+                        )))}
                         <span className="match-date">{new Date(match.match_date).toLocaleDateString('pt-BR')}</span>
                       </div>
                     </div>
@@ -2284,7 +2314,7 @@ const MatchManagement = () => {
                         location: match.location,
                         status: match.status,
                         round: formatRoundInput(match.round),
-                        night: match.round >= 1000 ? '' : String((match as Match).night || '')
+                        night: match.round >= 1000 || groupUnit === 'round' ? '' : String((match as Match).night || '')
                       });
                   }}><Settings2 size={16} /></button>
                   <button 
@@ -2327,26 +2357,38 @@ const MatchManagement = () => {
                       <label>Partida / Data</label>
                       <input type="datetime-local" value={formData.match_date} onChange={e => setFormData({...formData, match_date: e.target.value})} />
                     </div>
-                    <div className="form-group">
-                      <label>Noite</label>
-                      <input
-                        type="text"
-                        value={(parseRoundInput(formData.round) || 0) >= 1000 ? '' : formData.night}
-                        disabled={(parseRoundInput(formData.round) || 0) >= 1000}
-                        required={(parseRoundInput(formData.round) || 0) < 1000}
-                        onChange={e => {
-                          const nextNight = e.target.value;
-                          setFormData(prev => {
-                            const nextNightNum = parseNightInput(nextNight);
-                            return {
-                              ...prev,
-                              night: nextNight,
-                              round: nextNightNum ? String(nextNightNum) : prev.round,
-                            };
-                          });
-                        }}
-                      />
-                    </div>
+                    {groupUnit === 'night' && (
+                      <div className="form-group">
+                        <label>Noite</label>
+                        <input
+                          type="text"
+                          value={(parseRoundInput(formData.round) || 0) >= 1000 ? '' : formData.night}
+                          disabled={(parseRoundInput(formData.round) || 0) >= 1000}
+                          required={(parseRoundInput(formData.round) || 0) < 1000}
+                          onChange={e => {
+                            const nextNight = e.target.value;
+                            setFormData(prev => {
+                              const nextNightNum = parseNightInput(nextNight);
+                              return {
+                                ...prev,
+                                night: nextNight,
+                                round: nextNightNum ? String(nextNightNum) : prev.round,
+                              };
+                            });
+                          }}
+                        />
+                      </div>
+                    )}
+                    {groupUnit === 'round' && (parseRoundInput(formData.round) || 0) < 1000 && (
+                      <div className="form-group">
+                        <label>Rodada (grupos)</label>
+                        <input
+                          type="text"
+                          value={formData.round}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, round: e.target.value }))}
+                        />
+                      </div>
+                    )}
                   </div>
                   <div style={{ display: 'flex', gap: '1rem' }}>
                     <button className="btn-save" onClick={() => handleUpdateMatch(match.id, formData)}><Save size={16} /> Salvar Alterações</button>
@@ -2388,9 +2430,9 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   const [editEventMinute, setEditEventMinute] = useState<number>(0);
   const [isSwapped, setIsSwapped] = useState(false);
 
-  const vibrate = (ms = 50) => {
+  const vibrate = (pattern: number | number[] = 50) => {
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
-      navigator.vibrate(ms);
+      navigator.vibrate(pattern);
     }
   };
 
@@ -5167,14 +5209,18 @@ const TournamentManagement = () => {
   const { matches } = useMatches();
   const { division } = useDivisionContext();
 
-  type ConfigForm = Pick<TournamentConfig, 'total_rounds' | 'matches_per_round' | 'current_phase' | 'current_round'>;
+  type ConfigForm = Pick<TournamentConfig, 'total_rounds' | 'matches_per_round' | 'current_phase' | 'current_round' | 'group_unit'>;
 
   const [form, setForm] = useState<ConfigForm>({
     total_rounds: 5,
     matches_per_round: 4,
     current_phase: 'grupos',
     current_round: 1,
+    group_unit: 'night',
   });
+    const groupUnit = form.group_unit || 'night';
+    const groupUnitLabel = groupUnit === 'night' ? 'Noite' : 'Rodada';
+    const groupUnitLabelPlural = groupUnit === 'night' ? 'Noites' : 'Rodadas';
   const [saved, setSaved] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [manualPhaseOverride, setManualPhaseOverride] = useState(false);
@@ -5188,16 +5234,16 @@ const TournamentManagement = () => {
     const stats = new Map<number, { count: number; pending: boolean }>();
 
     groupMatches.forEach((match) => {
-      const night = match.night ?? match.round;
-      const current = stats.get(night) || { count: 0, pending: false };
-      stats.set(night, {
+      const slot = groupUnit === 'night' ? (match.night ?? match.round) : match.round;
+      const current = stats.get(slot) || { count: 0, pending: false };
+      stats.set(slot, {
         count: current.count + 1,
         pending: current.pending || match.status !== 'finalizado',
       });
     });
 
     return stats;
-  }, [groupMatches]);
+  }, [groupMatches, groupUnit]);
 
   const autoRound = React.useMemo(() => {
     if (nightStats.size === 0) return 1;
@@ -5255,6 +5301,7 @@ const TournamentManagement = () => {
         matches_per_round: config.matches_per_round,
         current_phase: config.current_phase,
         current_round: config.current_round,
+        group_unit: config.group_unit || 'night',
       });
       setGroupCVisibility(normalizeGroupCVisibility(config.group_c_visibility));
     }
@@ -5266,6 +5313,7 @@ const TournamentManagement = () => {
     config.current_phase,
     config.current_round,
     config.group_c_visibility,
+    config.group_unit,
     isDirty,
   ]);
 
@@ -5495,13 +5543,15 @@ const TournamentManagement = () => {
 
           {/* Total de Noites */}
           <div className="form-group">
-            <label>Total de Noites (Fase de Grupos)</label>
+            <label>Total de {groupUnitLabelPlural} (Fase de Grupos)</label>
             <input
               type="number"
               min={1} max={20}
               value={form.total_rounds}
               onChange={e => {
-                const nextTotal = Math.max(1, Math.min(20, parseInt(e.target.value) || 1));
+                const parsed = parseInt(e.target.value);
+                if (!Number.isFinite(parsed)) return;
+                const nextTotal = Math.max(1, Math.min(20, parsed));
                 setForm((prev) => ({
                   ...prev,
                   total_rounds: nextTotal,
@@ -5510,12 +5560,28 @@ const TournamentManagement = () => {
                 setIsDirty(true);
               }}
             />
-            <span className="form-hint">Ex: 5 noites → depois vai ao Mata-Mata</span>
+            <span className="form-hint">Ex: 5 {groupUnitLabelPlural.toLowerCase()} → depois vai ao Mata-Mata</span>
+          </div>
+
+          {/* Unidade (Grupos): Noite x Rodada */}
+          <div className="form-group">
+            <label>Unidade (Fase de Grupos)</label>
+            <select
+              value={groupUnit}
+              onChange={(e) => {
+                setForm((prev) => ({ ...prev, group_unit: e.target.value as TournamentConfig['group_unit'] }));
+                setIsDirty(true);
+              }}
+            >
+              <option value="night">Noite</option>
+              <option value="round">Rodada</option>
+            </select>
+            <span className="form-hint">Muda textos e a regra de agrupamento na fase de grupos.</span>
           </div>
 
           {/* Partidas por Noite */}
           <div className="form-group">
-            <label>Partidas por Noite</label>
+            <label>Partidas por {groupUnitLabel}</label>
             <input
               type="number"
               min={1} max={20}
@@ -5524,7 +5590,9 @@ const TournamentManagement = () => {
               aria-readonly={manualPhaseOverride ? 'false' : 'true'}
               onChange={(e) => {
                 if (!manualPhaseOverride) return;
-                const nextValue = Math.max(1, Math.min(20, parseInt(e.target.value) || 1));
+                const parsed = parseInt(e.target.value);
+                if (!Number.isFinite(parsed)) return;
+                const nextValue = Math.max(1, Math.min(20, parsed));
                 setForm({ ...form, matches_per_round: nextValue });
                 setIsDirty(true);
               }}
@@ -5536,10 +5604,10 @@ const TournamentManagement = () => {
             </span>
           </div>
 
-          {/* Noite Atual */}
+          {/* Noite/Rodada Atual */}
           {(manualPhaseOverride ? form.current_phase : autoPhase) === 'grupos' && (
             <div className="form-group">
-              <label>Noite Atual</label>
+              <label>{groupUnitLabel} Atual</label>
               <select
                 value={form.current_round}
                 disabled={!manualPhaseOverride}
@@ -5549,13 +5617,13 @@ const TournamentManagement = () => {
                 }}
               >
                 {Array.from({ length: form.total_rounds }, (_, i) => i + 1).map(r => (
-                  <option key={r} value={r}>Noite {r}</option>
+                  <option key={r} value={r}>{groupUnitLabel} {r}</option>
                 ))}
               </select>
               <span className="form-hint">
                 {manualPhaseOverride
-                  ? 'Defina manualmente a Noite Atual (emergencia).'
-                  : 'Avanca quando todos os jogos da noite finalizam; se nao houver jogos, fica aguardando'}
+                  ? `Defina manualmente a ${groupUnitLabel} Atual (emergencia).`
+                  : `Avanca quando todos os jogos da ${groupUnitLabel.toLowerCase()} finalizam; se nao houver jogos, fica aguardando`}
               </span>
             </div>
           )}
@@ -5654,7 +5722,9 @@ const PollManagement = () => {
   const [polls, setPolls] = useState<Poll[]>([]);
   const [loading, setLoading] = useState(true);
   const { confirm: confirmAction, ConfirmElement } = useConfirm();
-  const queryClient = useQueryClient();
+  const { config } = useTournamentConfig();
+  const groupUnit = config?.group_unit === 'round' ? 'round' : 'night';
+  const unitLabel = groupUnit === 'round' ? 'rodada' : 'noite';
   type PollFormOptionInput = { text: string; image_url: string };
   type PollFormData = { question: string; options: PollFormOptionInput[] };
   type PollVoteRow = {
@@ -5691,14 +5761,17 @@ const PollManagement = () => {
           const candidate = opt as Partial<PollOption>;
           const text = typeof candidate.text === 'string' ? candidate.text.trim() : '';
           if (!text) return null;
-          return {
+          const normalized: PollOption = {
             id: typeof candidate.id === 'string' && candidate.id.trim() ? candidate.id : `opt_${index}`,
             text,
             votes: Number(candidate.votes || 0),
-            image_url: typeof candidate.image_url === 'string' ? candidate.image_url : undefined,
           };
+          if (typeof candidate.image_url === 'string' && candidate.image_url.trim()) {
+            normalized.image_url = candidate.image_url;
+          }
+          return normalized;
         })
-        .filter((opt): opt is PollOption => Boolean(opt));
+        .filter((opt): opt is PollOption => opt !== null);
     }
 
     if (typeof raw === 'string') {
@@ -5716,8 +5789,8 @@ const PollManagement = () => {
   const pollPresets: Array<{ id: string; label: string; question: string; options: string[] }> = [
     {
       id: 'mvp-rodada',
-      label: 'Craque da noite',
-      question: 'Quem foi o craque da noite?',
+      label: `Craque da ${unitLabel}`,
+      question: `Quem foi o craque da ${unitLabel}?`,
       options: ['Jogador 1', 'Jogador 2', 'Jogador 3'],
     },
     {
@@ -5729,7 +5802,7 @@ const PollManagement = () => {
     {
       id: 'melhor-jogo',
       label: 'Melhor jogo',
-      question: 'Qual foi o melhor jogo da noite?',
+      question: `Qual foi o melhor jogo da ${unitLabel}?`,
       options: ['Jogo 1', 'Jogo 2', 'Jogo 3'],
     },
     {
@@ -7025,7 +7098,7 @@ const GlobalPlayerManagement = () => {
   const filteredPlayers = React.useMemo(() => {
     return (allPlayers || []).filter(p => 
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (p.teams?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
+      (((p as any).teams?.name || '') as string).toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [allPlayers, searchTerm]);
 
@@ -7312,7 +7385,7 @@ const GlobalPlayerManagement = () => {
                   <img src={p.photo_url || '/favicon.svg'} alt={p.name} className="player-mini-photo" />
                   <div className="item-info">
                     <strong>{p.name} (#{p.number})</strong>
-                    <span>{p.teams?.name} • {p.position}</span>
+                    <span>{(p as any).teams?.name} • {p.position}</span>
                   </div>
                 </div>
                 <div className="item-actions">
