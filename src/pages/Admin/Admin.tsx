@@ -5284,6 +5284,14 @@ const TournamentManagement = () => {
   }, [manualPhaseOverride]);
 
   React.useEffect(() => {
+    setForm((prev) => {
+      const maxRound = Math.max(1, prev.total_rounds || 1);
+      if (prev.current_round <= maxRound) return prev;
+      return { ...prev, current_round: maxRound };
+    });
+  }, [form.total_rounds]);
+
+  React.useEffect(() => {
     if (manualPhaseOverride) return;
     setForm((prev) => {
       if (prev.current_phase === autoPhase) return prev;
@@ -5418,7 +5426,26 @@ const TournamentManagement = () => {
         <div className="tournament-config-grid">
           {/* Fase Atual (Automatica) */}
           <div className="form-group">
-            <label>{manualPhaseOverride ? 'Fase Atual (Manual)' : 'Fase Atual (Automática)'}</label>
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+              <span>{manualPhaseOverride ? 'Fase Atual (Manual)' : 'Fase Atual (Automática)'}</span>
+              {!manualPhaseOverride ? (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setManualPhaseOverride(true)}
+                >
+                  Mudar fase
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setManualPhaseOverride(false)}
+                >
+                  Voltar p/ automático
+                </button>
+              )}
+            </label>
             {manualPhaseOverride ? (
               <select
                 value={form.current_phase}
@@ -5457,7 +5484,14 @@ const TournamentManagement = () => {
               type="number"
               min={1} max={20}
               value={form.total_rounds}
-              onChange={e => setForm({ ...form, total_rounds: parseInt(e.target.value) || 1 })}
+              onChange={e => {
+                const nextTotal = Math.max(1, Math.min(20, parseInt(e.target.value) || 1));
+                setForm((prev) => ({
+                  ...prev,
+                  total_rounds: nextTotal,
+                  current_round: Math.min(prev.current_round || 1, nextTotal),
+                }));
+              }}
             />
             <span className="form-hint">Ex: 5 noites → depois vai ao Mata-Mata</span>
           </div>
@@ -5473,7 +5507,8 @@ const TournamentManagement = () => {
               aria-readonly={manualPhaseOverride ? 'false' : 'true'}
               onChange={(e) => {
                 if (!manualPhaseOverride) return;
-                setForm({ ...form, matches_per_round: parseInt(e.target.value) || 1 });
+                const nextValue = Math.max(1, Math.min(20, parseInt(e.target.value) || 1));
+                setForm({ ...form, matches_per_round: nextValue });
               }}
             />
             <span className="form-hint">
