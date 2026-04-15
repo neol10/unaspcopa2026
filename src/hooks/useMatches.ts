@@ -119,7 +119,18 @@ export const useMatches = (limit?: number) => {
         if (!error) {
           if (includeDivision) markDivisionColumnPresent();
           if (includeNight) markNightColumnPresent();
-          return (data as Match[]) || [];
+
+          const rows = (data as Match[]) || [];
+          // Se a coluna `night` não existir no banco, preserva compatibilidade:
+          // na fase de grupos, `round` já carrega a unidade (ex: Noite) no modo legado.
+          if (!includeNight) {
+            return rows.map((m) => ({
+              ...m,
+              night: (m.round || 0) < 1000 ? m.round : null,
+            }));
+          }
+
+          return rows;
         }
 
         if (includeDivision && isMissingColumnError(error, 'division')) {
