@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trophy, ArrowRightLeft, Zap } from 'lucide-react';
+import { Trophy, ArrowRightLeft, Zap, History } from 'lucide-react';
 import { MatchEvent } from '../../../hooks/useMatchEvents';
 
 interface Player {
@@ -41,49 +41,75 @@ export const MatchTimeline: React.FC<MatchTimelineProps> = ({
 
   return (
     <div className="match-body-grid">
-      <section className="match-timeline">
+      <section className="match-timeline-v2 glass">
         <div className="section-header">
           <History size={18} color="var(--secondary)" />
-          <h3>Principais Lances</h3>
+          <h2>Principais Lances</h2>
         </div>
-        
-        <div className="timeline-container">
+
+        <div className="timeline-v2-list">
           {importantEvents.length > 0 ? (
-            importantEvents.map(event => (
-              <div key={event.id} className={`t-item ${event.event_type} animate-slide-up`}>
-                <div className="t-icon glass">
-                  {event.event_type === 'gol' && <Trophy size={14} color="var(--secondary)" />}
-                  {event.event_type === 'amarelo' && <div className="card-yellow"></div>}
-                  {event.event_type === 'vermelho' && <div className="card-red"></div>}
-                  {event.event_type === 'substituicao' && <ArrowRightLeft size={14} color="#fff" />}
-                </div>
-                <div className="t-content glass">
-                  <div className="t-header">
-                    <span className="t-type">
-                      {event.event_type === 'gol' ? 'GOL!' : 
-                       event.event_type === 'amarelo' ? 'Cartão Amarelo' :
-                       event.event_type === 'vermelho' ? 'Cartão Vermelho' :
-                       event.event_type === 'substituicao' ? 'Substituição' :
-                       'Informação'}
-                    </span>
+            importantEvents.map((event) => {
+              const commentary = typeof event.commentary === 'string' ? event.commentary : '';
+              const upper = commentary.toUpperCase();
+              const isOwnGoal = event.event_type === 'gol' && upper.includes('[CONTRA]');
+              const isPenalty = event.event_type === 'gol' && upper.includes('[PENALTI]');
+
+              const playerName =
+                event.players?.name ||
+                (event.player_id ? players.find((p) => p.id === event.player_id)?.name : undefined) ||
+                'Atleta';
+
+              const assistantName = event.assistant_id
+                ? (event.assistant_player?.name || players.find((p) => p.id === event.assistant_id)?.name || 'Atleta')
+                : null;
+
+              const typeLabel =
+                event.event_type === 'gol'
+                  ? isOwnGoal
+                    ? 'Gol contra'
+                    : isPenalty
+                      ? 'Gol (pênalti)'
+                      : 'Gol'
+                  : event.event_type === 'amarelo'
+                    ? 'Cartão Amarelo'
+                    : event.event_type === 'vermelho'
+                      ? 'Cartão Vermelho'
+                      : event.event_type === 'substituicao'
+                        ? 'Substituição'
+                        : 'Informação';
+
+              return (
+                <div key={event.id} className={`t-event animate-slide-up ${event.event_type}`}>
+                  <span className="t-time">{event.minute}'</span>
+
+                  <div className="t-icon-box">
+                    {event.event_type === 'gol' && <Trophy size={14} color="var(--secondary)" />}
+                    {event.event_type === 'amarelo' && <div className="card-yellow"></div>}
+                    {event.event_type === 'vermelho' && <div className="card-red"></div>}
+                    {event.event_type === 'substituicao' && <ArrowRightLeft size={14} color="#fff" />}
                   </div>
-                  <p>
-                    <strong>{event.players?.name}</strong>
-                    {event.event_type === 'gol' && event.assistant_id && (
-                      <span className="assistant">
-                         Assistência: {players.find(p => p.id === event.assistant_id)?.name}
-                      </span>
-                    )}
-                    {event.event_type === 'substituicao' && (
-                      <span className="assistant" style={{ color: '#94a3b8' }}>
-                        <ArrowRightLeft size={12} style={{ display: 'inline', marginRight: 4 }} />
-                        Entra: {players.find(p => p.id === event.assistant_id)?.name}
-                      </span>
-                    )}
-                  </p>
+
+                  <div className="t-content">
+                    <div className="t-header">
+                      <span className="t-type">{typeLabel}</span>
+                    </div>
+                    <p>
+                      <strong>{playerName}</strong>
+                      {event.event_type === 'gol' && !isOwnGoal && assistantName && (
+                        <span className="assistant">Assistência: {assistantName}</span>
+                      )}
+                      {event.event_type === 'substituicao' && assistantName && (
+                        <span className="assistant" style={{ color: '#94a3b8' }}>
+                          <ArrowRightLeft size={12} style={{ display: 'inline', marginRight: 4 }} />
+                          Entra: {assistantName}
+                        </span>
+                      )}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           ) : (
             <p className="empty-msg">Nenhum lance importante registrado.</p>
           )}
@@ -118,7 +144,7 @@ export const MatchTimeline: React.FC<MatchTimelineProps> = ({
               <p className="empty-feed">Aguardando lances da partida...</p>
             )}
           </div>
-          
+
           <div className="comment-input-area">
             {user ? (
               <form className="comment-form" onSubmit={onSendComment}>
@@ -145,6 +171,3 @@ export const MatchTimeline: React.FC<MatchTimelineProps> = ({
     </div>
   );
 };
-
-// Internal icon import for this component which was missing in view
-import { History } from 'lucide-react';

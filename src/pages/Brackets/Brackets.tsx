@@ -783,33 +783,43 @@ const Brackets: React.FC = () => {
     const liveMinutes = isLive ? getLiveMinutes(match) : null;
     const countdown = effectiveStatus === 'agendado' ? getCountdownLabel(match.match_date) : null;
 
+    const outcomeLabel = isFinished
+      ? (isTeamAWinner
+          ? `Vencedor: ${match.teams_a?.name || 'Equipe A'}`
+          : isTeamBWinner
+            ? `Vencedor: ${match.teams_b?.name || 'Equipe B'}`
+            : 'Resultado: Empate')
+      : null;
+
     const getStatusLabel = () => {
       if (isLive) return <span className="live-badge-mini">AO VIVO</span>;
       if (isFinished) return <span className="finished-label">FIM</span>;
       return <span className="scheduled-label">PREVISTO</span>;
     };
 
+    const isClickable = isLive || isFinished;
+
     const openMatch = () => {
-      if (dragMovedRef.current || !isLive) return;
-      navigate(`/central-da-partida?id=${match.id}`);
+      if (dragMovedRef.current || !isClickable) return;
+      navigate({ pathname: '/central-da-partida', search: `?id=${encodeURIComponent(match.id)}` });
     };
 
     return (
       <div
-        className={`bracket-match ${isKnockout ? 'knockout-item' : ''} ${isLive ? 'is-live' : ''}`}
-        onClick={openMatch}
-        role={isLive ? 'button' : undefined}
-        tabIndex={isLive ? 0 : -1}
-        aria-label={`Abrir partida ${match.teams_a?.name || 'Equipe A'} x ${match.teams_b?.name || 'Equipe B'}`}
+        className={`bracket-match ${isKnockout ? 'knockout-item' : ''} ${isLive ? 'is-live' : ''} ${isClickable ? 'is-clickable' : ''}`}
+        onClick={isClickable ? openMatch : undefined}
+        role={isClickable ? 'button' : undefined}
+        tabIndex={isClickable ? 0 : -1}
+        aria-label={`${isFinished ? 'Abrir resultado' : isLive ? 'Abrir partida' : 'Partida'} ${match.teams_a?.name || 'Equipe A'} x ${match.teams_b?.name || 'Equipe B'}`}
         onKeyDown={(e) => {
-          if (!isLive) return;
+          if (!isClickable) return;
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             openMatch();
           }
         }}
       >
-        <div className={`match-box glass ${isLive ? 'clickable-match' : ''}`}>
+        <div className={`match-box glass ${isClickable ? 'clickable-match' : ''}`}>
           <div className={`match-status-bar status-${effectiveStatus}`}></div>
           <div className="match-header-row" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem', alignItems: 'center' }}>
             <div className="match-time-tiny" style={{ marginBottom: 0 }}>
@@ -820,7 +830,7 @@ const Brackets: React.FC = () => {
 
           <div className="match-preview">
             <span className="match-meta">{match.location || 'Local a definir'}</span>
-            <span className="match-meta">{effectiveStatus === 'agendado' && countdown ? countdown : effectiveStatus === 'ao_vivo' && liveMinutes !== null ? `${liveMinutes}' em andamento` : 'Partida encerrada'}</span>
+            <span className="match-meta">{effectiveStatus === 'agendado' && countdown ? countdown : effectiveStatus === 'ao_vivo' && liveMinutes !== null ? `${liveMinutes}' em andamento` : outcomeLabel || 'Partida encerrada'}</span>
           </div>
 
           <div className="match-mini-timeline">
@@ -840,6 +850,9 @@ const Brackets: React.FC = () => {
               <>
                 <span className="timeline-chip final">ENCERRADO</span>
                 <span className="timeline-chip subtle">Placar final</span>
+                {!isTeamAWinner && !isTeamBWinner && (
+                  <span className="timeline-chip draw">EMPATE</span>
+                )}
               </>
             )}
           </div>
@@ -857,7 +870,13 @@ const Brackets: React.FC = () => {
                   decoding="async"
                 />
               ) : <div className="team-badge-mini" style={{width: 28, height: 28, background: 'rgba(255,255,255,0.05)', borderRadius: '50%'}}></div>}
-              <span>{match.teams_a?.name || 'A definir'}</span>
+              <span className="team-name">{match.teams_a?.name || 'A definir'}</span>
+              {isTeamAWinner && (
+                <span className="winner-pill" title="Vencedor">
+                  <Trophy size={12} />
+                  Venceu
+                </span>
+              )}
             </div>
             <div className="team-score">{effectiveStatus !== 'agendado' ? match.team_a_score : '-'}</div>
           </div>
@@ -875,7 +894,13 @@ const Brackets: React.FC = () => {
                   decoding="async"
                 />
               ) : <div className="team-badge-mini" style={{width: 28, height: 28, background: 'rgba(255,255,255,0.05)', borderRadius: '50%'}}></div>}
-              <span>{match.teams_b?.name || 'A definir'}</span>
+              <span className="team-name">{match.teams_b?.name || 'A definir'}</span>
+              {isTeamBWinner && (
+                <span className="winner-pill" title="Vencedor">
+                  <Trophy size={12} />
+                  Venceu
+                </span>
+              )}
             </div>
             <div className="team-score">{effectiveStatus !== 'agendado' ? match.team_b_score : '-'}</div>
           </div>
@@ -1161,19 +1186,46 @@ const Brackets: React.FC = () => {
               </section>
 
               <div className="knockout-columns">
-                {teiaColumns.map((column) => (
-                  <div key={column.roundName} className={`knockout-column phase-${column.roundName.toLowerCase().replace(/\s+/g, '-')}`}>
-                    <h3 className="round-title">
-                      <span className="round-dot"></span>
-                      <span className="round-chip">{formatRoundName(column.roundName)}</span>
-                    </h3>
-                    <div className="knockout-matches">
-                      {column.matches.map((m) => (
-                        <MatchBox key={m.id} match={m} isKnockout />
-                      ))}
+                {teiaColumns.map((column) => {
+                  const columnMatches = column.matches || [];
+                  const detailMatch =
+                    columnMatches.find((m) => deriveMatchStatus(m, nowTs) === 'ao_vivo') ||
+                    [...columnMatches]
+                      .filter((m) => deriveMatchStatus(m, nowTs) === 'finalizado')
+                      .sort((a, b) => new Date(b.match_date).getTime() - new Date(a.match_date).getTime())[0] ||
+                    null;
+                  const canOpenDetails = Boolean(detailMatch);
+
+                  return (
+                    <div key={column.roundName} className={`knockout-column phase-${column.roundName.toLowerCase().replace(/\s+/g, '-')}`}>
+                      <h3 className="round-title">
+                        <span className="round-dot"></span>
+                        <span className="round-chip">{formatRoundName(column.roundName)}</span>
+                        <span className="round-title-spacer" />
+                        <div className="round-actions">
+                          <button
+                            className="round-details-btn"
+                            type="button"
+                            disabled={!canOpenDetails}
+                            title={canOpenDetails ? 'Abrir detalhes desta fase' : 'Sem jogos ao vivo/finalizados nesta fase'}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!detailMatch) return;
+                              navigate(`/central-da-partida?id=${detailMatch.id}`);
+                            }}
+                          >
+                            Ver detalhes
+                          </button>
+                        </div>
+                      </h3>
+                      <div className="knockout-matches">
+                        {column.matches.map((m) => (
+                          <MatchBox key={m.id} match={m} isKnockout />
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ) : (
@@ -1201,6 +1253,16 @@ const Brackets: React.FC = () => {
                         (m) => (m.round ?? 0) < 1000 && (m.round ?? 0) === config.current_round,
                       )
                     : (roundsMap[roundName] || []).some((m) => (m.night ?? null) === config.current_round));
+
+                const roundMatches = roundsMap[roundName] || [];
+                const detailMatch =
+                  roundMatches.find((m) => deriveMatchStatus(m, nowTs) === 'ao_vivo') ||
+                  [...roundMatches]
+                    .filter((m) => deriveMatchStatus(m, nowTs) === 'finalizado')
+                    .sort((a, b) => new Date(b.match_date).getTime() - new Date(a.match_date).getTime())[0] ||
+                  null;
+                const canOpenDetails = Boolean(detailMatch);
+
                 return (
                   <div 
                     key={roundName} 
@@ -1210,7 +1272,23 @@ const Brackets: React.FC = () => {
                     <h3 className="round-title">
                       <span className="round-dot"></span>
                       <span className="round-chip">{formatRoundName(roundName)}</span>
-                      {isCurrent && <span className="current-label"><Target size={12} /> Atual</span>}
+                      <span className="round-title-spacer" />
+                      <div className="round-actions">
+                        {isCurrent && <span className="current-label"><Target size={12} /> Atual</span>}
+                        <button
+                          className="round-details-btn"
+                          type="button"
+                          disabled={!canOpenDetails}
+                          title={canOpenDetails ? 'Abrir detalhes desta noite/rodada' : 'Sem jogos ao vivo/finalizados nesta noite/rodada'}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!detailMatch) return;
+                            navigate(`/central-da-partida?id=${detailMatch.id}`);
+                          }}
+                        >
+                          Ver detalhes
+                        </button>
+                      </div>
                     </h3>
                     <div className="round-matches">
                       {roundsMap[roundName].map(m => (

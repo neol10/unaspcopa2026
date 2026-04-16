@@ -12,11 +12,13 @@ export interface MatchEvent {
   minute: number;
   assistant_id?: string | null;
   commentary?: string;
+  metadata?: { goal_type?: string | null } | null;
   players?: { name: string; photo_url?: string };
+  assistant_player?: { name: string; photo_url?: string };
   created_at?: string;
 }
 
-type EventRow = Omit<MatchEvent, 'players'> & { created_at?: string };
+type EventRow = Omit<MatchEvent, 'players' | 'assistant_player'> & { created_at?: string };
 
 export const useMatchEvents = (matchId: string, onNewEvent?: (event: MatchEvent) => void) => {
   const queryClient = useQueryClient();
@@ -58,14 +60,20 @@ export const useMatchEvents = (matchId: string, onNewEvent?: (event: MatchEvent)
       if (!matchId) return [];
       const { data, error } = await supabase
         .from('match_events')
-        .select('id, match_id, player_id, user_id, author_name, event_type, minute, assistant_id, commentary, created_at')
+        .select('id, match_id, player_id, user_id, author_name, event_type, minute, assistant_id, commentary, metadata, created_at')
         .eq('match_id', matchId)
         .order('minute', { ascending: false })
         .order('created_at', { ascending: false });
       if (error) throw error;
 
       const rows = (data as EventRow[]) || [];
-      const playerIds = Array.from(new Set(rows.map((row) => row.player_id).filter(Boolean))) as string[];
+      const playerIds = Array.from(
+        new Set(
+          rows
+            .flatMap((row) => [row.player_id, row.assistant_id])
+            .filter((v): v is string => typeof v === 'string' && v.length > 0)
+        )
+      );
 
       let playerMap: Record<string, { name: string; photo_url?: string }> = {};
       if (playerIds.length > 0) {
@@ -81,6 +89,7 @@ export const useMatchEvents = (matchId: string, onNewEvent?: (event: MatchEvent)
       const result = rows.map((row) => ({
         ...row,
         players: row.player_id ? playerMap[row.player_id] || { name: 'Atleta' } : undefined,
+        assistant_player: row.assistant_id ? playerMap[row.assistant_id] || { name: 'Atleta' } : undefined,
       })) as MatchEvent[];
       saveCachedEvents(result);
       return result;
@@ -90,7 +99,15 @@ export const useMatchEvents = (matchId: string, onNewEvent?: (event: MatchEvent)
     initialDataUpdatedAt: cached?.ts,
     placeholderData: (prev) => prev,
     staleTime: 1000 * 15, // 15 segundos
-    refetchInterval: 1000 * 30, // Fallback: atualiza eventos a cada 30 segundos
+    // Se o realtime falhar, polling mais rápido na Central para o placar/ações não "atrasarem".
+    refetchInterval: () => {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return false;
+      if (typeof window !== 'undefined') {
+        const path = window.location.pathname;
+        if (path.startsWith('/central-da-partida')) return 5000;
+      }
+      return 1000 * 30;
+    },
     refetchOnWindowFocus: true,
   });
 
@@ -107,13 +124,30 @@ export const useMatchEvents = (matchId: string, onNewEvent?: (event: MatchEvent)
       }, (payload) => {
         if (payload.eventType === 'INSERT' && onNewEventRef.current) {
           const eventData = payload.new as EventRow;
-          if (eventData.player_id) {
-            supabase.from('players').select('name, photo_url').eq('id', eventData.player_id).single().then(({ data }) => {
-              onNewEventRef.current?.({
-                ...eventData,
-                players: { name: String(data?.name || 'Atleta'), photo_url: data?.photo_url || undefined },
-              } as MatchEvent);
-            });
+
+          const ids = [eventData.player_id, eventData.assistant_id].filter(
+            (v): v is string => typeof v === 'string' && v.length > 0
+          );
+
+          if (ids.length > 0) {
+            supabase
+              .from('players')
+              .select('id, name, photo_url')
+              .in('id', ids)
+              .then(({ data }) => {
+                const map: Record<string, { name: string; photo_url?: string }> = Object.fromEntries(
+                  (data || []).map((p: any) => [
+                    String(p.id),
+                    { name: String(p.name || 'Atleta'), photo_url: p.photo_url || undefined },
+                  ])
+                );
+
+                onNewEventRef.current?.({
+                  ...eventData,
+                  players: eventData.player_id ? map[eventData.player_id] || { name: 'Atleta' } : undefined,
+                  assistant_player: eventData.assistant_id ? map[eventData.assistant_id] || { name: 'Atleta' } : undefined,
+                } as MatchEvent);
+              });
           } else {
             onNewEventRef.current?.(eventData as MatchEvent);
           }

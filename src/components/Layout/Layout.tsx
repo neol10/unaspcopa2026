@@ -102,9 +102,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   useEffect(() => {
     // Preload + unlock do áudio (mobile bloqueia autoplay sem gesto do usuário)
-    const audio = new Audio('/sounds/torcida.mp3');
+    const audio = new Audio('/audio/goal-crowd.mp3');
     audio.preload = 'auto';
-    audio.volume = 0.6;
+    audio.volume = 0.8;
     torcidaAudioRef.current = audio;
 
     let unlocked = false;
@@ -155,8 +155,12 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       if (isAdminRoute) return;
 
       if (payload.division && payload.division !== division) return;
-      
-      // Reproduzir som de torcida (reutiliza elemento para reduzir bloqueios/latência)
+
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate([70, 30, 140]);
+      }
+
+      // Reproduzir som (reutiliza elemento para reduzir bloqueios/latência)
       const goalAudio = torcidaAudioRef.current;
       if (goalAudio) {
         try {
@@ -164,14 +168,14 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         } catch {
           // ignore
         }
-        goalAudio.play().catch(e => console.warn('Audio auto-play blocked:', e));
+        goalAudio.play().catch((e) => console.warn('Audio auto-play blocked:', e));
       }
 
       setGoalOverlay(payload);
       window.setTimeout(() => setGoalOverlay(null), 5000);
     });
     return () => unsub();
-  }, [isAdminRoute]);
+  }, [isAdminRoute, division]);
 
   usePreGameReminder(matches, isSubscribed, {
     preGameReminder: preferences.preGameReminder,
@@ -201,9 +205,14 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                   <span className="goal-ball-emoji">⚽</span>
                 </div>
                 {goalOverlay.playerPhotoUrl && (
-                  <div className="goal-player-photo">
+                  <motion.div
+                    className="goal-player-photo"
+                    initial={{ opacity: 0, scale: 0.6, rotate: -8 }}
+                    animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                    transition={{ type: 'spring', damping: 14, stiffness: 260 }}
+                  >
                     <img src={goalOverlay.playerPhotoUrl} alt={goalOverlay.player} loading="eager" />
-                  </div>
+                  </motion.div>
                 )}
               </div>
               <h1 className="goal-text">GOOOOOOOL!</h1>

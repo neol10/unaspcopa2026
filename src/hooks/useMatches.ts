@@ -114,46 +114,82 @@ export const useMatches = (limit?: number) => {
       let includeDivision = divisionStatus !== 'missing';
       let includeNight = nightStatus !== 'missing';
 
-      for (let attempt = 0; attempt < 3; attempt++) {
-        const { data, error } = await fetchOnce({ includeDivision, includeNight });
-        if (!error) {
-          if (includeDivision) markDivisionColumnPresent();
-          if (includeNight) markNightColumnPresent();
+      const isRetriable = (err: unknown) => {
+        const name = (err as { name?: unknown })?.name;
+        const msg =
+          typeof (err as { message?: unknown })?.message === 'string'
+            ? String((err as { message: string }).message)
+            : '';
+        const lower = msg.toLowerCase();
+        return (
+          name === 'TimeoutError' ||
+          lower.includes('timeout') ||
+          lower.includes('failed to fetch') ||
+          lower.includes('networkerror') ||
+          lower.includes('fetch') && lower.includes('failed')
+        );
+      };
 
-          const rows = (data as Match[]) || [];
-          // Se a coluna `night` não existir no banco, preserva compatibilidade:
-          // na fase de grupos, `round` já carrega a unidade (ex: Noite) no modo legado.
-          if (!includeNight) {
-            return rows.map((m) => ({
-              ...m,
-              night: (m.round || 0) < 1000 ? m.round : null,
-            }));
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const { data, error } = await fetchOnce({ includeDivision, includeNight });
+          if (!error) {
+            if (includeDivision) markDivisionColumnPresent();
+            if (includeNight) markNightColumnPresent();
+
+            const rows = (data as Match[]) || [];
+            // Se a coluna `night` não existir no banco, preserva compatibilidade:
+            // na fase de grupos, `round` já carrega a unidade (ex: Noite) no modo legado.
+            if (!includeNight) {
+              return rows.map((m) => ({
+                ...m,
+                night: (m.round || 0) < 1000 ? m.round : null,
+              }));
+            }
+
+            return rows;
           }
 
-          return rows;
-        }
+          if (includeDivision && isMissingColumnError(error, 'division')) {
+            markDivisionColumnMissing();
+            includeDivision = false;
+            continue;
+          }
 
-        if (includeDivision && isMissingColumnError(error, 'division')) {
-          markDivisionColumnMissing();
-          includeDivision = false;
-          continue;
-        }
+          if (includeNight && isMissingColumnError(error, 'night')) {
+            markNightColumnMissing();
+            includeNight = false;
+            continue;
+          }
 
-        if (includeNight && isMissingColumnError(error, 'night')) {
-          markNightColumnMissing();
-          includeNight = false;
-          continue;
+          // Erros do PostgREST normalmente não se resolvem com retry imediato.
+          throw error;
+        } catch (err) {
+          const shouldRetry = attempt < 2 && isRetriable(err);
+          if (shouldRetry) {
+            await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+            continue;
+          }
+          console.error('Supabase Matches Error:', err);
+          throw err;
         }
-
-        console.error('Supabase Matches Error:', error);
-        throw error;
       }
 
       return [];
     },
     staleTime: 1000 * 30, // 30 segundos
     gcTime: 1000 * 60 * 30,    // 30 min
-    refetchInterval: 1000 * 60, // Fallback: atualiza a cada 1 minuto se o real-time falhar
+    // Realtime pode falhar (WS fechado/timeout). Mantemos polling leve e mais rápido na Central.
+    refetchInterval: () => {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return false;
+      if (typeof window !== 'undefined') {
+        const path = window.location.pathname;
+        if (path.startsWith('/admin')) return false;
+        if (path.startsWith('/central-da-partida')) return 3000;
+        if (path.startsWith('/jogos')) return 8000;
+      }
+      return 10000;
+    },
     refetchOnReconnect: true,
     refetchOnWindowFocus: true,
     networkMode: 'online',
@@ -183,11 +219,16 @@ export const useMatches = (limit?: number) => {
     };
   }, [queryClient, division]);
 
-  return { 
-    matches: query.data || [], 
-    loading: query.isLoading && query.data === undefined, 
-    error: friendlyError(query.error?.message), 
-    refresh: query.refetch 
+  const hasCache = Boolean(cached && Array.isArray(cached.data) && cached.data.length > 0);
+  const hasData = Boolean(Array.isArray(query.data) && query.data.length > 0);
+
+  return {
+    matches: query.data || [],
+    // `initialData` pode ser [] quando não existe cache. Nesse caso, `isLoading` fica false,
+    // mas ainda estamos buscando a primeira resposta.
+    loading: query.isFetching && !hasData && !hasCache,
+    error: friendlyError(query.error?.message),
+    refresh: query.refetch,
   };
 };
 

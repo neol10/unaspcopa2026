@@ -1720,7 +1720,7 @@ const MatchManagement = () => {
       // 1. Buscar todos os eventos desta partida em uma única chamada
       const { data: events, error: eventsError } = await supabase
         .from('match_events')
-        .select('event_type, player_id, assistant_id')
+        .select('event_type, player_id, assistant_id, commentary')
         .eq('match_id', id);
 
       if (eventsError) throw eventsError;
@@ -1730,13 +1730,20 @@ const MatchManagement = () => {
         const deltas: Record<string, { goals: number; assists: number; yellows: number; reds: number }> = {};
         
         events.forEach(event => {
+          const isOwnGoal =
+            event.event_type === 'gol' &&
+            typeof event.commentary === 'string' &&
+            event.commentary.toUpperCase().includes('[CONTRA]');
+
           if (event.player_id) {
             if (!deltas[event.player_id]) deltas[event.player_id] = { goals: 0, assists: 0, yellows: 0, reds: 0 };
-            if (event.event_type === 'gol') deltas[event.player_id].goals += 1;
+            if (event.event_type === 'gol' && !isOwnGoal) deltas[event.player_id].goals += 1;
             else if (event.event_type === 'amarelo') deltas[event.player_id].yellows += 1;
             else if (event.event_type === 'vermelho') deltas[event.player_id].reds += 1;
           }
-          if (event.assistant_id) {
+
+          // `assistant_id` também é usado em substituição (ENTRA). Só conta assistência em gols não-contra.
+          if (event.event_type === 'gol' && !isOwnGoal && event.assistant_id) {
             if (!deltas[event.assistant_id]) deltas[event.assistant_id] = { goals: 0, assists: 0, yellows: 0, reds: 0 };
             deltas[event.assistant_id].assists += 1;
           }
@@ -2437,9 +2444,11 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   };
 
   const updateOptimisticMatch = (updates: Partial<Match>) => {
-    queryClient.setQueryData(['matches', 'all'], (old: Match[] | undefined) => {
-      if (!old) return old;
-      return old.map(m => m.id === match.id ? { ...m, ...updates } : m);
+    // Atualiza qualquer cache de `useMatches()` (chaves: ['matches', division, limit])
+    // para refletir mudanças imediatas no painel.
+    queryClient.setQueriesData({ queryKey: ['matches'] }, (old) => {
+      if (!Array.isArray(old)) return old;
+      return (old as Match[]).map((m) => (m.id === match.id ? { ...m, ...updates } : m));
     });
   };
 
@@ -2521,9 +2530,13 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
   const handleStartTimer = async () => {
     try {
+      const nowStr = new Date().toISOString();
+      // Atualiza UI imediatamente (evita "segundos passando" mas status/placar não mudando)
+      updateOptimisticMatch({ is_timer_running: true, timer_started_at: nowStr, status: 'ao_vivo' });
+
       const { error } = await supabase.from('matches').update({
         is_timer_running: true,
-        timer_started_at: new Date().toISOString(),
+        timer_started_at: nowStr,
         status: 'ao_vivo'
       }).eq('id', match.id);
 
@@ -2871,19 +2884,27 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
     try {
       if (event.event_type === 'gol') {
         if (!event.player_id) throw new Error('Evento de gol sem jogador vinculado');
-        const isTeamA = playersA.some(p => p.id === event.player_id);
-        const newScore = isTeamA 
-          ? { team_a_score: Math.max(0, match.team_a_score - 1) } 
+
+        const isOwnGoal = typeof event.commentary === 'string' && event.commentary.toUpperCase().includes('[CONTRA]');
+        const playerIsTeamA = playersA.some(p => p.id === event.player_id);
+        const creditedTeamIsA = isOwnGoal ? !playerIsTeamA : playerIsTeamA;
+
+        const newScore = creditedTeamIsA
+          ? { team_a_score: Math.max(0, match.team_a_score - 1) }
           : { team_b_score: Math.max(0, match.team_b_score - 1) };
+
         updateOptimisticMatch(newScore);
         await supabase.from('matches').update(newScore).eq('id', match.id);
-        
-        const { data: p } = await supabase.from('players').select('goals_count').eq('id', event.player_id).single();
-        await supabase.from('players').update({ goals_count: Math.max(0, (p?.goals_count || 0) - 1) }).eq('id', event.player_id);
 
-        if (event.assistant_id) {
-          const { data: ast } = await supabase.from('players').select('assists').eq('id', event.assistant_id).single();
-          await supabase.from('players').update({ assists: Math.max(0, (ast?.assists || 0) - 1) }).eq('id', event.assistant_id);
+        // Gol contra não incrementa `goals_count` (e nem assistência) — não reverte.
+        if (!isOwnGoal) {
+          const { data: p } = await supabase.from('players').select('goals_count').eq('id', event.player_id).single();
+          await supabase.from('players').update({ goals_count: Math.max(0, (p?.goals_count || 0) - 1) }).eq('id', event.player_id);
+
+          if (event.assistant_id) {
+            const { data: ast } = await supabase.from('players').select('assists').eq('id', event.assistant_id).single();
+            await supabase.from('players').update({ assists: Math.max(0, (ast?.assists || 0) - 1) }).eq('id', event.assistant_id);
+          }
         }
       }
 

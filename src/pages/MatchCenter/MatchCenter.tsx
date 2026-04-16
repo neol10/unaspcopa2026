@@ -172,16 +172,31 @@ const MatchCenter: React.FC = () => {
   const { players } = usePlayers();
   const { standings } = useStandings();
 
+  const lastMatchRefreshAtRef = useRef(0);
+  const requestMatchRefresh = useCallback(() => {
+    const now = Date.now();
+    // Evita rajadas quando chega mais de 1 evento/realtime + polling.
+    if (now - lastMatchRefreshAtRef.current < 1200) return;
+    lastMatchRefreshAtRef.current = now;
+    refreshMatches();
+  }, [refreshMatches]);
+
   const handleNewEvent = (event: MatchEvent) => {
     if (event.match_id !== activeMatch?.id) return;
     if (event.created_at && (Date.now() - new Date(event.created_at).getTime()) / 1000 > 60) return;
 
     if (event.event_type === 'gol') {
       const playerName = event.players?.name || 'Desconhecido';
-      const player = players.find(p => p.id === event.player_id);
-      const teamName = player?.team_id === activeMatch?.team_a_id ? activeMatch?.teams_a?.name : activeMatch?.teams_b?.name;
+      const player = players.find((p) => p.id === event.player_id);
+      const teamName =
+        player?.team_id === activeMatch?.team_a_id ? activeMatch?.teams_a?.name : activeMatch?.teams_b?.name;
+      const playerPhotoUrl = event.players?.photo_url || player?.photo_url;
+
       toast.success(`⚽ GOOOOL! ${playerName}`);
-      emitGoalOverlay({ team: teamName || 'GOL!', player: playerName, playerPhotoUrl: player?.photo_url, division });
+      emitGoalOverlay({ team: teamName || 'GOL!', player: playerName, playerPhotoUrl, division });
+
+      // Atualiza placar/status mais rápido caso o realtime de `matches` falhe.
+      requestMatchRefresh();
     } else if (event.event_type === 'amarelo') {
       toast(`🟨 Cartão Amarelo para ${event.players?.name || ''}`, { icon: '🟨' });
     } else if (event.event_type === 'vermelho') {
