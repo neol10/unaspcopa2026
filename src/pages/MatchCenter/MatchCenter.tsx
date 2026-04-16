@@ -193,7 +193,7 @@ const MatchCenter: React.FC = () => {
       const playerPhotoUrl = event.players?.photo_url || player?.photo_url;
 
       toast.success(`⚽ GOOOOL! ${playerName}`);
-      emitGoalOverlay({ team: teamName || 'GOL!', player: playerName, playerPhotoUrl, division });
+      emitGoalOverlay({ id: event.id, team: teamName || 'GOL!', player: playerName, playerPhotoUrl, division });
 
       // Atualiza placar/status mais rápido caso o realtime de `matches` falhe.
       requestMatchRefresh();

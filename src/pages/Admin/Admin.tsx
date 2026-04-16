@@ -2516,6 +2516,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           match_id: match.id,
           event_type: 'comentario',
           minute: Math.floor(finalOffset / 60),
+          author_name: 'Jogo',
           commentary: '⏱️ Pausa Técnica',
           player_id: null
         });
@@ -2546,6 +2547,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         match_id: match.id,
         event_type: 'comentario',
         minute: Math.max(1, Math.floor(match.timer_offset_seconds / 60) || 1),
+        author_name: 'Jogo',
         commentary: '▶️ Início de Jogo',
         player_id: null
       });
@@ -2575,6 +2577,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         match_id: match.id,
         event_type: 'comentario',
         minute: Math.floor(newOffset / 60),
+        author_name: 'Jogo',
         commentary: '🏁 Fim do 1º Tempo',
         player_id: null
       });
@@ -2609,6 +2612,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           match_id: match.id,
           event_type: 'comentario',
           minute: Math.floor(match.timer_offset_seconds / 60),
+          author_name: 'Jogo',
           commentary: '⚽ Início do 2º Tempo',
           player_id: null
         });
@@ -2653,6 +2657,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         match_id: match.id,
         event_type: 'comentario',
         minute: Math.max(1, Math.floor(finalOffset / 60) || 1),
+        author_name: 'Jogo',
         commentary: '🏁 Fim de Jogo',
         player_id: null
       });
@@ -2674,15 +2679,121 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   // --- Escalação / Roster ---
   const [onFieldA, setOnFieldA] = useState<string[]>([]);
   const [onFieldB, setOnFieldB] = useState<string[]>([]);
+  const rosterMatchIdRef = useRef<string | null>(null);
+
+  const rosterKeyA = `copa_unasp_roster_onfield_v1_${match.id}_a`;
+  const rosterKeyB = `copa_unasp_roster_onfield_v1_${match.id}_b`;
+
+  const loadRoster = (key: string) => {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return [] as string[];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [] as string[];
+      return parsed.filter((v) => typeof v === 'string' && v.length > 0) as string[];
+    } catch {
+      return [] as string[];
+    }
+  };
+
+  const saveRoster = (key: string, ids: string[]) => {
+    try {
+      localStorage.setItem(key, JSON.stringify(ids));
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    if (rosterMatchIdRef.current !== match.id) {
+      rosterMatchIdRef.current = match.id;
+      setOnFieldA([]);
+      setOnFieldB([]);
+    }
+  }, [match.id]);
 
   useEffect(() => {
     if ((playersA || []).length > 0 && onFieldA.length === 0) {
-      setOnFieldA((playersA || []).slice(0, 5).map(p => p.id)); 
+      const saved = loadRoster(rosterKeyA);
+      const valid = saved.filter((id) => (playersA || []).some((p) => p.id === id));
+      if (valid.length > 0) setOnFieldA(valid.slice(0, 5));
     }
     if ((playersB || []).length > 0 && onFieldB.length === 0) {
-      setOnFieldB((playersB || []).slice(0, 5).map(p => p.id));
+      const saved = loadRoster(rosterKeyB);
+      const valid = saved.filter((id) => (playersB || []).some((p) => p.id === id));
+      if (valid.length > 0) setOnFieldB(valid.slice(0, 5));
     }
-  }, [playersA, playersB, onFieldA.length, onFieldB.length]);
+  }, [playersA, playersB, onFieldA.length, onFieldB.length, rosterKeyA, rosterKeyB]);
+
+  useEffect(() => {
+    saveRoster(rosterKeyA, onFieldA);
+  }, [rosterKeyA, onFieldA]);
+
+  useEffect(() => {
+    saveRoster(rosterKeyB, onFieldB);
+  }, [rosterKeyB, onFieldB]);
+
+  const normalizePosition = (value?: string | null) => (value || '').trim().toLowerCase();
+  const isGoalkeeper = (p?: { position?: string | null }) => normalizePosition(p?.position) === 'goleiro';
+
+  const isPreGame = match.status === 'agendado' && !hasStarted;
+
+  const computeLineupMeta = (roster: typeof playersA, ids: string[]) => {
+    const selected = (roster || []).filter((p) => ids.includes(p.id));
+    const goalkeepers = selected.filter(isGoalkeeper).length;
+    return {
+      selectedCount: selected.length,
+      goalkeepers,
+      ok: selected.length === 5 && goalkeepers === 1,
+    };
+  };
+
+  const lineupMetaA = useMemo(() => computeLineupMeta(playersA, onFieldA), [playersA, onFieldA]);
+  const lineupMetaB = useMemo(() => computeLineupMeta(playersB, onFieldB), [playersB, onFieldB]);
+
+  const getLineupError = (teamName: string, roster: typeof playersA, ids: string[]) => {
+    const list = roster || [];
+
+    if (list.length < 5) {
+      return `${teamName}: cadastre 5 atletas (4 linha + 1 goleiro) para iniciar.`;
+    }
+
+    if (!list.some(isGoalkeeper)) {
+      return `${teamName}: cadastre 1 goleiro (posição = Goleiro) para iniciar.`;
+    }
+
+    if (ids.length !== 5) {
+      return `${teamName}: selecione 5 em campo (4 linha + 1 goleiro).`;
+    }
+
+    const selected = list.filter((p) => ids.includes(p.id));
+    const goalkeepers = selected.filter(isGoalkeeper).length;
+    if (goalkeepers !== 1) {
+      return `${teamName}: precisa ter exatamente 1 goleiro em campo.`;
+    }
+
+    return null;
+  };
+
+  const startBlockReason = useMemo(() => {
+    if (!isPreGame) return null;
+
+    const errA = getLineupError(match.teams_a?.name || 'Equipe A', playersA, onFieldA);
+    if (errA) return errA;
+
+    const errB = getLineupError(match.teams_b?.name || 'Equipe B', playersB, onFieldB);
+    if (errB) return errB;
+
+    return null;
+  }, [isPreGame, match.teams_a?.name, match.teams_b?.name, playersA, playersB, onFieldA, onFieldB]);
+
+  const handleStartTimerWithLineup = async () => {
+    if (startBlockReason) {
+      toast.error(`Escalação obrigatória: ${startBlockReason}`);
+      return;
+    }
+    await handleStartTimer();
+  };
 
   // Atalhos (Admin produtivo): Alt+1..6 troca tipo, Ctrl+Espaço inicia/pausa/retoma cronômetro
   useEffect(() => {
@@ -2700,7 +2811,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         e.preventDefault();
         if (isActive) handlePauseTimer(false); // Pausa normal via atalho
         else if (hasStarted) handleRetomar();
-        else handleStartTimer();
+        else handleStartTimerWithLineup();
         return;
       }
 
@@ -2718,10 +2829,58 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   }, [hasStarted, isActive]);
 
   const togglePlayerStatus = (playerId: string, team: 'a' | 'b') => {
+    const roster = team === 'a' ? (playersA || []) : (playersB || []);
+    const targetName = team === 'a' ? (match.teams_a?.name || 'Equipe A') : (match.teams_b?.name || 'Equipe B');
+    const player = roster.find((p) => p.id === playerId);
+    if (!player) {
+      toast.error('Atleta inválido');
+      return;
+    }
+
+    type ValidateRes = { ok: true; next: string[] } | { ok: false; reason: string };
+
+    const validateNext = (prev: string[]): ValidateRes => {
+      if (prev.includes(playerId)) {
+        return { ok: true, next: prev.filter((id) => id !== playerId) };
+      }
+
+      if (prev.length >= 5) {
+        return { ok: false, reason: `${targetName}: máximo de 5 em campo.` };
+      }
+
+      const next = [...prev, playerId];
+      const selected = roster.filter((p) => next.includes(p.id));
+      const goalkeepers = selected.filter(isGoalkeeper).length;
+
+      if (goalkeepers > 1) {
+        return { ok: false, reason: `${targetName}: apenas 1 goleiro em campo.` };
+      }
+
+      if (next.length === 5 && goalkeepers !== 1) {
+        return { ok: false, reason: `${targetName}: para iniciar, precisa fechar 5 com 1 goleiro.` };
+      }
+
+      return { ok: true, next };
+    };
+
     if (team === 'a') {
-      setOnFieldA(prev => prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId]);
+      setOnFieldA((prev) => {
+        const res = validateNext(prev);
+        if (!res.ok) {
+          toast.error(res.reason);
+          return prev;
+        }
+        return res.next;
+      });
     } else {
-      setOnFieldB(prev => prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId]);
+      setOnFieldB((prev) => {
+        const res = validateNext(prev);
+        if (!res.ok) {
+          toast.error(res.reason);
+          return prev;
+        }
+        return res.next;
+      });
     }
   };
 
@@ -3160,7 +3319,12 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
              </div>
               <div className="sb-pro-timer-controls">
                   {!match.is_timer_running ? (
-                    <button className="timer-btn start" onClick={hasStarted ? handleRetomar : handleStartTimer} disabled={match.status === 'finalizado'}>
+                    <button
+                      className="timer-btn start"
+                      onClick={hasStarted ? handleRetomar : handleStartTimerWithLineup}
+                      disabled={match.status === 'finalizado' || (!hasStarted && Boolean(startBlockReason))}
+                      title={!hasStarted && startBlockReason ? startBlockReason : undefined}
+                    >
                       <Play size={16} /> {isPostInterval && !alreadyResumedStage2 ? 'INICIAR 2º TEMPO' : (hasStarted ? 'RETOMAR' : 'COMEÇAR')}
                     </button>
                   ) : (
@@ -3376,12 +3540,19 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           <h5>{match.teams_a?.name || 'Equipe A'}</h5>
           
           <div className="roster-section">
-            <span className="roster-label"><Zap size={12} /> Em Campo</span>
+            <span className="roster-label"><Zap size={12} /> Em Campo ({lineupMetaA.selectedCount}/5 • GK {lineupMetaA.goalkeepers}/1)</span>
             <div className="admin-player-btns">
               {(playersA || []).filter(p => onFieldA.includes(p.id)).map(p => (
                 <button 
                   key={p.id} 
-                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: 'a', open: true, pId: p.id }) : addEvent(p.id, 'a')} 
+                  onClick={() => {
+                    if (isPreGame) {
+                      togglePlayerStatus(p.id, 'a');
+                      return;
+                    }
+                    if (eventType === 'gol') setGoalWizard({ team: 'a', open: true, pId: p.id });
+                    else addEvent(p.id, 'a');
+                  }} 
                   className="p-btn active-field"
                 >
                   <span className="p-num">{p.number}</span>
@@ -3398,7 +3569,14 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
               {(playersA || []).filter(p => !onFieldA.includes(p.id)).map(p => (
                 <button 
                   key={p.id} 
-                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: 'a', open: true, pId: p.id }) : togglePlayerStatus(p.id, 'a')} 
+                  onClick={() => {
+                    if (isPreGame) {
+                      togglePlayerStatus(p.id, 'a');
+                      return;
+                    }
+                    if (eventType === 'gol') setGoalWizard({ team: 'a', open: true, pId: p.id });
+                    else togglePlayerStatus(p.id, 'a');
+                  }} 
                   className="p-btn bench"
                 >
                   <span className="p-num">{p.number}</span>
@@ -3415,12 +3593,19 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           <h5>{match.teams_b?.name || 'Equipe B'}</h5>
           
           <div className="roster-section">
-            <span className="roster-label"><Zap size={12} /> Em Campo</span>
+            <span className="roster-label"><Zap size={12} /> Em Campo ({lineupMetaB.selectedCount}/5 • GK {lineupMetaB.goalkeepers}/1)</span>
             <div className="admin-player-btns">
               {(playersB || []).filter(p => onFieldB.includes(p.id)).map(p => (
                 <button 
                   key={p.id} 
-                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: 'b', open: true, pId: p.id }) : addEvent(p.id, 'b')} 
+                  onClick={() => {
+                    if (isPreGame) {
+                      togglePlayerStatus(p.id, 'b');
+                      return;
+                    }
+                    if (eventType === 'gol') setGoalWizard({ team: 'b', open: true, pId: p.id });
+                    else addEvent(p.id, 'b');
+                  }} 
                   className="p-btn active-field"
                 >
                   <span className="p-num">{p.number}</span>
@@ -3437,7 +3622,14 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
               {(playersB || []).filter(p => !onFieldB.includes(p.id)).map(p => (
                 <button 
                   key={p.id} 
-                  onClick={() => eventType === 'gol' ? setGoalWizard({ team: 'b', open: true, pId: p.id }) : togglePlayerStatus(p.id, 'b')} 
+                  onClick={() => {
+                    if (isPreGame) {
+                      togglePlayerStatus(p.id, 'b');
+                      return;
+                    }
+                    if (eventType === 'gol') setGoalWizard({ team: 'b', open: true, pId: p.id });
+                    else togglePlayerStatus(p.id, 'b');
+                  }} 
                   className="p-btn bench"
                 >
                   <span className="p-num">{p.number}</span>

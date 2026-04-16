@@ -6,7 +6,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import { useTeams } from '../../hooks/useTeams';
-import { useMatches } from '../../hooks/useMatches';
+import { useMatches, type Match } from '../../hooks/useMatches';
 import { usePreGameReminder } from '../../hooks/usePreGameReminder';
 import { AutoRefreshStatus } from '../AutoRefreshStatus/AutoRefreshStatus';
 import AuthModal from '../Auth/AuthModal';
@@ -14,7 +14,8 @@ import IOSInstallPrompt from '../PWA/IOSInstallPrompt';
 import { AnimatePresence, motion } from 'framer-motion';
 import logo from '../../assets/unasp_logo.png';
 import { prefetchRouteIntent } from '../../lib/routePrefetch';
-import { onGoalOverlay, type GoalOverlayPayload } from '../../lib/goalOverlay';
+import { emitGoalOverlay, onGoalOverlay, type GoalOverlayPayload } from '../../lib/goalOverlay';
+import { supabase } from '../../lib/supabase';
 import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
 import FeedbackModal from '../Feedback/FeedbackModal';
 import { useDivisionContext } from '../../contexts/DivisionContext';
@@ -35,6 +36,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   const [goalOverlay, setGoalOverlay] = useState<GoalOverlayPayload | null>(null);
   const torcidaAudioRef = useRef<HTMLAudioElement | null>(null);
+  const lastGoalOverlayRef = useRef<{ id: string | null; at: number }>({ id: null, at: 0 });
+  const matchesByIdRef = useRef<Map<string, Match>>(new Map());
+  const seenGoalEventIdsRef = useRef<Map<string, number>>(new Map());
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
@@ -65,6 +69,18 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       .sort((a, b) => new Date(a.match_date).getTime() - new Date(b.match_date).getTime());
     return upcoming[0] || null;
   }, [matches]);
+
+  const liveMatchIdsKey = useMemo(() => {
+    const live = (matches || []).filter((m) => m.status === 'ao_vivo');
+    const visible = isAdminUser || visibility.matches
+      ? live
+      : live.filter((m) => {
+          const isTeamAGroupC = isTestGroup(m.teams_a?.group);
+          const isTeamBGroupC = isTestGroup(m.teams_b?.group);
+          return !isTeamAGroupC && !isTeamBGroupC;
+        });
+    return visible.map((m) => m.id).sort().join('|');
+  }, [matches, isAdminUser, visibility.matches]);
 
   const formatMatchDatetime = (value?: string | null) => {
     if (!value) return '';
@@ -151,10 +167,22 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }, [location.pathname]);
 
   useEffect(() => {
+    matchesByIdRef.current = new Map((matches || []).map((m) => [m.id, m] as const));
+  }, [matches]);
+
+  useEffect(() => {
     const unsub = onGoalOverlay((payload) => {
       if (isAdminRoute) return;
 
       if (payload.division && payload.division !== division) return;
+
+      const incomingId = typeof payload.id === 'string' && payload.id.length > 0 ? payload.id : null;
+      if (incomingId) {
+        const prev = lastGoalOverlayRef.current;
+        const now = Date.now();
+        if (prev.id === incomingId && now - prev.at < 3000) return;
+        lastGoalOverlayRef.current = { id: incomingId, at: now };
+      }
 
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
         navigator.vibrate([70, 30, 140]);
@@ -176,6 +204,86 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     });
     return () => unsub();
   }, [isAdminRoute, division]);
+
+  useEffect(() => {
+    if (isAdminRoute) return;
+
+    const ids = liveMatchIdsKey ? liveMatchIdsKey.split('|').filter(Boolean) : [];
+    if (ids.length === 0) return;
+
+    const cleanupSeen = () => {
+      const now = Date.now();
+      const seen = seenGoalEventIdsRef.current;
+      for (const [id, ts] of seen) {
+        if (now - ts > 5 * 60 * 1000) seen.delete(id);
+      }
+    };
+
+    const channels = ids.map((matchId) =>
+      supabase
+        .channel(`public:match_events:goal_overlay:${matchId}`)
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'match_events', filter: `match_id=eq.${matchId}` },
+          (payload) => {
+            const row = payload.new as any;
+            if (!row || row.event_type !== 'gol') return;
+
+            const eventId = typeof row.id === 'string' && row.id.length > 0 ? row.id : null;
+            if (eventId) {
+              cleanupSeen();
+              if (seenGoalEventIdsRef.current.has(eventId)) return;
+              seenGoalEventIdsRef.current.set(eventId, Date.now());
+            }
+
+            const match = matchesByIdRef.current.get(matchId);
+            if (!match) return;
+
+            const commentary = typeof row.commentary === 'string' ? row.commentary : '';
+            const goalType = typeof row.metadata?.goal_type === 'string' ? row.metadata.goal_type : null;
+            const isOwnGoal = goalType === 'contra' || commentary.toUpperCase().includes('[CONTRA]');
+
+            const playerId = typeof row.player_id === 'string' && row.player_id.length > 0 ? row.player_id : null;
+            if (!playerId) return;
+
+            supabase
+              .from('players')
+              .select('id, name, photo_url, team_id')
+              .eq('id', playerId)
+              .maybeSingle()
+              .then(({ data }) => {
+                const playerName = String(data?.name || 'Atleta');
+                const playerPhotoUrl = data?.photo_url || undefined;
+
+                const teamAName = match.teams_a?.name || 'Equipe A';
+                const teamBName = match.teams_b?.name || 'Equipe B';
+
+                const playerTeamId = data?.team_id ? String(data.team_id) : null;
+                const playerIsTeamA = playerTeamId ? playerTeamId === match.team_a_id : null;
+
+                const creditedTeamName = playerIsTeamA === null
+                  ? teamAName
+                  : !isOwnGoal
+                    ? (playerIsTeamA ? teamAName : teamBName)
+                    : (playerIsTeamA ? teamBName : teamAName);
+
+                emitGoalOverlay({
+                  id: eventId || undefined,
+                  team: creditedTeamName,
+                  player: playerName,
+                  playerPhotoUrl,
+                  division,
+                });
+              });
+          },
+        )
+        .subscribe()
+    );
+
+    return () => {
+      channels.forEach((ch) => supabase.removeChannel(ch));
+    };
+  }, [isAdminRoute, liveMatchIdsKey, division]);
 
   usePreGameReminder(matches, isSubscribed, {
     preGameReminder: preferences.preGameReminder,

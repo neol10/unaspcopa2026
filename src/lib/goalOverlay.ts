@@ -1,4 +1,6 @@
 export type GoalOverlayPayload = {
+  /** ID do evento de gol (se disponível), usado para deduplicar overlays. */
+  id?: string;
   team: string;
   player: string;
   playerPhotoUrl?: string;

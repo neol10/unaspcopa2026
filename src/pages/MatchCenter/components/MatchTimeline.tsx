@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trophy, ArrowRightLeft, Zap, History } from 'lucide-react';
+import { ArrowRightLeft, CircleDot, Zap, History } from 'lucide-react';
 import { MatchEvent } from '../../../hooks/useMatchEvents';
 
 interface Player {
@@ -84,7 +84,7 @@ export const MatchTimeline: React.FC<MatchTimelineProps> = ({
                   <span className="t-time">{event.minute}'</span>
 
                   <div className="t-icon-box">
-                    {event.event_type === 'gol' && <Trophy size={14} color="var(--secondary)" />}
+                    {event.event_type === 'gol' && <CircleDot size={14} color="var(--secondary)" />}
                     {event.event_type === 'amarelo' && <div className="card-yellow"></div>}
                     {event.event_type === 'vermelho' && <div className="card-red"></div>}
                     {event.event_type === 'substituicao' && <ArrowRightLeft size={14} color="#fff" />}
@@ -125,7 +125,7 @@ export const MatchTimeline: React.FC<MatchTimelineProps> = ({
               <div key={ev.id} className="comment-bubble animate-slide-up">
                 <div className="comment-meta">
                   <span className="comment-time">{ev.minute}'</span>
-                  <span className="comment-author">{ev.author_name || 'Torcedor'}</span>
+                  <span className="comment-author">{ev.author_name || (ev.user_id ? 'Torcedor' : 'Jogo')}</span>
                   {canDeleteComment(ev) && (
                     <button
                       type="button"
