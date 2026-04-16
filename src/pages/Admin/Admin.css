@@ -3658,6 +3658,71 @@
   justify-content: center;
 }
 
+.lineup-required-banner {
+  margin-top: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: 14px;
+  border: 1px solid rgba(251, 191, 36, 0.28);
+  background: rgba(251, 191, 36, 0.08);
+  color: var(--text-main);
+}
+
+.lineup-required-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 240px;
+}
+
+.lineup-required-text strong {
+  font-size: 0.75rem;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--secondary);
+}
+
+.lineup-required-text span {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.lineup-required-action {
+  border-radius: 999px;
+  padding: 0.5rem 0.85rem;
+  font-size: 0.75rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  background: rgba(251, 191, 36, 0.16);
+  color: var(--secondary);
+  transition: all 0.2s ease;
+}
+
+.lineup-required-action:hover {
+  filter: brightness(1.15);
+  transform: translateY(-1px);
+}
+
+.teams-lanes.lineup-nudge {
+  box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.35), 0 0 35px rgba(251, 191, 36, 0.12);
+  animation: lineup-nudge-pulse 1.2s ease-in-out;
+}
+
+@keyframes lineup-nudge-pulse {
+  0% { transform: translateY(0); }
+  30% { transform: translateY(-2px); }
+  60% { transform: translateY(0); }
+  100% { transform: translateY(0); }
+}
+
 .live-shortcuts-tip {
   font-size: 0.75rem;
   color: var(--text-dim);

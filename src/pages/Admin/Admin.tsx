@@ -2787,9 +2787,19 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
     return null;
   }, [isPreGame, match.teams_a?.name, match.teams_b?.name, playersA, playersB, onFieldA, onFieldB]);
 
+  const lineupAnchorRef = useRef<HTMLDivElement | null>(null);
+  const [lineupNudge, setLineupNudge] = useState(false);
+
+  const scrollToLineup = () => {
+    lineupAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setLineupNudge(true);
+    window.setTimeout(() => setLineupNudge(false), 1200);
+  };
+
   const handleStartTimerWithLineup = async () => {
     if (startBlockReason) {
       toast.error(`Escalação obrigatória: ${startBlockReason}`);
+      scrollToLineup();
       return;
     }
     await handleStartTimer();
@@ -3322,7 +3332,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                     <button
                       className="timer-btn start"
                       onClick={hasStarted ? handleRetomar : handleStartTimerWithLineup}
-                      disabled={match.status === 'finalizado' || (!hasStarted && Boolean(startBlockReason))}
+                      disabled={match.status === 'finalizado'}
                       title={!hasStarted && startBlockReason ? startBlockReason : undefined}
                     >
                       <Play size={16} /> {isPostInterval && !alreadyResumedStage2 ? 'INICIAR 2º TEMPO' : (hasStarted ? 'RETOMAR' : 'COMEÇAR')}
@@ -3344,6 +3354,18 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                     <Flag size={16} /> FIM DE JOGO
                   </button>
               </div>
+
+              {!hasStarted && startBlockReason && (
+                <div className="lineup-required-banner" role="alert">
+                  <div className="lineup-required-text">
+                    <strong>Defina os titulares</strong>
+                    <span>{startBlockReason}</span>
+                  </div>
+                  <button type="button" className="lineup-required-action" onClick={scrollToLineup}>
+                    Escolher titulares
+                  </button>
+                </div>
+              )}
 
               <div className="live-shortcuts-tip">
                 Ctrl+Espaco: iniciar/pausar/retomar | Alt+1..6: tipos de evento
@@ -3535,7 +3557,10 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         )}
       </div>
         
-      <div className={`teams-lanes event-selector-active-${eventType}`}>
+      <div
+        ref={lineupAnchorRef}
+        className={`teams-lanes event-selector-active-${eventType} ${lineupNudge ? 'lineup-nudge' : ''}`}
+      >
         <div className="lane">
           <h5>{match.teams_a?.name || 'Equipe A'}</h5>
           
@@ -3574,8 +3599,15 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                       togglePlayerStatus(p.id, 'a');
                       return;
                     }
-                    if (eventType === 'gol') setGoalWizard({ team: 'a', open: true, pId: p.id });
-                    else togglePlayerStatus(p.id, 'a');
+                    if (eventType === 'gol') {
+                      setGoalWizard({ team: 'a', open: true, pId: p.id });
+                      return;
+                    }
+                    if (eventType === 'amarelo' || eventType === 'vermelho') {
+                      addEvent(p.id, 'a');
+                      return;
+                    }
+                    togglePlayerStatus(p.id, 'a');
                   }} 
                   className="p-btn bench"
                 >
@@ -3627,8 +3659,15 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                       togglePlayerStatus(p.id, 'b');
                       return;
                     }
-                    if (eventType === 'gol') setGoalWizard({ team: 'b', open: true, pId: p.id });
-                    else togglePlayerStatus(p.id, 'b');
+                    if (eventType === 'gol') {
+                      setGoalWizard({ team: 'b', open: true, pId: p.id });
+                      return;
+                    }
+                    if (eventType === 'amarelo' || eventType === 'vermelho') {
+                      addEvent(p.id, 'b');
+                      return;
+                    }
+                    togglePlayerStatus(p.id, 'b');
                   }} 
                   className="p-btn bench"
                 >
