@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase, supabaseStorage } from '../../lib/supabase';
 import { Trophy, Users, Calendar, Plus, Save, Trash2, Shield, ChevronDown, ChevronUp, Newspaper, CheckCircle, Play, Camera, Search, Settings2, Vote, ShieldAlert, Bell, Star, CreditCard, Target, Square, ArrowRightLeft, MessageSquare, Zap, Clock, Pause, RotateCcw, Coffee, Flag } from 'lucide-react';
@@ -14,6 +14,7 @@ import { type Poll, type PollOption } from '../../hooks/usePolls';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { withTimeout } from '../../lib/withTimeout';
 import { detectTournamentPhase, KNOCKOUT_PHASE_BY_ROUND, KNOCKOUT_ROUND_LABELS } from '../../lib/tournamentRules';
+import { getPendingSuspension } from '../../lib/discipline';
 import { DEFAULT_GROUP_C_VISIBILITY, normalizeGroupCVisibility, type GroupCVisibilityConfig } from '../../hooks/useTournamentConfig';
 import { toast } from 'react-hot-toast';
 import { useConfirm } from '../../hooks/useConfirm';
@@ -2428,11 +2429,17 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   const [assistantId, setAssistantId] = useState<string>('');
   const [playerOutId, setPlayerOutId] = useState<string>('');
   const [commentaryText, setCommentaryText] = useState('');
-  const [mvpData, setMvpData] = useState({ 
-    player_id: match.match_mvp_player_id || '', 
-    description: match.match_mvp_description || '' 
+  const [mvpData, setMvpData] = useState({
+    player_id: match.match_mvp_player_id || '',
+    description: match.match_mvp_description || '',
   });
-  const [mvpSaved, setMvpSaved] = useState(false);
+
+  type EndMatchMvpChoice =
+    | { action: 'cancel' }
+    | { action: 'save'; player_id: string | null; description: string };
+
+  const [endMatchMvpOpen, setEndMatchMvpOpen] = useState(false);
+  const endMatchMvpResolveRef = useRef<null | ((choice: EndMatchMvpChoice) => void)>(null);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [editEventMinute, setEditEventMinute] = useState<number>(0);
   const [isSwapped, setIsSwapped] = useState(false);
@@ -2451,6 +2458,62 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       return (old as Match[]).map((m) => (m.id === match.id ? { ...m, ...updates } : m));
     });
   };
+
+  const suggestMvpFromEvents = useCallback(() => {
+    const stats: Record<string, { participations: number; goals: number; assists: number; firstEvent: number }> = {};
+
+    (events || []).forEach((ev) => {
+      if (ev.event_type !== 'gol') return;
+
+      const goalType = (ev as any)?.metadata?.goal_type;
+      const isOwnGoal = goalType === 'contra' || Boolean(ev.commentary && String(ev.commentary).toUpperCase().includes('[CONTRA]'));
+
+      if (ev.player_id && !isOwnGoal) {
+        if (!stats[ev.player_id]) stats[ev.player_id] = { participations: 0, goals: 0, assists: 0, firstEvent: ev.minute || 9999 };
+        stats[ev.player_id].participations += 1;
+        stats[ev.player_id].goals += 1;
+        stats[ev.player_id].firstEvent = Math.min(stats[ev.player_id].firstEvent, ev.minute || 9999);
+      }
+
+      if (ev.assistant_id && !isOwnGoal) {
+        if (!stats[ev.assistant_id]) stats[ev.assistant_id] = { participations: 0, goals: 0, assists: 0, firstEvent: ev.minute || 9999 };
+        stats[ev.assistant_id].participations += 1;
+        stats[ev.assistant_id].assists += 1;
+        stats[ev.assistant_id].firstEvent = Math.min(stats[ev.assistant_id].firstEvent, ev.minute || 9999);
+      }
+    });
+
+    const sorted = Object.entries(stats)
+      .map(([playerId, s]) => ({ playerId, ...s }))
+      .sort((a, b) => {
+        if (b.participations !== a.participations) return b.participations - a.participations;
+        if (b.goals !== a.goals) return b.goals - a.goals;
+        if (b.assists !== a.assists) return b.assists - a.assists;
+        return a.firstEvent - b.firstEvent;
+      });
+
+    if (sorted.length === 0) return null;
+    const best = sorted[0];
+    return {
+      player_id: best.playerId,
+      description: `${best.participations} participações (${best.goals}G, ${best.assists}A)`,
+    };
+  }, [events]);
+
+  const promptEndMatchMvp = useCallback((initial: { player_id: string; description: string }) => {
+    setMvpData(initial);
+    setEndMatchMvpOpen(true);
+    return new Promise<EndMatchMvpChoice>((resolve) => {
+      endMatchMvpResolveRef.current = resolve;
+    });
+  }, []);
+
+  const closeEndMatchMvp = useCallback((choice: EndMatchMvpChoice) => {
+    setEndMatchMvpOpen(false);
+    const resolve = endMatchMvpResolveRef.current;
+    endMatchMvpResolveRef.current = null;
+    resolve?.(choice);
+  }, []);
 
   // --- Cronômetro Sincronizado (DB) ---
   const [seconds, setSeconds] = useState(0);
@@ -2637,6 +2700,16 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       variant: 'warning'
     }))) return;
 
+    // Escolha do craque do jogo (simples) – aparece somente aqui.
+    let chosenMvp: { player_id: string | null; description: string } | null = null;
+    if (!match.match_mvp_player_id) {
+      const suggested = suggestMvpFromEvents();
+      const initial = suggested ?? { player_id: '', description: '' };
+      const choice = await promptEndMatchMvp(initial);
+      if (choice.action === 'cancel') return;
+      chosenMvp = { player_id: choice.player_id, description: choice.description };
+    }
+
     try {
       const start = match.timer_started_at ? new Date(match.timer_started_at).getTime() : Date.now();
       const now = Date.now();
@@ -2644,13 +2717,19 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       const newOffset = match.timer_offset_seconds + diff;
       const finalOffset = match.is_timer_running ? newOffset : match.timer_offset_seconds;
 
-      const { error } = await supabase.from('matches').update({
+      const updates: Record<string, unknown> = {
         is_timer_running: false,
         timer_started_at: null,
         timer_offset_seconds: finalOffset,
         status: 'finalizado'
-      }).eq('id', match.id);
-      updateOptimisticMatch({ is_timer_running: false, timer_started_at: null, timer_offset_seconds: finalOffset, status: 'finalizado' });
+      };
+      if (chosenMvp) {
+        updates.match_mvp_player_id = chosenMvp.player_id;
+        updates.match_mvp_description = chosenMvp.description;
+      }
+
+      const { error } = await supabase.from('matches').update(updates).eq('id', match.id);
+      updateOptimisticMatch(updates as Partial<Match>);
       if (error) throw error;
 
       await supabase.from('match_events').insert({
@@ -2736,7 +2815,24 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   const normalizePosition = (value?: string | null) => (value || '').trim().toLowerCase();
   const isGoalkeeper = (p?: { position?: string | null }) => normalizePosition(p?.position) === 'goleiro';
 
-  const isPreGame = match.status === 'agendado' && !hasStarted;
+  // Pre-jogo aqui significa: cronometro ainda nao iniciou (independente do status estar 'agendado' ou 'ao_vivo').
+  // Isso garante que a escalação seja exigida antes do apito inicial.
+  const isPreGame = match.status !== 'finalizado' && !hasStarted;
+
+  const isSuspendedForNextMatch = (player?: { yellow_cards?: number | null; red_cards?: number | null; suspensions_served?: number | null }) => {
+    if (!player) return false;
+    const pending = getPendingSuspension({
+      yellow_cards: player.yellow_cards ?? 0,
+      red_cards: player.red_cards ?? 0,
+      suspensions_served: player.suspensions_served ?? 0,
+    });
+    return pending.isSuspended && pending.pendingGames > 0;
+  };
+
+  const renderSuspendedChip = (player: { yellow_cards?: number | null; red_cards?: number | null; suspensions_served?: number | null }) => {
+    if (!isSuspendedForNextMatch(player)) return null;
+    return <span className="p-susp-chip">SUSPENSO</span>;
+  };
 
   const computeLineupMeta = (roster: typeof playersA, ids: string[]) => {
     const selected = (roster || []).filter((p) => ids.includes(p.id));
@@ -2760,6 +2856,15 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
     if (!list.some(isGoalkeeper)) {
       return `${teamName}: cadastre 1 goleiro (posição = Goleiro) para iniciar.`;
+    }
+
+    // Regra de suspensao: 2 amarelos ou 1 vermelho => nao pode jogar o proximo jogo.
+    // Antes de iniciar o jogo, bloqueamos qualquer suspenso na escalação.
+    const suspendedSelected = list
+      .filter((p) => ids.includes(p.id))
+      .find((p) => isSuspendedForNextMatch(p));
+    if (suspendedSelected) {
+      return `${teamName}: ${suspendedSelected.name} está suspenso (2 amarelos ou 1 vermelho).`;
     }
 
     if (ids.length !== 5) {
@@ -2852,6 +2957,10 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
     const validateNext = (prev: string[]): ValidateRes => {
       if (prev.includes(playerId)) {
         return { ok: true, next: prev.filter((id) => id !== playerId) };
+      }
+
+      if (isPreGame && isSuspendedForNextMatch(player)) {
+        return { ok: false, reason: `${targetName}: ${player.name} está suspenso (2 amarelos ou 1 vermelho).` };
       }
 
       if (prev.length >= 5) {
@@ -3049,7 +3158,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
   const removeEvent = async (event: MatchEvent) => {
     if (!confirm('Deseja realmente excluir este lance? Isso reverterá placares e estatísticas.')) return;
-    
+
     try {
       if (event.event_type === 'gol') {
         if (!event.player_id) throw new Error('Evento de gol sem jogador vinculado');
@@ -3068,11 +3177,17 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         // Gol contra não incrementa `goals_count` (e nem assistência) — não reverte.
         if (!isOwnGoal) {
           const { data: p } = await supabase.from('players').select('goals_count').eq('id', event.player_id).single();
-          await supabase.from('players').update({ goals_count: Math.max(0, (p?.goals_count || 0) - 1) }).eq('id', event.player_id);
+          await supabase
+            .from('players')
+            .update({ goals_count: Math.max(0, (p?.goals_count || 0) - 1) })
+            .eq('id', event.player_id);
 
           if (event.assistant_id) {
             const { data: ast } = await supabase.from('players').select('assists').eq('id', event.assistant_id).single();
-            await supabase.from('players').update({ assists: Math.max(0, (ast?.assists || 0) - 1) }).eq('id', event.assistant_id);
+            await supabase
+              .from('players')
+              .update({ assists: Math.max(0, (ast?.assists || 0) - 1) })
+              .eq('id', event.assistant_id);
           }
         }
       }
@@ -3080,11 +3195,17 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       if (event.event_type === 'amarelo') {
         if (!event.player_id) throw new Error('Evento de cartão sem jogador vinculado');
         const { data: p } = await supabase.from('players').select('yellow_cards').eq('id', event.player_id).single();
-        await supabase.from('players').update({ yellow_cards: Math.max(0, (p?.yellow_cards || 0) - 1) }).eq('id', event.player_id);
+        await supabase
+          .from('players')
+          .update({ yellow_cards: Math.max(0, (p?.yellow_cards || 0) - 1) })
+          .eq('id', event.player_id);
       } else if (event.event_type === 'vermelho') {
         if (!event.player_id) throw new Error('Evento de cartão sem jogador vinculado');
         const { data: p } = await supabase.from('players').select('red_cards').eq('id', event.player_id).single();
-        await supabase.from('players').update({ red_cards: Math.max(0, (p?.red_cards || 0) - 1) }).eq('id', event.player_id);
+        await supabase
+          .from('players')
+          .update({ red_cards: Math.max(0, (p?.red_cards || 0) - 1) })
+          .eq('id', event.player_id);
       }
 
       await supabase.from('match_events').delete().eq('id', event.id);
@@ -3113,7 +3234,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         const currentScore = team === 'a' ? (match.team_a_score || 0) : (match.team_b_score || 0);
         const newScoreValue = Math.max(0, currentScore + increment);
         const updateData = team === 'a' ? { team_a_score: newScoreValue } : { team_b_score: newScoreValue };
-        
+
         updateOptimisticMatch(updateData);
         await supabase.from('matches').update(updateData).eq('id', match.id);
         vibrate(40);
@@ -3191,11 +3312,11 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
     return { label: 'Aguardando', tone: 'idle' };
   }, [events, hasStarted, isActive, match.status]);
 
-  const isPostInterval = useMemo(() => 
+  const isPostInterval = useMemo(() =>
     events.some(e => e.event_type === 'comentario' && e.commentary?.includes('Fim do 1º Tempo')),
   [events]);
 
-  const alreadyResumedStage2 = useMemo(() => 
+  const alreadyResumedStage2 = useMemo(() =>
     events.some(e => e.event_type === 'comentario' && e.commentary?.includes('Início do 2º Tempo')),
   [events]);
 
@@ -3222,6 +3343,79 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
   return (
     <div className="live-event-panel-wrapper">
+      {endMatchMvpOpen && (
+        <div className="confirm-overlay">
+          <div className="confirm-modal glass mvp-auto-modal" onClick={(e) => e.stopPropagation()}>
+            <h3 className="confirm-title">⭐ Craque do Jogo</h3>
+            <p className="confirm-desc">Selecione o craque antes de finalizar a partida.</p>
+
+            <div className="form-grid" style={{ width: '100%' }}>
+              <div className="form-group">
+                <label>Jogador</label>
+                <select
+                  className="mvp-player-select"
+                  value={mvpData.player_id}
+                  onChange={(e) => setMvpData((prev) => ({ ...prev, player_id: e.target.value }))}
+                >
+                  <option value="">Selecione...</option>
+                  {playersA.length > 0 && (
+                    <optgroup label={match.teams_a?.name}>
+                      {(playersA || []).map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.number}. {p.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {playersB.length > 0 && (
+                    <optgroup label={match.teams_b?.name}>
+                      {(playersB || []).map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.number}. {p.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Observação (opcional)</label>
+                <input
+                  type="text"
+                  className="mvp-desc-input"
+                  placeholder="Ex: 2 gols"
+                  value={mvpData.description}
+                  onChange={(e) => setMvpData((prev) => ({ ...prev, description: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="confirm-actions" style={{ width: '100%' }}>
+              <button className="btn-cancel" onClick={() => closeEndMatchMvp({ action: 'cancel' })}>
+                Cancelar
+              </button>
+              <button className="btn-cancel" onClick={() => closeEndMatchMvp({ action: 'save', player_id: null, description: '' })}>
+                Pular
+              </button>
+              <button
+                className="btn-save"
+                disabled={!mvpData.player_id}
+                onClick={() =>
+                  closeEndMatchMvp({
+                    action: 'save',
+                    player_id: mvpData.player_id || null,
+                    description: mvpData.description,
+                  })
+                }
+              >
+                Salvar e finalizar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Goal Wizard Modal */}
       <AnimatePresence>
         {goalWizard.open && (
@@ -3582,6 +3776,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                 >
                   <span className="p-num">{p.number}</span>
                   <span className="p-name">{p.name.split(' ')[0]}</span>
+                  {renderSuspendedChip(p)}
                   <ChevronDown size={10} className="btn-status-toggle" onClick={(e) => { e.stopPropagation(); togglePlayerStatus(p.id, 'a'); }} />
                 </button>
               ))}
@@ -3609,10 +3804,13 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                     }
                     togglePlayerStatus(p.id, 'a');
                   }} 
-                  className="p-btn bench"
+                  className={`p-btn bench${isPreGame && isSuspendedForNextMatch(p) ? ' is-suspended' : ''}`}
+                  disabled={isPreGame && isSuspendedForNextMatch(p)}
+                  title={isPreGame && isSuspendedForNextMatch(p) ? 'Suspenso por 2 amarelos ou 1 vermelho' : undefined}
                 >
                   <span className="p-num">{p.number}</span>
                   <span className="p-name">{p.name.split(' ')[0]}</span>
+                  {renderSuspendedChip(p)}
                 </button>
               ))}
             </div>
@@ -3642,6 +3840,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                 >
                   <span className="p-num">{p.number}</span>
                   <span className="p-name">{p.name.split(' ')[0]}</span>
+                  {renderSuspendedChip(p)}
                   <ChevronDown size={10} className="btn-status-toggle" onClick={(e) => { e.stopPropagation(); togglePlayerStatus(p.id, 'b'); }} />
                 </button>
               ))}
@@ -3669,10 +3868,13 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                     }
                     togglePlayerStatus(p.id, 'b');
                   }} 
-                  className="p-btn bench"
+                  className={`p-btn bench${isPreGame && isSuspendedForNextMatch(p) ? ' is-suspended' : ''}`}
+                  disabled={isPreGame && isSuspendedForNextMatch(p)}
+                  title={isPreGame && isSuspendedForNextMatch(p) ? 'Suspenso por 2 amarelos ou 1 vermelho' : undefined}
                 >
                   <span className="p-num">{p.number}</span>
                   <span className="p-name">{p.name.split(' ')[0]}</span>
+                  {renderSuspendedChip(p)}
                 </button>
               ))}
             </div>
@@ -3761,114 +3963,6 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
               <div className="final-stats-row"><span>Gols contra</span><strong>{finalStats.b.ownGoals}</strong></div>
             </div>
           </div>
-        </div>
-      )}
-
-      {match.status === 'finalizado' && (
-        <div className="mvp-selection-admin">
-          <div className="mvp-admin-header">
-            <h6>⭐ Definir Craque do Jogo</h6>
-            <button 
-              className="btn-suggest-mvp" 
-              onClick={() => {
-                const stats: Record<string, { points: number, goals: number, firstEvent: number }> = {};
-                
-                events.forEach(ev => {
-                  if (ev.event_type === 'gol') {
-                    if (!ev.player_id) return;
-                    // Gols (ignorando contra-gols que têm [CONTRA] no comentário)
-                    const isOwnGoal = ev.commentary?.includes('[CONTRA]');
-                    if (!isOwnGoal) {
-                      if (!stats[ev.player_id]) stats[ev.player_id] = { points: 0, goals: 0, firstEvent: ev.minute };
-                      stats[ev.player_id].points += 1;
-                      stats[ev.player_id].goals += 1;
-                      if (ev.minute < stats[ev.player_id].firstEvent) stats[ev.player_id].firstEvent = ev.minute;
-                    }
-                    // Assistências via evento direto ou metadado de gol
-                    const assId = ev.assistant_id;
-                    if (assId) {
-                      if (!stats[assId]) stats[assId] = { points: 0, goals: 0, firstEvent: ev.minute };
-                      stats[assId].points += 1;
-                      if (ev.minute < stats[assId].firstEvent) stats[assId].firstEvent = ev.minute;
-                    }
-                  }
-                });
-
-                const sorted = Object.entries(stats).sort(([, a], [, b]) => {
-                  if (b.points !== a.points) return b.points - a.points;
-                  if (b.goals !== a.goals) return b.goals - a.goals;
-                  return a.firstEvent - b.firstEvent;
-                });
-
-                if (sorted.length > 0) {
-                  const [bestId, bestStats] = sorted[0];
-                  const player = [...playersA, ...playersB].find(p => p.id === bestId);
-                  if (player) {
-                    setMvpData({
-                      player_id: bestId,
-                      description: `${bestStats.goals} Gol(s) e ${bestStats.points - bestStats.goals} Assistência(s)`
-                    });
-                  }
-                } else {
-                  toast.error('Nenhum gol ou assistência registrado nesta partida para sugerir.');
-                }
-              }}
-            >
-              ⭐ Sugerir por Estatísticas
-            </button>
-          </div>
-          <div className="form-grid">
-            <div className="form-group">
-              <label>Jogador Destaque</label>
-              <select 
-                className="mvp-player-select"
-                value={mvpData.player_id}
-                onChange={e => setMvpData({ ...mvpData, player_id: e.target.value })}
-              >
-                <option value="">Selecione o craque...</option>
-                {playersA.length > 0 && (
-                  <optgroup label={match.teams_a?.name}>
-                    {(playersA || []).map(p => <option key={p.id} value={p.id}>{p.number}. {p.name}</option>)}
-                  </optgroup>
-                )}
-                {playersB.length > 0 && (
-                  <optgroup label={match.teams_b?.name}>
-                    {(playersB || []).map(p => <option key={p.id} value={p.id}>{p.number}. {p.name}</option>)}
-                  </optgroup>
-                )}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Por que foi o craque? (Opcional)</label>
-              <input 
-                type="text"
-                className="mvp-desc-input"
-                placeholder="Ex: 2 gols e comandou o meio-campo"
-                value={mvpData.description}
-                onChange={e => setMvpData({ ...mvpData, description: e.target.value })}
-              />
-            </div>
-          </div>
-          <button 
-            className="btn-save" 
-            onClick={async () => {
-              try {
-                const { error } = await supabase.from('matches')
-                  .update({ 
-                    match_mvp_player_id: mvpData.player_id || null,
-                    match_mvp_description: mvpData.description 
-                  })
-                  .eq('id', match.id);
-                if (error) throw error;
-                setMvpSaved(true);
-                setTimeout(() => setMvpSaved(false), 2000);
-              } catch (err: unknown) {
-                toast.error(getErrorMessage(err, 'Erro ao salvar craque do jogo'));
-              }
-            }}
-          >
-            {mvpSaved ? <><CheckCircle size={18} /> Salvo!</> : <><Save size={18} /> Salvar Craque do Jogo</>}
-          </button>
         </div>
       )}
       {ConfirmElement}

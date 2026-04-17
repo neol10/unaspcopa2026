@@ -25,6 +25,9 @@ const Brackets: React.FC = () => {
   const dragFrameRef = useRef<number | null>(null);
   const lastDragXRef = useRef(0);
   const touchIntentRef = useRef<'unknown' | 'horizontal' | 'vertical'>('unknown');
+  const lastPointerTypeRef = useRef<'mouse' | 'touch' | 'pen' | 'unknown'>('unknown');
+  const touchStartRef = useRef<{ x: number; y: number; ts: number } | null>(null);
+  const touchMaxDistanceRef = useRef(0);
   const [activeFilter, setActiveFilter] = useState<'all' | 'live' | 'today' | 'favorite'>('all');
   const [favoriteTeamId, setFavoriteTeamId] = useState<string | null>(null);
   const [nowTs, setNowTs] = useState(() => Date.now());
@@ -442,6 +445,10 @@ const Brackets: React.FC = () => {
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!scrollRef.current) return;
 
+    lastPointerTypeRef.current = (e.pointerType === 'mouse' || e.pointerType === 'touch' || e.pointerType === 'pen')
+      ? e.pointerType
+      : 'unknown';
+
     if (viewMode === 'teia') {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -467,6 +474,8 @@ const Brackets: React.FC = () => {
       setIsDragging(false);
       dragMovedRef.current = false;
       touchIntentRef.current = 'unknown';
+      touchStartRef.current = { x: e.pageX, y: e.pageY, ts: Date.now() };
+      touchMaxDistanceRef.current = 0;
       containerLeftRef.current = scrollRef.current.getBoundingClientRect().left;
       startXRef.current = e.pageX - containerLeftRef.current;
       startYRef.current = e.pageY;
@@ -514,9 +523,16 @@ const Brackets: React.FC = () => {
       if (!scrollRef.current) return;
       if (!isPointerDown) return;
 
+      if (touchStartRef.current) {
+        const tdx = e.pageX - touchStartRef.current.x;
+        const tdy = e.pageY - touchStartRef.current.y;
+        const dist = Math.hypot(tdx, tdy);
+        if (dist > touchMaxDistanceRef.current) touchMaxDistanceRef.current = dist;
+      }
+
       const dx = e.pageX - containerLeftRef.current - startXRef.current;
       const dy = e.pageY - startYRef.current;
-      const exceededThreshold = Math.abs(dx) + Math.abs(dy) > 8;
+      const exceededThreshold = Math.abs(dx) + Math.abs(dy) > 14;
 
       if (touchIntentRef.current === 'unknown' && exceededThreshold) {
         touchIntentRef.current = Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical';
@@ -797,10 +813,20 @@ const Brackets: React.FC = () => {
       return <span className="scheduled-label">PREVISTO</span>;
     };
 
-    const isClickable = isLive || isFinished;
+    // Em "Jogos", o usuário espera abrir qualquer partida para ver detalhes.
+    // A Central da Partida lida com jogos agendados normalmente (via ?id=...).
+    const isClickable = Boolean(match.id);
 
     const openMatch = () => {
-      if (dragMovedRef.current || !isClickable) return;
+      if (!isClickable) return;
+
+      // Em mobile, um tap pode ter micro-movimento e acabar marcado como "drag".
+      // Permitimos abrir se foi touch e o deslocamento total ficou pequeno.
+      if (dragMovedRef.current) {
+        const isTouch = lastPointerTypeRef.current === 'touch';
+        const isLikelyTap = isTouch && touchMaxDistanceRef.current <= 12;
+        if (!isLikelyTap) return;
+      }
       navigate({ pathname: '/central-da-partida', search: `?id=${encodeURIComponent(match.id)}` });
     };
 

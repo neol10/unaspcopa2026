@@ -248,34 +248,29 @@ export const useRankings = () => {
 
       const playersData = playersRes.data || [];
 
-      // --- UNIDADES FINALIZADAS (fase de grupos) ---
-      // A unidade (Noite ou Rodada) só é considerada finalizada quando TODAS as partidas daquela unidade
-      // estão com status 'finalizado'. Mata-mata (round >= 1000) nao entra nessa conta.
-      const unitTotals: Record<string, { total: number; finalized: number }> = {};
-      matchesData.forEach((m) => {
-        const roundValue = Number(m.round || 0);
-        if (!Number.isFinite(roundValue) || roundValue >= 1000) return;
-
-        const unitValue = groupUnit === 'round' ? roundValue : (m as any).night;
-        const unitKey = unitValue === null || unitValue === undefined ? '' : String(unitValue).trim();
-        if (!unitKey) return;
-
-        if (!unitTotals[unitKey]) unitTotals[unitKey] = { total: 0, finalized: 0 };
-        unitTotals[unitKey].total += 1;
-        if (m.status === 'finalizado') unitTotals[unitKey].finalized += 1;
-      });
-
-      const completedUnits = new Set(
-        Object.entries(unitTotals)
-          .filter(([, v]) => v.total > 0 && v.finalized === v.total)
-          .map(([unit]) => unit),
-      );
+      const currentUnitValueRaw = config?.current_phase === 'grupos' ? (config?.current_round ?? null) : null;
+      const currentUnitKey = currentUnitValueRaw === null || currentUnitValueRaw === undefined ? '' : String(currentUnitValueRaw).trim();
 
       // Contabilizar votos por jogador
       const voteCounts: Record<string, number> = {};
       votesData.forEach(v => {
         if (v.player_id) {
           voteCounts[v.player_id] = (voteCounts[v.player_id] || 0) + 1;
+        }
+      });
+
+      // Assistências computadas por eventos (mais confiável do que depender do contador em players)
+      const assistCounts: Record<string, number> = {};
+      eventsData.forEach((ev) => {
+        if (ev.event_type === 'gol') {
+          const goalType = (ev as any)?.metadata?.goal_type;
+          const isOwnGoal = goalType === 'contra' || Boolean(ev.metadata?.goal_type === 'contra');
+          if (isOwnGoal) return;
+          if (ev.assistant_id) assistCounts[ev.assistant_id] = (assistCounts[ev.assistant_id] || 0) + 1;
+          return;
+        }
+        if (ev.event_type === 'assistencia' && ev.player_id) {
+          assistCounts[ev.player_id] = (assistCounts[ev.player_id] || 0) + 1;
         }
       });
 
@@ -289,7 +284,10 @@ export const useRankings = () => {
       const teamGoalsAgainst: Record<string, number> = {};
       const teamMatchesPlayed: Record<string, number> = {};
       matchesData.forEach((m) => {
-        if (m.status !== 'finalizado' && m.status !== 'ao_vivo') return;
+        const scoreA = m.team_a_score || 0;
+        const scoreB = m.team_b_score || 0;
+        const looksPlayed = m.status === 'finalizado' || m.status === 'ao_vivo' || scoreA > 0 || scoreB > 0;
+        if (!looksPlayed) return;
         teamGoalsAgainst[m.team_a_id] = (teamGoalsAgainst[m.team_a_id] || 0) + (m.team_b_score || 0);
         teamGoalsAgainst[m.team_b_id] = (teamGoalsAgainst[m.team_b_id] || 0) + (m.team_a_score || 0);
 
@@ -297,23 +295,27 @@ export const useRankings = () => {
         teamMatchesPlayed[m.team_b_id] = (teamMatchesPlayed[m.team_b_id] || 0) + 1;
       });
 
-      const fairPlayList = [...playersWithTeam]
+      const mostCardedList = [...playersWithTeam]
         .map((p) => ({
           ...p,
           fair_play_points: (p.red_cards || 0) * 3 + (p.yellow_cards || 0),
         }))
+        .filter((p) => ((p.yellow_cards || 0) + (p.red_cards || 0)) > 0)
         .sort((a, b) => {
-          if ((a.fair_play_points || 0) !== (b.fair_play_points || 0)) {
-            return (a.fair_play_points || 0) - (b.fair_play_points || 0);
-          }
-          if ((a.red_cards || 0) !== (b.red_cards || 0)) return (a.red_cards || 0) - (b.red_cards || 0);
-          if ((a.yellow_cards || 0) !== (b.yellow_cards || 0)) return (a.yellow_cards || 0) - (b.yellow_cards || 0);
+          const aTotal = (a.yellow_cards || 0) + (a.red_cards || 0);
+          const bTotal = (b.yellow_cards || 0) + (b.red_cards || 0);
+          if (bTotal !== aTotal) return bTotal - aTotal;
+          if ((b.red_cards || 0) !== (a.red_cards || 0)) return (b.red_cards || 0) - (a.red_cards || 0);
+          if ((b.yellow_cards || 0) !== (a.yellow_cards || 0)) return (b.yellow_cards || 0) - (a.yellow_cards || 0);
           return a.name.localeCompare(b.name);
         })
-        .slice(0, 10);
+        .slice(0, 20);
 
       const goldenGloveList = [...playersWithTeam]
-        .filter((p) => p.position === 'Goleiro')
+        .filter((p) => {
+          const pos = (p.position || '').toString().trim().toLowerCase();
+          return pos === 'goleiro' || pos === 'gol' || pos === 'gk' || pos.includes('gole');
+        })
         .map((p) => ({
           ...p,
           goals_conceded: teamGoalsAgainst[p.team_id] || 0,
@@ -328,69 +330,72 @@ export const useRankings = () => {
         })
         .slice(0, 10);
 
-      // --- LOGICA CRAQUE DA UNIDADE (NOITE/RODADA) ---
-      const roundStats: Record<string, Record<string, { points: number, goals: number, firstEvent: number }>> = {};
-      const roundsFound = new Set<string>();
+      // --- LOGICA CRAQUE DA UNIDADE ATUAL (NOITE/RODADA) ---
+      const unitStats: Record<string, { points: number; goals: number; assists: number; firstEvent: number }> = {};
+      const canComputeCurrentUnit = Boolean(currentUnitKey);
 
-      eventsData.forEach(ev => {
-        const roundValue = Number(ev.matches?.round || 0);
-        if (!Number.isFinite(roundValue) || roundValue >= 1000) return;
+      if (canComputeCurrentUnit) {
+        eventsData.forEach((ev) => {
+          const roundValue = Number(ev.matches?.round || 0);
+          if (!Number.isFinite(roundValue) || roundValue >= 1000) return;
 
-        const unitValue = groupUnit === 'round' ? roundValue : ev.matches?.night;
-        const unitKey = unitValue === null || unitValue === undefined ? '' : String(unitValue).trim();
-        if (!unitKey) return;
+          const unitValue = groupUnit === 'round' ? roundValue : ev.matches?.night;
+          const unitKey = unitValue === null || unitValue === undefined ? '' : String(unitValue).trim();
+          if (unitKey !== currentUnitKey) return;
 
-        // Só computa “Craque” para unidades finalizadas
-        if (!completedUnits.has(unitKey)) return;
-        roundsFound.add(unitKey);
+          if (ev.event_type === 'gol') {
+            const goalType = (ev as any)?.metadata?.goal_type;
+            const isOwnGoal = goalType === 'contra' || Boolean(ev.commentary && String(ev.commentary).toUpperCase().includes('[CONTRA]'));
+            if (ev.player_id && !isOwnGoal) {
+              if (!unitStats[ev.player_id]) unitStats[ev.player_id] = { points: 0, goals: 0, assists: 0, firstEvent: ev.minute };
+              unitStats[ev.player_id].points += 1;
+              unitStats[ev.player_id].goals += 1;
+              if (ev.minute < unitStats[ev.player_id].firstEvent) unitStats[ev.player_id].firstEvent = ev.minute;
+            }
+            if (ev.assistant_id && !isOwnGoal) {
+              if (!unitStats[ev.assistant_id]) unitStats[ev.assistant_id] = { points: 0, goals: 0, assists: 0, firstEvent: ev.minute };
+              unitStats[ev.assistant_id].points += 1;
+              unitStats[ev.assistant_id].assists += 1;
+              if (ev.minute < unitStats[ev.assistant_id].firstEvent) unitStats[ev.assistant_id].firstEvent = ev.minute;
+            }
+          }
 
-        if (!roundStats[unitKey]) roundStats[unitKey] = {};
-
-        // Gols
-        if (ev.event_type === 'gol' && ev.metadata?.goal_type !== 'contra' && ev.player_id) {
-          if (!roundStats[unitKey][ev.player_id]) roundStats[unitKey][ev.player_id] = { points: 0, goals: 0, firstEvent: ev.minute };
-          roundStats[unitKey][ev.player_id].points += 1;
-          roundStats[unitKey][ev.player_id].goals += 1;
-          if (ev.minute < roundStats[unitKey][ev.player_id].firstEvent) roundStats[unitKey][ev.player_id].firstEvent = ev.minute;
-        }
-
-        // Assistências
-        const assId = ev.assistant_id || (ev.event_type === 'assistencia' ? ev.player_id : null);
-        if (assId) {
-          if (!roundStats[unitKey][assId]) roundStats[unitKey][assId] = { points: 0, goals: 0, firstEvent: ev.minute };
-          roundStats[unitKey][assId].points += 1;
-          if (ev.minute < roundStats[unitKey][assId].firstEvent) roundStats[unitKey][assId].firstEvent = ev.minute;
-        }
-      });
+          if (ev.event_type === 'assistencia' && ev.player_id) {
+            if (!unitStats[ev.player_id]) unitStats[ev.player_id] = { points: 0, goals: 0, assists: 0, firstEvent: ev.minute };
+            unitStats[ev.player_id].points += 1;
+            unitStats[ev.player_id].assists += 1;
+            if (ev.minute < unitStats[ev.player_id].firstEvent) unitStats[ev.player_id].firstEvent = ev.minute;
+          }
+        });
+      }
 
       const calculatedRoundMvps: Record<string, RankingPlayer> = {};
-      Object.keys(roundStats).forEach(round => {
-        const sorted = Object.entries(roundStats[round]).sort(([, a], [, b]) => {
+      if (canComputeCurrentUnit) {
+        const sorted = Object.entries(unitStats).sort(([, a], [, b]) => {
           if (b.points !== a.points) return b.points - a.points;
           if (b.goals !== a.goals) return b.goals - a.goals;
+          if (b.assists !== a.assists) return b.assists - a.assists;
           return a.firstEvent - b.firstEvent;
         });
-
         if (sorted.length > 0) {
           const winnerId = sorted[0][0];
-          const player = playersWithTeam.find(p => p.id === winnerId);
-          if (player) calculatedRoundMvps[round] = player;
+          const player = playersWithTeam.find((p) => p.id === winnerId);
+          if (player) calculatedRoundMvps[currentUnitKey] = player;
         }
-      });
+      }
 
-      const sortedRounds = Array.from(roundsFound).sort((a, b) => {
-        const numA = parseInt(a);
-        const numB = parseInt(b);
-        if (isNaN(numA) || isNaN(numB)) return a.localeCompare(b);
-        return numA - numB;
-      });
+      const sortedRounds = currentUnitKey ? [currentUnitKey] : [];
 
       const result = {
         scorers: [...playersWithTeam].sort((a, b) => b.goals_count - a.goals_count).filter(p => p.goals_count > 0).slice(0, 10),
-        assistants: [...playersWithTeam].sort((a, b) => b.assists - a.assists).filter(p => p.assists > 0).slice(0, 10),
+        assistants: [...playersWithTeam]
+          .map((p) => ({ ...p, assists: assistCounts[p.id] ?? p.assists ?? 0 }))
+          .sort((a, b) => (b.assists || 0) - (a.assists || 0))
+          .filter((p) => (p.assists || 0) > 0)
+          .slice(0, 10),
         goalkeepers: goldenGloveList,
         galeraRank: [...playersWithTeam].filter(p => p.mvp_votes > 0).sort((a, b) => b.mvp_votes - a.mvp_votes).slice(0, 10),
-        disciplined: fairPlayList,
+        disciplined: mostCardedList,
         roundMvps: calculatedRoundMvps,
         availableRounds: sortedRounds
       };

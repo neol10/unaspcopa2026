@@ -21,6 +21,167 @@ import FeedbackModal from '../Feedback/FeedbackModal';
 import { useDivisionContext } from '../../contexts/DivisionContext';
 import './Layout.css';
 
+type ConfettiPiece = {
+  key: number;
+  initialX: number;
+  leftPct: number;
+  durationSec: number;
+  color: string;
+};
+
+const GoalOverlayLayer: React.FC<{ isAdminRoute: boolean; division: string }> = ({ isAdminRoute, division }) => {
+  const [goalOverlay, setGoalOverlay] = useState<GoalOverlayPayload | null>(null);
+  const torcidaAudioRef = useRef<HTMLAudioElement | null>(null);
+  const lastGoalOverlayRef = useRef<{ id: string | null; at: number }>({ id: null, at: 0 });
+  const hideTimeoutRef = useRef<number | null>(null);
+  const [confettiSeed, setConfettiSeed] = useState(0);
+
+  useEffect(() => {
+    // Preload + unlock do áudio (mobile bloqueia autoplay sem gesto do usuário)
+    const audio = new Audio('/audio/goal-crowd.mp3');
+    audio.preload = 'auto';
+    audio.volume = 0.8;
+    torcidaAudioRef.current = audio;
+
+    let unlocked = false;
+    const tryUnlock = async () => {
+      if (unlocked) return;
+      unlocked = true;
+      try {
+        audio.muted = true;
+        await audio.play();
+        audio.pause();
+        audio.currentTime = 0;
+        audio.muted = false;
+      } catch {
+        // Se falhar, tentamos de novo no próximo gesto
+        unlocked = false;
+      }
+    };
+
+    window.addEventListener('pointerdown', tryUnlock, { passive: true });
+    window.addEventListener('keydown', tryUnlock);
+    return () => {
+      window.removeEventListener('pointerdown', tryUnlock);
+      window.removeEventListener('keydown', tryUnlock);
+    };
+  }, []);
+
+  useEffect(() => {
+    const unsub = onGoalOverlay((payload) => {
+      if (isAdminRoute) return;
+      if (payload.division && payload.division !== division) return;
+
+      const incomingId = typeof payload.id === 'string' && payload.id.length > 0 ? payload.id : null;
+      if (incomingId) {
+        const prev = lastGoalOverlayRef.current;
+        const now = Date.now();
+        if (prev.id === incomingId && now - prev.at < 3000) return;
+        lastGoalOverlayRef.current = { id: incomingId, at: now };
+      }
+
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate([70, 30, 140]);
+      }
+
+      const goalAudio = torcidaAudioRef.current;
+      if (goalAudio) {
+        try {
+          goalAudio.currentTime = 0;
+        } catch {
+          // ignore
+        }
+        goalAudio.play().catch((e) => console.warn('Audio auto-play blocked:', e));
+      }
+
+      setGoalOverlay(payload);
+      setConfettiSeed((s) => s + 1);
+
+      if (hideTimeoutRef.current !== null) {
+        window.clearTimeout(hideTimeoutRef.current);
+      }
+      hideTimeoutRef.current = window.setTimeout(() => setGoalOverlay(null), 5000);
+    });
+
+    return () => {
+      if (hideTimeoutRef.current !== null) {
+        window.clearTimeout(hideTimeoutRef.current);
+        hideTimeoutRef.current = null;
+      }
+      unsub();
+    };
+  }, [isAdminRoute, division]);
+
+  const confettiPieces = useMemo(() => {
+    if (!goalOverlay) return [] as ConfettiPiece[];
+
+    // Gera 1x por overlay (evita recalcular Math.random durante re-renders)
+    return Array.from({ length: 14 }).map((_, i) => ({
+      key: i,
+      initialX: Math.random() * 400 - 200,
+      leftPct: Math.random() * 100,
+      durationSec: Math.random() * 2 + 1,
+      color: i % 2 === 0 ? 'var(--secondary)' : 'var(--primary)',
+    }));
+  }, [goalOverlay, confettiSeed]);
+
+  return (
+    <AnimatePresence>
+      {!isAdminRoute && goalOverlay && (
+        <motion.div
+          className="goal-overlay-premium"
+          initial={{ opacity: 0, scale: 0.5 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 1.5 }}
+          transition={{ type: 'spring', damping: 12 }}
+        >
+          <motion.div
+            className="goal-announcement"
+            animate={{ y: [0, -20, 0] }}
+            transition={{ repeat: Infinity, duration: 2 }}
+          >
+            <div className="goal-hero-row">
+              <div className="goal-icon-container">
+                <span className="goal-ball-emoji">⚽</span>
+              </div>
+              {goalOverlay.playerPhotoUrl && (
+                <motion.div
+                  className="goal-player-photo"
+                  initial={{ opacity: 0, scale: 0.6, rotate: -8 }}
+                  animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                  transition={{ type: 'spring', damping: 14, stiffness: 260 }}
+                >
+                  <img src={goalOverlay.playerPhotoUrl} alt={goalOverlay.player} loading="eager" decoding="async" />
+                </motion.div>
+              )}
+            </div>
+            <h1 className="goal-text">GOOOOOOOL!</h1>
+            <div className="goal-details">
+              <span className="goal-team">{goalOverlay.team}</span>
+              <span className="goal-player">{goalOverlay.player}</span>
+            </div>
+          </motion.div>
+          <div className="confetti-container">
+            {confettiPieces.map((piece) => (
+              <motion.div
+                key={piece.key}
+                className="confetti-piece"
+                initial={{ y: -100, x: piece.initialX, opacity: 1 }}
+                animate={{ y: 800, rotate: 360 }}
+                transition={{ duration: piece.durationSec, repeat: Infinity }}
+                style={{
+                  backgroundColor: piece.color,
+                  left: `${piece.leftPct}%`,
+                }}
+              />
+            ))}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { theme, toggleTheme } = useTheme();
   const { user, role, signOut } = useAuthContext();
@@ -34,9 +195,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
-  const [goalOverlay, setGoalOverlay] = useState<GoalOverlayPayload | null>(null);
-  const torcidaAudioRef = useRef<HTMLAudioElement | null>(null);
-  const lastGoalOverlayRef = useRef<{ id: string | null; at: number }>({ id: null, at: 0 });
   const matchesByIdRef = useRef<Map<string, Match>>(new Map());
   const seenGoalEventIdsRef = useRef<Map<string, number>>(new Map());
   const queryClient = useQueryClient();
@@ -117,38 +275,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   });
 
   useEffect(() => {
-    // Preload + unlock do áudio (mobile bloqueia autoplay sem gesto do usuário)
-    const audio = new Audio('/audio/goal-crowd.mp3');
-    audio.preload = 'auto';
-    audio.volume = 0.8;
-    torcidaAudioRef.current = audio;
-
-    let unlocked = false;
-    const tryUnlock = async () => {
-      if (unlocked) return;
-      unlocked = true;
-      try {
-        audio.muted = true;
-        await audio.play();
-        audio.pause();
-        audio.currentTime = 0;
-        audio.muted = false;
-      } catch {
-        // Se falhar, tentamos de novo no próximo gesto
-        unlocked = false;
-      }
-    };
-
-    window.addEventListener('pointerdown', tryUnlock, { passive: true });
-    window.addEventListener('keydown', tryUnlock);
-
     const onOnline = () => setIsOnline(true);
     const onOffline = () => setIsOnline(false);
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
     return () => {
-      window.removeEventListener('pointerdown', tryUnlock);
-      window.removeEventListener('keydown', tryUnlock);
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
     };
@@ -169,41 +300,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   useEffect(() => {
     matchesByIdRef.current = new Map((matches || []).map((m) => [m.id, m] as const));
   }, [matches]);
-
-  useEffect(() => {
-    const unsub = onGoalOverlay((payload) => {
-      if (isAdminRoute) return;
-
-      if (payload.division && payload.division !== division) return;
-
-      const incomingId = typeof payload.id === 'string' && payload.id.length > 0 ? payload.id : null;
-      if (incomingId) {
-        const prev = lastGoalOverlayRef.current;
-        const now = Date.now();
-        if (prev.id === incomingId && now - prev.at < 3000) return;
-        lastGoalOverlayRef.current = { id: incomingId, at: now };
-      }
-
-      if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        navigator.vibrate([70, 30, 140]);
-      }
-
-      // Reproduzir som (reutiliza elemento para reduzir bloqueios/latência)
-      const goalAudio = torcidaAudioRef.current;
-      if (goalAudio) {
-        try {
-          goalAudio.currentTime = 0;
-        } catch {
-          // ignore
-        }
-        goalAudio.play().catch((e) => console.warn('Audio auto-play blocked:', e));
-      }
-
-      setGoalOverlay(payload);
-      window.setTimeout(() => setGoalOverlay(null), 5000);
-    });
-    return () => unsub();
-  }, [isAdminRoute, division]);
 
   useEffect(() => {
     if (isAdminRoute) return;
@@ -294,59 +390,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     <div className="app-container">
       <a className="skip-link" href="#main-content">Pular para o conteudo</a>
       {/* Global Premium Goal Overlay */}
-      <AnimatePresence>
-        {!isAdminRoute && goalOverlay && (
-          <motion.div
-            className="goal-overlay-premium"
-            initial={{ opacity: 0, scale: 0.5 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 1.5 }}
-            transition={{ type: 'spring', damping: 12 }}
-          >
-            <motion.div
-              className="goal-announcement"
-              animate={{ y: [0, -20, 0] }}
-              transition={{ repeat: Infinity, duration: 2 }}
-            >
-              <div className="goal-hero-row">
-                <div className="goal-icon-container">
-                  <span className="goal-ball-emoji">⚽</span>
-                </div>
-                {goalOverlay.playerPhotoUrl && (
-                  <motion.div
-                    className="goal-player-photo"
-                    initial={{ opacity: 0, scale: 0.6, rotate: -8 }}
-                    animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                    transition={{ type: 'spring', damping: 14, stiffness: 260 }}
-                  >
-                    <img src={goalOverlay.playerPhotoUrl} alt={goalOverlay.player} loading="eager" />
-                  </motion.div>
-                )}
-              </div>
-              <h1 className="goal-text">GOOOOOOOL!</h1>
-              <div className="goal-details">
-                <span className="goal-team">{goalOverlay.team}</span>
-                <span className="goal-player">{goalOverlay.player}</span>
-              </div>
-            </motion.div>
-            <div className="confetti-container">
-              {[...Array(14)].map((_, i) => (
-                <motion.div
-                  key={i}
-                  className="confetti-piece"
-                  initial={{ y: -100, x: Math.random() * 400 - 200, opacity: 1 }}
-                  animate={{ y: 800, rotate: 360 }}
-                  transition={{ duration: Math.random() * 2 + 1, repeat: Infinity }}
-                  style={{
-                    backgroundColor: i % 2 === 0 ? 'var(--secondary)' : 'var(--primary)',
-                    left: `${Math.random() * 100}%`,
-                  }}
-                />
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <GoalOverlayLayer isAdminRoute={isAdminRoute} division={division} />
 
       <aside className={`sidebar ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-content">

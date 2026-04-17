@@ -138,10 +138,24 @@ const Rankings: React.FC = () => {
     };
   }, [deferredSearchTerm, viewLimit]);
 
+  const filterPlayersTop20 = useMemo(() => {
+    const term = normalize(deferredSearchTerm.trim());
+    return (list: RankingPlayer[]) => {
+      const filtered = term
+        ? list.filter((p) => {
+            const name = normalize(p.name || '');
+            const team = normalize(p.team_name || '');
+            return name.includes(term) || team.includes(term);
+          })
+        : list;
+      return filtered.slice(0, 20);
+    };
+  }, [deferredSearchTerm]);
+
   const visibleScorers = filterPlayers(scorers);
   const visibleGoalkeepers = filterPlayers(goalkeepers);
   const visibleAssistants = filterPlayers(assistants);
-  const visibleDisciplined = filterPlayers(disciplined);
+  const visibleDisciplined = filterPlayersTop20(disciplined);
 
   // Podium order: 2nd, 1st, 3rd
   const podiumOrder = [
@@ -591,7 +605,7 @@ const Rankings: React.FC = () => {
         <section className="rank-panel glass">
           <div className="panel-header">
             <ShieldAlert size={20} color="var(--primary)" />
-            <h3>Fair Play / Cartões</h3>
+            <h3>Mais Cartões (Top 20)</h3>
           </div>
           <div className="rank-rows">
             {visibleDisciplined.map((p, i) => (
@@ -632,7 +646,7 @@ const Rankings: React.FC = () => {
                   <span className="p-card-new yellow">{p.yellow_cards || 0}</span>
                   <span className="p-card-new red">{p.red_cards || 0}</span>
                 </div>
-                <div className="rank-val">{p.fair_play_points || 0} pts</div>
+                <div className="rank-val">{(p.yellow_cards || 0) + (p.red_cards || 0)} cartões</div>
                 {authRole === 'admin' && (
                   <button
                     type="button"
@@ -642,13 +656,14 @@ const Rankings: React.FC = () => {
                       handleDownloadRankingCard(
                         `discipline-${p.id}`,
                         p,
-                        'Fair Play',
-                        'Disciplina oficial da Copa Unasp',
+                        'Mais Cartões',
+                        'Ranking de cartões da Copa Unasp',
                         'red',
                         [
                           { label: 'Posicao', value: `${i + 1}o` },
-                          { label: 'Pontos', value: p.fair_play_points || 0 },
                           { label: 'Cartoes', value: (p.yellow_cards || 0) + (p.red_cards || 0) },
+                          { label: 'Amarelos', value: p.yellow_cards || 0 },
+                          { label: 'Vermelhos', value: p.red_cards || 0 },
                         ],
                       );
                     }}

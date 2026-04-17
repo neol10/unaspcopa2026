@@ -318,6 +318,20 @@ const MatchCenter: React.FC = () => {
     return slot ? `${label} ${slot}` : `Sem ${label}`;
   }, [activeMatch, config.group_unit]);
 
+  const finishedMatches = useMemo(() => {
+    return [...baseMatches]
+      .filter((m) => deriveMatchStatus(m) === 'finalizado')
+      .sort((a, b) => new Date(b.match_date).getTime() - new Date(a.match_date).getTime())
+      .slice(0, 20);
+  }, [baseMatches]);
+
+  const formatHistoryLabel = (m: Match) => {
+    const d = new Date(m.match_date);
+    const date = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    return `${date} • ${time}`;
+  };
+
   if (matchesLoading && matches.length === 0) return <div className="match-center p-8"><Skeleton width="100%" height="400px" /></div>;
 
   return (
@@ -349,6 +363,48 @@ const MatchCenter: React.FC = () => {
         activeGroupChip={selectorActiveChip}
         counts={counts}
       />
+
+      <section className="match-history-panel glass">
+        <div className="history-header-row">
+          <div className="history-title">
+            <Award size={16} color="var(--secondary)" />
+            <span>Histórico de jogos</span>
+          </div>
+          <span className="history-subtitle">Últimos 20 finalizados</span>
+        </div>
+        <div className="history-list" role="list">
+          {finishedMatches.length === 0 ? (
+            <p className="history-empty">Sem jogos finalizados ainda.</p>
+          ) : (
+            finishedMatches.map((m) => {
+              const mvpName = m.match_mvp_player_id
+                ? (players.find((p) => p.id === m.match_mvp_player_id)?.name || null)
+                : null;
+
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  className={`history-item ${activeMatch?.id === m.id ? 'active' : ''}`}
+                  onClick={() => handleSelectMatch(m.id)}
+                >
+                  <div className="history-left">
+                    <div className="history-teams">
+                      <strong>{m.teams_a?.name || 'Equipe A'}</strong>
+                      <span className="history-vs">{m.team_a_score} x {m.team_b_score}</span>
+                      <strong>{m.teams_b?.name || 'Equipe B'}</strong>
+                    </div>
+                    <div className="history-meta">
+                      <span>{formatHistoryLabel(m)}</span>
+                      {mvpName && <span className="history-mvp">Craque: {mvpName}</span>}
+                    </div>
+                  </div>
+                </button>
+              );
+            })
+          )}
+        </div>
+      </section>
 
       <div className="match-layout">
         {!activeMatch ? (
