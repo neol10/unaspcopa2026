@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Heart, MessageCircle, Send, ArrowLeft, Trash2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
@@ -66,7 +66,9 @@ const Gallery: React.FC = () => {
   );
   const canNavigate = filteredItems.length > 1 && selectedIndex >= 0;
 
-  const loadInteractions = async () => {
+  const userId = user?.id ?? null;
+
+  const loadInteractions = useCallback(async () => {
     if (itemIds.length === 0) {
       setLikesByItem({});
       setLikedByMe({});
@@ -94,9 +96,7 @@ const Gallery: React.FC = () => {
 
       for (const row of likesRows) {
         likesCounter[row.gallery_id] = (likesCounter[row.gallery_id] || 0) + 1;
-        if (user?.id && row.user_id === user.id) {
-          myLikes[row.gallery_id] = true;
-        }
+        if (userId && row.user_id === userId) myLikes[row.gallery_id] = true;
       }
 
       const { data: commentsData, error: commentsError } = await supabase
@@ -129,11 +129,11 @@ const Gallery: React.FC = () => {
       const message = err instanceof Error ? err.message : 'Erro ao carregar interações da galeria';
       toast.error(message);
     }
-  };
+  }, [itemIds, userId]);
 
   useEffect(() => {
     void loadInteractions();
-  }, [user?.id, itemIds.join('|')]);
+  }, [loadInteractions]);
 
   useEffect(() => {
     if (!selectedItemId) return;
@@ -143,7 +143,7 @@ const Gallery: React.FC = () => {
     };
   }, [selectedItemId]);
 
-  const goToAdjacentItem = (direction: 'prev' | 'next') => {
+  const goToAdjacentItem = useCallback((direction: 'prev' | 'next') => {
     if (!canNavigate) return;
 
     const delta = direction === 'next' ? 1 : -1;
@@ -152,7 +152,7 @@ const Gallery: React.FC = () => {
     if (!nextItem) return;
 
     setSelectedItemId(nextItem.id);
-  };
+  }, [canNavigate, filteredItems, selectedIndex]);
 
   useEffect(() => {
     if (!selectedItemId) return;
@@ -174,7 +174,7 @@ const Gallery: React.FC = () => {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [selectedItemId, selectedIndex, filteredItems]);
+  }, [goToAdjacentItem, selectedItemId]);
 
   useEffect(() => {
     return () => {

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { supabase, supabaseStorage } from '../../lib/supabase';
 import { Trophy, Users, Calendar, Plus, Save, Trash2, Shield, ChevronDown, ChevronUp, Newspaper, CheckCircle, Play, Camera, Search, Settings2, Vote, ShieldAlert, Bell, Star, CreditCard, Target, Square, ArrowRightLeft, MessageSquare, Zap, Clock, Pause, RotateCcw, Coffee, Flag } from 'lucide-react';
 import { useTeams, type Team } from '../../hooks/useTeams';
-import { usePlayers } from '../../hooks/usePlayers';
+import { usePlayers, type Player } from '../../hooks/usePlayers';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNews, type News } from '../../hooks/useNews';
 import { useGallery, type GalleryItem } from '../../hooks/useGallery';
@@ -23,6 +23,16 @@ import { useDivisionContext } from '../../contexts/DivisionContext';
 import { isMissingColumnError as isMissingDivisionColumnError, markDivisionColumnMissing, markNightColumnMissing } from '../../lib/supabaseOptionalColumns';
 import { clearPhotoCropFromUrl, parsePhotoCropFromUrl, setPhotoCropOnUrl } from '../../lib/photoCrop';
 import './Admin.css';
+
+type PostgrestErrorLike =
+  | {
+      message?: unknown;
+      details?: unknown;
+      hint?: unknown;
+      code?: unknown;
+    }
+  | null
+  | undefined;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -163,6 +173,8 @@ const getDeleteMatchErrorMessage = (err: unknown): string => {
 
 const Admin: React.FC = () => {
   const { user, role, loading: authLoading } = useAuthContext();
+  const { ConfirmElement } = useConfirm();
+  const { division, label: divisionLabel, toggleDivision } = useDivisionContext();
   const [activeTab, setActiveTab] = useState<'matches' | 'teams' | 'players' | 'news' | 'gallery' | 'tournament' | 'polls' | 'notifications' | 'errors' | 'users' | 'feedback'>('matches');
   const [feedbackOpenCount, setFeedbackOpenCount] = useState(0);
   const tabLabels: Record<typeof activeTab, string> = {
@@ -225,8 +237,12 @@ const Admin: React.FC = () => {
         const next = (data as FeedbackReport[]) || [];
         setItems(next);
         setFeedbackOpenCount(next.length);
-      } catch (err: any) {
-        setError(err?.message || 'Erro ao carregar relatos');
+      } catch (err: unknown) {
+        const msg =
+          err && typeof err === 'object' && 'message' in err && typeof (err as { message?: unknown }).message === 'string'
+            ? String((err as { message: string }).message)
+            : '';
+        setError(msg || 'Erro ao carregar relatos');
       } finally {
         setLoading(false);
       }
@@ -251,8 +267,12 @@ const Admin: React.FC = () => {
         toast.success('Relato concluido');
         setItems((prev) => prev.filter((r) => r.id !== id));
         setFeedbackOpenCount((prev) => Math.max(0, prev - 1));
-      } catch (err: any) {
-        toast.error(err?.message || 'Erro ao concluir relato');
+      } catch (err: unknown) {
+        const msg =
+          err && typeof err === 'object' && 'message' in err && typeof (err as { message?: unknown }).message === 'string'
+            ? String((err as { message: string }).message)
+            : '';
+        toast.error(msg || 'Erro ao concluir relato');
       }
     };
 
@@ -350,8 +370,12 @@ const Admin: React.FC = () => {
           .order('created_at', { ascending: false });
         if (error) throw error;
         setUsers(data || []);
-      } catch (err: any) {
-        setError(err?.message || 'Erro ao carregar usuários');
+      } catch (err: unknown) {
+        const msg =
+          err && typeof err === 'object' && 'message' in err && typeof (err as { message?: unknown }).message === 'string'
+            ? String((err as { message: string }).message)
+            : '';
+        setError(msg || 'Erro ao carregar usuários');
       } finally {
         setLoading(false);
       }
@@ -416,8 +440,6 @@ const Admin: React.FC = () => {
   }
 
   const isAdmin = role === 'admin';
-  const { ConfirmElement } = useConfirm();
-  const { division, label: divisionLabel, toggleDivision } = useDivisionContext();
 
   return (
     <div className="admin-container animate-fade-in">
@@ -1126,8 +1148,8 @@ const PushSubscribersPanel: React.FC = () => {
       });
 
       setSubscribers(mapped);
-    } catch (err: any) {
-      setError(err?.message || 'Erro ao carregar inscritos de push');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Erro ao carregar inscritos de push'));
     } finally {
       setLoading(false);
     }
@@ -1638,19 +1660,19 @@ const MatchManagement = () => {
 
       const res = await doInsert(payload);
       if (res.error) {
-        const missingDivision = isMissingDivisionColumnError(res.error as any, 'division');
-        const missingNight = isMissingDivisionColumnError(res.error as any, 'night');
+        const missingDivision = isMissingDivisionColumnError(res.error, 'division');
+        const missingNight = isMissingDivisionColumnError(res.error, 'night');
 
         if (missingDivision || missingNight) {
           if (missingDivision) markDivisionColumnMissing();
           if (missingNight) markNightColumnMissing();
 
           const base = payload as { division?: unknown; night?: unknown } & Record<string, unknown>;
-          const { division: _ignoredDivision, night: _ignoredNight, ...rest } = base;
+          const { division: baseDivision, night: baseNight, ...rest } = base;
           const retryPayload: Record<string, unknown> = {
             ...rest,
-            ...(missingDivision ? {} : { division: base.division }),
-            ...(missingNight ? {} : { night: base.night }),
+            ...(missingDivision ? {} : { division: baseDivision }),
+            ...(missingNight ? {} : { night: baseNight }),
           };
 
           const retry = await doInsert(retryPayload);
@@ -1664,10 +1686,13 @@ const MatchManagement = () => {
       void refresh();
       invalidateCompetitionData();
       toast.success('Partida criada com sucesso!');
-    } catch (err: any) {
-      const code = err?.code ? ` (código: ${err.code})` : '';
-      const details = err?.message || err?.details || '';
-      toast.error(`Erro ao criar partida${code}: ${details || getErrorMessage(err, '')}`);
+    } catch (err: unknown) {
+      const code = getPostgresCode(err);
+      const details = typeof (err as { details?: unknown })?.details === 'string'
+        ? String((err as { details: string }).details)
+        : '';
+      const message = getErrorMessage(err, '');
+      toast.error(`Erro ao criar partida${code ? ` (código: ${code})` : ''}: ${details || message || 'Ocorreu um erro'}`);
     } finally {
       setIsSubmittingMatch(false);
     }
@@ -1796,11 +1821,17 @@ const MatchManagement = () => {
       void refresh();
       invalidateCompetitionData();
       toast.success('Partida excluída e estatísticas revertidas!', { id: loadingToast });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Delete match error:', err);
-      const code = err?.code ? ` (código: ${err.code})` : '';
-      const details = err?.message || err?.details || '';
-      toast.error(`Erro ao excluir partida${code}: ${details || getDeleteMatchErrorMessage(err)}`, { id: loadingToast });
+      const code = getPostgresCode(err);
+      const details = typeof (err as { details?: unknown })?.details === 'string'
+        ? String((err as { details: string }).details)
+        : '';
+      const message = getErrorMessage(err, '');
+      toast.error(
+        `Erro ao excluir partida${code ? ` (código: ${code})` : ''}: ${details || message || getDeleteMatchErrorMessage(err)}`,
+        { id: loadingToast }
+      );
     }
   };
 
@@ -1886,9 +1917,10 @@ const MatchManagement = () => {
 
       const res = await doUpdate(updatePayload);
       if (res.error) {
-        if (isMissingDivisionColumnError(res.error as any, 'night')) {
+        if (isMissingDivisionColumnError(res.error, 'night')) {
           markNightColumnMissing();
-          const { night: _ignored, ...noNight } = updatePayload as { night?: unknown } & Record<string, unknown>;
+          const noNight: Record<string, unknown> = { ...updatePayload };
+          delete (noNight as Record<string, unknown>).night;
           const retry = await doUpdate(noNight);
           if (retry.error) throw retry.error;
         } else {
@@ -2450,14 +2482,14 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
     }
   };
 
-  const updateOptimisticMatch = (updates: Partial<Match>) => {
+  const updateOptimisticMatch = useCallback((updates: Partial<Match>) => {
     // Atualiza qualquer cache de `useMatches()` (chaves: ['matches', division, limit])
     // para refletir mudanças imediatas no painel.
     queryClient.setQueriesData({ queryKey: ['matches'] }, (old) => {
       if (!Array.isArray(old)) return old;
       return (old as Match[]).map((m) => (m.id === match.id ? { ...m, ...updates } : m));
     });
-  };
+  }, [match.id, queryClient]);
 
   const suggestMvpFromEvents = useCallback(() => {
     const stats: Record<string, { participations: number; goals: number; assists: number; firstEvent: number }> = {};
@@ -2465,7 +2497,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
     (events || []).forEach((ev) => {
       if (ev.event_type !== 'gol') return;
 
-      const goalType = (ev as any)?.metadata?.goal_type;
+      const goalType = ev.metadata?.goal_type;
       const isOwnGoal = goalType === 'contra' || Boolean(ev.commentary && String(ev.commentary).toUpperCase().includes('[CONTRA]'));
 
       if (ev.player_id && !isOwnGoal) {
@@ -2519,18 +2551,35 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   const [seconds, setSeconds] = useState(0);
   const isActive = match.is_timer_running;
   const hasStarted = Boolean(match.timer_started_at) || match.timer_offset_seconds > 0;
+  const matchId = match.id;
+  const timerStartedAt = match.timer_started_at;
+  const timerOffsetSeconds = match.timer_offset_seconds;
 
   // Sincronizar segundos locais com o estado do banco (com Fresh Fetch no mount)
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
     
     const syncTime = async (isInitial = false) => {
-      let currentMatch = match;
+      let currentMatch: {
+        is_timer_running: boolean;
+        timer_started_at: string | null;
+        timer_offset_seconds: number;
+      } = {
+        is_timer_running: isActive,
+        timer_started_at: timerStartedAt,
+        timer_offset_seconds: timerOffsetSeconds,
+      };
       
       // No mount inicial, buscamos o estado mais fresco do DB para evitar cache estático
       if (isInitial) {
-        const { data } = await supabase.from('matches').select('*').eq('id', match.id).single();
-        if (data) currentMatch = data;
+        const { data } = await supabase.from('matches').select('*').eq('id', matchId).single();
+        if (data) {
+          currentMatch = {
+            is_timer_running: Boolean(data.is_timer_running),
+            timer_started_at: (data.timer_started_at as string | null) ?? null,
+            timer_offset_seconds: Number(data.timer_offset_seconds ?? 0),
+          };
+        }
       }
 
       if (currentMatch.is_timer_running && currentMatch.timer_started_at) {
@@ -2545,38 +2594,38 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
     syncTime(true); // Inicial e Fresco
 
-    if (match.is_timer_running) {
+    if (isActive) {
       interval = setInterval(() => syncTime(false), 1000);
     }
 
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [match.is_timer_running, match.timer_started_at, match.timer_offset_seconds, match.id]);
+  }, [isActive, timerStartedAt, timerOffsetSeconds, matchId]);
 
-  const handlePauseTimer = async (isTechnical = false) => {
+  const handlePauseTimer = useCallback(async (isTechnical = false) => {
     try {
-      const start = match.timer_started_at ? new Date(match.timer_started_at).getTime() : Date.now();
+      const start = timerStartedAt ? new Date(timerStartedAt).getTime() : Date.now();
       const now = Date.now();
       const diff = Math.floor((now - start) / 1000);
-      const newOffset = match.timer_offset_seconds + diff;
+      const newOffset = timerOffsetSeconds + diff;
 
       // Se já estava pausado, não atualizamos o offset novamente para não acumular erro
-      const finalOffset = match.is_timer_running ? newOffset : match.timer_offset_seconds;
+      const finalOffset = isActive ? newOffset : timerOffsetSeconds;
 
       updateOptimisticMatch({ is_timer_running: false, timer_started_at: null, timer_offset_seconds: finalOffset });
       const { error } = await supabase.from('matches').update({
         is_timer_running: false,
         timer_started_at: null,
         timer_offset_seconds: finalOffset
-      }).eq('id', match.id);
+      }).eq('id', matchId);
       
       if (error) throw error;
 
       vibrate(60);
       if (isTechnical) {
         await supabase.from('match_events').insert({
-          match_id: match.id,
+          match_id: matchId,
           event_type: 'comentario',
           minute: Math.floor(finalOffset / 60),
           author_name: 'Jogo',
@@ -2587,12 +2636,12 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       } else {
         toast.success('Tempo pausado');
       }
-    } catch (err: unknown) {
+    } catch {
       toast.error('Erro ao pausar cronômetro');
     }
-  };
+  }, [isActive, matchId, timerOffsetSeconds, timerStartedAt, updateOptimisticMatch]);
 
-  const handleStartTimer = async () => {
+  const handleStartTimer = useCallback(async () => {
     try {
       const nowStr = new Date().toISOString();
       // Atualiza UI imediatamente (evita "segundos passando" mas status/placar não mudando)
@@ -2602,14 +2651,14 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         is_timer_running: true,
         timer_started_at: nowStr,
         status: 'ao_vivo'
-      }).eq('id', match.id);
+      }).eq('id', matchId);
 
       if (error) throw error;
 
       await supabase.from('match_events').insert({
-        match_id: match.id,
+        match_id: matchId,
         event_type: 'comentario',
-        minute: Math.max(1, Math.floor(match.timer_offset_seconds / 60) || 1),
+        minute: Math.max(1, Math.floor(timerOffsetSeconds / 60) || 1),
         author_name: 'Jogo',
         commentary: '▶️ Início de Jogo',
         player_id: null
@@ -2617,10 +2666,10 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
       toast.success('Partida iniciada');
       refreshEvents();
-    } catch (err: unknown) {
+    } catch {
       toast.error('Erro ao iniciar partida');
     }
-  };
+  }, [matchId, refreshEvents, timerOffsetSeconds, updateOptimisticMatch]);
 
   const handleIntervalo = async () => {
     try {
@@ -2648,13 +2697,13 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       vibrate(100);
       toast.success('Intervalo Iniciado');
       refreshEvents();
-    } catch (err: unknown) {
+    } catch {
       toast.error('Erro ao iniciar intervalo');
     }
   };
 
 
-  const handleRetomar = async () => {
+  const handleRetomar = useCallback(async () => {
     try {
       // Verificar se o último evento foi fim do 1º tempo para mudar a mensagem
       const isPostInterval = events.some(e => e.event_type === 'comentario' && e.commentary?.includes('Fim do 1º Tempo'));
@@ -2665,16 +2714,16 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       const { error } = await supabase.from('matches').update({
         is_timer_running: true,
         timer_started_at: nowStr
-      }).eq('id', match.id);
+      }).eq('id', matchId);
 
       vibrate(60);
       if (error) throw error;
 
       if (isPostInterval && !alreadyResumedStage2) {
         await supabase.from('match_events').insert({
-          match_id: match.id,
+          match_id: matchId,
           event_type: 'comentario',
-          minute: Math.floor(match.timer_offset_seconds / 60),
+          minute: Math.floor(timerOffsetSeconds / 60),
           author_name: 'Jogo',
           commentary: '⚽ Início do 2º Tempo',
           player_id: null
@@ -2683,10 +2732,10 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       } else {
         toast.success('Cronômetro retomado');
       }
-    } catch (err: unknown) {
+    } catch {
       toast.error('Erro ao retomar cronômetro');
     }
-  };
+  }, [events, matchId, timerOffsetSeconds, updateOptimisticMatch]);
 
   const handleEndMatch = async () => {
     if (!(await confirmAction({
@@ -2744,7 +2793,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       vibrate([100, 50, 100]);
       toast.success('Partida finalizada');
       refreshEvents();
-    } catch (err: unknown) {
+    } catch {
       toast.error('Erro ao finalizar partida');
     }
   };
@@ -2812,14 +2861,14 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
     saveRoster(rosterKeyB, onFieldB);
   }, [rosterKeyB, onFieldB]);
 
-  const normalizePosition = (value?: string | null) => (value || '').trim().toLowerCase();
-  const isGoalkeeper = (p?: { position?: string | null }) => normalizePosition(p?.position) === 'goleiro';
+  const normalizePosition = useCallback((value?: string | null) => (value || '').trim().toLowerCase(), []);
+  const isGoalkeeper = useCallback((p?: { position?: string | null }) => normalizePosition(p?.position) === 'goleiro', [normalizePosition]);
 
   // Pre-jogo aqui significa: cronometro ainda nao iniciou (independente do status estar 'agendado' ou 'ao_vivo').
   // Isso garante que a escalação seja exigida antes do apito inicial.
   const isPreGame = match.status !== 'finalizado' && !hasStarted;
 
-  const isSuspendedForNextMatch = (player?: { yellow_cards?: number | null; red_cards?: number | null; suspensions_served?: number | null }) => {
+  const isSuspendedForNextMatch = useCallback((player?: { yellow_cards?: number | null; red_cards?: number | null; suspensions_served?: number | null }) => {
     if (!player) return false;
     const pending = getPendingSuspension({
       yellow_cards: player.yellow_cards ?? 0,
@@ -2827,14 +2876,14 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       suspensions_served: player.suspensions_served ?? 0,
     });
     return pending.isSuspended && pending.pendingGames > 0;
-  };
+  }, []);
 
   const renderSuspendedChip = (player: { yellow_cards?: number | null; red_cards?: number | null; suspensions_served?: number | null }) => {
     if (!isSuspendedForNextMatch(player)) return null;
     return <span className="p-susp-chip">SUSPENSO</span>;
   };
 
-  const computeLineupMeta = (roster: typeof playersA, ids: string[]) => {
+  const computeLineupMeta = useCallback((roster: typeof playersA, ids: string[]) => {
     const selected = (roster || []).filter((p) => ids.includes(p.id));
     const goalkeepers = selected.filter(isGoalkeeper).length;
     return {
@@ -2842,12 +2891,12 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       goalkeepers,
       ok: selected.length === 5 && goalkeepers === 1,
     };
-  };
+  }, [isGoalkeeper]);
 
-  const lineupMetaA = useMemo(() => computeLineupMeta(playersA, onFieldA), [playersA, onFieldA]);
-  const lineupMetaB = useMemo(() => computeLineupMeta(playersB, onFieldB), [playersB, onFieldB]);
+  const lineupMetaA = useMemo(() => computeLineupMeta(playersA, onFieldA), [computeLineupMeta, playersA, onFieldA]);
+  const lineupMetaB = useMemo(() => computeLineupMeta(playersB, onFieldB), [computeLineupMeta, playersB, onFieldB]);
 
-  const getLineupError = (teamName: string, roster: typeof playersA, ids: string[]) => {
+  const getLineupError = useCallback((teamName: string, roster: typeof playersA, ids: string[]) => {
     const list = roster || [];
 
     if (list.length < 5) {
@@ -2878,7 +2927,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
     }
 
     return null;
-  };
+  }, [isGoalkeeper, isSuspendedForNextMatch]);
 
   const startBlockReason = useMemo(() => {
     if (!isPreGame) return null;
@@ -2890,25 +2939,35 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
     if (errB) return errB;
 
     return null;
-  }, [isPreGame, match.teams_a?.name, match.teams_b?.name, playersA, playersB, onFieldA, onFieldB]);
+  }, [getLineupError, isPreGame, match.teams_a?.name, match.teams_b?.name, playersA, playersB, onFieldA, onFieldB]);
 
   const lineupAnchorRef = useRef<HTMLDivElement | null>(null);
   const [lineupNudge, setLineupNudge] = useState(false);
 
-  const scrollToLineup = () => {
+  const scrollToLineup = useCallback(() => {
     lineupAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setLineupNudge(true);
     window.setTimeout(() => setLineupNudge(false), 1200);
-  };
+  }, []);
 
-  const handleStartTimerWithLineup = async () => {
+  const handleStartTimerWithLineup = useCallback(async () => {
     if (startBlockReason) {
       toast.error(`Escalação obrigatória: ${startBlockReason}`);
       scrollToLineup();
       return;
     }
     await handleStartTimer();
-  };
+  }, [handleStartTimer, scrollToLineup, startBlockReason]);
+
+  const handlePauseTimerRef = useRef(handlePauseTimer);
+  const handleRetomarRef = useRef(handleRetomar);
+  const handleStartTimerWithLineupRef = useRef(handleStartTimerWithLineup);
+
+  useEffect(() => {
+    handlePauseTimerRef.current = handlePauseTimer;
+    handleRetomarRef.current = handleRetomar;
+    handleStartTimerWithLineupRef.current = handleStartTimerWithLineup;
+  }, [handlePauseTimer, handleRetomar, handleStartTimerWithLineup]);
 
   // Atalhos (Admin produtivo): Alt+1..6 troca tipo, Ctrl+Espaço inicia/pausa/retoma cronômetro
   useEffect(() => {
@@ -2924,9 +2983,9 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
       if (e.ctrlKey && (e.code === 'Space' || e.key === ' ')) {
         e.preventDefault();
-        if (isActive) handlePauseTimer(false); // Pausa normal via atalho
-        else if (hasStarted) handleRetomar();
-        else handleStartTimerWithLineup();
+        if (isActive) handlePauseTimerRef.current(false); // Pausa normal via atalho
+        else if (hasStarted) handleRetomarRef.current();
+        else handleStartTimerWithLineupRef.current();
         return;
       }
 
@@ -3016,7 +3075,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         player_id: string | null;
         assistant_id?: string | null;
         commentary?: string;
-        metadata?: any;
+        metadata?: MatchEvent['metadata'];
       };
 
       const eventData: InsertMatchEvent = {
@@ -3239,7 +3298,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         await supabase.from('matches').update(updateData).eq('id', match.id);
         vibrate(40);
         toast.success(`Placar ${team === 'a' ? 'A' : 'B'} ajustado!`);
-      } catch (err: unknown) {
+      } catch {
         toast.error('Erro ao ajustar placar');
       }
     }
@@ -4079,21 +4138,24 @@ const TeamManagement = () => {
       } catch (err: unknown) {
         if (supportsTeamPrimaryColor && isPrimaryColorMissingError(err)) {
           setSupportsTeamPrimaryColor(false);
-          const { primary_color: _ignored, ...payloadNoColor } = payload as { primary_color?: unknown } & Record<string, unknown>;
+          const payloadNoColor = { ...payload } as Record<string, unknown>;
+          delete (payloadNoColor as { primary_color?: unknown }).primary_color;
           try {
             await insertTeam(payloadNoColor);
           } catch (err2: unknown) {
-            if (isMissingDivisionColumnError(err2 as any, 'division')) {
+            if (isMissingDivisionColumnError(err2 as PostgrestErrorLike, 'division')) {
               markDivisionColumnMissing();
-              const { division: _ignoredDivision, ...payloadNoColorNoDivision } = payloadNoColor as { division?: unknown } & Record<string, unknown>;
+              const payloadNoColorNoDivision = { ...payloadNoColor } as Record<string, unknown>;
+              delete (payloadNoColorNoDivision as { division?: unknown }).division;
               await insertTeam(payloadNoColorNoDivision);
             } else {
               throw err2;
             }
           }
-        } else if (isMissingDivisionColumnError(err as any, 'division')) {
+        } else if (isMissingDivisionColumnError(err as PostgrestErrorLike, 'division')) {
           markDivisionColumnMissing();
-          const { division: _ignored, ...payloadNoDivision } = payload as { division?: unknown } & Record<string, unknown>;
+          const payloadNoDivision = { ...payload } as Record<string, unknown>;
+          delete (payloadNoDivision as { division?: unknown }).division;
           await insertTeam(payloadNoDivision);
         } else {
           throw err;
@@ -4443,7 +4505,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
         team_id: teamId,
         division,
         number: parseInt(formData.number) || 0,
-        suspensions_served: Math.max(0, parseInt((formData as any).suspensions_served) || 0),
+        suspensions_served: Math.max(0, parseInt(formData.suspensions_served) || 0),
       } as Record<string, unknown>;
 
       const doInsert = async (payloadToInsert: Record<string, unknown>) => {
@@ -4456,9 +4518,10 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
 
       const res = await doInsert(payload);
       if (res.error) {
-        if (isMissingDivisionColumnError(res.error as any, 'division')) {
+        if (isMissingDivisionColumnError(res.error as PostgrestErrorLike, 'division')) {
           markDivisionColumnMissing();
-          const { division: _ignored, ...payloadNoDivision } = payload as { division?: unknown } & Record<string, unknown>;
+          const payloadNoDivision = { ...payload } as Record<string, unknown>;
+          delete (payloadNoDivision as { division?: unknown }).division;
           const retry = await doInsert(payloadNoDivision);
           if (retry.error) throw retry.error;
         } else {
@@ -4529,7 +4592,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
           yellow_cards: parseInt(editFormData.yellow_cards) || 0,
           red_cards: parseInt(editFormData.red_cards) || 0,
           clean_sheets: parseInt(editFormData.clean_sheets) || 0,
-          suspensions_served: Math.max(0, parseInt((editFormData as any).suspensions_served) || 0),
+          suspensions_served: Math.max(0, parseInt(editFormData.suspensions_served) || 0),
         }).eq('id', playerId),
         30000,
         'Tempo limite ao atualizar atleta'
@@ -4716,8 +4779,8 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
                <label>Susp. cumpridas</label>
                <input
                 type="number"
-                value={(formData as any).suspensions_served}
-                onChange={e => setFormData({ ...(formData as any), suspensions_served: e.target.value })}
+                value={formData.suspensions_served}
+                onChange={e => setFormData({ ...formData, suspensions_served: e.target.value })}
                />
              </div>
           </div>
@@ -4761,7 +4824,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
                       yellow_cards: String(p.yellow_cards),
                       red_cards: String(p.red_cards),
                       clean_sheets: String(p.clean_sheets || 0),
-                      suspensions_served: String((p as any).suspensions_served || 0)
+                      suspensions_served: String(p.suspensions_served || 0)
                     });
                   }} title="Editar atleta">
                     <Settings2 size={13} />
@@ -4921,16 +4984,16 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
                   <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                     <input
                       type="number"
-                      value={(editFormData as any).suspensions_served}
-                      onChange={e => setEditFormData({ ...(editFormData as any), suspensions_served: e.target.value })}
+                      value={editFormData.suspensions_served}
+                      onChange={e => setEditFormData({ ...editFormData, suspensions_served: e.target.value })}
                       style={{ flex: 1 }}
                     />
                     <button
                       type="button"
                       className="btn-cancel"
                       onClick={() => {
-                        const current = Math.max(0, parseInt((editFormData as any).suspensions_served) || 0);
-                        setEditFormData({ ...(editFormData as any), suspensions_served: String(current + 1) });
+                        const current = Math.max(0, parseInt(editFormData.suspensions_served) || 0);
+                        setEditFormData({ ...editFormData, suspensions_served: String(current + 1) });
                       }}
                       title="Marcar 1 jogo de suspensão cumprido"
                     >
@@ -6317,8 +6380,10 @@ const PollManagement = () => {
     }
   };
 
+  const fetchPollsRef = useRef(fetchPolls);
+
   React.useEffect(() => {
-    fetchPolls();
+    void fetchPollsRef.current();
     const timer = setTimeout(() => setLoading(false), 8000);
     return () => clearTimeout(timer);
   }, []);
@@ -6724,6 +6789,25 @@ const GlobalPlayerManagement = () => {
   const [editingGlobalPlayerId, setEditingGlobalPlayerId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const queryClient = useQueryClient();
+
+  type PlayerListItem = Player & { teams?: { name?: string } | null };
+
+  type PlayerCacheRow = Record<string, unknown> & {
+    id: string;
+    team_id: string;
+    name: string;
+    number: number;
+    position: string;
+    photo_url?: string;
+    bio?: string;
+    goals_count?: number;
+    assists?: number;
+    yellow_cards?: number;
+    red_cards?: number;
+    clean_sheets?: number;
+    team_name?: string;
+    teams?: { name?: string } | null;
+  };
   
   const [formData, setFormData] = useState({ 
     name: '', number: '', position: 'Ala', team_id: '', photo_url: '', bio: '',
@@ -6735,30 +6819,30 @@ const GlobalPlayerManagement = () => {
     goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0'
   });
 
-  const normalizeKey = (value: string) => {
+  const normalizeKey = useCallback((value: string) => {
     return (value || '')
       .trim()
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/\s+/g, ' ');
-  };
+  }, []);
 
-  const normalizePhotoFileKey = (fileName: string) => {
+  const normalizePhotoFileKey = useCallback((fileName: string) => {
     const base = String(fileName || '').replace(/\.[^.]+$/, '');
     return normalizeKey(base).replace(/[^a-z0-9]/g, '');
-  };
+  }, [normalizeKey]);
 
-  const cleanTeamHeader = (value: string) => {
+  const cleanTeamHeader = useCallback((value: string) => {
     return (value || '')
       .trim()
       .replace(/^\*+/, '')
       .replace(/\*+$/, '')
       .replace(/[:\-–—]+\s*$/, '')
       .trim();
-  };
+  }, []);
 
-  const mapPositionToken = (raw: string | null) => {
+  const mapPositionToken = useCallback((raw: string | null) => {
     const key = normalizeKey(raw || '').replace(/[^a-z0-9]/g, '');
     if (!key) return 'Ala';
     if (key.startsWith('gol') || key.startsWith('gk') || key.startsWith('goleiro')) return 'Goleiro';
@@ -6766,9 +6850,9 @@ const GlobalPlayerManagement = () => {
     if (key.startsWith('ala')) return 'Ala';
     if (key.startsWith('piv')) return 'Pivô';
     return 'Ala';
-  };
+  }, [normalizeKey]);
 
-  const parseBulkText = (text: string) => {
+  const parseBulkText = useCallback((text: string) => {
     const rawLines = String(text || '').split(/\r?\n/);
     const lines = rawLines
       .map((l) => l.replace(/•/g, '').trim())
@@ -6793,11 +6877,11 @@ const GlobalPlayerManagement = () => {
     }
 
     return { teamName, rows };
-  };
+  }, [cleanTeamHeader, mapPositionToken]);
 
-  const bulkParsed = useMemo(() => parseBulkText(bulkText), [bulkText]);
+  const bulkParsed = useMemo(() => parseBulkText(bulkText), [bulkText, parseBulkText]);
 
-  const findTeamIdByName = (teamName: string | null) => {
+  const findTeamIdByName = useCallback((teamName: string | null) => {
     const key = normalizeKey(teamName || '');
     if (!key) return null;
 
@@ -6815,7 +6899,7 @@ const GlobalPlayerManagement = () => {
     if (hits.length === 1) return hits[0].id;
 
     return null;
-  };
+  }, [normalizeKey, teams]);
 
   const chunkArray = <T,>(arr: T[], size: number) => {
     const safe = Math.max(1, Math.floor(size || 1));
@@ -6870,7 +6954,7 @@ const GlobalPlayerManagement = () => {
       alreadyExists,
       toCreate,
     };
-  }, [bulkParsed, bulkTeamOverrideId, allPlayers, teams]);
+  }, [allPlayers, bulkParsed, bulkTeamOverrideId, findTeamIdByName, normalizeKey]);
 
   const handleBulkImport = async () => {
     if (bulkImporting) return;
@@ -6891,7 +6975,7 @@ const GlobalPlayerManagement = () => {
 
     const teamId = bulkPlan.resolvedTeamId || null;
     if (!teamId) {
-      toast.error(`Equipe \"${teamName}\" nao encontrada automaticamente. Selecione manualmente.`);
+      toast.error(`Equipe "${teamName}" nao encontrada automaticamente. Selecione manualmente.`);
       return;
     }
 
@@ -6932,17 +7016,18 @@ const GlobalPlayerManagement = () => {
       };
 
       let insertedTotal = 0;
-      const insertedRows: any[] = [];
+      const insertedRows: PlayerCacheRow[] = [];
 
       for (let i = 0; i < chunks.length; i += 1) {
         const chunk = chunks[i];
         let res = await withRetry(async () => await doInsertMany(chunk), 2);
 
-        if (res.error && isMissingDivisionColumnError(res.error as any, 'division')) {
+        if (res.error && isMissingDivisionColumnError(res.error as PostgrestErrorLike, 'division')) {
           markDivisionColumnMissing();
           const rowsNoDivision = chunk.map((row) => {
-            const { division: _ignored, ...rest } = row as { division?: unknown } & Record<string, unknown>;
-            return rest;
+            const copy = { ...row } as Record<string, unknown>;
+            delete (copy as { division?: unknown }).division;
+            return copy;
           });
           res = await withRetry(async () => await doInsertMany(rowsNoDivision), 2);
         }
@@ -6956,7 +7041,7 @@ const GlobalPlayerManagement = () => {
       }
 
       if (insertedRows.length > 0) {
-        insertedRows.forEach((p) => upsertPlayerInCache(p as any));
+        insertedRows.forEach((p) => upsertPlayerInCache(p));
       }
 
       void queryClient.invalidateQueries({ queryKey: ['players', division] });
@@ -7000,9 +7085,10 @@ const GlobalPlayerManagement = () => {
     yellow_cards?: number;
     red_cards?: number;
     clean_sheets?: number;
+    team_name?: string;
     teams?: { name?: string } | null;
   }, previousTeamId?: string) => {
-    const teamName = player.teams?.name || getTeamNameById(player.team_id) || undefined;
+    const teamName = player.teams?.name || player.team_name || getTeamNameById(player.team_id) || undefined;
     const normalizedPlayer = {
       ...player,
       teams: teamName ? { name: teamName } : undefined,
@@ -7047,14 +7133,14 @@ const GlobalPlayerManagement = () => {
       return;
     }
 
-    const list = Array.isArray(allPlayers) ? allPlayers : [];
+    const list = (Array.isArray(allPlayers) ? allPlayers : []) as PlayerListItem[];
     const toFix = list
-      .map((p: any) => {
-        const normalized = normalizePlayerName(p?.name);
+      .map((p) => {
+        const normalized = normalizePlayerName(p.name);
         return {
           player: p,
           normalized,
-          needsFix: Boolean(p?.id) && Boolean(normalized) && normalized !== p?.name,
+          needsFix: Boolean(p.id) && Boolean(normalized) && normalized !== p.name,
         };
       })
       .filter((x) => x.needsFix);
@@ -7091,7 +7177,7 @@ const GlobalPlayerManagement = () => {
             );
             if (error) throw error;
             fixed += 1;
-            upsertPlayerInCache({ ...(player as any), name: normalized } as any);
+            upsertPlayerInCache({ ...player, name: normalized });
           })
         );
 
@@ -7121,10 +7207,10 @@ const GlobalPlayerManagement = () => {
       return;
     }
 
-    const playersList = Array.isArray(allPlayers) ? allPlayers : [];
-    const playersByKey = new Map<string, any[]>();
-    for (const p of playersList as any[]) {
-      const key = normalizeKey(String(p?.name || '')).replace(/[^a-z0-9]/g, '');
+    const playersList = (Array.isArray(allPlayers) ? allPlayers : []) as PlayerListItem[];
+    const playersByKey = new Map<string, PlayerListItem[]>();
+    for (const p of playersList) {
+      const key = normalizeKey(String(p.name || '')).replace(/[^a-z0-9]/g, '');
       if (!key) continue;
       const arr = playersByKey.get(key) || [];
       arr.push(p);
@@ -7132,7 +7218,7 @@ const GlobalPlayerManagement = () => {
     }
 
     const selected = Array.from(files);
-    const matches: Array<{ file: File; player: any }> = [];
+    const matches: Array<{ file: File; player: PlayerListItem }> = [];
     let skippedNoMatch = 0;
     let skippedAmbiguous = 0;
 
@@ -7192,7 +7278,7 @@ const GlobalPlayerManagement = () => {
             if (error) throw error;
 
             done += 1;
-            upsertPlayerInCache({ ...(player as any), photo_url: url } as any);
+            upsertPlayerInCache({ ...player, photo_url: url });
           })
         );
 
@@ -7260,9 +7346,10 @@ const GlobalPlayerManagement = () => {
 
       let res = await doInsert(payload);
       if (res.error) {
-        if (isMissingDivisionColumnError(res.error as any, 'division')) {
+        if (isMissingDivisionColumnError(res.error as PostgrestErrorLike, 'division')) {
           markDivisionColumnMissing();
-          const { division: _ignored, ...payloadNoDivision } = payload as { division?: unknown } & Record<string, unknown>;
+          const payloadNoDivision = { ...payload } as Record<string, unknown>;
+          delete (payloadNoDivision as { division?: unknown }).division;
           res = await doInsert(payloadNoDivision);
         }
       }
@@ -7442,10 +7529,12 @@ const GlobalPlayerManagement = () => {
   };
 
   const filteredPlayers = React.useMemo(() => {
-    return (allPlayers || []).filter(p => 
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (((p as any).teams?.name || '') as string).toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const list = (Array.isArray(allPlayers) ? allPlayers : []) as PlayerListItem[];
+    const term = searchTerm.toLowerCase();
+    return list.filter((p) => {
+      const teamName = (p.team_name || p.teams?.name || '').toLowerCase();
+      return p.name.toLowerCase().includes(term) || teamName.includes(term);
+    });
   }, [allPlayers, searchTerm]);
 
   return (
@@ -7731,7 +7820,7 @@ const GlobalPlayerManagement = () => {
                   <img src={p.photo_url || '/favicon.svg'} alt={p.name} className="player-mini-photo" />
                   <div className="item-info">
                     <strong>{p.name} (#{p.number})</strong>
-                    <span>{(p as any).teams?.name} • {p.position}</span>
+                    <span>{p.team_name || p.teams?.name} • {p.position}</span>
                   </div>
                 </div>
                 <div className="item-actions">

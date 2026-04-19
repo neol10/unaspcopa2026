@@ -157,10 +157,14 @@ const normalizeSubscriptionRow = (row: SubscriptionRowLegacy): SubscriptionRow |
 
   if (subObj && typeof subObj === 'object') {
     const s = subObj as { endpoint?: string; keys?: { p256dh?: string; auth?: string }; preferences?: unknown };
+    const prefsFromSubscription =
+      s.preferences && typeof s.preferences === 'object'
+        ? (s.preferences as SubscriptionRow['subscription']['preferences'])
+        : undefined;
     const reconstructed = {
       endpoint: s.endpoint,
       keys: s.keys,
-      preferences: (s.preferences as any) || prefsFromColumn,
+      preferences: prefsFromSubscription || prefsFromColumn,
     } as unknown as SubscriptionRow['subscription'];
 
     if (isValidPushSubscription(reconstructed)) {

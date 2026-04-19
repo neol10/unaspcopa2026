@@ -120,7 +120,7 @@ export const usePlayers = (teamId?: string) => {
           if (teamId) retryQ = retryQ.eq('team_id', teamId);
           const retry = await retryQ.order('name');
           if (retry.error) throw retry.error;
-          const retryRows = (retry.data as any[]) || [];
+          const retryRows = (retry.data as PlayerRow[]) || [];
           return retryRows.map((row) => {
             const team = Array.isArray(row.teams) ? row.teams[0] : row.teams;
             return {
@@ -139,7 +139,7 @@ export const usePlayers = (teamId?: string) => {
 
       if (status !== 'missing') markDivisionColumnPresent();
 
-      const rows = (data as any[]) || [];
+      const rows = (data as PlayerRow[]) || [];
       return rows.map((row) => {
         // Robust check for team data (handles object or array from Supabase join)
         const team = Array.isArray(row.teams) ? row.teams[0] : row.teams;

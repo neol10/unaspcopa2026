@@ -10,7 +10,6 @@ import { useMatches, type Match } from '../../hooks/useMatches';
 import { usePreGameReminder } from '../../hooks/usePreGameReminder';
 import { AutoRefreshStatus } from '../AutoRefreshStatus/AutoRefreshStatus';
 import AuthModal from '../Auth/AuthModal';
-import IOSInstallPrompt from '../PWA/IOSInstallPrompt';
 import { AnimatePresence, motion } from 'framer-motion';
 import logo from '../../assets/unasp_logo.png';
 import { prefetchRouteIntent } from '../../lib/routePrefetch';
@@ -29,12 +28,33 @@ type ConfettiPiece = {
   color: string;
 };
 
+const hashToSeed = (input: string) => {
+  // FNV-1a 32-bit
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+};
+
+const mulberry32 = (seed: number) => {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0;
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
 const GoalOverlayLayer: React.FC<{ isAdminRoute: boolean; division: string }> = ({ isAdminRoute, division }) => {
   const [goalOverlay, setGoalOverlay] = useState<GoalOverlayPayload | null>(null);
   const torcidaAudioRef = useRef<HTMLAudioElement | null>(null);
   const lastGoalOverlayRef = useRef<{ id: string | null; at: number }>({ id: null, at: 0 });
   const hideTimeoutRef = useRef<number | null>(null);
-  const [confettiSeed, setConfettiSeed] = useState(0);
+  const [confettiSeed, setConfettiSeed] = useState(1);
 
   useEffect(() => {
     // Preload + unlock do áudio (mobile bloqueia autoplay sem gesto do usuário)
@@ -95,7 +115,8 @@ const GoalOverlayLayer: React.FC<{ isAdminRoute: boolean; division: string }> = 
       }
 
       setGoalOverlay(payload);
-      setConfettiSeed((s) => s + 1);
+      // Seed determinística quando houver id, senão usa timestamp (no callback, não no render).
+      setConfettiSeed(payload.id ? hashToSeed(payload.id) : (Date.now() >>> 0) || 1);
 
       if (hideTimeoutRef.current !== null) {
         window.clearTimeout(hideTimeoutRef.current);
@@ -115,12 +136,13 @@ const GoalOverlayLayer: React.FC<{ isAdminRoute: boolean; division: string }> = 
   const confettiPieces = useMemo(() => {
     if (!goalOverlay) return [] as ConfettiPiece[];
 
-    // Gera 1x por overlay (evita recalcular Math.random durante re-renders)
+    const rand = mulberry32(confettiSeed);
+    // Gera 1x por overlay (determinístico, sem Math.random no render)
     return Array.from({ length: 14 }).map((_, i) => ({
       key: i,
-      initialX: Math.random() * 400 - 200,
-      leftPct: Math.random() * 100,
-      durationSec: Math.random() * 2 + 1,
+      initialX: rand() * 400 - 200,
+      leftPct: rand() * 100,
+      durationSec: rand() * 2 + 1,
       color: i % 2 === 0 ? 'var(--secondary)' : 'var(--primary)',
     }));
   }, [goalOverlay, confettiSeed]);
@@ -195,6 +217,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+  const [nowTs, setNowTs] = useState(0);
   const matchesByIdRef = useRef<Map<string, Match>>(new Map());
   const seenGoalEventIdsRef = useRef<Map<string, number>>(new Map());
   const queryClient = useQueryClient();
@@ -223,10 +246,26 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const liveMatch = useMemo(() => (matches || []).find((m) => m.status === 'ao_vivo') || null, [matches]);
   const nextMatch = useMemo(() => {
     const upcoming = (matches || [])
-      .filter((m) => m.status === 'agendado' && new Date(m.match_date).getTime() > Date.now())
+      .filter((m) => m.status === 'agendado' && new Date(m.match_date).getTime() > nowTs)
       .sort((a, b) => new Date(a.match_date).getTime() - new Date(b.match_date).getTime());
     return upcoming[0] || null;
-  }, [matches]);
+  }, [matches, nowTs]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    // Evita Date.now no render e também setState síncrono no effect.
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setNowTs(Date.now());
+    });
+
+    const id = window.setInterval(() => setNowTs(Date.now()), 30000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, []);
 
   const liveMatchIdsKey = useMemo(() => {
     const live = (matches || []).filter((m) => m.status === 'ao_vivo');
@@ -322,8 +361,17 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'match_events', filter: `match_id=eq.${matchId}` },
           (payload) => {
-            const row = payload.new as any;
-            if (!row || row.event_type !== 'gol') return;
+            type MatchEventInsertRow = {
+              id?: unknown;
+              event_type?: unknown;
+              player_id?: unknown;
+              assistant_id?: unknown;
+              commentary?: unknown;
+              metadata?: { goal_type?: unknown } | null;
+            };
+
+            const row = payload.new as MatchEventInsertRow;
+            if (!row || typeof row.event_type !== 'string' || row.event_type !== 'gol') return;
 
             const eventId = typeof row.id === 'string' && row.id.length > 0 ? row.id : null;
             if (eventId) {

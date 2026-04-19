@@ -1,5 +1,5 @@
 import React from 'react';
-import { Zap, Shield } from 'lucide-react';
+import { Zap } from 'lucide-react';
 import { deriveMatchStatus } from '../../../lib/matchStatus';
 
 interface Match {

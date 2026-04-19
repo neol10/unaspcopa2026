@@ -31,9 +31,15 @@ const Standings: React.FC = () => {
 
   useEffect(() => {
     if (!isGroupPhase) {
-      setShowByGroup(false);
+      queueMicrotask(() => setShowByGroup(false));
     }
   }, [isGroupPhase]);
+
+  const { containerRef, isPulling, pullDistance, isRefreshing } = usePullToRefresh({
+    onRefresh: async () => {
+      await refresh();
+    }
+  });
 
   if ((paused || stuck) && standings.length === 0) {
     return (
@@ -54,12 +60,6 @@ const Standings: React.FC = () => {
       </div>
     );
   }
-
-  const { containerRef, isPulling, pullDistance, isRefreshing } = usePullToRefresh({
-    onRefresh: async () => {
-      await refresh();
-    }
-  });
 
   if (loading && standings.length === 0) return (
     <div className="standings-container animate-fade-in">

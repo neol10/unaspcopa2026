@@ -123,7 +123,7 @@ const getDominantColor = (imgUrl: string): Promise<string> => {
         }
 
         resolve(`${r}, ${g}, ${b}`); 
-      } catch (e) {
+      } catch {
         resolve('14,165,233'); 
       }
     };

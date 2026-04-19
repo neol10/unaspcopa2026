@@ -20,6 +20,12 @@ export interface MatchEvent {
 
 type EventRow = Omit<MatchEvent, 'players' | 'assistant_player'> & { created_at?: string };
 
+type PlayerRow = {
+  id: string;
+  name: string | null;
+  photo_url: string | null;
+};
+
 export const useMatchEvents = (matchId: string, onNewEvent?: (event: MatchEvent) => void) => {
   const queryClient = useQueryClient();
   const onNewEventRef = useRef(onNewEvent);
@@ -77,12 +83,17 @@ export const useMatchEvents = (matchId: string, onNewEvent?: (event: MatchEvent)
 
       let playerMap: Record<string, { name: string; photo_url?: string }> = {};
       if (playerIds.length > 0) {
-        const { data: playersData } = await supabase.from('players').select('id, name, photo_url').in('id', playerIds);
+        const { data: playersData } = await supabase
+          .from('players')
+          .select('id, name, photo_url')
+          .in('id', playerIds);
         if (playersData) {
-          playerMap = Object.fromEntries(playersData.map((p) => [
-            p.id as string,
-            { name: String(p.name || 'Atleta'), photo_url: p.photo_url || undefined },
-          ]));
+          playerMap = Object.fromEntries(
+            (playersData as unknown as PlayerRow[]).map((p) => [
+              String(p.id),
+              { name: String(p.name || 'Atleta'), photo_url: p.photo_url || undefined },
+            ]),
+          );
         }
       }
 
@@ -136,10 +147,10 @@ export const useMatchEvents = (matchId: string, onNewEvent?: (event: MatchEvent)
               .in('id', ids)
               .then(({ data }) => {
                 const map: Record<string, { name: string; photo_url?: string }> = Object.fromEntries(
-                  (data || []).map((p: any) => [
+                  ((data as unknown as PlayerRow[]) || []).map((p) => [
                     String(p.id),
                     { name: String(p.name || 'Atleta'), photo_url: p.photo_url || undefined },
-                  ])
+                  ]),
                 );
 
                 onNewEventRef.current?.({

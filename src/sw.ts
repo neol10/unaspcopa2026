@@ -55,6 +55,8 @@ self.addEventListener('push', (event) => {
     pushMeta.tag ||
     `copa-unasp-${pushMeta.category || 'general'}`; // Removido timestamp para permitir substituição de notificações idênticas/atrasadas
 
+  const safeUrl = typeof data.url === 'string' && data.url.startsWith('/') ? data.url : '/';
+
   const options: NotificationOptions = {
     body: data.body,
     icon: data.icon && data.icon.startsWith('http') ? data.icon : new URL('/icon-192.png', self.location.origin).href,
@@ -65,7 +67,7 @@ self.addEventListener('push', (event) => {
     requireInteraction: true,
     silent: false,
     data: {
-      url: data.url || '/',
+      url: safeUrl,
     },
     actions: [{ action: 'open', title: 'Ver Agora 🏆' }],
   } as NotificationOptions;
@@ -75,7 +77,7 @@ self.addEventListener('push', (event) => {
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
       const isAppFocused = clients.some((c) => c.visibilityState === 'visible');
 
-      const tasks: Promise<any>[] = [];
+      const tasks: Promise<unknown>[] = [];
 
       // 1. Sempre notifica as abas para o Toast interno do React
       for (const client of clients) {
@@ -84,7 +86,7 @@ self.addEventListener('push', (event) => {
           payload: {
             title: data.title,
             body: data.body,
-            url: data.url || '/',
+            url: safeUrl,
             icon: data.icon,
             category: pushMeta.category,
             teamIds: pushMeta.teamIds,
@@ -138,7 +140,10 @@ self.addEventListener('pushsubscriptionchange', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const notificationData = (event.notification.data || {}) as { url?: string };
-  const urlToOpen = new URL(notificationData.url || '/', self.location.origin).href;
+
+  const rawUrl = typeof notificationData.url === 'string' ? notificationData.url : '/';
+  const candidate = new URL(rawUrl, self.location.origin);
+  const urlToOpen = candidate.origin === self.location.origin ? candidate.href : new URL('/', self.location.origin).href;
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {

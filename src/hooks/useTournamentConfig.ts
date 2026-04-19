@@ -13,6 +13,13 @@ import {
   markGroupUnitColumnPresent,
 } from '../lib/supabaseOptionalColumns';
 
+type PostgrestErrorLike = {
+  message?: unknown;
+  details?: unknown;
+  hint?: unknown;
+  code?: unknown;
+};
+
 export interface GroupCVisibilityConfig {
   teams: boolean;
   players: boolean;
@@ -89,7 +96,7 @@ export const useTournamentConfig = () => {
 
       const { data, error } = await q.maybeSingle();
       if (error && error.code !== 'PGRST116') {
-        if (status !== 'missing' && isMissingColumnError(error as any, 'division')) {
+        if (status !== 'missing' && isMissingColumnError(error as unknown as PostgrestErrorLike, 'division')) {
           markDivisionColumnMissing();
           const retry = await supabase.from('tournament_config').select('*').maybeSingle();
           if (retry.error && retry.error.code !== 'PGRST116') throw retry.error;
@@ -154,19 +161,21 @@ export const useTournamentConfig = () => {
 
         const res = await attemptUpdate(payload);
         if (res.error) {
-          const missingDivision = status !== 'missing' && isMissingColumnError(res.error as any, 'division');
-          const missingGroupUnit = groupUnitStatus !== 'missing' && isMissingColumnError(res.error as any, 'group_unit');
+          const missingDivision =
+            status !== 'missing' && isMissingColumnError(res.error as unknown as PostgrestErrorLike, 'division');
+          const missingGroupUnit =
+            groupUnitStatus !== 'missing' && isMissingColumnError(res.error as unknown as PostgrestErrorLike, 'group_unit');
 
           if (missingDivision || missingGroupUnit) {
             if (missingDivision) markDivisionColumnMissing();
             if (missingGroupUnit) markGroupUnitColumnMissing();
 
             const base = payload as { division?: unknown; group_unit?: unknown } & Record<string, unknown>;
-            const { division: _ignoredDivision, group_unit: _ignoredGroupUnit, ...rest } = base;
+            const { division: divisionValue, group_unit: groupUnitValue, ...rest } = base;
             const retryPayload: Record<string, unknown> = {
               ...rest,
-              ...(missingDivision ? {} : { division: base.division }),
-              ...(missingGroupUnit ? {} : { group_unit: base.group_unit }),
+              ...(missingDivision ? {} : { division: divisionValue }),
+              ...(missingGroupUnit ? {} : { group_unit: groupUnitValue }),
             };
 
             const retry = await attemptUpdate(retryPayload);
@@ -206,19 +215,21 @@ export const useTournamentConfig = () => {
 
         const res = await attemptInsert(payload);
         if (res.error) {
-          const missingDivision = status !== 'missing' && isMissingColumnError(res.error as any, 'division');
-          const missingGroupUnit = groupUnitStatus !== 'missing' && isMissingColumnError(res.error as any, 'group_unit');
+          const missingDivision =
+            status !== 'missing' && isMissingColumnError(res.error as unknown as PostgrestErrorLike, 'division');
+          const missingGroupUnit =
+            groupUnitStatus !== 'missing' && isMissingColumnError(res.error as unknown as PostgrestErrorLike, 'group_unit');
 
           if (missingDivision || missingGroupUnit) {
             if (missingDivision) markDivisionColumnMissing();
             if (missingGroupUnit) markGroupUnitColumnMissing();
 
             const base = payload as { division?: unknown; group_unit?: unknown } & Record<string, unknown>;
-            const { division: _ignoredDivision, group_unit: _ignoredGroupUnit, ...rest } = base;
+            const { division: divisionValue, group_unit: groupUnitValue, ...rest } = base;
             const retryPayload: Record<string, unknown> = {
               ...rest,
-              ...(missingDivision ? {} : { division: base.division }),
-              ...(missingGroupUnit ? {} : { group_unit: base.group_unit }),
+              ...(missingDivision ? {} : { division: divisionValue }),
+              ...(missingGroupUnit ? {} : { group_unit: groupUnitValue }),
             };
 
             const retry = await attemptInsert(retryPayload);

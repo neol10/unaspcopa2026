@@ -117,6 +117,15 @@ function AppContent() {
   const [showSplash, setShowSplash] = useState(true);
   const bootMetricSentRef = useRef(false);
 
+  useEffect(() => {
+    // Usado pelo telemetry/relatórios no client.
+    try {
+      localStorage.setItem('app_version', APP_VERSION);
+    } catch {
+      // ignore
+    }
+  }, []);
+
   // Initialize PWA Lifecycle and Notifications
   usePwaLifecycle();
   usePwaNotifications();
@@ -153,7 +162,13 @@ function AppContent() {
 
             const { data, error } = await q.order('name');
             if (error) {
-              if (status !== 'missing' && isMissingColumnError(error as any, 'division')) {
+              if (
+                status !== 'missing' &&
+                isMissingColumnError(
+                  error as unknown as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown },
+                  'division',
+                )
+              ) {
                 markDivisionColumnMissing();
                 const retry = await supabase.from('teams').select('*').order('name');
                 if (retry.error) throw retry.error;

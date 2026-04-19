@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useDivisionContext } from '../contexts/DivisionContext';
@@ -48,13 +48,16 @@ export const useTeams = () => {
     }
   };
 
-  const saveCache = (data: Team[], ts: number) => {
-    try {
-      localStorage.setItem(cacheKey, JSON.stringify({ ts, data }));
-    } catch {
-      // ignore
-    }
-  };
+  const saveCache = useCallback(
+    (data: Team[], ts: number) => {
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({ ts, data }));
+      } catch {
+        // ignore
+      }
+    },
+    [cacheKey],
+  );
 
   const cached = loadCache();
 
@@ -108,7 +111,7 @@ export const useTeams = () => {
     if (query.status === 'success' && Array.isArray(query.data) && query.data.length > 0) {
       saveCache(query.data, Date.now());
     }
-  }, [query.status, query.data]);
+  }, [query.status, query.data, saveCache]);
 
   useEffect(() => {
     // Optionally subscribe to teams changes

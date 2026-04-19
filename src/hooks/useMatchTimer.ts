@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { deriveMatchStatus } from '../lib/matchStatus';
 
 interface MatchTimingInfo {
@@ -11,49 +11,60 @@ interface MatchTimingInfo {
 }
 
 export const useMatchTimer = (match: MatchTimingInfo | null | undefined) => {
-  const [elapsedTime, setElapsedTime] = useState('00:00');
-  const [isPaused, setIsPaused] = useState(false);
+  const [nowMs, setNowMs] = useState(0);
 
   useEffect(() => {
-    if (!match) {
-      setElapsedTime('00:00');
-      return;
+    if (!match) return;
+
+    let cancelled = false;
+    // Evita setState síncrono no corpo do effect (lint performance).
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setNowMs(Date.now());
+    });
+
+    const interval = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [match]);
+
+  return useMemo(() => {
+    if (!match) return { elapsedTime: '00:00', isPaused: false };
+
+    const effectiveStatus = deriveMatchStatus(match, nowMs);
+
+    if (effectiveStatus === 'ao_vivo') {
+      if (match.is_timer_running && match.timer_started_at) {
+        const start = new Date(match.timer_started_at).getTime();
+        const diff = Math.floor((nowMs - start) / 1000);
+        const totalSeconds = (match.timer_offset_seconds || 0) + Math.max(0, diff);
+
+        const mins = Math.floor(totalSeconds / 60);
+        const secs = totalSeconds % 60;
+        return {
+          elapsedTime: `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`,
+          isPaused: false,
+        };
+      }
+
+      const totalSeconds = match.timer_offset_seconds || 0;
+      const mins = Math.floor(totalSeconds / 60);
+      const secs = totalSeconds % 60;
+      return {
+        elapsedTime: `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`,
+        isPaused: true,
+      };
     }
 
-    const updateTimer = () => {
-      const effectiveStatus = deriveMatchStatus(match);
-      if (effectiveStatus === 'ao_vivo') {
-        if (match.is_timer_running && match.timer_started_at) {
-          const start = new Date(match.timer_started_at).getTime();
-          const now = Date.now();
-          const diff = Math.floor((now - start) / 1000);
-          const totalSeconds = (match.timer_offset_seconds || 0) + diff;
-          
-          const mins = Math.floor(totalSeconds / 60);
-          const secs = totalSeconds % 60;
-          setElapsedTime(`${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`);
-          setIsPaused(false);
-        } else {
-          const totalSeconds = match.timer_offset_seconds || 0;
-          const mins = Math.floor(totalSeconds / 60);
-          const secs = totalSeconds % 60;
-          setElapsedTime(`${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`);
-          setIsPaused(true);
-        }
-      } else if (effectiveStatus === 'finalizado') {
-        setElapsedTime('Fim');
-        setIsPaused(false);
-      } else {
-        setElapsedTime('Pré-jogo');
-        setIsPaused(false);
-      }
-    };
+    if (effectiveStatus === 'finalizado') {
+      return { elapsedTime: 'Fim', isPaused: false };
+    }
 
-    updateTimer();
-    const interval = setInterval(updateTimer, 1000);
-
-    return () => clearInterval(interval);
-  }, [match?.id, match?.status, match?.match_date, match?.is_timer_running, match?.timer_started_at, match?.timer_offset_seconds]);
-
-  return { elapsedTime, isPaused };
+    return { elapsedTime: 'Pré-jogo', isPaused: false };
+  }, [match, nowMs]);
 };

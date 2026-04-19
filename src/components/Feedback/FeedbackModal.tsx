@@ -80,8 +80,11 @@ const FeedbackModal: React.FC<FeedbackModalProps> = ({ open, pagePath, onClose }
       toast.success('Relato enviado. Obrigado!');
       resetForm();
       onClose();
-    } catch (err: any) {
-      const raw = typeof err?.message === 'string' ? err.message : '';
+    } catch (err: unknown) {
+      const raw =
+        err && typeof err === 'object' && 'message' in err && typeof (err as { message?: unknown }).message === 'string'
+          ? String((err as { message: string }).message)
+          : '';
       const msg = raw.includes('RATE_LIMIT')
         ? 'Muitas mensagens em pouco tempo. Aguarde alguns minutos e tente novamente.'
         : (raw || 'Erro ao enviar relato');

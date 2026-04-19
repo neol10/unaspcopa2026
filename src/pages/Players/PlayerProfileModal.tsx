@@ -15,51 +15,9 @@ interface PlayerProfileModalProps {
 const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose, teamName, teamPrimaryColor }) => {
   const [brokenPhotoUrl, setBrokenPhotoUrl] = useState<string | null>(null);
 
-  const hashToHue = (str: string) => {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      hash = str.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    return Math.abs(hash % 360);
-  };
-
-  const hexToHue = (hex: string) => {
-    let r = 0, g = 0, b = 0;
-    if (hex.length === 4) {
-      r = parseInt(hex[1] + hex[1], 16);
-      g = parseInt(hex[2] + hex[2], 16);
-      b = parseInt(hex[3] + hex[3], 16);
-    } else if (hex.length === 7) {
-      r = parseInt(hex.slice(1, 3), 16);
-      g = parseInt(hex.slice(3, 5), 16);
-      b = parseInt(hex.slice(5, 7), 16);
-    }
-    r /= 255; g /= 255; b /= 255;
-    const max = Math.max(r, g, b), min = Math.min(r, g, b);
-    let h = (max + min) / 2;
-    if (max === min) {
-      h = 0;
-    } else {
-      const d = max - min;
-      switch (max) {
-        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-        case g: h = (b - r) / d + 2; break;
-        case b: h = (r - g) / d + 4; break;
-      }
-      h /= 6;
-    }
-    return Math.round(h * 360);
-  };
-
-  const getTeamModalTone = (seedRaw: string, primaryColor?: string | null) => {
-    let hue: number;
-    if (primaryColor && /^#[0-9A-F]{3,6}$/i.test(primaryColor)) {
-      hue = hexToHue(primaryColor);
-    } else {
-      const seed = seedRaw.trim() || 'team-default';
-      hue = hashToHue(seed);
-    }
-    // Retornamos um tema base elegante (azul suave) para manter a consistencia do site
+  const getTeamModalTone = (seedRaw: string) => {
+    // Mantemos o tema base (sem variar por cor) conforme o design atual.
+    void seedRaw;
     const baseHue = 215; // Azul Copa Unasp
     return {
       modalBg: `hsla(${baseHue}, 75%, 58%, 0.10)`,
@@ -89,8 +47,8 @@ const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose
   const z = parsedPhoto.crop?.z && Number.isFinite(parsedPhoto.crop.z) ? parsedPhoto.crop.z : 100;
   const scale = Math.max(50, Math.min(300, z)) / 100;
 
-  const toneSeed = `${teamName || player.team_name || ''}-${player.team_id || ''}`;
-  const tone = getTeamModalTone(toneSeed, player.team_primary_color);
+  const toneSeed = `${teamName || player.team_name || ''}-${player.team_id || ''}-${teamPrimaryColor || ''}`;
+  const tone = getTeamModalTone(toneSeed);
 
   return (
     <div className="modal-overlay" onClick={onClose}>

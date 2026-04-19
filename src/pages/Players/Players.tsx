@@ -43,51 +43,10 @@ const Players: React.FC = () => {
     setBrokenImageMap((prev) => (prev[key] ? prev : { ...prev, [key]: true }));
   };
 
-
-  const hashToHue = (seed: string) => {
-    let hash = 0;
-    for (let i = 0; i < seed.length; i += 1) {
-      hash = (hash * 31 + seed.charCodeAt(i)) % 360;
-    }
-    return Math.abs(hash % 360);
-  };
-
-  const hexToHue = (hex: string) => {
-    let r = 0, g = 0, b = 0;
-    if (hex.length === 4) {
-      r = parseInt(hex[1] + hex[1], 16);
-      g = parseInt(hex[2] + hex[2], 16);
-      b = parseInt(hex[3] + hex[3], 16);
-    } else if (hex.length === 7) {
-      r = parseInt(hex.slice(1, 3), 16);
-      g = parseInt(hex.slice(3, 5), 16);
-      b = parseInt(hex.slice(5, 7), 16);
-    }
-    r /= 255; g /= 255; b /= 255;
-    const max = Math.max(r, g, b), min = Math.min(r, g, b);
-    let h = (max + min) / 2;
-    if (max === min) {
-      h = 0;
-    } else {
-      const d = max - min;
-      switch (max) {
-        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-        case g: h = (b - r) / d + 2; break;
-        case b: h = (r - g) / d + 4; break;
-      }
-      h /= 6;
-    }
-    return Math.round(h * 360);
-  };
-
   const getTeamCardTone = (seedRaw: string, primaryColor?: string | null) => {
-    let hue: number;
-    if (primaryColor && /^#[0-9A-F]{3,6}$/i.test(primaryColor)) {
-      hue = hexToHue(primaryColor);
-    } else {
-      const seed = seedRaw.trim() || 'team-default';
-      hue = hashToHue(seed);
-    }
+    // Mantemos o tema base (sem variar por cor) conforme o design atual.
+    void seedRaw;
+    void primaryColor;
 
     // Retornamos um tema base elegante (azul suave) se não estivermos no modo "brand"
     // O usuário solicitou "cor base normal" no site.
@@ -103,7 +62,6 @@ const Players: React.FC = () => {
 
   useEffect(() => {
     if (!playersLoading) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStuck(false);
       return;
     }

@@ -9,7 +9,7 @@ interface MatchPollsProps {
     teams_a?: { name: string };
     teams_b?: { name: string };
   };
-  user: any;
+  user: unknown | null;
   winnerVotes: { team_a: number; draw: number; team_b: number; total: number };
   winnerUserVote: string | null;
   winnerVotesError: string | null;

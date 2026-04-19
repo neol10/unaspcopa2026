@@ -22,6 +22,16 @@ export interface RankingPlayer extends Player {
   fair_play_points?: number;
 }
 
+type PostgrestErrorLike = {
+  message?: unknown;
+  details?: unknown;
+  hint?: unknown;
+  code?: unknown;
+};
+
+type ListResponse<T> = { data: T[] | null; error: unknown };
+const asListResponse = <T>(value: unknown) => value as Promise<ListResponse<T>>;
+
 export const useRankings = () => {
   const queryClient = useQueryClient();
   const { division } = useDivisionContext();
@@ -95,15 +105,15 @@ export const useRankings = () => {
       const status = getDivisionColumnStatus();
 
       const safeList = async <T>(
-        primary: () => Promise<{ data: T[] | null; error: unknown }>,
-        fallbackOnMissingDivision?: () => Promise<{ data: T[] | null; error: unknown }>,
+        primary: () => Promise<ListResponse<T>>,
+        fallbackOnMissingDivision?: () => Promise<ListResponse<T>>,
       ) => {
         try {
           const { data, error } = await primary();
           if (error) throw error;
           return (data as T[]) || [];
         } catch (err: unknown) {
-          if (fallbackOnMissingDivision && isMissingColumnError(err as any, 'division')) {
+          if (fallbackOnMissingDivision && isMissingColumnError(err as unknown as PostgrestErrorLike, 'division')) {
             markDivisionColumnMissing();
             try {
               const { data, error } = await fallbackOnMissingDivision();
@@ -125,7 +135,7 @@ export const useRankings = () => {
 
       let playersRes = await playersQ;
       if (playersRes.error) {
-        if (status !== 'missing' && isMissingColumnError(playersRes.error as any, 'division')) {
+        if (status !== 'missing' && isMissingColumnError(playersRes.error as unknown as PostgrestErrorLike, 'division')) {
           markDivisionColumnMissing();
           playersRes = await supabase
             .from('players')
@@ -141,14 +151,16 @@ export const useRankings = () => {
           () => {
             const currentStatus = getDivisionColumnStatus();
             if (currentStatus === 'missing') {
-              return supabase.from('match_mvp_votes').select('player_id') as any;
+              return asListResponse<{ player_id: string }>(supabase.from('match_mvp_votes').select('player_id'));
             }
-            return (supabase
-              .from('match_mvp_votes')
-              .select('player_id, matches:match_id!inner(division)')
-              .eq('matches.division', division) as any);
+            return asListResponse<{ player_id: string }>(
+              supabase
+                .from('match_mvp_votes')
+                .select('player_id, matches:match_id!inner(division)')
+                .eq('matches.division', division),
+            );
           },
-          () => supabase.from('match_mvp_votes').select('player_id') as any,
+          () => asListResponse<{ player_id: string }>(supabase.from('match_mvp_votes').select('player_id')),
         ),
         safeList<{
           player_id: string | null;
@@ -165,24 +177,50 @@ export const useRankings = () => {
             const fetchOnce = async (includeNight: boolean) => {
               const nightSelect = includeNight ? 'round, night' : 'round';
               if (currentStatus === 'missing') {
-                return await (supabase
-                  .from('match_events')
-                  .select(`player_id, assistant_id, event_type, minute, metadata, matches:match_id!inner(${nightSelect})`)
-                  .in('event_type', ['gol', 'assistencia']) as any);
+                return await asListResponse<{
+                  player_id: string | null;
+                  assistant_id?: string | null;
+                  event_type: 'gol' | 'assistencia' | string;
+                  minute: number;
+                  metadata?: { goal_type?: string | null } | null;
+                  matches?: { round?: unknown; night?: unknown; division?: unknown } | null;
+                }>(
+                  supabase
+                    .from('match_events')
+                    .select(
+                      `player_id, assistant_id, event_type, minute, metadata, matches:match_id!inner(${nightSelect})`,
+                    )
+                    .in('event_type', ['gol', 'assistencia']),
+                );
               }
 
-              return await (supabase
-                .from('match_events')
-                .select(`player_id, assistant_id, event_type, minute, metadata, matches:match_id!inner(${nightSelect}, division)`)
-                .eq('matches.division', division)
-                .in('event_type', ['gol', 'assistencia']) as any);
+              return await asListResponse<{
+                player_id: string | null;
+                assistant_id?: string | null;
+                event_type: 'gol' | 'assistencia' | string;
+                minute: number;
+                metadata?: { goal_type?: string | null } | null;
+                matches?: { round?: unknown; night?: unknown; division?: unknown } | null;
+              }>(
+                supabase
+                  .from('match_events')
+                  .select(
+                    `player_id, assistant_id, event_type, minute, metadata, matches:match_id!inner(${nightSelect}, division)`,
+                  )
+                  .eq('matches.division', division)
+                  .in('event_type', ['gol', 'assistencia']),
+              );
             };
 
             return (async () => {
               let includeNight = includeNightInitial;
               let res = await fetchOnce(includeNight);
 
-              if (includeNight && res?.error && isMissingColumnError(res.error as any, 'night')) {
+              if (
+                includeNight &&
+                res?.error &&
+                isMissingColumnError(res.error as unknown as PostgrestErrorLike, 'night')
+              ) {
                 markNightColumnMissing();
                 includeNight = false;
                 res = await fetchOnce(includeNight);
@@ -190,13 +228,22 @@ export const useRankings = () => {
 
               if (includeNight && !res?.error) markNightColumnPresent();
               return res;
-            })() as any;
+            })();
           },
           () =>
-            supabase
-              .from('match_events')
-              .select('player_id, assistant_id, event_type, minute, metadata, matches:match_id!inner(round)')
-              .in('event_type', ['gol', 'assistencia']) as any,
+            asListResponse<{
+              player_id: string | null;
+              assistant_id?: string | null;
+              event_type: 'gol' | 'assistencia' | string;
+              minute: number;
+              metadata?: { goal_type?: string | null } | null;
+              matches?: { round?: unknown; night?: unknown; division?: unknown } | null;
+            }>(
+              supabase
+                .from('match_events')
+                .select('player_id, assistant_id, event_type, minute, metadata, matches:match_id!inner(round)')
+                .in('event_type', ['gol', 'assistencia']),
+            ),
         ),
         safeList<{
           round: unknown;
@@ -217,15 +264,36 @@ export const useRankings = () => {
                   ? 'round, night, status, team_a_id, team_b_id, team_a_score, team_b_score'
                   : 'round, status, team_a_id, team_b_id, team_a_score, team_b_score'
               );
-              if (currentStatus === 'missing') return await (base as any);
-              return await (base.eq('division', division) as any);
+              if (currentStatus === 'missing') return await asListResponse<{
+                round: unknown;
+                night?: unknown;
+                status: unknown;
+                team_a_id: string;
+                team_b_id: string;
+                team_a_score: number;
+                team_b_score: number;
+              }>(base);
+
+              return await asListResponse<{
+                round: unknown;
+                night?: unknown;
+                status: unknown;
+                team_a_id: string;
+                team_b_id: string;
+                team_a_score: number;
+                team_b_score: number;
+              }>(base.eq('division', division));
             };
 
             return (async () => {
               let includeNight = includeNightInitial;
               let res = await fetchOnce(includeNight);
 
-              if (includeNight && res?.error && isMissingColumnError(res.error as any, 'night')) {
+              if (
+                includeNight &&
+                res?.error &&
+                isMissingColumnError(res.error as unknown as PostgrestErrorLike, 'night')
+              ) {
                 markNightColumnMissing();
                 includeNight = false;
                 res = await fetchOnce(includeNight);
@@ -233,15 +301,27 @@ export const useRankings = () => {
 
               if (includeNight && !res?.error) markNightColumnPresent();
               return res;
-            })() as any;
+            })();
           },
           () => {
             const includeNight = getNightColumnStatus() !== 'missing';
-            return supabase
-              .from('matches')
-              .select(includeNight
-                ? 'round, night, status, team_a_id, team_b_id, team_a_score, team_b_score'
-                : 'round, status, team_a_id, team_b_id, team_a_score, team_b_score') as any;
+            return asListResponse<{
+              round: unknown;
+              night?: unknown;
+              status: unknown;
+              team_a_id: string;
+              team_b_id: string;
+              team_a_score: number;
+              team_b_score: number;
+            }>(
+              supabase
+                .from('matches')
+                .select(
+                  includeNight
+                    ? 'round, night, status, team_a_id, team_b_id, team_a_score, team_b_score'
+                    : 'round, status, team_a_id, team_b_id, team_a_score, team_b_score',
+                ),
+            );
           },
         ),
       ]);
@@ -263,7 +343,7 @@ export const useRankings = () => {
       const assistCounts: Record<string, number> = {};
       eventsData.forEach((ev) => {
         if (ev.event_type === 'gol') {
-          const goalType = (ev as any)?.metadata?.goal_type;
+          const goalType = ev.metadata?.goal_type;
           const isOwnGoal = goalType === 'contra' || Boolean(ev.metadata?.goal_type === 'contra');
           if (isOwnGoal) return;
           if (ev.assistant_id) assistCounts[ev.assistant_id] = (assistCounts[ev.assistant_id] || 0) + 1;
@@ -344,7 +424,7 @@ export const useRankings = () => {
           if (unitKey !== currentUnitKey) return;
 
           if (ev.event_type === 'gol') {
-            const goalType = (ev as any)?.metadata?.goal_type;
+            const goalType = ev.metadata?.goal_type;
             const isOwnGoal = goalType === 'contra' || Boolean(ev.commentary && String(ev.commentary).toUpperCase().includes('[CONTRA]'));
             if (ev.player_id && !isOwnGoal) {
               if (!unitStats[ev.player_id]) unitStats[ev.player_id] = { points: 0, goals: 0, assists: 0, firstEvent: ev.minute };

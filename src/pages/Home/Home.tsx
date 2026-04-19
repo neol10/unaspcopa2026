@@ -55,6 +55,20 @@ const Home: React.FC = () => {
   
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
 
+  const [nowMs, setNowMs] = useState<number>(0);
+
+  useEffect(() => {
+    const updateNow = () => {
+      setNowMs(Date.now());
+    };
+    const initial = window.setTimeout(updateNow, 0);
+    const interval = window.setInterval(updateNow, 5000);
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(interval);
+    };
+  }, []);
+
   const nextMatch = useMemo<Match | null>(() => {
     const scheduled = baseMatches
       .filter(m => m.status === 'agendado' && new Date(m.match_date).getTime() > new Date().getTime())
@@ -70,9 +84,8 @@ const Home: React.FC = () => {
   }, [baseMatches]);
 
   const liveMatch = useMemo<Match | null>(() => {
-    const nowMs = Date.now();
     return baseMatches.find((m) => deriveMatchStatus(m, nowMs) === 'ao_vivo') || null;
-  }, [baseMatches]);
+  }, [baseMatches, nowMs]);
   const { events: liveEvents } = useMatchEvents(liveMatch?.id || '');
   const latestLiveEvent = liveEvents?.[0];
   const [lastOverlayEventId, setLastOverlayEventId] = useState<string | null>(null);
@@ -196,7 +209,7 @@ const Home: React.FC = () => {
       playerPhotoUrl: latestLiveEvent.players?.photo_url,
       division,
     });
-    setLastOverlayEventId(latestLiveEvent.id || null);
+    queueMicrotask(() => setLastOverlayEventId(latestLiveEvent.id || null));
   }, [latestLiveEvent, lastOverlayEventId, liveMatch, division]);
 
   useEffect(() => {

@@ -39,7 +39,6 @@ const SUPABASE_SERVICE_KEYS = readEnvList(
   'SERVICE_ROLE_KEY',
 );
 const SUPABASE_ANON_KEY = readEnv('SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY', 'NEXT_PUBLIC_SUPABASE_ANON_KEY');
-const ANONYMOUS_FALLBACK_USER_ID = '00000000-0000-0000-0000-000000000000';
 
 const getPayload = (req: VercelRequest): Record<string, unknown> => {
   if (typeof req.body === 'string') {

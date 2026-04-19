@@ -9,6 +9,13 @@ import {
   markDivisionColumnPresent,
 } from '../lib/supabaseOptionalColumns';
 
+type PostgrestErrorLike = {
+  message?: unknown;
+  details?: unknown;
+  hint?: unknown;
+  code?: unknown;
+};
+
 export interface Standing {
   team_id: string;
   team_name: string;
@@ -86,8 +93,8 @@ export const useStandings = () => {
       ]);
 
       const missingDivision =
-        (teamsRes.error && isMissingColumnError(teamsRes.error as any, 'division')) ||
-        (matchesRes.error && isMissingColumnError(matchesRes.error as any, 'division'));
+        (teamsRes.error && isMissingColumnError(teamsRes.error as unknown as PostgrestErrorLike, 'division')) ||
+        (matchesRes.error && isMissingColumnError(matchesRes.error as unknown as PostgrestErrorLike, 'division'));
 
       if (withDivision && missingDivision) {
         markDivisionColumnMissing();

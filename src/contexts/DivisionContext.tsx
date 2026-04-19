@@ -1,7 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
-  DEFAULT_DIVISION,
   normalizeDivision,
   readStoredDivision,
   writeStoredDivision,
@@ -20,15 +19,15 @@ const DivisionContext = createContext<DivisionContextType | undefined>(undefined
 export const DivisionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [division, setDivisionState] = useState<Division>(() => readStoredDivision());
 
-  const setDivision = (next: Division) => {
+  const setDivision = useCallback((next: Division) => {
     const normalized = normalizeDivision(next);
     setDivisionState(normalized);
     writeStoredDivision(normalized);
-  };
+  }, []);
 
-  const toggleDivision = () => {
+  const toggleDivision = useCallback(() => {
     setDivision(division === 'masculino' ? 'feminino' : 'masculino');
-  };
+  }, [division, setDivision]);
 
   useEffect(() => {
     // Sincroniza caso o localStorage seja alterado em outra aba.
@@ -44,7 +43,7 @@ export const DivisionProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const value = useMemo(
     () => ({ division, setDivision, toggleDivision, label }),
-    [division, label],
+    [division, label, setDivision, toggleDivision],
   );
 
   return <DivisionContext.Provider value={value}>{children}</DivisionContext.Provider>;

@@ -11,7 +11,7 @@ interface Player {
 interface MatchTimelineProps {
   events: MatchEvent[];
   players: Player[];
-  user: any;
+  user: unknown | null;
   onSendComment: (e: React.FormEvent<HTMLFormElement>) => void;
   onDeleteComment: (ev: MatchEvent) => void;
   canDeleteComment: (ev: MatchEvent) => boolean;

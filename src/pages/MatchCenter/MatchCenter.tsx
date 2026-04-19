@@ -11,7 +11,7 @@ import AuthModal from '../../components/Auth/AuthModal';
 import { useStandings } from '../../hooks/useStandings';
 import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
 import { supabase } from '../../lib/supabase';
-import { TrendingUp, Award, Zap } from 'lucide-react';
+import { TrendingUp, Award } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import ShareCard, { useShareCard } from '../../components/ShareCard/ShareCard';
@@ -33,7 +33,7 @@ import './MatchCenter.css';
 
 const MatchCenter: React.FC = () => {
   const { division } = useDivisionContext();
-  const { matches, loading: matchesLoading, error: matchesError, refresh: refreshMatches } = useMatches();
+  const { matches, loading: matchesLoading, refresh: refreshMatches } = useMatches();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, role } = useAuthContext();
   const isAdmin = role === 'admin';
@@ -217,7 +217,7 @@ const MatchCenter: React.FC = () => {
   }, [activeMatch, events]);
 
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const { voteCounts: roundVotes, loading: roundMvpLoading, error: roundMvpError, refresh: refreshRoundMvp } = useMvpVoting(String(config.current_round));
+  const { voteCounts: roundVotes, loading: roundMvpLoading, refresh: refreshRoundMvp } = useMvpVoting(String(config.current_round));
   const { votes: winnerVotes, userVote: winnerUserVote, vote: castWinnerVote, error: winnerVotesError } = useMatchWinnerVoting(activeMatch?.id || '');
   const { cardRef, downloadCard } = useShareCard();
   const [isExporting, setIsExporting] = useState(false);
@@ -243,7 +243,7 @@ const MatchCenter: React.FC = () => {
       if (error) throw error;
       setNewComment('');
       refreshEvents();
-    } catch (err: any) {
+    } catch {
       toast.error('Erro ao enviar comentário');
     } finally {
       setIsSendingComment(false);
@@ -273,7 +273,7 @@ const MatchCenter: React.FC = () => {
     toast.success('Resumo copiado!');
   };
 
-  const { containerRef, isPulling, pullDistance, isRefreshing } = usePullToRefresh({
+  const { containerRef, isPulling, isRefreshing } = usePullToRefresh({
     onRefresh: async () => {
       await Promise.all([refreshMatches(), refreshEvents(), refreshRoundMvp()]);
     },

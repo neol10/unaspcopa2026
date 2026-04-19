@@ -23,9 +23,47 @@ const Rankings: React.FC = () => {
   const deferredSearchTerm = useDeferredValue(searchTerm);
   const [viewLimit, setViewLimit] = useState<5 | 10>(10);
 
+  const normalize = (value: string) => value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  const filterPlayers = useMemo(() => {
+    const term = normalize(deferredSearchTerm.trim());
+    return (list: RankingPlayer[]) => {
+      const filtered = term
+        ? list.filter((p) => {
+            const name = normalize(p.name || '');
+            const team = normalize(p.team_name || '');
+            return name.includes(term) || team.includes(term);
+          })
+        : list;
+      return filtered.slice(0, viewLimit);
+    };
+  }, [deferredSearchTerm, viewLimit]);
+
+  const filterPlayersTop20 = useMemo(() => {
+    const term = normalize(deferredSearchTerm.trim());
+    return (list: RankingPlayer[]) => {
+      const filtered = term
+        ? list.filter((p) => {
+            const name = normalize(p.name || '');
+            const team = normalize(p.team_name || '');
+            return name.includes(term) || team.includes(term);
+          })
+        : list;
+      return filtered.slice(0, 20);
+    };
+  }, [deferredSearchTerm]);
+
+  const { containerRef, isPulling, pullDistance, isRefreshing } = usePullToRefresh({
+    onRefresh: async () => {
+      await refresh();
+    }
+  });
+
   useEffect(() => {
     if (!loading) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStuck(false);
       return;
     }
@@ -72,12 +110,6 @@ const Rankings: React.FC = () => {
     );
   }
 
-  const { containerRef, isPulling, pullDistance, isRefreshing } = usePullToRefresh({
-    onRefresh: async () => {
-      await refresh();
-    }
-  });
-
   if (loading && scorers.length === 0) return (
     <div className="rankings-container animate-fade-in">
       <header className="rankings-header">
@@ -118,39 +150,6 @@ const Rankings: React.FC = () => {
   const groupUnit = config?.group_unit === 'round' ? 'round' : 'night';
   const unitLabel = groupUnit === 'round' ? 'Rodada' : 'Noite';
   const unitChipPrefix = groupUnit === 'round' ? 'R' : 'N';
-
-  const normalize = (value: string) => value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-
-  const filterPlayers = useMemo(() => {
-    const term = normalize(deferredSearchTerm.trim());
-    return (list: RankingPlayer[]) => {
-      const filtered = term
-        ? list.filter((p) => {
-            const name = normalize(p.name || '');
-            const team = normalize(p.team_name || '');
-            return name.includes(term) || team.includes(term);
-          })
-        : list;
-      return filtered.slice(0, viewLimit);
-    };
-  }, [deferredSearchTerm, viewLimit]);
-
-  const filterPlayersTop20 = useMemo(() => {
-    const term = normalize(deferredSearchTerm.trim());
-    return (list: RankingPlayer[]) => {
-      const filtered = term
-        ? list.filter((p) => {
-            const name = normalize(p.name || '');
-            const team = normalize(p.team_name || '');
-            return name.includes(term) || team.includes(term);
-          })
-        : list;
-      return filtered.slice(0, 20);
-    };
-  }, [deferredSearchTerm]);
 
   const visibleScorers = filterPlayers(scorers);
   const visibleGoalkeepers = filterPlayers(goalkeepers);

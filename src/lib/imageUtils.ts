@@ -1,5 +1,3 @@
-import { toast } from 'react-hot-toast';
-
 export const MAX_IMAGE_INPUT_MB = 20;
 export const MAX_IMAGE_UPLOAD_MB = 8;
 export const COMPRESS_MIN_BYTES = 350 * 1024; // 350KB

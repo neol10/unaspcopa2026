@@ -3,22 +3,10 @@ import {
   DEFAULT_GROUP_C_VISIBILITY,
   normalizeGroupCVisibility,
   useTournamentConfig,
-  type GroupCVisibilityConfig,
 } from './useTournamentConfig';
 import { useDivisionContext } from '../contexts/DivisionContext';
 
 const STORAGE_KEY_BASE = 'copa_unasp_group_c_visibility_v1';
-
-const readLocalVisibility = (): GroupCVisibilityConfig => {
-  if (typeof window === 'undefined') return DEFAULT_GROUP_C_VISIBILITY;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_BASE);
-    if (!raw) return DEFAULT_GROUP_C_VISIBILITY;
-    return normalizeGroupCVisibility(raw);
-  } catch {
-    return DEFAULT_GROUP_C_VISIBILITY;
-  }
-};
 
 export const useGroupCVisibility = () => {
   const { division } = useDivisionContext();

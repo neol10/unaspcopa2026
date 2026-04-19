@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuthContext } from '../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
@@ -140,12 +140,13 @@ export const usePushNotifications = () => {
   };
 
   const isStandalone = () => {
-    const nav: any = window.navigator;
-    return window.matchMedia('(display-mode: standalone)').matches || nav.standalone;
+    const nav = window.navigator as Navigator & { standalone?: boolean };
+    return window.matchMedia('(display-mode: standalone)').matches || !!nav.standalone;
   };
 
   const isIOS = () => {
-    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    const hasMSStream = 'MSStream' in (window as unknown as Record<string, unknown>);
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !hasMSStream;
   };
 
   const getServiceWorkerRegistration = async (ensure = false) => {
@@ -184,7 +185,7 @@ export const usePushNotifications = () => {
     persistPreferences(preferences);
   }, [preferences]);
 
-  const syncSubscriptionRecord = async (
+  const syncSubscriptionRecord = useCallback(async (
     subscription: PushSubscription,
     prefs: PushPreferences,
     userId: string | null,
@@ -224,7 +225,7 @@ export const usePushNotifications = () => {
       const text = await response.text().catch(() => '');
       throw new Error(text || `push-subscription POST failed (${response.status})`);
     }
-  };
+  }, [division]);
 
   const removeSubscriptionRecord = async (endpoint: string, token?: string) => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -307,7 +308,7 @@ export const usePushNotifications = () => {
 
     checkAndSyncSubscription();
     return () => { mounted = false; };
-  }, [user, preferences, authLoading, division]);
+  }, [user, preferences, authLoading, division, syncSubscriptionRecord]);
 
   const updatePreferences = async (patch: PushPreferencesPatch) => {
     const next = {

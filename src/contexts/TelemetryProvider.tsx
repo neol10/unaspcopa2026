@@ -12,16 +12,19 @@ export const TelemetryProvider: React.FC<TelemetryProviderProps> = ({ children }
 
   useEffect(() => {
     // Escuta erros globais da janela
-    window.addEventListener('error', (e) => reportErrorFromWindowEvent(e, 'window_error'));
-    window.addEventListener('unhandledrejection', (e) => reportErrorFromWindowEvent(e, 'unhandled_rejection'));
+    const onError = (e: Event) => reportErrorFromWindowEvent(e, 'window_error');
+    const onUnhandled = (e: Event) => reportErrorFromWindowEvent(e, 'unhandled_rejection');
+
+    window.addEventListener('error', onError);
+    window.addEventListener('unhandledrejection', onUnhandled);
 
     // Tenta enviar erros pendentes no boot
     flushClientErrorQueue();
 
     return () => {
       // Cleanup (embora este provider geralmente viva por toda a sessão)
-      window.removeEventListener('error', (e) => reportErrorFromWindowEvent(e, 'window_error'));
-      window.removeEventListener('unhandledrejection', (e) => reportErrorFromWindowEvent(e, 'unhandled_rejection'));
+      window.removeEventListener('error', onError);
+      window.removeEventListener('unhandledrejection', onUnhandled);
     };
   }, []);
 
@@ -45,7 +48,6 @@ export const TelemetryProvider: React.FC<TelemetryProviderProps> = ({ children }
     if (typeof window === 'undefined' || !('PerformanceObserver' in window)) return;
 
     let lcp = 0;
-    let cls = 0;
 
     const lcpObserver = new PerformanceObserver((list) => {
       const entries = list.getEntries();

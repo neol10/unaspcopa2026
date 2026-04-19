@@ -8,6 +8,14 @@ import {
 } from './supabaseOptionalColumns';
 
 
+type PostgrestErrorLike = {
+  message?: unknown;
+  details?: unknown;
+  hint?: unknown;
+  code?: unknown;
+};
+
+
 const prefetchedRoutes = new Set<string>();
 
 const routeChunkPrefetchers: Record<string, () => Promise<unknown>> = {
@@ -35,7 +43,7 @@ const prefetchQueriesByRoute = async (path: string, queryClient: QueryClient) =>
           const q = withDivision ? base.eq('division', division) : base;
           const { data, error } = await q.order('name');
           if (error) {
-            if (withDivision && isMissingColumnError(error as any, 'division')) {
+            if (withDivision && isMissingColumnError(error as unknown as PostgrestErrorLike, 'division')) {
               markDivisionColumnMissing();
               const retry = await supabase.from('teams').select('*').order('name');
               if (retry.error) throw retry.error;
@@ -58,7 +66,7 @@ const prefetchQueriesByRoute = async (path: string, queryClient: QueryClient) =>
           const q = withDivision ? base.eq('division', division) : base;
           const { data, error } = await q;
           if (error) {
-            if (withDivision && isMissingColumnError(error as any, 'division')) {
+            if (withDivision && isMissingColumnError(error as unknown as PostgrestErrorLike, 'division')) {
               markDivisionColumnMissing();
               const retry = await supabase
                 .from('matches')
@@ -85,7 +93,7 @@ const prefetchQueriesByRoute = async (path: string, queryClient: QueryClient) =>
         const q = withDivision ? base.eq('division', division) : base;
         const { data, error } = await q.order('name');
         if (error) {
-          if (withDivision && isMissingColumnError(error as any, 'division')) {
+          if (withDivision && isMissingColumnError(error as unknown as PostgrestErrorLike, 'division')) {
             markDivisionColumnMissing();
             const retry = await supabase.from('teams').select('*').order('name');
             if (retry.error) throw retry.error;
@@ -109,7 +117,7 @@ const prefetchQueriesByRoute = async (path: string, queryClient: QueryClient) =>
           const q = withDivision ? base.eq('division', division) : base;
           const { data, error } = await q.order('name');
           if (error) {
-            if (withDivision && isMissingColumnError(error as any, 'division')) {
+            if (withDivision && isMissingColumnError(error as unknown as PostgrestErrorLike, 'division')) {
               markDivisionColumnMissing();
               const retry = await supabase.from('players').select('*, teams(name)').order('name');
               if (retry.error) throw retry.error;
@@ -128,7 +136,7 @@ const prefetchQueriesByRoute = async (path: string, queryClient: QueryClient) =>
           const q = withDivision ? base.eq('division', division) : base;
           const { data, error } = await q.order('name');
           if (error) {
-            if (withDivision && isMissingColumnError(error as any, 'division')) {
+            if (withDivision && isMissingColumnError(error as unknown as PostgrestErrorLike, 'division')) {
               markDivisionColumnMissing();
               const retry = await supabase.from('teams').select('*').order('name');
               if (retry.error) throw retry.error;
@@ -156,7 +164,7 @@ const prefetchQueriesByRoute = async (path: string, queryClient: QueryClient) =>
         const q = withDivision ? base.eq('division', division) : base;
         const { data, error } = await q;
         if (error) {
-          if (withDivision && isMissingColumnError(error as any, 'division')) {
+          if (withDivision && isMissingColumnError(error as unknown as PostgrestErrorLike, 'division')) {
             markDivisionColumnMissing();
             const retry = await supabase
               .from('matches')

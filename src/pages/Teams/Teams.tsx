@@ -44,6 +44,41 @@ const Teams: React.FC = () => {
     return () => clearTimeout(id);
   }, [loading]);
 
+  const normalize = (value: string) => value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  const isTestGroup = (groupName?: string | null) => {
+    const clean = (groupName || '').trim().toUpperCase().replace(/\s+/g, '');
+    return clean === 'C' || clean === 'GRUPOC';
+  };
+
+  const visibleTeamsBase = useMemo(() => {
+    if (isAdmin) return teams;
+    if (visibility.teams) return teams;
+    return teams.filter((team) => !isTestGroup(team.group));
+  }, [isAdmin, teams, visibility.teams]);
+
+  const groupNames = useMemo(() => {
+    return Array.from(new Set(visibleTeamsBase.map((team) => (team.group || 'Sem Grupo').trim())))
+      .sort((a, b) => a.localeCompare(b));
+  }, [visibleTeamsBase]);
+
+  const normalizedSearch = useMemo(() => normalize(deferredSearchTerm.trim()), [deferredSearchTerm]);
+
+  const visibleTeams = useMemo(() => {
+    return visibleTeamsBase.filter((team) => {
+      const groupName = (team.group || 'Sem Grupo').trim();
+      if (selectedGroup !== 'all' && groupName !== selectedGroup) return false;
+      if (!normalizedSearch) return true;
+      const inName = normalize(team.name || '').includes(normalizedSearch);
+      const inLeader = normalize(team.leader || '').includes(normalizedSearch);
+      const inGroup = normalize(groupName).includes(normalizedSearch);
+      return inName || inLeader || inGroup;
+    });
+  }, [normalizedSearch, selectedGroup, visibleTeamsBase]);
+
   if ((stuck || (!navigator.onLine && loading)) && teams.length === 0) {
     return (
       <div className="error-state glass" style={{ margin: '2rem auto', maxWidth: 720 }}>
@@ -104,41 +139,6 @@ const Teams: React.FC = () => {
       </div>
     );
   }
-
-  const normalize = (value: string) => value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-
-  const isTestGroup = (groupName?: string | null) => {
-    const clean = (groupName || '').trim().toUpperCase().replace(/\s+/g, '');
-    return clean === 'C' || clean === 'GRUPOC';
-  };
-
-  const visibleTeamsBase = useMemo(() => {
-    if (isAdmin) return teams;
-    if (visibility.teams) return teams;
-    return teams.filter((team) => !isTestGroup(team.group));
-  }, [isAdmin, teams, visibility.teams]);
-
-  const groupNames = useMemo(() => {
-    return Array.from(new Set(visibleTeamsBase.map((team) => (team.group || 'Sem Grupo').trim())))
-      .sort((a, b) => a.localeCompare(b));
-  }, [visibleTeamsBase]);
-
-  const normalizedSearch = useMemo(() => normalize(deferredSearchTerm.trim()), [deferredSearchTerm]);
-
-  const visibleTeams = useMemo(() => {
-    return visibleTeamsBase.filter((team) => {
-      const groupName = (team.group || 'Sem Grupo').trim();
-      if (selectedGroup !== 'all' && groupName !== selectedGroup) return false;
-      if (!normalizedSearch) return true;
-      const inName = normalize(team.name || '').includes(normalizedSearch);
-      const inLeader = normalize(team.leader || '').includes(normalizedSearch);
-      const inGroup = normalize(groupName).includes(normalizedSearch);
-      return inName || inLeader || inGroup;
-    });
-  }, [normalizedSearch, selectedGroup, visibleTeamsBase]);
 
   return (
     <div className="teams-page animate-fade-in">

@@ -26,10 +26,19 @@ const Brackets: React.FC = () => {
   const lastDragXRef = useRef(0);
   const touchIntentRef = useRef<'unknown' | 'horizontal' | 'vertical'>('unknown');
   const lastPointerTypeRef = useRef<'mouse' | 'touch' | 'pen' | 'unknown'>('unknown');
-  const touchStartRef = useRef<{ x: number; y: number; ts: number } | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const touchMaxDistanceRef = useRef(0);
   const [activeFilter, setActiveFilter] = useState<'all' | 'live' | 'today' | 'favorite'>('all');
-  const [favoriteTeamId, setFavoriteTeamId] = useState<string | null>(null);
+  const [favoriteTeamId] = useState<string | null>(() => {
+    try {
+      const raw = localStorage.getItem('copa_unasp_push_preferences_v1');
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { favoriteTeamId?: string | null };
+      return parsed.favoriteTeamId || null;
+    } catch {
+      return null;
+    }
+  });
   const [nowTs, setNowTs] = useState(() => Date.now());
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -95,23 +104,23 @@ const Brackets: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('copa_unasp_push_preferences_v1');
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as { favoriteTeamId?: string | null };
-      setFavoriteTeamId(parsed.favoriteTeamId || null);
-    } catch {
-      setFavoriteTeamId(null);
-    }
-  }, []);
+    let cancelled = false;
 
-  useEffect(() => {
     if (!loading) {
-      setStuck(false);
-      return;
+      queueMicrotask(() => {
+        if (cancelled) return;
+        setStuck(false);
+      });
+      return () => {
+        cancelled = true;
+      };
     }
-    const id = setTimeout(() => setStuck(true), 15000);
-    return () => clearTimeout(id);
+
+    const id = window.setTimeout(() => setStuck(true), 15000);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(id);
+    };
   }, [loading]);
 
   const { role } = useAuthContext();
@@ -152,7 +161,7 @@ const Brackets: React.FC = () => {
     }
 
     return baseMatches;
-  }, [activeFilter, favoriteTeamId, baseMatches]);
+  }, [activeFilter, favoriteTeamId, baseMatches, nowTs]);
 
   const sortMatches = useCallback((list: Match[]) => {
     const statusRank = (m: Match) => {
@@ -169,22 +178,41 @@ const Brackets: React.FC = () => {
     });
   }, [nowTs]);
 
-  const KO_ROUND_LABELS: Record<number, string> = KNOCKOUT_ROUND_LABELS;
-
   const groupUnit = config?.group_unit === 'round' ? 'round' : 'night';
 
-  const getRoundKey = (round: number) => KO_ROUND_LABELS[round] || String(round);
+  const getRoundKey = useCallback((round: number) => KNOCKOUT_ROUND_LABELS[round] || String(round), []);
 
-  const toPhaseIdKey = (value: string) => {
+  const toPhaseIdKey = useCallback((value: string) => {
     return value
       .toLowerCase()
       .replace(/\s+/g, '-')
       .replace(/[^a-z0-9-]/g, '-')
       .replace(/-+/g, '-')
       .replace(/^-|-$/g, '');
-  };
+  }, []);
 
-  const getListGroupKey = (m: Match) => {
+  const PHASE_SCROLL_OFFSET_PX = 64;
+
+  const scrollToPhase = useCallback((phase: string) => {
+    const container = scrollRef.current;
+    if (!container) return;
+
+    const element = document.getElementById(`phase-${toPhaseIdKey(phase)}`);
+    if (!element) return;
+
+    const offset = element.offsetLeft - PHASE_SCROLL_OFFSET_PX;
+    const maxScrollLeft = container.scrollWidth - container.clientWidth;
+    const clampedLeft = Math.min(Math.max(0, offset), Math.max(0, maxScrollLeft));
+
+    const behavior: ScrollBehavior =
+      typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        ? 'auto'
+        : 'smooth';
+
+    container.scrollTo({ left: clampedLeft, behavior });
+  }, [toPhaseIdKey]);
+
+  const getListGroupKey = useCallback((m: Match) => {
     const roundCode = m.round ?? 0;
     if (roundCode >= 1000) return getRoundKey(roundCode);
 
@@ -195,7 +223,7 @@ const Brackets: React.FC = () => {
 
     if (m.night !== null && m.night !== undefined) return `noite-${m.night}`;
     return 'noite-sem';
-  };
+  }, [getRoundKey, groupUnit]);
 
   // Agrupa partidas por Noite/Rodada (fase de grupos) e por Fase/Rodada (mata-mata)
   const roundsMap = useMemo(() => {
@@ -205,7 +233,7 @@ const Brackets: React.FC = () => {
       acc[key].push(m);
       return acc;
     }, {} as Record<string, Match[]>);
-  }, [filteredMatches, groupUnit]);
+  }, [filteredMatches, getListGroupKey]);
 
   const sortedRounds = useMemo(() => {
     const parseGroupKey = (key: string) => {
@@ -272,7 +300,7 @@ const Brackets: React.FC = () => {
       }, 500); 
       return () => clearTimeout(timer);
     }
-  }, [loading, matches, config, hasScrolled, sortedRounds, filteredMatches, groupUnit]);
+  }, [loading, matches, config, hasScrolled, sortedRounds, filteredMatches, groupUnit, getListGroupKey, scrollToPhase]);
 
   const formatRoundName = (name: string) => {
     if (name.startsWith('rodada-')) {
@@ -331,13 +359,25 @@ const Brackets: React.FC = () => {
   }, [knockoutRounds, filteredMatches]);
 
   useEffect(() => {
+    let cancelled = false;
     if (hasKnockout) {
-      setViewMode('teia');
       viewModeTouchedRef.current = true;
-      return;
+      queueMicrotask(() => {
+        if (cancelled) return;
+        setViewMode('teia');
+      });
+      return () => {
+        cancelled = true;
+      };
     }
     if (viewModeTouchedRef.current) return;
-    setViewMode('list');
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setViewMode('list');
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [hasKnockout]);
 
   const teiaColumns = useMemo(() => {
@@ -474,7 +514,7 @@ const Brackets: React.FC = () => {
       setIsDragging(false);
       dragMovedRef.current = false;
       touchIntentRef.current = 'unknown';
-      touchStartRef.current = { x: e.pageX, y: e.pageY, ts: Date.now() };
+      touchStartRef.current = { x: e.pageX, y: e.pageY };
       touchMaxDistanceRef.current = 0;
       containerLeftRef.current = scrollRef.current.getBoundingClientRect().left;
       startXRef.current = e.pageX - containerLeftRef.current;
@@ -659,8 +699,6 @@ const Brackets: React.FC = () => {
     }
   };
 
-  const PHASE_SCROLL_OFFSET_PX = 64;
-
   const getScrollBehavior = (): ScrollBehavior => {
     if (typeof window === 'undefined' || !window.matchMedia) return 'smooth';
     return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
@@ -733,14 +771,6 @@ const Brackets: React.FC = () => {
 
     const nextIdx = clamp(closestIdx + dir, 0, snapLefts.length - 1);
     scrollListToLeft(snapLefts[nextIdx]);
-  };
-
-  const scrollToPhase = (phase: string) => {
-    const element = document.getElementById(`phase-${toPhaseIdKey(phase)}`);
-    if (element && scrollRef.current) {
-      const offset = element.offsetLeft - PHASE_SCROLL_OFFSET_PX;
-      scrollListToLeft(offset);
-    }
   };
 
   const MatchSkeleton = () => (
