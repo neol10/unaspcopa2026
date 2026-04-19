@@ -412,7 +412,8 @@ const Brackets: React.FC = () => {
     setIsDragging(false);
     dragMovedRef.current = false;
     touchIntentRef.current = 'unknown';
-    containerLeftRef.current = scrollRef.current.getBoundingClientRect().left;
+    // Usamos pageX, então precisamos do left em coordenadas de página (viewport + scrollX).
+    containerLeftRef.current = scrollRef.current.getBoundingClientRect().left + window.scrollX;
     startXRef.current = e.pageX - containerLeftRef.current;
     startYRef.current = e.pageY;
     scrollLeftRef.current = scrollRef.current.scrollLeft;
@@ -464,7 +465,8 @@ const Brackets: React.FC = () => {
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isPointerDown || !scrollRef.current) return;
-    const x = e.pageX - scrollRef.current.offsetLeft;
+    // Precisa ser consistente com handleMouseDown (pageX - containerLeftRef).
+    const x = e.pageX - containerLeftRef.current;
     const delta = x - startXRef.current;
     const exceededThreshold = Math.abs(delta) > 6;
     if (exceededThreshold && !dragMovedRef.current) {
@@ -516,7 +518,8 @@ const Brackets: React.FC = () => {
       touchIntentRef.current = 'unknown';
       touchStartRef.current = { x: e.pageX, y: e.pageY };
       touchMaxDistanceRef.current = 0;
-      containerLeftRef.current = scrollRef.current.getBoundingClientRect().left;
+      // Usamos pageX, então precisamos do left em coordenadas de página (viewport + scrollX).
+      containerLeftRef.current = scrollRef.current.getBoundingClientRect().left + window.scrollX;
       startXRef.current = e.pageX - containerLeftRef.current;
       startYRef.current = e.pageY;
       scrollLeftRef.current = scrollRef.current.scrollLeft;
