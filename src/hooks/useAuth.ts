@@ -10,6 +10,16 @@ export const useAuth = () => {
   const fetchingProfile = useRef(false);
   const resolvedOnce = useRef(false);
 
+  const normalizeEmail = (value: string) => value.trim().toLowerCase();
+
+  const ensureGmailEmail = (value: string) => {
+    const normalized = normalizeEmail(value);
+    if (!normalized.endsWith('@gmail.com')) {
+      throw new Error('Só é permitido entrar/cadastrar com email @gmail.com.');
+    }
+    return normalized;
+  };
+
   const isIgnorableAuthAbort = (err: unknown) => {
     const msg =
       typeof (err as { message?: unknown })?.message === 'string'
@@ -155,8 +165,9 @@ export const useAuth = () => {
   }, []);
 
   const signIn = async (email: string, password: string) => {
+    const gmailEmail = ensureGmailEmail(email);
     const attempt = async () => {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({ email: gmailEmail, password });
       if (error) throw error;
       return data;
     };
@@ -179,7 +190,8 @@ export const useAuth = () => {
   };
 
   const signUp = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const gmailEmail = ensureGmailEmail(email);
+    const { data, error } = await supabase.auth.signUp({ email: gmailEmail, password });
     if (error) throw error;
     return data;
   };
