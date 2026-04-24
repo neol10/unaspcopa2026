@@ -1,41 +1,233 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Home, Trophy, BarChart2, Users, Settings, Timer, Sun, Moon, Menu, X, LogIn, User, LogOut, Calendar, Bell, BellOff, Image } from 'lucide-react';
+import { Home, Trophy, BarChart2, Users, Settings, Timer, Sun, Moon, Menu, X, LogIn, User, LogOut, Calendar, Bell, BellOff, Image, Flag, ArrowRightLeft } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import { useTeams } from '../../hooks/useTeams';
-import { useMatches } from '../../hooks/useMatches';
+import { useMatches, type Match } from '../../hooks/useMatches';
 import { usePreGameReminder } from '../../hooks/usePreGameReminder';
 import { AutoRefreshStatus } from '../AutoRefreshStatus/AutoRefreshStatus';
 import AuthModal from '../Auth/AuthModal';
-import IOSInstallPrompt from '../PWA/IOSInstallPrompt';
 import { AnimatePresence, motion } from 'framer-motion';
 import logo from '../../assets/unasp_logo.png';
 import { prefetchRouteIntent } from '../../lib/routePrefetch';
-import { onGoalOverlay, type GoalOverlayPayload } from '../../lib/goalOverlay';
+import { emitGoalOverlay, onGoalOverlay, type GoalOverlayPayload } from '../../lib/goalOverlay';
+import { supabase } from '../../lib/supabase';
 import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
+import FeedbackModal from '../Feedback/FeedbackModal';
+import { useDivisionContext } from '../../contexts/DivisionContext';
 import './Layout.css';
+
+type ConfettiPiece = {
+  key: number;
+  initialX: number;
+  leftPct: number;
+  durationSec: number;
+  color: string;
+};
+
+const hashToSeed = (input: string) => {
+  // FNV-1a 32-bit
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+};
+
+const mulberry32 = (seed: number) => {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0;
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
+const GoalOverlayLayer: React.FC<{ isAdminRoute: boolean; division: string }> = ({ isAdminRoute, division }) => {
+  const [goalOverlay, setGoalOverlay] = useState<GoalOverlayPayload | null>(null);
+  const torcidaAudioRef = useRef<HTMLAudioElement | null>(null);
+  const lastGoalOverlayRef = useRef<{ id: string | null; at: number }>({ id: null, at: 0 });
+  const hideTimeoutRef = useRef<number | null>(null);
+  const [confettiSeed, setConfettiSeed] = useState(1);
+
+  useEffect(() => {
+    // Preload + unlock do áudio (mobile bloqueia autoplay sem gesto do usuário)
+    const audio = new Audio('/audio/goal-crowd.mp3');
+    audio.preload = 'auto';
+    audio.volume = 0.8;
+    torcidaAudioRef.current = audio;
+
+    let unlocked = false;
+    const tryUnlock = async () => {
+      if (unlocked) return;
+      unlocked = true;
+      try {
+        audio.muted = true;
+        await audio.play();
+        audio.pause();
+        audio.currentTime = 0;
+        audio.muted = false;
+      } catch {
+        // Se falhar, tentamos de novo no próximo gesto
+        unlocked = false;
+      }
+    };
+
+    window.addEventListener('pointerdown', tryUnlock, { passive: true });
+    window.addEventListener('keydown', tryUnlock);
+    return () => {
+      window.removeEventListener('pointerdown', tryUnlock);
+      window.removeEventListener('keydown', tryUnlock);
+    };
+  }, []);
+
+  useEffect(() => {
+    const unsub = onGoalOverlay((payload) => {
+      if (isAdminRoute) return;
+      if (payload.division && payload.division !== division) return;
+
+      const incomingId = typeof payload.id === 'string' && payload.id.length > 0 ? payload.id : null;
+      if (incomingId) {
+        const prev = lastGoalOverlayRef.current;
+        const now = Date.now();
+        if (prev.id === incomingId && now - prev.at < 3000) return;
+        lastGoalOverlayRef.current = { id: incomingId, at: now };
+      }
+
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate([70, 30, 140]);
+      }
+
+      const goalAudio = torcidaAudioRef.current;
+      if (goalAudio) {
+        try {
+          goalAudio.currentTime = 0;
+        } catch {
+          // ignore
+        }
+        goalAudio.play().catch((e) => console.warn('Audio auto-play blocked:', e));
+      }
+
+      setGoalOverlay(payload);
+      // Seed determinística quando houver id, senão usa timestamp (no callback, não no render).
+      setConfettiSeed(payload.id ? hashToSeed(payload.id) : (Date.now() >>> 0) || 1);
+
+      if (hideTimeoutRef.current !== null) {
+        window.clearTimeout(hideTimeoutRef.current);
+      }
+      hideTimeoutRef.current = window.setTimeout(() => setGoalOverlay(null), 5000);
+    });
+
+    return () => {
+      if (hideTimeoutRef.current !== null) {
+        window.clearTimeout(hideTimeoutRef.current);
+        hideTimeoutRef.current = null;
+      }
+      unsub();
+    };
+  }, [isAdminRoute, division]);
+
+  const confettiPieces = useMemo(() => {
+    if (!goalOverlay) return [] as ConfettiPiece[];
+
+    const rand = mulberry32(confettiSeed);
+    // Gera 1x por overlay (determinístico, sem Math.random no render)
+    return Array.from({ length: 14 }).map((_, i) => ({
+      key: i,
+      initialX: rand() * 400 - 200,
+      leftPct: rand() * 100,
+      durationSec: rand() * 2 + 1,
+      color: i % 2 === 0 ? 'var(--secondary)' : 'var(--primary)',
+    }));
+  }, [goalOverlay, confettiSeed]);
+
+  return (
+    <AnimatePresence>
+      {!isAdminRoute && goalOverlay && (
+        <motion.div
+          className="goal-overlay-premium"
+          initial={{ opacity: 0, scale: 0.5 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 1.5 }}
+          transition={{ type: 'spring', damping: 12 }}
+        >
+          <motion.div
+            className="goal-announcement"
+            animate={{ y: [0, -20, 0] }}
+            transition={{ repeat: Infinity, duration: 2 }}
+          >
+            <div className="goal-hero-row">
+              <div className="goal-icon-container">
+                <span className="goal-ball-emoji">⚽</span>
+              </div>
+              {goalOverlay.playerPhotoUrl && (
+                <motion.div
+                  className="goal-player-photo"
+                  initial={{ opacity: 0, scale: 0.6, rotate: -8 }}
+                  animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                  transition={{ type: 'spring', damping: 14, stiffness: 260 }}
+                >
+                  <img src={goalOverlay.playerPhotoUrl} alt={goalOverlay.player} loading="eager" decoding="async" />
+                </motion.div>
+              )}
+            </div>
+            <h1 className="goal-text">GOOOOOOOL!</h1>
+            <div className="goal-details">
+              <span className="goal-team">{goalOverlay.team}</span>
+              <span className="goal-player">{goalOverlay.player}</span>
+            </div>
+          </motion.div>
+          <div className="confetti-container">
+            {confettiPieces.map((piece) => (
+              <motion.div
+                key={piece.key}
+                className="confetti-piece"
+                initial={{ y: -100, x: piece.initialX, opacity: 1 }}
+                animate={{ y: 800, rotate: 360 }}
+                transition={{ duration: piece.durationSec, repeat: Infinity }}
+                style={{
+                  backgroundColor: piece.color,
+                  left: `${piece.leftPct}%`,
+                }}
+              />
+            ))}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { theme, toggleTheme } = useTheme();
   const { user, role, signOut } = useAuthContext();
   const { isSubscribed, subscribe, unsubscribe, preferences, updatePreferences } = usePushNotifications();
+  const { division, label: divisionLabel, toggleDivision } = useDivisionContext();
   const { teams } = useTeams();
   const { visibility } = useGroupCVisibility();
   const { matches } = useMatches();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showPushPrefs, setShowPushPrefs] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
-  const [goalOverlay, setGoalOverlay] = useState<GoalOverlayPayload | null>(null);
+  const [nowTs, setNowTs] = useState(0);
+  const matchesByIdRef = useRef<Map<string, Match>>(new Map());
+  const seenGoalEventIdsRef = useRef<Map<string, number>>(new Map());
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
 
+  const pagePath = `${location.pathname}${location.search || ''}`;
+
   const isAdminRoute = location.pathname.startsWith('/admin');
-  const showContextBar = location.pathname === '/' || location.pathname.startsWith('/classificacao');
+  const showContextBar = location.pathname.startsWith('/classificacao');
   const showAdminNav = role === 'admin' || isAdminRoute;
   const isPushLocked = !user;
   const isAdminUser = role === 'admin';
@@ -48,16 +240,44 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const visibleTeams = isAdminUser
     ? teams
     : visibility.favorite_team_menu
-      ? teams
-      : teams.filter((team) => !isTestGroup(team.group));
+    ? teams
+    : teams.filter((team) => !isTestGroup(team.group));
 
   const liveMatch = useMemo(() => (matches || []).find((m) => m.status === 'ao_vivo') || null, [matches]);
   const nextMatch = useMemo(() => {
     const upcoming = (matches || [])
-      .filter((m) => m.status === 'agendado' && new Date(m.match_date).getTime() > Date.now())
+      .filter((m) => m.status === 'agendado' && new Date(m.match_date).getTime() > nowTs)
       .sort((a, b) => new Date(a.match_date).getTime() - new Date(b.match_date).getTime());
     return upcoming[0] || null;
-  }, [matches]);
+  }, [matches, nowTs]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    // Evita Date.now no render e também setState síncrono no effect.
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setNowTs(Date.now());
+    });
+
+    const id = window.setInterval(() => setNowTs(Date.now()), 30000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, []);
+
+  const liveMatchIdsKey = useMemo(() => {
+    const live = (matches || []).filter((m) => m.status === 'ao_vivo');
+    const visible = isAdminUser || visibility.matches
+      ? live
+      : live.filter((m) => {
+          const isTeamAGroupC = isTestGroup(m.teams_a?.group);
+          const isTeamBGroupC = isTestGroup(m.teams_b?.group);
+          return !isTeamAGroupC && !isTeamBGroupC;
+        });
+    return visible.map((m) => m.id).sort().join('|');
+  }, [matches, isAdminUser, visibility.matches]);
 
   const formatMatchDatetime = (value?: string | null) => {
     if (!value) return '';
@@ -113,25 +333,101 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }, [isMobileMenuOpen]);
 
   useEffect(() => {
-    if (isMobileMenuOpen) {
-      closeMobileMenu();
-    }
-  }, [location.pathname, isMobileMenuOpen]);
+    closeMobileMenu();
+  }, [location.pathname]);
 
   useEffect(() => {
-    const unsub = onGoalOverlay((payload) => {
-      if (isAdminRoute) return;
-      
-      // Reproduzir som de torcida
-      const goalAudio = new Audio('/sounds/torcida.mp3');
-      goalAudio.volume = 0.6;
-      goalAudio.play().catch(e => console.warn('Audio auto-play blocked:', e));
+    matchesByIdRef.current = new Map((matches || []).map((m) => [m.id, m] as const));
+  }, [matches]);
 
-      setGoalOverlay(payload);
-      window.setTimeout(() => setGoalOverlay(null), 5000);
-    });
-    return () => unsub();
-  }, [isAdminRoute]);
+  useEffect(() => {
+    if (isAdminRoute) return;
+
+    const ids = liveMatchIdsKey ? liveMatchIdsKey.split('|').filter(Boolean) : [];
+    if (ids.length === 0) return;
+
+    const cleanupSeen = () => {
+      const now = Date.now();
+      const seen = seenGoalEventIdsRef.current;
+      for (const [id, ts] of seen) {
+        if (now - ts > 5 * 60 * 1000) seen.delete(id);
+      }
+    };
+
+    const channels = ids.map((matchId) =>
+      supabase
+        .channel(`public:match_events:goal_overlay:${matchId}`)
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'match_events', filter: `match_id=eq.${matchId}` },
+          (payload) => {
+            type MatchEventInsertRow = {
+              id?: unknown;
+              event_type?: unknown;
+              player_id?: unknown;
+              assistant_id?: unknown;
+              commentary?: unknown;
+              metadata?: { goal_type?: unknown } | null;
+            };
+
+            const row = payload.new as MatchEventInsertRow;
+            if (!row || typeof row.event_type !== 'string' || row.event_type !== 'gol') return;
+
+            const eventId = typeof row.id === 'string' && row.id.length > 0 ? row.id : null;
+            if (eventId) {
+              cleanupSeen();
+              if (seenGoalEventIdsRef.current.has(eventId)) return;
+              seenGoalEventIdsRef.current.set(eventId, Date.now());
+            }
+
+            const match = matchesByIdRef.current.get(matchId);
+            if (!match) return;
+
+            const commentary = typeof row.commentary === 'string' ? row.commentary : '';
+            const goalType = typeof row.metadata?.goal_type === 'string' ? row.metadata.goal_type : null;
+            const isOwnGoal = goalType === 'contra' || commentary.toUpperCase().includes('[CONTRA]');
+
+            const playerId = typeof row.player_id === 'string' && row.player_id.length > 0 ? row.player_id : null;
+            if (!playerId) return;
+
+            supabase
+              .from('players')
+              .select('id, name, photo_url, team_id')
+              .eq('id', playerId)
+              .maybeSingle()
+              .then(({ data }) => {
+                const playerName = String(data?.name || 'Atleta');
+                const playerPhotoUrl = data?.photo_url || undefined;
+
+                const teamAName = match.teams_a?.name || 'Equipe A';
+                const teamBName = match.teams_b?.name || 'Equipe B';
+
+                const playerTeamId = data?.team_id ? String(data.team_id) : null;
+                const playerIsTeamA = playerTeamId ? playerTeamId === match.team_a_id : null;
+
+                const creditedTeamName = playerIsTeamA === null
+                  ? teamAName
+                  : !isOwnGoal
+                    ? (playerIsTeamA ? teamAName : teamBName)
+                    : (playerIsTeamA ? teamBName : teamAName);
+
+                emitGoalOverlay({
+                  id: eventId || undefined,
+                  team: creditedTeamName,
+                  player: playerName,
+                  playerPhotoUrl,
+                  division,
+                });
+              });
+          },
+        )
+        .subscribe()
+    );
+
+    return () => {
+      channels.forEach((ch) => supabase.removeChannel(ch));
+    };
+  }, [isAdminRoute, liveMatchIdsKey, division]);
 
   usePreGameReminder(matches, isSubscribed, {
     preGameReminder: preferences.preGameReminder,
@@ -142,54 +438,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     <div className="app-container">
       <a className="skip-link" href="#main-content">Pular para o conteudo</a>
       {/* Global Premium Goal Overlay */}
-      <AnimatePresence>
-        {!isAdminRoute && goalOverlay && (
-          <motion.div
-            className="goal-overlay-premium"
-            initial={{ opacity: 0, scale: 0.5 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 1.5 }}
-            transition={{ type: 'spring', damping: 12 }}
-          >
-            <motion.div
-              className="goal-announcement"
-              animate={{ y: [0, -20, 0] }}
-              transition={{ repeat: Infinity, duration: 2 }}
-            >
-              <div className="goal-hero-row">
-                <div className="goal-icon-container">
-                  <span className="goal-ball-emoji">⚽</span>
-                </div>
-                {goalOverlay.playerPhotoUrl && (
-                  <div className="goal-player-photo">
-                    <img src={goalOverlay.playerPhotoUrl} alt={goalOverlay.player} loading="eager" />
-                  </div>
-                )}
-              </div>
-              <h1 className="goal-text">GOOOOOOOL!</h1>
-              <div className="goal-details">
-                <span className="goal-team">{goalOverlay.team}</span>
-                <span className="goal-player">{goalOverlay.player}</span>
-              </div>
-            </motion.div>
-            <div className="confetti-container">
-              {[...Array(14)].map((_, i) => (
-                <motion.div
-                  key={i}
-                  className="confetti-piece"
-                  initial={{ y: -100, x: Math.random() * 400 - 200, opacity: 1 }}
-                  animate={{ y: 800, rotate: 360 }}
-                  transition={{ duration: Math.random() * 2 + 1, repeat: Infinity }}
-                  style={{
-                    backgroundColor: i % 2 === 0 ? 'var(--secondary)' : 'var(--primary)',
-                    left: `${Math.random() * 100}%`,
-                  }}
-                />
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <GoalOverlayLayer isAdminRoute={isAdminRoute} division={division} />
 
       <aside className={`sidebar ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-content">
@@ -207,6 +456,20 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           </div>
 
           <div className="fifa-streak" style={{ opacity: 0.3, marginBottom: '2rem' }}></div>
+
+          <button
+            className={`division-toggle ${division === 'feminino' ? 'is-feminino' : 'is-masculino'}`}
+            type="button"
+            onClick={() => {
+              toggleDivision();
+              closeMobileMenu();
+            }}
+            aria-label={`Alternar categoria (atual: ${divisionLabel})`}
+            title={`Categoria atual: ${divisionLabel}`}
+          >
+            <ArrowRightLeft size={18} />
+            <span>Categoria: {divisionLabel}</span>
+          </button>
 
           <nav className="sidebar-nav">
             <ul className="nav-links">
@@ -385,16 +648,18 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               </div>
             )}
 
-            <a
+            <button
               className="theme-toggle"
-              href="https://copa-unasp-2026-production.up.railway.app/telao"
-              target="_blank"
-              rel="noreferrer"
-              onClick={closeMobileMenu}
+              type="button"
+              onClick={() => {
+                setShowFeedbackModal(true);
+                closeMobileMenu();
+              }}
+              aria-label="Reportar problema ou melhoria"
             >
-              <Trophy size={20} />
-              <span>Leilao</span>
-            </a>
+              <Flag size={20} />
+              <span>Reportar</span>
+            </button>
 
             <button className="theme-toggle" onClick={toggleTheme} aria-label="Alternar tema">
               {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
@@ -471,6 +736,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       </div>
 
       {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
+      <FeedbackModal
+        open={showFeedbackModal}
+        pagePath={pagePath}
+        onClose={() => setShowFeedbackModal(false)}
+      />
     </div>
   );
 };
