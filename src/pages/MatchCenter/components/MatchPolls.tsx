@@ -1,6 +1,7 @@
 import React from 'react';
 import { HelpCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { supabase } from '../../../lib/supabase';
 
 interface MatchPollsProps {
   match: {
