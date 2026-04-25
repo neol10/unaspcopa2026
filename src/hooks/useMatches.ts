@@ -105,7 +105,10 @@ export const useMatches = (limit?: number) => {
           .select(buildSelect(opts.includeNight))
           .order('match_date', { ascending: true });
 
-        if (opts.includeDivision) q = q.eq('division', division);
+        if (opts.includeDivision) {
+          // Busca partidas da divisão selecionada OU que não tenham divisão definida (legado)
+          q = q.or(`division.eq.${division},division.is.null`);
+        }
         if (limit) q = q.limit(limit);
 
         return await q;

@@ -22,6 +22,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useDivisionContext } from '../../contexts/DivisionContext';
 import { isMissingColumnError as isMissingDivisionColumnError, markDivisionColumnMissing, markNightColumnMissing } from '../../lib/supabaseOptionalColumns';
 import { clearPhotoCropFromUrl, parsePhotoCropFromUrl, setPhotoCropOnUrl } from '../../lib/photoCrop';
+import { deriveMatchStatus } from '../../lib/matchStatus';
 import './Admin.css';
 
 type PostgrestErrorLike =
@@ -2396,9 +2397,20 @@ const MatchManagement = () => {
         {/* === HISTÓRICO DE PARTIDAS === */}
         <div className="admin-list-group" style={{ marginTop: '3rem' }}>
           <h3 className="list-group-title history"><RotateCcw size={16} /> Histórico de Partidas</h3>
-          {loading ? <p>Carregando...</p> : (filteredMatches || []).filter(m => m.status === 'finalizado').length === 0 ? (
+          {loading ? <p>Carregando...</p> : (filteredMatches || []).filter(m => {
+            const status = deriveMatchStatus(m);
+            if (status === 'finalizado') return true;
+            // Para admin, mostra no histórico qualquer jogo que já deveria ter começado
+            const mDate = new Date(m.match_date).getTime();
+            return Date.now() > mDate;
+          }).length === 0 ? (
             <div className="admin-empty-state"><p>Nenhum histórico disponível.</p></div>
-          ) : (filteredMatches || []).filter(m => m.status === 'finalizado').map(match => (
+          ) : (filteredMatches || []).filter(m => {
+            const status = deriveMatchStatus(m);
+            if (status === 'finalizado') return true;
+            const mDate = new Date(m.match_date).getTime();
+            return Date.now() > mDate;
+          }).map(match => (
             <React.Fragment key={match.id}>
               <div className={`admin-list-item match-admin-card ${match.status} history-item`}>
                 <div className="match-status-info">
