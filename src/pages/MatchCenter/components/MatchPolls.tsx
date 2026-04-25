@@ -41,13 +41,34 @@ export const MatchPolls: React.FC<MatchPollsProps> = ({
     if (!isAdmin) return;
     setLoadingVoters(true);
     try {
-      const { data, error } = await supabase
+      // Busca os votos primeiro
+      const { data: votesData, error: votesError } = await supabase
         .from('match_winner_votes')
-        .select('vote, profiles(email)')
+        .select('vote, user_id')
         .eq('match_id', match.id);
       
-      if (error) throw error;
-      setVoters(data || []);
+      if (votesError) throw votesError;
+      if (!votesData || votesData.length === 0) {
+        setVoters([]);
+        return;
+      }
+
+      // Busca os perfis para esses user_ids
+      const userIds = Array.from(new Set(votesData.map(v => v.user_id)));
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, email')
+        .in('id', userIds);
+
+      if (profilesError) throw profilesError;
+
+      // Mapeia os dados
+      const combined = votesData.map(v => ({
+        ...v,
+        profiles: profilesData?.find(p => p.id === v.user_id) || { email: 'Anônimo' }
+      }));
+
+      setVoters(combined);
     } catch (err) {
       console.error('Erro ao buscar votantes:', err);
     } finally {

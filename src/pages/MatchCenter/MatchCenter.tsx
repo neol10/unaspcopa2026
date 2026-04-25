@@ -319,10 +319,22 @@ const MatchCenter: React.FC = () => {
   }, [activeMatch, config.group_unit]);
 
   const finishedMatches = useMemo(() => {
-    // Para admins, mostramos tudo. Para usuários, respeitamos a visibilidade do Grupo C.
+    const nowMs = Date.now();
     const source = isAdmin || visibility.matches ? matches : baseMatches;
+    
     return [...source]
-      .filter((m) => deriveMatchStatus(m) === 'finalizado')
+      .filter((m) => {
+        const status = deriveMatchStatus(m, nowMs);
+        if (status === 'finalizado') return true;
+        
+        // Se for admin, mostra também jogos que já passaram do horário mas continuam agendados
+        if (isAdmin && status === 'agendado') {
+          const mDate = new Date(m.match_date).getTime();
+          return nowMs - mDate > 1000 * 60 * 60 * 2; // Passou mais de 2 horas do início
+        }
+        
+        return false;
+      })
       .sort((a, b) => new Date(b.match_date).getTime() - new Date(a.match_date).getTime())
       .slice(0, 20);
   }, [matches, baseMatches, isAdmin, visibility.matches]);
