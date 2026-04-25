@@ -320,24 +320,30 @@ const MatchCenter: React.FC = () => {
 
   const finishedMatches = useMemo(() => {
     const nowMs = Date.now();
-    const source = isAdmin || visibility.matches ? matches : baseMatches;
+    
+    // Para o histórico, se for admin usamos todos os jogos da categoria.
+    // Se for usuário comum, respeitamos a visibilidade do Grupo C.
+    const source = isAdmin ? matches : (visibility.matches ? matches : baseMatches);
     
     return [...source]
       .filter((m) => {
         const status = deriveMatchStatus(m, nowMs);
         if (status === 'finalizado') return true;
         
-        // Se for admin, mostra também jogos que já passaram do horário de início
-        if (isAdmin && status === 'agendado') {
+        // Se for admin, qualquer jogo que já deveria ter começado vai para o histórico
+        // (a menos que esteja selecionado como o jogo ativo/ao vivo no momento)
+        if (isAdmin) {
           const mDate = new Date(m.match_date).getTime();
-          return nowMs > mDate; 
+          const hasStarted = nowMs > mDate;
+          const isNotCurrent = m.id !== activeMatch?.id;
+          return hasStarted && isNotCurrent;
         }
         
         return false;
       })
       .sort((a, b) => new Date(b.match_date).getTime() - new Date(a.match_date).getTime())
       .slice(0, 20);
-  }, [matches, baseMatches, isAdmin, visibility.matches]);
+  }, [matches, baseMatches, isAdmin, visibility.matches, activeMatch?.id]);
 
   const formatHistoryLabel = (m: Match) => {
     const d = new Date(m.match_date);
