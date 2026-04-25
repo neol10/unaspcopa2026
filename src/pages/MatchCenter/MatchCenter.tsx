@@ -277,7 +277,7 @@ const MatchCenter: React.FC = () => {
     onRefresh: async () => {
       await Promise.all([refreshMatches(), refreshEvents(), refreshRoundMvp()]);
     },
-    disabled: true,
+    disabled: false,
   });
 
   const selectorMatches = useMemo(() => {
@@ -319,11 +319,13 @@ const MatchCenter: React.FC = () => {
   }, [activeMatch, config.group_unit]);
 
   const finishedMatches = useMemo(() => {
-    return [...baseMatches]
+    // Para admins, mostramos tudo. Para usuários, respeitamos a visibilidade do Grupo C.
+    const source = isAdmin || visibility.matches ? matches : baseMatches;
+    return [...source]
       .filter((m) => deriveMatchStatus(m) === 'finalizado')
       .sort((a, b) => new Date(b.match_date).getTime() - new Date(a.match_date).getTime())
       .slice(0, 20);
-  }, [baseMatches]);
+  }, [matches, baseMatches, isAdmin, visibility.matches]);
 
   const formatHistoryLabel = (m: Match) => {
     const d = new Date(m.match_date);
@@ -426,6 +428,7 @@ const MatchCenter: React.FC = () => {
               <MatchPolls 
                 match={activeMatch}
                 user={user}
+                isAdmin={isAdmin}
                 winnerVotes={winnerVotes}
                 winnerUserVote={winnerUserVote}
                 winnerVotesError={winnerVotesError}

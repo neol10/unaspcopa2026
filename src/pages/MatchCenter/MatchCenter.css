@@ -2294,3 +2294,66 @@
     gap: 0.3rem;
   }
 }
+/* Admin Vote Details */
+.admin-view-details-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-dim);
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.admin-view-details-btn:hover {
+  background: rgba(251, 191, 36, 0.1);
+  color: var(--secondary);
+  border-color: rgba(251, 191, 36, 0.3);
+}
+
+.poll-admin-details {
+  margin: 1rem 0;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.voters-list-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.voter-mini-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.voter-mini-row:last-child {
+  border-bottom: none;
+}
+
+.voter-mini-row .v-email {
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.voter-mini-row .v-choice {
+  font-weight: 900;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.v-choice.team_a { color: #60a5fa; background: rgba(59, 130, 246, 0.1); }
+.v-choice.team_b { color: #f87171; background: rgba(239, 68, 68, 0.1); }
+.v-choice.draw { color: #9ca3af; background: rgba(156, 163, 175, 0.1); }
