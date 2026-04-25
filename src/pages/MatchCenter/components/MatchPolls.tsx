@@ -125,7 +125,11 @@ export const MatchPolls: React.FC<MatchPollsProps> = ({
                 <div key={i} className="voter-mini-row">
                   <span className="v-email">{v.profiles?.email || 'Anônimo'}</span>
                   <span className={`v-choice ${v.vote}`}>
-                    {v.vote === 'team_a' ? 'A' : v.vote === 'team_b' ? 'B' : 'E'}
+                    {v.vote === 'team_a' 
+                      ? (match.teams_a?.name?.substring(0, 3).toUpperCase() || 'A')
+                      : v.vote === 'team_b'
+                        ? (match.teams_b?.name?.substring(0, 3).toUpperCase() || 'B')
+                        : 'EMP'}
                   </span>
                 </div>
               ))}

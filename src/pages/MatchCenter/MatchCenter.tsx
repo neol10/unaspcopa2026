@@ -327,10 +327,10 @@ const MatchCenter: React.FC = () => {
         const status = deriveMatchStatus(m, nowMs);
         if (status === 'finalizado') return true;
         
-        // Se for admin, mostra também jogos que já passaram do horário mas continuam agendados
+        // Se for admin, mostra também jogos que já passaram do horário de início
         if (isAdmin && status === 'agendado') {
           const mDate = new Date(m.match_date).getTime();
-          return nowMs - mDate > 1000 * 60 * 60 * 2; // Passou mais de 2 horas do início
+          return nowMs > mDate; 
         }
         
         return false;
