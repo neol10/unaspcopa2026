@@ -1471,6 +1471,84 @@ const ClientErrorsPanel = () => {
   );
 };
 
+// --- Match Winner Votes Viewer ---
+const MatchWinnerVotesModal: React.FC<{ match: Match; onClose: () => void }> = ({ match, onClose }) => {
+  const [votes, setVotes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchVotes = async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('match_winner_votes')
+          .select('vote, user_id, profiles(email), created_at')
+          .eq('match_id', match.id)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        setVotes(data || []);
+      } catch (err: any) {
+        toast.error('Erro ao carregar votos: ' + (err.message || 'Erro desconhecido'));
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchVotes();
+  }, [match.id]);
+
+  return createPortal(
+    <div className="match-votes-modal-backdrop" onClick={onClose}>
+      <div className="match-votes-modal glass animate-slide-up" onClick={e => e.stopPropagation()}>
+        <div className="match-votes-modal-header">
+          <h3>Votos: {match.teams_a?.name || 'A'} vs {match.teams_b?.name || 'B'}</h3>
+          <button className="btn-cancel" onClick={onClose}>Fechar</button>
+        </div>
+        <div className="match-votes-content">
+          {loading ? (
+            <div className="admin-loading-placeholder">
+              <div className="spinner"></div>
+              <p>Carregando votos...</p>
+            </div>
+          ) : votes.length === 0 ? (
+            <p className="empty-msg">Nenhum voto registrado para esta partida.</p>
+          ) : (
+            <table className="match-votes-table">
+              <thead>
+                <tr>
+                  <th>Usuário</th>
+                  <th>Voto</th>
+                  <th>Data/Hora</th>
+                </tr>
+              </thead>
+              <tbody>
+                {votes.map((v, i) => (
+                  <tr key={i}>
+                    <td>{v.profiles?.email || 'Usuário Anônimo'}</td>
+                    <td>
+                      {v.vote === 'team_a' ? (
+                        <span className="vote-badge team-a">{match.teams_a?.name || 'Time A'}</span>
+                      ) : v.vote === 'team_b' ? (
+                        <span className="vote-badge team-b">{match.teams_b?.name || 'Time B'}</span>
+                      ) : (
+                        <span className="vote-badge draw">Empate</span>
+                      )}
+                    </td>
+                    <td style={{ fontSize: '0.8rem', opacity: 0.8 }}>
+                      {v.created_at ? new Date(v.created_at).toLocaleString('pt-BR') : '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 // --- Sub-componentes Admin ---
 
 const MatchManagement = () => {
@@ -1495,6 +1573,7 @@ const MatchManagement = () => {
   const [isAdding, setIsAdding] = useState(false);
   const [isSubmittingMatch, setIsSubmittingMatch] = useState(false);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
+  const [viewingVotesMatch, setViewingVotesMatch] = useState<Match | null>(null);
 
   type MatchFormData = {
     team_a_id: string;
@@ -2180,6 +2259,9 @@ const MatchManagement = () => {
                     </div>
                 </div>
                 <div className="item-actions">
+                  <button className="btn-view-votes" title="Ver quem votou" onClick={() => setViewingVotesMatch(match)}>
+                    <Vote size={14} /> Votos
+                  </button>
                   {match.status === 'agendado' && (
                     <>
                       <button className="btn-icon edit" title="Editar Partida" onClick={() => {
@@ -2342,6 +2424,9 @@ const MatchManagement = () => {
                     </div>
                 </div>
                 <div className="item-actions">
+                  <button className="btn-view-votes" title="Ver quem votou" onClick={() => setViewingVotesMatch(match)}>
+                    <Vote size={14} /> Votos
+                  </button>
                   <button className="btn-live-control history" onClick={() => setSelectedMatchId(selectedMatchId === match.id ? null : match.id)}>
                     {selectedMatchId === match.id ? 'Ocultar Eventos' : 'Gerenciar Eventos'}
                   </button>
@@ -2445,6 +2530,12 @@ const MatchManagement = () => {
           ))}
         </div>
       </div>
+      {viewingVotesMatch && (
+        <MatchWinnerVotesModal 
+          match={viewingVotesMatch} 
+          onClose={() => setViewingVotesMatch(null)} 
+        />
+      )}
     </div>
   );
 };
