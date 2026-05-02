@@ -2627,13 +2627,27 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         return a.firstEvent - b.firstEvent;
       });
 
-    if (sorted.length === 0) return null;
-    const best = sorted[0];
+    if (sorted.length === 0) return { best: null, all: [] };
+
+    const allPlayers = [...(playersA || []), ...(playersB || [])];
+    
+    const topPerformers = sorted.slice(0, 3).map(s => {
+      const p = allPlayers.find(pl => pl.id === s.playerId);
+      return {
+        player_id: s.playerId,
+        name: p?.name || 'Jogador',
+        number: p?.number || '?',
+        description: `${s.participations} participações (${s.goals}G, ${s.assists}A)`,
+        goals: s.goals,
+        assists: s.assists
+      };
+    });
+
     return {
-      player_id: best.playerId,
-      description: `${best.participations} participações (${best.goals}G, ${best.assists}A)`,
+      best: topPerformers[0],
+      all: topPerformers
     };
-  }, [events]);
+  }, [events, playersA, playersB]);
 
   const promptEndMatchMvp = useCallback((initial: { player_id: string; description: string }) => {
     setMvpData(initial);
@@ -2852,11 +2866,11 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       variant: 'warning'
     }))) return;
 
-    // Escolha do craque do jogo (simples) – aparece somente aqui.
+    // Escolha do craque do jogo (otimizado)
     let chosenMvp: { player_id: string | null; description: string } | null = null;
     if (!match.match_mvp_player_id) {
-      const suggested = suggestMvpFromEvents();
-      const initial = suggested ?? { player_id: '', description: '' };
+      const { best } = suggestMvpFromEvents();
+      const initial = best ? { player_id: best.player_id, description: best.description } : { player_id: '', description: '' };
       const choice = await promptEndMatchMvp(initial);
       if (choice.action === 'cancel') return;
       chosenMvp = { player_id: choice.player_id, description: choice.description };
@@ -3196,7 +3210,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
       if (eventType === 'gol') {
         eventData.commentary = finalGoalType === 'normal' ? '' : `[${finalGoalType.toUpperCase()}]`;
-        if (finalAssistantId) eventData.assistant_id = finalAssistantId;
+        if (finalAssistantId && finalGoalType !== 'penalti') eventData.assistant_id = finalAssistantId;
         eventData.metadata = { goal_type: finalGoalType };
       }
       
@@ -3492,11 +3506,11 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           : '';
       return `Gol ${event.players?.name || ''}${suffix}`.trim();
     }
-    if (event.event_type === 'amarelo') return `Cartao amarelo ${event.players?.name || ''}`.trim();
-    if (event.event_type === 'vermelho') return `Cartao vermelho ${event.players?.name || ''}`.trim();
-    if (event.event_type === 'substituicao') return `Substituicao ${event.players?.name || ''}`.trim();
+    if (event.event_type === 'amarelo') return `Cartão amarelo ${event.players?.name || ''}`.trim();
+    if (event.event_type === 'vermelho') return `Cartão vermelho ${event.players?.name || ''}`.trim();
+    if (event.event_type === 'substituicao') return `Substituição ${event.players?.name || ''}`.trim();
     if (event.event_type === 'momento') return event.commentary || 'Momento da partida';
-    if (event.event_type === 'comentario') return event.commentary || 'Comentario';
+    if (event.event_type === 'comentario') return event.commentary || 'Comentário';
     return event.event_type;
   };
 
@@ -3506,18 +3520,47 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   return (
     <div className="live-event-panel-wrapper">
       {endMatchMvpOpen && (
-        <div className="confirm-overlay">
-          <div className="confirm-modal glass mvp-auto-modal" onClick={(e) => e.stopPropagation()}>
-            <h3 className="confirm-title">⭐ Craque do Jogo</h3>
-            <p className="confirm-desc">Selecione o craque antes de finalizar a partida.</p>
+        <div className="mvp-overlay">
+          <div className="mvp-modal-compact" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-compact">
+              <h3 className="confirm-title">⭐ Craque do Jogo</h3>
+              <p className="confirm-desc">Quem foi o melhor da partida?</p>
+            </div>
 
-            <div className="form-grid" style={{ width: '100%' }}>
-              <div className="form-group">
-                <label>Jogador</label>
+            {suggestMvpFromEvents().all.length > 0 && (
+              <div className="mvp-quick-picks">
+                <label className="roster-label" style={{ marginBottom: '0.25rem' }}>Sugestões Automáticas</label>
+                {suggestMvpFromEvents().all.map(p => (
+                  <button 
+                    key={`quick-${p.player_id}`}
+                    className={`mvp-pick-btn ${mvpData.player_id === p.player_id ? 'active' : ''}`}
+                    onClick={() => setMvpData({ player_id: p.player_id, description: p.description })}
+                  >
+                    <div className="mvp-pick-info">
+                      <span className="mvp-pick-name">{p.number}. {p.name}</span>
+                      <span className="mvp-pick-stats">{p.description}</span>
+                    </div>
+                    {mvpData.player_id === p.player_id && <Check size={16} />}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="mvp-form-compact">
+              <div className="mvp-select-wrapper">
+                <label>Outra opção</label>
                 <select
                   className="mvp-player-select"
                   value={mvpData.player_id}
-                  onChange={(e) => setMvpData((prev) => ({ ...prev, player_id: e.target.value }))}
+                  onChange={(e) => {
+                    const pid = e.target.value;
+                    const allP = [...(playersA || []), ...(playersB || [])];
+                    const selectedP = allP.find(p => p.id === pid);
+                    setMvpData({ 
+                      player_id: pid, 
+                      description: selectedP ? 'Atuação de destaque' : '' 
+                    });
+                  }}
                 >
                   <option value="">Selecione...</option>
                   {playersA.length > 0 && (
@@ -3541,37 +3584,36 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                 </select>
               </div>
 
-              <div className="form-group">
-                <label>Observação (opcional)</label>
+              <div className="mvp-input-wrapper">
+                <label>Observação</label>
                 <input
                   type="text"
                   className="mvp-desc-input"
-                  placeholder="Ex: 2 gols"
+                  placeholder="Ex: 2 gols e 1 assistência"
                   value={mvpData.description}
                   onChange={(e) => setMvpData((prev) => ({ ...prev, description: e.target.value }))}
                 />
               </div>
             </div>
 
-            <div className="confirm-actions" style={{ width: '100%' }}>
-              <button className="btn-cancel" onClick={() => closeEndMatchMvp({ action: 'cancel' })}>
-                Cancelar
-              </button>
-              <button className="btn-cancel" onClick={() => closeEndMatchMvp({ action: 'save', player_id: null, description: '' })}>
-                Pular
-              </button>
-              <button
-                className="btn-save"
-                disabled={!mvpData.player_id}
-                onClick={() =>
-                  closeEndMatchMvp({
-                    action: 'save',
-                    player_id: mvpData.player_id || null,
-                    description: mvpData.description,
-                  })
-                }
+            <div className="mvp-actions-compact">
+              <button 
+                className="btn-save" 
+                onClick={() => closeEndMatchMvp({ action: 'save', player_id: mvpData.player_id || null, description: mvpData.description })}
               >
-                Salvar e finalizar
+                Finalizar com este MVP
+              </button>
+              <button 
+                className="btn-none" 
+                onClick={() => closeEndMatchMvp({ action: 'save', player_id: null, description: '' })}
+              >
+                Sem MVP
+              </button>
+              <button 
+                className="btn-cancel" 
+                onClick={() => closeEndMatchMvp({ action: 'cancel' })}
+              >
+                Voltar
               </button>
             </div>
           </div>
@@ -3619,20 +3661,22 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                 </div>
 
                 <div className="wizard-footer-controls">
-                  <div className="form-group">
-                    <label>Assistência (Opcional)</label>
-                    <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
-                      <option value="">Ninguém</option>
-                      {((goalWizard.team === 'a' ? playersA : playersB) || [])
-                        .map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                  </div>
+                  {goalType !== 'penalti' && (
+                    <div className="form-group">
+                      <label>Assistência (Opcional)</label>
+                      <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
+                        <option value="">Ninguém</option>
+                        {((goalWizard.team === 'a' ? playersA : playersB) || [])
+                          .map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                    </div>
+                  )}
                   
                   <div className="form-group">
                     <label>Tipo</label>
                     <div className="goal-type-btns">
                       <button className={goalType === 'normal' ? 'active' : ''} onClick={() => setGoalType('normal')}>Normal</button>
-                      <button className={goalType === 'penalti' ? 'active' : ''} onClick={() => setGoalType('penalti')}>Pênalti</button>
+                      <button className={goalType === 'penalti' ? 'active' : ''} onClick={() => { setGoalType('penalti'); setAssistantId(''); }}>Pênalti</button>
                       <button className={goalType === 'contra' ? 'active red' : ''} onClick={() => setGoalType('contra')}>Contra</button>
                     </div>
                   </div>
@@ -3816,7 +3860,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           <label>Tipo de Gol: </label>
           <div className="goal-type-btns">
             <button className={goalType === 'normal' ? 'active' : ''} onClick={() => setGoalType('normal')}>Normal</button>
-            <button className={goalType === 'penalti' ? 'active' : ''} onClick={() => setGoalType('penalti')}>Pênalti</button>
+            <button className={goalType === 'penalti' ? 'active' : ''} onClick={() => { setGoalType('penalti'); setAssistantId(''); }}>Pênalti</button>
             <button className={goalType === 'contra' ? 'active red' : ''} onClick={() => setGoalType('contra')}>Contra</button>
           </div>
         </div>
@@ -3828,7 +3872,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           <input type="number" value={selectedMinute > 0 ? selectedMinute : Math.floor(seconds / 60) || 1} onChange={e => setSelectedMinute(parseInt(e.target.value))} />
         </div>
         
-        {eventType === 'gol' && (
+        {eventType === 'gol' && goalType !== 'penalti' && (
           <div className="form-group-mini">
             <label>Assistência</label>
             <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>

@@ -1915,6 +1915,166 @@
   transition: all 0.3s ease;
 }
 
+.btn-toggle-event:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* MVP Modal Refinement */
+.mvp-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.mvp-modal-compact {
+  background: #111827;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  width: 100%;
+  max-width: 360px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  animation: modalEnter 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes modalEnter {
+  from { opacity: 0; transform: scale(0.9) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.mvp-modal-compact .confirm-title {
+  font-size: 1.25rem;
+  margin: 0;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mvp-modal-compact .confirm-desc {
+  font-size: 0.9rem;
+  color: #9ca3af;
+  margin: 0;
+  text-align: left;
+}
+
+.mvp-quick-picks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.mvp-pick-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: white;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.mvp-pick-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--primary);
+}
+
+.mvp-pick-btn.active {
+  background: rgba(228, 0, 43, 0.15);
+  border-color: var(--primary);
+  box-shadow: 0 0 15px rgba(228, 0, 43, 0.2);
+}
+
+.mvp-pick-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.mvp-pick-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.mvp-pick-stats {
+  font-size: 0.75rem;
+  color: #9ca3af;
+}
+
+.mvp-form-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.mvp-select-wrapper label,
+.mvp-input-wrapper label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  margin-bottom: 0.25rem;
+  display: block;
+}
+
+.mvp-player-select,
+.mvp-desc-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+  color: white;
+  font-size: 0.95rem;
+}
+
+.mvp-actions-compact {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.mvp-actions-compact .btn-save {
+  grid-column: span 2;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 0.85rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mvp-actions-compact .btn-cancel,
+.mvp-actions-compact .btn-none {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #9ca3af;
+  border-radius: 12px;
+  padding: 0.65rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mvp-actions-compact .btn-save:hover {
+  filter: brightness(1.1);
+  transform: translateY(-2px);
+}
+
 .btn-toggle-active:hover {
   background: rgba(255, 255, 255, 0.1);
   color: var(--text-main);
@@ -2321,33 +2481,32 @@
 }
 
 .goal-type-btns button {
-  padding: 0.4rem 0.8rem;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.02);
+  flex: 1;
+  padding: 0.5rem;
+  border: none;
+  background: transparent;
   color: var(--text-dim);
-  font-size: 0.75rem;
-  font-weight: 700;
-  border: 1px solid rgba(255,255,255,0.1);
+  font-size: 0.85rem;
+  font-weight: 500;
+  border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .goal-type-btns button:hover {
-  border-color: rgba(255, 255, 255, 0.3);
   color: white;
 }
 
 .goal-type-btns button.active {
   background: var(--secondary);
-  color: black;
-  border-color: var(--secondary);
+  color: #000;
+  box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3);
 }
 
 .goal-type-btns button.active.red {
-  background: var(--primary);
-  color: white;
-  border-color: var(--primary);
+  background: #ef4444;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
 
 .final-label {
@@ -4729,8 +4888,8 @@
 .goal-wizard-modal {
   width: 95%;
   max-width: 440px;
-  max-height: calc(100vh - 2rem);
-  max-height: calc(100dvh - 2rem);
+  max-height: 90vh;
+  max-height: 90dvh;
   background: rgba(15, 23, 42, 0.98);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 24px;
@@ -4739,7 +4898,6 @@
   backdrop-filter: blur(10px);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 
 @media (min-width: 768px) {
@@ -4828,18 +4986,16 @@
 
 .player-grid-wizard {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
   gap: 0.6rem;
-  max-height: min(40vh, 340px);
-  overflow-y: auto;
-  padding-right: 0.5rem;
+  padding-bottom: 1rem;
   align-content: start;
 }
 
 @media (max-width: 640px) {
   .player-grid-wizard {
-    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-    gap: 0.45rem;
+    grid-template-columns: repeat(auto-fill, minmax(85px, 1fr));
+    gap: 0.5rem;
   }
 }
 
