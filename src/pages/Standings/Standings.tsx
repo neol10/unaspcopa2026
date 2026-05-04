@@ -113,14 +113,28 @@ const Standings: React.FC = () => {
     ? Object.entries(groupedStandings).filter(([groupName]) => selectedGroup === 'all' || groupName === selectedGroup)
     : [];
 
-  const getGroupRankColorClass = (index: number) => {
+  const getGroupRankColorClass = (index: number, groupSize: number) => {
+    if (groupSize === 4) {
+      if (index <= 1) return 'rank-green';
+      if (index === 2) return 'rank-yellow';
+      if (index === 3) return 'rank-red';
+      return '';
+    }
+
     if (index <= 2) return 'rank-green';
     if (index === 3) return 'rank-yellow';
     if (index === 4) return 'rank-red';
     return '';
   };
 
-  const getOverallRankColorClass = (index: number) => {
+  const getOverallRankColorClass = (index: number, total: number) => {
+    if (total === 4) {
+      if (index <= 1) return 'rank-green';
+      if (index === 2) return 'rank-yellow';
+      if (index === 3) return 'rank-red';
+      return '';
+    }
+
     if (index <= 2) return 'rank-green';
     if (index <= 5) return 'rank-blue';
     if (index <= 8) return 'rank-yellow';
@@ -231,7 +245,7 @@ const Standings: React.FC = () => {
                 </thead>
                 <tbody>
                   {groupTeams.map((team, index) => (
-                    <tr key={team.team_id} className={`row-animate group-rank ${getGroupRankColorClass(index)}`}>
+                    <tr key={team.team_id} className={`row-animate group-rank ${getGroupRankColorClass(index, groupTeams.length)}`}>
                       <td className="col-rank">
                         <span className="rank-num">{index + 1}</span>
                       </td>
@@ -309,7 +323,7 @@ const Standings: React.FC = () => {
               </thead>
               <tbody>
                 {visibleStandings.map((team, index) => (
-                  <tr key={team.team_id} className={`row-animate overall-rank ${getOverallRankColorClass(index)}`}>
+                  <tr key={team.team_id} className={`row-animate overall-rank ${getOverallRankColorClass(index, visibleStandings.length)}`}>
                     <td className="col-rank">
                       <span className="rank-num">{index + 1}</span>
                     </td>
@@ -367,49 +381,6 @@ const Standings: React.FC = () => {
         </div>
       )}
 
-      <footer className="standings-footer glass">
-        <div className="legend">
-          {showByGroup ? (
-            <>
-              <div className="legend-item">
-                <span className="box-green"></span>
-                <span>1º, 2º e 3º colocados</span>
-              </div>
-              <div className="legend-item">
-                <span className="box-yellow"></span>
-                <span>4º colocado</span>
-              </div>
-              <div className="legend-item">
-                <span className="box-red"></span>
-                <span>5º colocado</span>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="legend-item">
-                <span className="box-green"></span>
-                <span>1º, 2º e 3º colocados</span>
-              </div>
-              <div className="legend-item">
-                <span className="box-blue"></span>
-                <span>4º, 5º e 6º colocados</span>
-              </div>
-              <div className="legend-item">
-                <span className="box-yellow"></span>
-                <span>7º, 8º e 9º colocados</span>
-              </div>
-              <div className="legend-item">
-                <span className="box-red"></span>
-                <span>10º colocado</span>
-              </div>
-            </>
-          )}
-        </div>
-        <div className="standings-tip">
-          <Info size={14} />
-          <span>Critérios de desempate: 1. Vitórias | 2. Saldo de Gols | 3. Gols Pró</span>
-        </div>
-      </footer>
     </div>
   );
 };
