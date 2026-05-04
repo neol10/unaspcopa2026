@@ -222,6 +222,9 @@ export const useMatches = (limit?: number) => {
     };
   }, [queryClient, division, limit]);
 
+  const hasCache = Boolean(cached && Array.isArray(cached.data) && cached.data.length > 0);
+  const hasData = Boolean(Array.isArray(query.data) && query.data.length > 0);
+
   return {
     matches: query.data || [],
     // `initialData` pode ser [] quando não existe cache. Nesse caso, `isLoading` fica false,
