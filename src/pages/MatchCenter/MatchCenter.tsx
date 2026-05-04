@@ -281,25 +281,25 @@ const MatchCenter: React.FC = () => {
   });
 
   const selectorMatches = useMemo(() => {
-    if (!activeMatch) return matches;
+    if (!activeMatch) return baseMatches;
     const activeRound = activeMatch.round || 0;
     const isKnockoutByRound = activeRound >= 1000;
 
     const groupUnit = config.group_unit || 'night';
 
     if (isKnockoutByRound) {
-      return matches
+      return baseMatches
         .filter((m) => m.round === activeRound)
         .sort((a, b) => (a.match_date || '').localeCompare(b.match_date || ''));
     }
 
     // Fase de grupos: por Noite ou Rodada (configuravel). Sem fallback por data.
     const activeSlot = groupUnit === 'night' ? (activeMatch.night ?? null) : (activeMatch.round ?? null);
-    return matches
+    return baseMatches
       .filter((m) => (m.round || 0) < 1000)
       .filter((m) => (groupUnit === 'night' ? (m.night ?? null) : (m.round ?? null)) === activeSlot)
       .sort((a, b) => (a.match_date || '').localeCompare(b.match_date || ''));
-  }, [matches, activeMatch, config.group_unit]);
+  }, [baseMatches, activeMatch, config.group_unit]);
 
   const selectorDesktopTitle = useMemo(() => {
     const round = activeMatch?.round || 0;
@@ -550,7 +550,9 @@ const MatchCenter: React.FC = () => {
                   {roundMvpLoading ? <Skeleton height="100px" /> : (
                     <div className="mvp-ranking-list">
                       {roundVotes.slice(0, 3).map((v, i) => (
-                        <div key={v.player_id} className="mvp-rank-item">#{i+1} {v.players?.name} ({v.count} votos)</div>
+                        <div key={v.player_id} className="mvp-rank-item">
+                          #{i+1} {v.player_name || 'Desconhecido'}{v.team_name ? ` (${v.team_name})` : ''} — {v.vote_count} voto{v.vote_count === 1 ? '' : 's'}
+                        </div>
                       ))}
                     </div>
                   )}

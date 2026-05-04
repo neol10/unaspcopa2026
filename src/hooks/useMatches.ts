@@ -213,17 +213,14 @@ export const useMatches = (limit?: number) => {
     const channel = supabase
       .channel('public:matches')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => {
-        queryClient.invalidateQueries({ queryKey: ['matches', division] });
+        queryClient.invalidateQueries({ queryKey: ['matches', division, limit || 'all'] });
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [queryClient, division]);
-
-  const hasCache = Boolean(cached && Array.isArray(cached.data) && cached.data.length > 0);
-  const hasData = Boolean(Array.isArray(query.data) && query.data.length > 0);
+  }, [queryClient, division, limit]);
 
   return {
     matches: query.data || [],
