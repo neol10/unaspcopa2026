@@ -3,6 +3,10 @@
   flex-direction: column;
   gap: 2.5rem;
   padding-bottom: 3rem;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 /* Match Selector Bar */
@@ -2008,6 +2012,20 @@
     width: 100%;
     max-width: 100vw;
     box-sizing: border-box;
+    min-width: 0;
+  }
+
+  .match-layout,
+  .match-primary,
+  .match-side,
+  .match-selector-bar,
+  .match-history-panel,
+  .live-scoreboard,
+  .match-timeline-v2,
+  .live-commentary-feed,
+  .scoreboard-main,
+  .match-selector-summary {
+    min-width: 0;
   }
 
   .match-selector-bar {
@@ -2015,6 +2033,47 @@
     border-radius: 12px;
     margin: 0;
     gap: 0.75rem;
+  }
+
+  .scoreboard-top,
+  .selector-header-row {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .scoreboard-main {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem;
+    min-width: 0;
+  }
+
+  .scoreboard-main .score-numbers {
+    flex-wrap: wrap;
+  }
+
+  .sb-team,
+  .sb-score {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .scoreboard-main .score-numbers {
+    justify-content: center;
+    gap: 1rem;
+    width: 100%;
+  }
+
+  .scoreboard-main .score-numbers .num {
+    font-size: 3.5rem;
+  }
+
+  .match-selector-summary {
+    flex-wrap: wrap;
+  }
+
+  .selector-list {
+    width: 100%;
   }
 
   .mobile-selector-container {
