@@ -56,6 +56,7 @@ const Brackets: React.FC = () => {
   const { config } = useTournamentConfig();
   const [hasScrolled, setHasScrolled] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'teia'>('list');
+  const [selectedKnockoutRound, setSelectedKnockoutRound] = useState<string>('');
 
   const applyTeiaTransform = useCallback(() => {
     if (!teiaContentRef.current) return;
@@ -349,6 +350,39 @@ const Brackets: React.FC = () => {
     });
   }, [sortedRounds, isKnockoutRoundName]);
 
+  const shouldUsePhaseSelector = useMemo(() => {
+    return config.current_phase !== 'grupos' && knockoutRounds.length > 0;
+  }, [config.current_phase, knockoutRounds.length]);
+
+  const defaultKnockoutRound = useMemo(() => {
+    if (knockoutRounds.length === 0) return '';
+
+    const phase = (config.current_phase || '').toLowerCase();
+    const needle =
+      phase === 'semifinal' ? 'semi' :
+      phase === 'oitavas' ? 'oitav' :
+      phase === 'quartas' ? 'quart' :
+      phase === 'final' ? 'final' :
+      '';
+
+    const found = needle
+      ? knockoutRounds.find((r) => r.toLowerCase().includes(needle))
+      : null;
+
+    return found || knockoutRounds[0];
+  }, [config.current_phase, knockoutRounds]);
+
+  useEffect(() => {
+    if (!shouldUsePhaseSelector) return;
+    queueMicrotask(() => {
+      setSelectedKnockoutRound((prev) => {
+        if (!prev) return defaultKnockoutRound;
+        if (!knockoutRounds.includes(prev)) return defaultKnockoutRound;
+        return prev;
+      });
+    });
+  }, [shouldUsePhaseSelector, defaultKnockoutRound, knockoutRounds]);
+
   const groupRounds = useMemo(() => {
     return sortedRounds.filter((r) => !isKnockoutRoundName(r));
   }, [sortedRounds, isKnockoutRoundName]);
@@ -386,6 +420,12 @@ const Brackets: React.FC = () => {
       matches: sortMatches(roundsMap[roundName] || []),
     }));
   }, [knockoutRounds, roundsMap, sortMatches]);
+
+  const visibleTeiaColumns = useMemo(() => {
+    if (!shouldUsePhaseSelector) return teiaColumns;
+    if (!selectedKnockoutRound) return teiaColumns;
+    return teiaColumns.filter((c) => c.roundName === selectedKnockoutRound);
+  }, [shouldUsePhaseSelector, selectedKnockoutRound, teiaColumns]);
 
   const scheduleSummary = useMemo(() => {
     const now = new Date();
@@ -1167,7 +1207,7 @@ const Brackets: React.FC = () => {
         )}
       </div>
 
-      {viewMode === 'list' && groupRounds.length > 0 && (
+      {viewMode === 'list' && groupRounds.length > 0 && !shouldUsePhaseSelector && (
         <div className="phase-jump-nav glass" aria-label="Navegação por noites/rodadas">
           {groupRounds.map((roundName) => {
             const isCurrent =
@@ -1185,6 +1225,25 @@ const Brackets: React.FC = () => {
                 className={`jump-btn ${isCurrent ? 'active' : ''}`}
                 type="button"
                 aria-pressed={isCurrent}
+              >
+                {formatRoundName(roundName)}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {shouldUsePhaseSelector && (
+        <div className="phase-jump-nav glass" aria-label="Navegação por fases">
+          {knockoutRounds.map((roundName) => {
+            const isActive = (selectedKnockoutRound || defaultKnockoutRound) === roundName;
+            return (
+              <button
+                key={roundName}
+                onClick={() => setSelectedKnockoutRound(roundName)}
+                className={`jump-btn ${isActive ? 'active' : ''}`}
+                type="button"
+                aria-pressed={isActive}
               >
                 {formatRoundName(roundName)}
               </button>
@@ -1241,11 +1300,16 @@ const Brackets: React.FC = () => {
             /* Layout de Chaveamento Dinamico (Modo Teia) */
             <div className="knockout-tree-container">
               <section className="knockout-title">
-                <h2 className="section-title"><Trophy size={20} /> Mata-Mata</h2>
+                <h2 className="section-title">
+                  <Trophy size={20} />
+                  {shouldUsePhaseSelector
+                    ? formatRoundName(selectedKnockoutRound || defaultKnockoutRound)
+                    : 'Mata-Mata'}
+                </h2>
               </section>
 
               <div className="knockout-columns">
-                {teiaColumns.map((column) => {
+                {visibleTeiaColumns.map((column) => {
                   const columnMatches = column.matches || [];
                   const detailMatch =
                     columnMatches.find((m) => deriveMatchStatus(m, nowTs) === 'ao_vivo') ||
@@ -1290,7 +1354,7 @@ const Brackets: React.FC = () => {
           ) : (
             /* Layout de Lista de Rodadas (Padrão) */
             <>
-              {knockoutRounds.length > 0 && (
+              {knockoutRounds.length > 0 && !shouldUsePhaseSelector && (
                 <div className="knockout-cta glass">
                   <div className="knockout-cta-info">
                     <Trophy size={18} color="var(--secondary)" />
@@ -1304,9 +1368,12 @@ const Brackets: React.FC = () => {
                   </button>
                 </div>
               )}
-              {groupRounds.map((roundName) => {
+              {(shouldUsePhaseSelector && (selectedKnockoutRound || defaultKnockoutRound)
+                ? [selectedKnockoutRound || defaultKnockoutRound]
+                : groupRounds
+              ).map((roundName) => {
                 const isCurrent =
-                  config.current_phase === 'grupos' &&
+                  (!shouldUsePhaseSelector && config.current_phase === 'grupos') &&
                   (groupUnit === 'round'
                     ? (roundsMap[roundName] || []).some(
                         (m) => (m.round ?? 0) < 1000 && (m.round ?? 0) === config.current_round,
@@ -1338,7 +1405,7 @@ const Brackets: React.FC = () => {
                           className="round-details-btn"
                           type="button"
                           disabled={!canOpenDetails}
-                          title={canOpenDetails ? 'Abrir detalhes desta noite/rodada' : 'Sem jogos ao vivo/finalizados nesta noite/rodada'}
+                          title={canOpenDetails ? (shouldUsePhaseSelector ? 'Abrir detalhes desta fase' : 'Abrir detalhes desta noite/rodada') : (shouldUsePhaseSelector ? 'Sem jogos ao vivo/finalizados nesta fase' : 'Sem jogos ao vivo/finalizados nesta noite/rodada')}
                           onClick={(e) => {
                             e.stopPropagation();
                             if (!detailMatch) return;
@@ -1350,7 +1417,7 @@ const Brackets: React.FC = () => {
                       </div>
                     </h3>
                     <div className="round-matches">
-                      {roundsMap[roundName].map(m => (
+                      {(roundsMap[roundName] || []).map(m => (
                         <MatchBox key={m.id} match={m} />
                       ))}
                     </div>
