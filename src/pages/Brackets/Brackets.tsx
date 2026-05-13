@@ -931,7 +931,8 @@ const Brackets: React.FC = () => {
           <div className="match-preview">
             {(() => {
               const { base, court } = splitLocationCourt(match.location);
-              const label = `${base || match.location || 'Local a definir'}${court ? ` • ${court}` : ''}`;
+              const displayCourt = court || 'QUADRA 1';
+              const label = `${base || match.location || 'Ginásio Principal'} • ${displayCourt}`;
               return <span className="match-meta">{label}</span>;
             })()}
             {(() => {

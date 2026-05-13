@@ -54,17 +54,15 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
 }) => {
   const effectiveStatus = deriveMatchStatus(match);
   const { base: baseLocation, court } = splitLocationCourt(match.location);
-  const locationLabel = `${baseLocation || match.location || ''}${court ? ` • ${court}` : ''}`.trim();
-  const roundLabel = getRoundLabel(match.round, match.night, groupUnitLabel);
+  const displayCourt = court || 'QUADRA 1';
+  const locationLabel = (baseLocation || match.location || 'Ginásio Principal').trim();
 
   return (
     <section className="live-scoreboard glass">
       <div className="scoreboard-top">
         <span className="location">{locationLabel}</span>
         <div className="scoreboard-top-right">
-          {roundLabel && (
-            <span className="sb-round-chip">{roundLabel}</span>
-          )}
+          <span className="sb-round-chip">{displayCourt}</span>
           <div className={`match-badge ${effectiveStatus}`}>
             {effectiveStatus === 'ao_vivo' ? 'AO VIVO' : effectiveStatus.toUpperCase()}
           </div>
