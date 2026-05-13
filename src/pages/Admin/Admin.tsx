@@ -23,6 +23,13 @@ import { useDivisionContext } from '../../contexts/DivisionContext';
 import { isMissingColumnError as isMissingDivisionColumnError, markDivisionColumnMissing, markNightColumnMissing } from '../../lib/supabaseOptionalColumns';
 import { clearPhotoCropFromUrl, parsePhotoCropFromUrl, setPhotoCropOnUrl } from '../../lib/photoCrop';
 import { deriveMatchStatus } from '../../lib/matchStatus';
+import {
+  buildLocationFromCourt,
+  COURT_OPTIONS,
+  DEFAULT_COURT,
+  parseCourtFromLocation,
+  type Court,
+} from '../../lib/court';
 import './Admin.css';
 
 type PostgrestErrorLike =
@@ -1562,19 +1569,8 @@ const MatchManagement = () => {
   const groupUnitLabel = groupUnit === 'round' ? 'Rodada' : 'Noite';
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
-  type Court = 'QUADRA 1' | 'QUADRA 2';
-  const COURT_OPTIONS: Court[] = ['QUADRA 1', 'QUADRA 2'];
-  const DEFAULT_COURT: Court = 'QUADRA 1';
   const BASE_LOCATION = 'Ginásio Principal';
-
-  const parseCourtFromLocation = (location: string | null | undefined): Court => {
-    const raw = String(location || '').toUpperCase();
-    if (raw.includes('QUADRA 2')) return 'QUADRA 2';
-    if (raw.includes('QUADRA 1')) return 'QUADRA 1';
-    return DEFAULT_COURT;
-  };
-
-  const buildLocationFromCourt = (court: Court) => `${BASE_LOCATION} - ${court}`;
+  const buildLocation = (court: Court) => buildLocationFromCourt(BASE_LOCATION, court);
 
   useEffect(() => {
     if (confirmingDeleteId) {
@@ -1595,6 +1591,7 @@ const MatchManagement = () => {
     team_b_id: string;
     match_date: string;
     court: Court;
+    courtTouched: boolean;
     location: string;
     status: Match['status'];
     round: string;
@@ -1606,7 +1603,8 @@ const MatchManagement = () => {
     team_b_id: '', 
     match_date: '', 
     court: DEFAULT_COURT,
-    location: buildLocationFromCourt(DEFAULT_COURT),
+    courtTouched: false,
+    location: buildLocation(DEFAULT_COURT),
     status: 'agendado',
     round: '1',
     night: ''
@@ -1739,7 +1737,7 @@ const MatchManagement = () => {
         team_a_id: formData.team_a_id,
         team_b_id: formData.team_b_id,
         match_date: formData.match_date ? new Date(formData.match_date).toISOString() : null,
-        location: buildLocationFromCourt(formData.court || parseCourtFromLocation(formData.location)),
+        location: buildLocation(formData.court),
         status: formData.status,
         division,
         round: currentRound,
@@ -1777,7 +1775,7 @@ const MatchManagement = () => {
           throw res.error;
         }
       }
-      setFormData({ team_a_id: '', team_b_id: '', match_date: '', court: DEFAULT_COURT, location: buildLocationFromCourt(DEFAULT_COURT), status: 'agendado', round: '1', night: '' });
+      setFormData({ team_a_id: '', team_b_id: '', match_date: '', court: DEFAULT_COURT, courtTouched: false, location: buildLocation(DEFAULT_COURT), status: 'agendado', round: '1', night: '' });
       setIsAdding(false);
       void refresh();
       invalidateCompetitionData();
@@ -1997,7 +1995,9 @@ const MatchManagement = () => {
         team_a_id: data.team_a_id,
         team_b_id: data.team_b_id,
         match_date: data.match_date ? new Date(data.match_date).toISOString() : null,
-        location: buildLocationFromCourt(data.court || parseCourtFromLocation(data.location)),
+        // Só sobrescreve `location` quando o usuário realmente escolher a quadra.
+        // Isso evita "alterar" visualmente várias partidas legadas ao salvar algum ajuste.
+        location: data.courtTouched ? buildLocation(data.court) : data.location,
         status: data.status,
         round: currentRound,
         night: nightValue,
@@ -2167,7 +2167,8 @@ const MatchManagement = () => {
                      setFormData((prev) => ({
                        ...prev,
                        court: nextCourt,
-                       location: buildLocationFromCourt(nextCourt),
+                       courtTouched: true,
+                       location: buildLocation(nextCourt),
                      }));
                    }}
                  >
@@ -2290,7 +2291,9 @@ const MatchManagement = () => {
                           <span className="round-badge">Sem Noite</span>
                         )))}
                         <span className="match-date">{new Date(match.match_date).toLocaleString('pt-BR')}</span>
-                        <span className="round-badge">{parseCourtFromLocation(match.location)}</span>
+                        {parseCourtFromLocation(match.location) && (
+                          <span className="round-badge">{parseCourtFromLocation(match.location)}</span>
+                        )}
                       </div>
                     </div>
                 </div>
@@ -2303,11 +2306,13 @@ const MatchManagement = () => {
                       <button className="btn-icon edit" title="Editar Partida" onClick={() => {
                          vibrate(40);
                          setEditingMatchId(match.id);
+                         const parsedCourt = parseCourtFromLocation(match.location);
                          setFormData({
                            team_a_id: match.team_a_id,
                            team_b_id: match.team_b_id,
                            match_date: formatDatetimeLocal(match.match_date),
-                           court: parseCourtFromLocation(match.location),
+                           court: parsedCourt || DEFAULT_COURT,
+                           courtTouched: false,
                            location: match.location,
                            status: match.status,
                            round: formatRoundInput(match.round),
@@ -2383,7 +2388,8 @@ const MatchManagement = () => {
                           setFormData((prev) => ({
                             ...prev,
                             court: nextCourt,
-                            location: buildLocationFromCourt(nextCourt),
+                            courtTouched: true,
+                            location: buildLocation(nextCourt),
                           }));
                         }}
                       >
@@ -2486,7 +2492,9 @@ const MatchManagement = () => {
                           <span className="round-badge">Sem Noite</span>
                         )))}
                         <span className="match-date">{new Date(match.match_date).toLocaleDateString('pt-BR')}</span>
-                        <span className="round-badge">{parseCourtFromLocation(match.location)}</span>
+                        {parseCourtFromLocation(match.location) && (
+                          <span className="round-badge">{parseCourtFromLocation(match.location)}</span>
+                        )}
                       </div>
                     </div>
                 </div>
@@ -2499,11 +2507,13 @@ const MatchManagement = () => {
                   </button>
                   <button className="btn-icon edit" title="Editar Metadados" onClick={() => {
                       setEditingMatchId(match.id);
+                      const parsedCourt = parseCourtFromLocation(match.location);
                       setFormData({
                         team_a_id: match.team_a_id,
                         team_b_id: match.team_b_id,
                         match_date: formatDatetimeLocal(match.match_date),
-                        court: parseCourtFromLocation(match.location),
+                        court: parsedCourt || DEFAULT_COURT,
+                        courtTouched: false,
                         location: match.location,
                         status: match.status,
                         round: formatRoundInput(match.round),
@@ -2559,7 +2569,8 @@ const MatchManagement = () => {
                           setFormData((prev) => ({
                             ...prev,
                             court: nextCourt,
-                            location: buildLocationFromCourt(nextCourt),
+                            courtTouched: true,
+                            location: buildLocation(nextCourt),
                           }));
                         }}
                       >

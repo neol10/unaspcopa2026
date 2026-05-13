@@ -1,6 +1,7 @@
 import React from 'react';
 import { Shield, Timer, Award, Download, Copy } from 'lucide-react';
 import { deriveMatchStatus } from '../../../lib/matchStatus';
+import { splitLocationCourt } from '../../../lib/court';
 
 interface ScoreboardProps {
   match: {
@@ -38,11 +39,13 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
   onCopySummary
 }) => {
   const effectiveStatus = deriveMatchStatus(match);
+  const { base: baseLocation, court } = splitLocationCourt(match.location);
+  const locationLabel = `${baseLocation || match.location || ''}${court ? ` • ${court}` : ''}`.trim();
 
   return (
     <section className="live-scoreboard glass">
       <div className="scoreboard-top">
-        <span className="location">{match.location}</span>
+        <span className="location">{locationLabel}</span>
         <div className={`match-badge ${effectiveStatus}`}>
           {effectiveStatus === 'ao_vivo' ? 'AO VIVO' : effectiveStatus.toUpperCase()}
         </div>

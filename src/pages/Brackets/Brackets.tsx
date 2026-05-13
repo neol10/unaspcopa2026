@@ -6,6 +6,7 @@ import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
 import { useTournamentConfig } from '../../hooks/useTournamentConfig';
 import { KNOCKOUT_ROUND_LABELS } from '../../lib/tournamentRules';
 import { deriveMatchStatus } from '../../lib/matchStatus';
+import { splitLocationCourt } from '../../lib/court';
 import { Trophy, ChevronRight, ChevronLeft, Target, Timer, ZoomIn, ZoomOut } from 'lucide-react';
 import './Brackets.css';
 
@@ -928,7 +929,11 @@ const Brackets: React.FC = () => {
           </div>
 
           <div className="match-preview">
-            <span className="match-meta">{match.location || 'Local a definir'}</span>
+            {(() => {
+              const { base, court } = splitLocationCourt(match.location);
+              const label = `${base || match.location || 'Local a definir'}${court ? ` • ${court}` : ''}`;
+              return <span className="match-meta">{label}</span>;
+            })()}
             <span className="match-meta">{effectiveStatus === 'agendado' && countdown ? countdown : effectiveStatus === 'ao_vivo' && liveMinutes !== null ? `${liveMinutes}' em andamento` : outcomeLabel || 'Partida encerrada'}</span>
           </div>
 
