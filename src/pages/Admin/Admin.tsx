@@ -1562,6 +1562,20 @@ const MatchManagement = () => {
   const groupUnitLabel = groupUnit === 'round' ? 'Rodada' : 'Noite';
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
+  type Court = 'QUADRA 1' | 'QUADRA 2';
+  const COURT_OPTIONS: Court[] = ['QUADRA 1', 'QUADRA 2'];
+  const DEFAULT_COURT: Court = 'QUADRA 1';
+  const BASE_LOCATION = 'Ginásio Principal';
+
+  const parseCourtFromLocation = (location: string | null | undefined): Court => {
+    const raw = String(location || '').toUpperCase();
+    if (raw.includes('QUADRA 2')) return 'QUADRA 2';
+    if (raw.includes('QUADRA 1')) return 'QUADRA 1';
+    return DEFAULT_COURT;
+  };
+
+  const buildLocationFromCourt = (court: Court) => `${BASE_LOCATION} - ${court}`;
+
   useEffect(() => {
     if (confirmingDeleteId) {
       const timer = setTimeout(() => {
@@ -1580,6 +1594,7 @@ const MatchManagement = () => {
     team_a_id: string;
     team_b_id: string;
     match_date: string;
+    court: Court;
     location: string;
     status: Match['status'];
     round: string;
@@ -1590,7 +1605,8 @@ const MatchManagement = () => {
     team_a_id: '', 
     team_b_id: '', 
     match_date: '', 
-    location: 'Ginásio Principal',
+    court: DEFAULT_COURT,
+    location: buildLocationFromCourt(DEFAULT_COURT),
     status: 'agendado',
     round: '1',
     night: ''
@@ -1723,7 +1739,7 @@ const MatchManagement = () => {
         team_a_id: formData.team_a_id,
         team_b_id: formData.team_b_id,
         match_date: formData.match_date ? new Date(formData.match_date).toISOString() : null,
-        location: formData.location,
+        location: buildLocationFromCourt(formData.court || parseCourtFromLocation(formData.location)),
         status: formData.status,
         division,
         round: currentRound,
@@ -1761,7 +1777,7 @@ const MatchManagement = () => {
           throw res.error;
         }
       }
-      setFormData({ team_a_id: '', team_b_id: '', match_date: '', location: 'Ginásio Principal', status: 'agendado', round: '1', night: '' });
+      setFormData({ team_a_id: '', team_b_id: '', match_date: '', court: DEFAULT_COURT, location: buildLocationFromCourt(DEFAULT_COURT), status: 'agendado', round: '1', night: '' });
       setIsAdding(false);
       void refresh();
       invalidateCompetitionData();
@@ -1981,7 +1997,7 @@ const MatchManagement = () => {
         team_a_id: data.team_a_id,
         team_b_id: data.team_b_id,
         match_date: data.match_date ? new Date(data.match_date).toISOString() : null,
-        location: data.location,
+        location: buildLocationFromCourt(data.court || parseCourtFromLocation(data.location)),
         status: data.status,
         round: currentRound,
         night: nightValue,
@@ -2143,6 +2159,24 @@ const MatchManagement = () => {
                  <input type="datetime-local" required value={formData.match_date} onChange={e => setFormData({...formData, match_date: e.target.value})} />
                </div>
                <div className="form-group">
+                 <label>Quadra</label>
+                 <select
+                   value={formData.court}
+                   onChange={(e) => {
+                     const nextCourt = e.target.value as Court;
+                     setFormData((prev) => ({
+                       ...prev,
+                       court: nextCourt,
+                       location: buildLocationFromCourt(nextCourt),
+                     }));
+                   }}
+                 >
+                   {COURT_OPTIONS.map((c) => (
+                     <option key={c} value={c}>{c}</option>
+                   ))}
+                 </select>
+               </div>
+               <div className="form-group">
                  <label>Fase/Rodada</label>
                  <input
                    type="text"
@@ -2256,6 +2290,7 @@ const MatchManagement = () => {
                           <span className="round-badge">Sem Noite</span>
                         )))}
                         <span className="match-date">{new Date(match.match_date).toLocaleString('pt-BR')}</span>
+                        <span className="round-badge">{parseCourtFromLocation(match.location)}</span>
                       </div>
                     </div>
                 </div>
@@ -2272,6 +2307,7 @@ const MatchManagement = () => {
                            team_a_id: match.team_a_id,
                            team_b_id: match.team_b_id,
                            match_date: formatDatetimeLocal(match.match_date),
+                           court: parseCourtFromLocation(match.location),
                            location: match.location,
                            status: match.status,
                            round: formatRoundInput(match.round),
@@ -2337,6 +2373,24 @@ const MatchManagement = () => {
                     <div className="form-group">
                       <label>Data/Hora</label>
                       <input type="datetime-local" value={formData.match_date} onChange={e => setFormData({...formData, match_date: e.target.value})} />
+                    </div>
+                    <div className="form-group">
+                      <label>Quadra</label>
+                      <select
+                        value={formData.court}
+                        onChange={(e) => {
+                          const nextCourt = e.target.value as Court;
+                          setFormData((prev) => ({
+                            ...prev,
+                            court: nextCourt,
+                            location: buildLocationFromCourt(nextCourt),
+                          }));
+                        }}
+                      >
+                        {COURT_OPTIONS.map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
                     </div>
                     <div className="form-group">
                       <label>Fase/Rodada</label>
@@ -2432,6 +2486,7 @@ const MatchManagement = () => {
                           <span className="round-badge">Sem Noite</span>
                         )))}
                         <span className="match-date">{new Date(match.match_date).toLocaleDateString('pt-BR')}</span>
+                        <span className="round-badge">{parseCourtFromLocation(match.location)}</span>
                       </div>
                     </div>
                 </div>
@@ -2448,6 +2503,7 @@ const MatchManagement = () => {
                         team_a_id: match.team_a_id,
                         team_b_id: match.team_b_id,
                         match_date: formatDatetimeLocal(match.match_date),
+                        court: parseCourtFromLocation(match.location),
                         location: match.location,
                         status: match.status,
                         round: formatRoundInput(match.round),
@@ -2493,6 +2549,24 @@ const MatchManagement = () => {
                     <div className="form-group">
                       <label>Partida / Data</label>
                       <input type="datetime-local" value={formData.match_date} onChange={e => setFormData({...formData, match_date: e.target.value})} />
+                    </div>
+                    <div className="form-group">
+                      <label>Quadra</label>
+                      <select
+                        value={formData.court}
+                        onChange={(e) => {
+                          const nextCourt = e.target.value as Court;
+                          setFormData((prev) => ({
+                            ...prev,
+                            court: nextCourt,
+                            location: buildLocationFromCourt(nextCourt),
+                          }));
+                        }}
+                      >
+                        {COURT_OPTIONS.map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
                     </div>
                     {groupUnit === 'night' && (
                       <div className="form-group">
