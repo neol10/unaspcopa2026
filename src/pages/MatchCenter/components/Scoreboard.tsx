@@ -2,6 +2,7 @@ import React from 'react';
 import { Shield, Timer, Award, Download, Copy } from 'lucide-react';
 import { deriveMatchStatus } from '../../../lib/matchStatus';
 import { splitLocationCourt } from '../../../lib/court';
+import { KNOCKOUT_ROUND_LABELS } from '../../../lib/tournamentRules';
 
 interface ScoreboardProps {
   match: {
@@ -11,6 +12,8 @@ interface ScoreboardProps {
     match_date?: string | null;
     team_a_score: number;
     team_b_score: number;
+    round?: number;
+    night?: number | null;
     is_timer_running?: boolean;
     timer_started_at?: string | null;
     timer_offset_seconds?: number | null;
@@ -26,7 +29,17 @@ interface ScoreboardProps {
   isExporting: boolean;
   onDownloadCard: () => void;
   onCopySummary: () => void;
+  /** Label configurável: "Noite" ou "Rodada" */
+  groupUnitLabel?: string;
 }
+
+const getRoundLabel = (round: number | undefined, night: number | null | undefined, groupUnitLabel: string): string | null => {
+  if (!round) return null;
+  if (round >= 1000) return KNOCKOUT_ROUND_LABELS[round] || `Fase ${round}`;
+  // Fase de grupos: mostra Noite ou Rodada
+  if (night !== null && night !== undefined) return `${groupUnitLabel} ${night}`;
+  return `${groupUnitLabel} ${round}`;
+};
 
 export const Scoreboard: React.FC<ScoreboardProps> = ({
   match,
@@ -36,18 +49,25 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
   mvpName,
   isExporting,
   onDownloadCard,
-  onCopySummary
+  onCopySummary,
+  groupUnitLabel = 'Noite',
 }) => {
   const effectiveStatus = deriveMatchStatus(match);
   const { base: baseLocation, court } = splitLocationCourt(match.location);
   const locationLabel = `${baseLocation || match.location || ''}${court ? ` • ${court}` : ''}`.trim();
+  const roundLabel = getRoundLabel(match.round, match.night, groupUnitLabel);
 
   return (
     <section className="live-scoreboard glass">
       <div className="scoreboard-top">
         <span className="location">{locationLabel}</span>
-        <div className={`match-badge ${effectiveStatus}`}>
-          {effectiveStatus === 'ao_vivo' ? 'AO VIVO' : effectiveStatus.toUpperCase()}
+        <div className="scoreboard-top-right">
+          {roundLabel && (
+            <span className="sb-round-chip">{roundLabel}</span>
+          )}
+          <div className={`match-badge ${effectiveStatus}`}>
+            {effectiveStatus === 'ao_vivo' ? 'AO VIVO' : effectiveStatus.toUpperCase()}
+          </div>
         </div>
       </div>
 

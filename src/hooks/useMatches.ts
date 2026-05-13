@@ -209,10 +209,25 @@ export const useMatches = (limit?: number) => {
   }, [query.status, query.data]);
 
   useEffect(() => {
-    // Subscribe to changes
+    // Subscribe to changes — para UPDATE, aplicamos o patch direto no cache
+    // para evitar que um refetch completo cause "flicker" visual em múltiplas partidas.
     const channel = supabase
       .channel('public:matches')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matches' }, (payload) => {
+        const updated = payload.new as Record<string, unknown> | undefined;
+        if (updated && typeof updated.id === 'string') {
+          queryClient.setQueriesData({ queryKey: ['matches'] }, (old) => {
+            if (!Array.isArray(old)) return old;
+            return (old as Match[]).map((m) =>
+              m.id === updated.id ? { ...m, ...updated } : m
+            );
+          });
+        }
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'matches' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['matches', division, limit || 'all'] });
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'matches' }, () => {
         queryClient.invalidateQueries({ queryKey: ['matches', division, limit || 'all'] });
       })
       .subscribe();

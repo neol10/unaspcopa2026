@@ -934,6 +934,19 @@ const Brackets: React.FC = () => {
               const label = `${base || match.location || 'Local a definir'}${court ? ` • ${court}` : ''}`;
               return <span className="match-meta">{label}</span>;
             })()}
+            {(() => {
+              const round = match.round ?? 0;
+              if (round >= 1000) {
+                return <span className="match-meta match-round-chip">{KNOCKOUT_ROUND_LABELS[round] || `Fase ${round}`}</span>;
+              }
+              if (groupUnit === 'night' && match.night !== null && match.night !== undefined) {
+                return <span className="match-meta match-round-chip">Noite {match.night}</span>;
+              }
+              if (groupUnit === 'round' && round > 0) {
+                return <span className="match-meta match-round-chip">Rodada {round}</span>;
+              }
+              return null;
+            })()}
             <span className="match-meta">{effectiveStatus === 'agendado' && countdown ? countdown : effectiveStatus === 'ao_vivo' && liveMinutes !== null ? `${liveMinutes}' em andamento` : outcomeLabel || 'Partida encerrada'}</span>
           </div>
 

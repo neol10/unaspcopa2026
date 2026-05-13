@@ -441,6 +441,7 @@ const MatchCenter: React.FC = () => {
                 isExporting={isExporting}
                 onDownloadCard={handleDownloadCard}
                 onCopySummary={handleCopySummary}
+                groupUnitLabel={(config.group_unit || 'night') === 'night' ? 'Noite' : 'Rodada'}
               />
 
               <MatchPolls 

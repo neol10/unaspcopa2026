@@ -2307,13 +2307,14 @@ const MatchManagement = () => {
                          vibrate(40);
                          setEditingMatchId(match.id);
                          const parsedCourt = parseCourtFromLocation(match.location);
+                         const initialCourt = parsedCourt || DEFAULT_COURT;
                          setFormData({
                            team_a_id: match.team_a_id,
                            team_b_id: match.team_b_id,
                            match_date: formatDatetimeLocal(match.match_date),
-                           court: parsedCourt || DEFAULT_COURT,
+                           court: initialCourt,
                            courtTouched: false,
-                           location: match.location,
+                           location: match.location || buildLocation(initialCourt),
                            status: match.status,
                            round: formatRoundInput(match.round),
                            night: match.round >= 1000 || groupUnit === 'round' ? '' : String((match as Match).night || '')
@@ -2508,13 +2509,14 @@ const MatchManagement = () => {
                   <button className="btn-icon edit" title="Editar Metadados" onClick={() => {
                       setEditingMatchId(match.id);
                       const parsedCourt = parseCourtFromLocation(match.location);
+                      const initialCourt = parsedCourt || DEFAULT_COURT;
                       setFormData({
                         team_a_id: match.team_a_id,
                         team_b_id: match.team_b_id,
                         match_date: formatDatetimeLocal(match.match_date),
-                        court: parsedCourt || DEFAULT_COURT,
+                        court: initialCourt,
                         courtTouched: false,
-                        location: match.location,
+                        location: match.location || buildLocation(initialCourt),
                         status: match.status,
                         round: formatRoundInput(match.round),
                         night: match.round >= 1000 || groupUnit === 'round' ? '' : String((match as Match).night || '')
