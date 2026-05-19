@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
+import { initOverflowGuard } from './lib/overflowGuard';
 
 const applyBackgroundVariant = () => {
   const variants = [
@@ -25,5 +26,10 @@ applyBackgroundVariant();
 createRoot(document.getElementById('root')!).render(
   <App />
 )
+
+// init guard to auto-restore overflow if a modal left it hidden
+if (typeof window !== 'undefined') {
+  initOverflowGuard();
+}
 
 // O registro do Service Worker (PWA) é gerenciado automaticamente pelo vite-plugin-pwa
