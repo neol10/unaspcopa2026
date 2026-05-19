@@ -380,9 +380,15 @@ export const useRankings = () => {
 
       // Proxy de tempo jogado: contar eventos em que o jogador aparece (player_id ou assistant_id)
       const playerEventCounts: Record<string, number> = {};
+      // Per-match event counts (used to attribute goals conceded to GK on court)
+      const perMatchEventCounts: Record<string, Record<string, number>> = {};
       eventsData.forEach((ev) => {
         if (ev.player_id) playerEventCounts[ev.player_id] = (playerEventCounts[ev.player_id] || 0) + 1;
         if (ev.assistant_id) playerEventCounts[ev.assistant_id] = (playerEventCounts[ev.assistant_id] || 0) + 1;
+        const matchId = ev.match_id ? String(ev.match_id) : (ev.matches ? String(ev.matches?.round || '') : '');
+        if (!perMatchEventCounts[matchId]) perMatchEventCounts[matchId] = {};
+        if (ev.player_id) perMatchEventCounts[matchId][ev.player_id] = (perMatchEventCounts[matchId][ev.player_id] || 0) + 1;
+        if (ev.assistant_id) perMatchEventCounts[matchId][ev.assistant_id] = (perMatchEventCounts[matchId][ev.assistant_id] || 0) + 1;
       });
 
       const mostCardedList = [...playersWithTeam]
@@ -401,6 +407,48 @@ export const useRankings = () => {
         })
         .slice(0, 20);
 
+      // Compute goals conceded per goalkeeper while they were likely on court (heuristic)
+      const goalsConcededByGk: Record<string, number> = {};
+      // Build quick map of matches by id
+      const matchesById: Record<string, any> = {};
+      matchesData.forEach(m => {
+        const id = m.id ? String(m.id) : '';
+        if (id) matchesById[id] = m;
+      });
+
+      // For each goal event, attribute the conceded goal to the GK of the conceding team with highest event count in that match
+      eventsData.forEach((ev) => {
+        if (ev.event_type !== 'gol') return;
+        const goalType = ev.metadata?.goal_type;
+        const isOwnGoal = goalType === 'contra' || Boolean(ev.metadata?.goal_type === 'contra');
+        if (isOwnGoal) return;
+        const matchId = ev.match_id ? String(ev.match_id) : (ev.matches ? String(ev.matches?.round || '') : '');
+        const scorerId = ev.player_id;
+        if (!scorerId || !matchId) return;
+        const scorer = playersWithTeam.find(p => p.id === scorerId);
+        if (!scorer) return;
+        const match = matchesById[matchId];
+        if (!match) return;
+        // determine conceding team id
+        const concededTeamId = match.team_a_id === scorer.team_id ? match.team_b_id : match.team_a_id;
+        // candidate GKs: players in playersWithTeam with matching team_id and GK position
+        const candidateGks = playersWithTeam.filter(p => (p.team_id === concededTeamId) && ((p.position || '').toString().toLowerCase().includes('gole')));
+        if (candidateGks.length === 0) return;
+        // pick GK with highest perMatchEventCounts
+        const counts = perMatchEventCounts[matchId] || {};
+        let bestGk = candidateGks[0];
+        let bestCount = counts[bestGk.id] || 0;
+        for (let i = 1; i < candidateGks.length; i++) {
+          const g = candidateGks[i];
+          const c = counts[g.id] || 0;
+          if (c > bestCount) {
+            bestCount = c;
+            bestGk = g;
+          }
+        }
+        goalsConcededByGk[bestGk.id] = (goalsConcededByGk[bestGk.id] || 0) + 1;
+      });
+
       const goldenGloveList = [...playersWithTeam]
         .filter((p) => {
           const pos = (p.position || '').toString().trim().toLowerCase();
@@ -408,7 +456,8 @@ export const useRankings = () => {
         })
         .map((p) => ({
           ...p,
-          goals_conceded: teamGoalsAgainst[p.team_id] || 0,
+          // prefer goals conceded while the GK was likely on court; fallback to team goals against
+          goals_conceded: goalsConcededByGk[p.id] ?? (teamGoalsAgainst[p.team_id] || 0),
           _eventsCount: playerEventCounts[p.id] || 0,
         }))
         // Excluir goleiros de equipes que nao jogaram
