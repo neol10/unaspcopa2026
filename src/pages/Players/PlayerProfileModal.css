@@ -10,17 +10,21 @@
   align-items: center;
   justify-content: center;
   z-index: 2000;
-  padding: 1rem;
+  padding: 1.5rem;
+  overflow-y: auto;
 }
 
 .player-profile-modal {
   width: 100%;
-  max-width: 500px;
+  max-width: min(520px, 92vw);
+  max-height: min(86vh, 820px);
   background: var(--bg-card);
   border-radius: var(--radius-lg);
-  padding: 2.5rem;
+  padding: clamp(1.5rem, 3vw, 2.5rem);
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .player-profile-modal.team-tinted-modal {
@@ -121,7 +125,7 @@
 }
 
 .player-main-meta h2 {
-  font-size: 1.8rem;
+  font-size: clamp(1.4rem, 2.8vw, 1.9rem);
   font-weight: 800;
   margin-bottom: 0.4rem;
   letter-spacing: -0.5px;
@@ -215,6 +219,26 @@
   text-align: center;
 }
 
+.player-modal-footer .btn-download-card {
+  margin-top: 0.75rem;
+}
+
+@media (max-width: 900px) {
+  .player-profile-modal {
+    max-height: 88vh;
+  }
+
+  .player-id-section {
+    gap: 1.1rem;
+  }
+
+  .player-large-photo,
+  .player-photo-dummy {
+    width: 92px;
+    height: 92px;
+  }
+}
+
 @media (max-width: 480px) {
   .player-id-section {
     flex-direction: column;
@@ -224,12 +248,30 @@
     justify-content: center;
   }
   .player-profile-modal {
-    padding: 1.5rem;
+    max-height: 92vh;
+    padding: 1.25rem;
+    border-radius: 18px;
+  }
+  .player-profile-header {
+    margin-bottom: 1.5rem;
+  }
+  .player-stats-grid {
+    grid-template-columns: 1fr;
+    gap: 0.85rem;
+  }
+  .stat-card {
+    padding: 1.1rem;
   }
   .cards-brief {
     gap: 0.45rem;
   }
   .cards-brief span {
     font-size: 0.92rem !important;
+  }
+  .modal-close-btn {
+    top: 1rem;
+    right: 1rem;
+    width: 36px;
+    height: 36px;
   }
 }

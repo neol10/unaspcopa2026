@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Home, Trophy, BarChart2, Users, Settings, Timer, Sun, Moon, Menu, X, LogIn, User, LogOut, Calendar, Bell, BellOff, Image, Flag, ArrowRightLeft } from 'lucide-react';
+import { Home, Trophy, BarChart2, Users, Settings, Timer, Sun, Moon, Menu, X, LogIn, User, LogOut, Calendar, Bell, BellOff, Image, Flag, ArrowRightLeft, Play } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
@@ -333,7 +333,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }, [isMobileMenuOpen]);
 
   useEffect(() => {
+    // Garantia extra: fecha o menu mobile e remove qualquer estado que bloqueie rolagem
     closeMobileMenu();
+    document.body.classList.remove('nav-open');
+    document.body.style.overflow = '';
+    document.documentElement.style.overflow = '';
   }, [location.pathname]);
 
   useEffect(() => {
@@ -511,6 +515,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               <li>
                 <NavLink to="/galeria" className={({ isActive }) => (isActive ? 'nav-active' : '')} onClick={closeMobileMenu} {...navIntentHandlers('/galeria')}>
                   <Image size={20} /> <span>Galeria</span>
+                </NavLink>
+              </li>
+              <li>
+                <NavLink to="/live" className={({ isActive }) => (isActive ? 'nav-active' : '')} onClick={closeMobileMenu} {...navIntentHandlers('/live')}>
+                  <Play size={20} /> <span>LIVE</span>
                 </NavLink>
               </li>
               {showAdminNav && (

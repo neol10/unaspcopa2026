@@ -220,6 +220,7 @@ const Rankings: React.FC = () => {
           position: player.position,
           photoUrl: player.photo_url,
           teamBadgeUrl: player.team_badge_url,
+          teamPrimaryColor: player.team_primary_color,
         },
         stats,
       });
@@ -256,8 +257,7 @@ const Rankings: React.FC = () => {
         </div>
         <div className="rankings-actions">
           <div className="stat-summary-pill glass">
-            <Activity size={16} color="var(--primary)" />
-            {scorers.length + assistants.length + goalkeepers.length} Destaques da Copa
+            <Activity size={16} color="var(--secondary)" />
           </div>
         </div>
       </header>
@@ -332,7 +332,7 @@ const Rankings: React.FC = () => {
                     ) : (
                       <User size={32} />
                     )}
-                    <div className="winner-badge">#1</div>
+                    <div className="winner-badge">1</div>
                   </div>
                   <div className="winner-details">
                     <h4>{winner.name}</h4>
@@ -352,7 +352,7 @@ const Rankings: React.FC = () => {
                             'gold',
                             [
                               { label: unitLabel, value: selectedRound || '-' },
-                              { label: 'Status', value: 'Destaque' },
+                              { label: 'G/A', value: `${winner.goals_count || 0} G + ${winner.assists || 0} A` },
                               { label: 'Categoria', value: 'MVP' },
                             ],
                           );

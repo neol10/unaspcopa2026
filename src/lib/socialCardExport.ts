@@ -155,9 +155,11 @@ export const downloadSocialPlayerCard = async ({
   theme = 'gold',
 }: DownloadSocialCardOptions) => {
   let colors = THEME_COLORS[theme];
+  let teamAccentRgb: string | null = null;
 
   if (player.teamPrimaryColor && /^#[0-9A-F]{3,6}$/i.test(player.teamPrimaryColor)) {
     const rgbStr = hexToRgbStr(player.teamPrimaryColor);
+    teamAccentRgb = rgbStr;
     colors = {
       primary: `rgb(${rgbStr})`,
       secondary: `rgb(${rgbStr})`,
@@ -165,6 +167,7 @@ export const downloadSocialPlayerCard = async ({
     };
   } else if (player.teamBadgeUrl) {
     const rgbStr = await getDominantColor(player.teamBadgeUrl);
+    teamAccentRgb = rgbStr;
     colors = {
       primary: `rgb(${rgbStr})`,
       secondary: `rgb(${rgbStr})`,
@@ -191,9 +194,9 @@ export const downloadSocialPlayerCard = async ({
   card.style.overflow = 'hidden';
   card.style.color = '#ffffff';
   card.style.fontFamily = "'Poppins', 'Segoe UI', sans-serif";
-  card.style.background =
-    `radial-gradient(circle at 85% 15%, ${colors.glow}, transparent 45%), ` +
-    `linear-gradient(160deg, #0b1220 0%, #121c2f 45%, #111827 100%)`;
+  card.style.background = teamAccentRgb
+    ? `radial-gradient(circle at 85% 15%, rgba(${teamAccentRgb}, 0.34), transparent 45%), linear-gradient(160deg, rgba(${teamAccentRgb}, 0.18) 0%, #121c2f 45%, #111827 100%)`
+    : `radial-gradient(circle at 85% 15%, ${colors.glow}, transparent 45%), linear-gradient(160deg, #0b1220 0%, #121c2f 45%, #111827 100%)`;
   card.style.border = `2px solid ${colors.glow}`;
   card.style.position = 'relative';
 

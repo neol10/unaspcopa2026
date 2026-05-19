@@ -57,6 +57,7 @@ const Players = React.lazy(() => import('./pages/Players/Players'));
 const MatchCenter = React.lazy(() => import('./pages/MatchCenter/MatchCenter'));
 const Brackets = React.lazy(() => import('./pages/Brackets/Brackets'));
 const Gallery = React.lazy(() => import('./pages/Gallery/Gallery'));
+const Live = React.lazy(() => import('./pages/Live/Live'));
 const Admin = React.lazy(() => import('./pages/Admin/Admin'));
 
 const PageLoader = () => (
@@ -243,6 +244,7 @@ function AppContent() {
               <Route path="/central-da-partida" element={<MatchCenter />} />
               <Route path="/jogos" element={<Brackets />} />
               <Route path="/galeria" element={<Gallery />} />
+              <Route path="/live" element={<Live />} />
               <Route path="/admin" element={<Admin />} />
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>

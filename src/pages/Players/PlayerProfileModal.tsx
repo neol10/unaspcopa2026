@@ -16,6 +16,8 @@ interface PlayerProfileModalProps {
 const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose, teamName, teamPrimaryColor }) => {
   const [brokenPhotoUrl, setBrokenPhotoUrl] = useState<string | null>(null);
   useEffect(() => {
+    if (!player) return;
+
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
@@ -32,7 +34,7 @@ const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose
       html.style.overflow = prevHtmlOverflow;
       body.style.overflow = prevBodyOverflow;
     };
-  }, [onClose]);
+  }, [onClose, player]);
 
   const getTeamModalTone = (seedRaw: string) => {
     // Mantemos o tema base (sem variar por cor) conforme o design atual.
@@ -117,7 +119,7 @@ const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose
                       <User size={64} />
                     </div>
                   )}
-                  <div className="player-number-pill">#{player.number}</div>
+                  <div className="player-number-pill">{player.number}</div>
                 </div>
                 <div className="player-main-meta">
                   <h2>{player.name}</h2>

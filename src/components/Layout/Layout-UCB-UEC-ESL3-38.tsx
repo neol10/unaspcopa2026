@@ -113,10 +113,12 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }, [isMobileMenuOpen]);
 
   useEffect(() => {
-    if (isMobileMenuOpen) {
-      closeMobileMenu();
-    }
-  }, [location.pathname, isMobileMenuOpen]);
+    // Safety cleanup on navigation: always close mobile menu and clear any overflow lock
+    closeMobileMenu();
+    document.body.classList.remove('nav-open');
+    document.body.style.overflow = '';
+    document.documentElement.style.overflow = '';
+  }, [location.pathname]);
 
   useEffect(() => {
     const unsub = onGoalOverlay((payload) => {
