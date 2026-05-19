@@ -97,6 +97,22 @@ const getServerVapidPublicKey = async (): Promise<string> => {
   throw new Error('Chave pública VAPID indisponível.');
 };
 
+const getPushSyncCredentials = async () => {
+  const { data } = await supabase.auth.getSession();
+  const session = data.session;
+
+  if (!session?.access_token) {
+    return { token: null as string | null, userId: null as string | null };
+  }
+
+  const { data: userData, error } = await supabase.auth.getUser();
+  if (error || !userData.user) {
+    return { token: null as string | null, userId: null as string | null };
+  }
+
+  return { token: session.access_token, userId: userData.user.id };
+};
+
 export const usePushNotifications = () => {
   const { user, loading: authLoading } = useAuthContext();
   const { division } = useDivisionContext();
@@ -198,24 +214,23 @@ export const usePushNotifications = () => {
       },
     };
 
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
-    
-    if (!token) {
-      console.debug('Push sync skipped: No active session token.');
-      return;
-    }
+      const { token } = await getPushSyncCredentials();
 
     const headers: Record<string, string> = { 
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
     };
+
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const resolvedUserId = token ? userId : null;
 
     const response = await fetch('/api/push-subscription', {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        userId,
+          userId: resolvedUserId,
         subscription: subscriptionPayload,
       }),
     });
@@ -279,6 +294,9 @@ export const usePushNotifications = () => {
           return;
         }
 
+        const resolvedCredentials = await getPushSyncCredentials();
+        const effectiveUserId = resolvedCredentials.userId || user.id;
+
         // Somente tenta re-inscrever automaticamente se NÃO for iOS (ou se já tiver permissão e for standalone)
         const canAutoSubscribe = !isIOS() || (isStandalone() && Notification.permission === 'granted');
 
@@ -294,12 +312,12 @@ export const usePushNotifications = () => {
         if (subscription && !isPushSyncCurrent() && canAutoSubscribe) {
           // Em vez de forçar unsubscribe/subscribe (que falha no Android em background),
           // apenas re-sincronizamos o registro atual com a nova versão.
-          await syncSubscriptionRecord(subscription, preferences, user?.id || null);
+          await syncSubscriptionRecord(subscription, preferences, effectiveUserId);
           markPushSyncVersion();
         }
 
         if (subscription && mounted) {
-          await syncSubscriptionRecord(subscription, preferences, user?.id || null);
+          await syncSubscriptionRecord(subscription, preferences, effectiveUserId);
           warnedSyncRef.current = false;
           setIsSubscribed(true);
         }
@@ -337,7 +355,8 @@ export const usePushNotifications = () => {
       const subscription = await registration.pushManager.getSubscription();
       if (!subscription) return;
 
-      await syncSubscriptionRecord(subscription, next, user?.id || null);
+      const resolvedCredentials = await getPushSyncCredentials();
+      await syncSubscriptionRecord(subscription, next, resolvedCredentials.userId || user?.id || null);
     } catch (err) {
       console.debug('Push preference sync skipped:', err);
       toast.error('Não foi possível salvar preferências de alertas no servidor.');
@@ -371,6 +390,8 @@ export const usePushNotifications = () => {
         throw new Error('Service Worker nao registrado. Recarregue o app.');
       }
       const vapidPublicKey = await getServerVapidPublicKey();
+      const resolvedCredentials = await getPushSyncCredentials();
+      const effectiveUserId = resolvedCredentials.userId || user.id;
 
       const existing = await registration.pushManager.getSubscription();
       if (existing) {
@@ -388,14 +409,14 @@ export const usePushNotifications = () => {
             applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
           });
 
-          await syncSubscriptionRecord(resubscribed, preferences, user?.id || null);
+          await syncSubscriptionRecord(resubscribed, preferences, effectiveUserId);
           markPushSyncVersion();
           setIsSubscribed(true);
           toast.success('Alertas ativados com sucesso!');
           return;
         }
 
-        await syncSubscriptionRecord(existing, preferences, user?.id || null);
+        await syncSubscriptionRecord(existing, preferences, effectiveUserId);
         markPushSyncVersion();
         setIsSubscribed(true);
         toast.success('Alertas ativados com sucesso!');
@@ -407,7 +428,7 @@ export const usePushNotifications = () => {
         applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
       });
 
-      await syncSubscriptionRecord(subscription, preferences, user?.id || null);
+      await syncSubscriptionRecord(subscription, preferences, effectiveUserId);
       markPushSyncVersion();
       setIsSubscribed(true);
       toast.success('Alertas ativados com sucesso!');

@@ -662,6 +662,21 @@ const buildPushEndpointCandidates = (endpoint: string) => {
   return [endpoint];
 };
 
+const getPushAuthToken = async (): Promise<string | null> => {
+  const { data } = await supabase.auth.getSession();
+  const sessionToken = data.session?.access_token?.trim() || '';
+
+  if (sessionToken) {
+    const { data: userData, error } = await supabase.auth.getUser();
+    if (!error && userData.user) {
+      return sessionToken;
+    }
+  }
+
+  const { data: refreshData } = await supabase.auth.refreshSession();
+  return refreshData.session?.access_token?.trim() || null;
+};
+
 const sendPushNotification = async (title: string, body: string, options: PushSendOptions | string = '/'): Promise<boolean> => {
   lastPushErrorMessage = '';
   const safeTitle = String(title || '').trim();
@@ -691,9 +706,13 @@ const sendPushNotification = async (title: string, body: string, options: PushSe
       };
 
   const endpoint = resolvePushApiEndpoint();
+  const token = await getPushAuthToken();
 
-  const { data: { session } } = await supabase.auth.getSession();
-  const token = session?.access_token;
+  if (!token) {
+    lastPushErrorMessage = 'Sessão expirada. Refaça o login para enviar notificações.';
+    console.error(lastPushErrorMessage);
+    return false;
+  }
 
   try {
     const endpoints = buildPushEndpointCandidates(endpoint);
@@ -3751,7 +3770,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                   {goalType !== 'penalti' && (
                     <div className="form-group">
                       <label>Assistência (Opcional)</label>
-                      <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
+                      <select className="goal-assist-select" value={assistantId} onChange={e => setAssistantId(e.target.value)}>
                         <option value="">Ninguém</option>
                         {((goalWizard.team === 'a' ? playersA : playersB) || [])
                           .map(p => <option key={p.id} value={p.id}>{p.name}</option>)}

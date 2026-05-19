@@ -2540,6 +2540,35 @@
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
 
+.goal-assist-select {
+  width: 100%;
+  background: rgba(7, 12, 24, 0.92);
+  border: 1px solid rgba(251, 191, 36, 0.32);
+  border-radius: 14px;
+  color: #f8fafc;
+  padding: 1rem 1.2rem;
+  font-size: 0.98rem;
+  font-weight: 700;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.22);
+  color-scheme: dark;
+}
+
+.goal-assist-select:hover {
+  border-color: rgba(251, 191, 36, 0.55);
+  background: rgba(10, 16, 33, 0.96);
+}
+
+.goal-assist-select:focus {
+  outline: none;
+  border-color: var(--secondary);
+  box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.12);
+}
+
+.goal-assist-select option {
+  background: #0f172a;
+  color: #f8fafc;
+}
+
 .final-label {
   font-size: 0.75rem;
   font-weight: 800;
