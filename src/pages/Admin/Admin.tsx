@@ -3767,16 +3767,22 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                 </div>
 
                 <div className="wizard-footer-controls">
-                  {goalType !== 'penalti' && (
-                    <div className="form-group">
-                      <label>Assistência (Opcional)</label>
-                      <select className="goal-assist-select" value={assistantId} onChange={e => setAssistantId(e.target.value)}>
-                        <option value="">Ninguém</option>
-                        {((goalWizard.team === 'a' ? playersA : playersB) || [])
-                          .map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                      </select>
-                    </div>
-                  )}
+                  <div className="form-group">
+                    <label>Assistência (Opcional)</label>
+                    <select
+                      className="goal-assist-select"
+                      value={assistantId}
+                      onChange={e => setAssistantId(e.target.value)}
+                      disabled={goalType === 'penalti'}
+                    >
+                      <option value="">Ninguém</option>
+                      {((goalWizard.team === 'a' ? playersA : playersB) || [])
+                        .map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                    {goalType === 'penalti' && (
+                      <small className="goal-assist-help">Pênalti não tem assistência.</small>
+                    )}
+                  </div>
                   
                   <div className="form-group">
                     <label>Tipo</label>
