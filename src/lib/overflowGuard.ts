@@ -13,6 +13,8 @@ export function initOverflowGuard() {
         if (body.style.paddingRight && body.style.paddingRight !== '0px') {
           body.style.paddingRight = '';
         }
+        if (body.classList.contains('nav-open')) body.classList.remove('nav-open');
+        if (body.classList.contains('gallery-modal-open')) body.classList.remove('gallery-modal-open');
       }
     } catch (e) {
       // swallow errors — guard should not break app
