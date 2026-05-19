@@ -12,7 +12,7 @@ import { useAuthContext } from '../../contexts/AuthContext';
 import { useTournamentConfig } from '../../hooks/useTournamentConfig';
 
 const Rankings: React.FC = () => {
-  const { scorers, assistants, goalkeepers, disciplined, roundMvps, roundMvpsList, availableRounds, loading, error, refresh } = useRankings();
+  const { scorers, assistants, goalkeepers, disciplined, roundMvps, roundMvpsList, roundHighlights, availableRounds, loading, error, refresh } = useRankings();
   const { config } = useTournamentConfig();
   const { role: authRole } = useAuthContext();
   const [selectedPlayer, setSelectedPlayer] = useState<RankingPlayer | null>(null);
@@ -147,6 +147,34 @@ const Rankings: React.FC = () => {
   const top3Scorers = scorers.slice(0, 3);
   const roundWinner = selectedRound ? roundMvps[selectedRound] : null;
   const roundWinnersList = selectedRound && roundMvpsList ? (roundMvpsList[selectedRound] || []) : [];
+  const highlightedPlayerId = selectedRound && roundHighlights ? roundHighlights[selectedRound] : null;
+
+  // Swipe handlers for touch devices to change selectedRound
+  const touchStartXRef = React.useRef<number | null>(null);
+  const touchMoveXRef = React.useRef<number | null>(null);
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartXRef.current = e.touches[0].clientX;
+  };
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchMoveXRef.current = e.touches[0].clientX;
+  };
+  const handleTouchEnd = () => {
+    const start = touchStartXRef.current;
+    const end = touchMoveXRef.current;
+    if (start === null || end === null) return;
+    const dx = end - start;
+    const threshold = 50; // px
+    if (Math.abs(dx) > threshold && availableRounds.length > 0) {
+      const idx = availableRounds.findIndex(r => r === selectedRound);
+      if (dx < 0 && idx < availableRounds.length - 1) {
+        setSelectedRound(availableRounds[idx + 1]);
+      } else if (dx > 0 && idx > 0) {
+        setSelectedRound(availableRounds[idx - 1]);
+      }
+    }
+    touchStartXRef.current = null;
+    touchMoveXRef.current = null;
+  };
 
   const groupUnit = config?.group_unit === 'round' ? 'round' : 'night';
   const unitLabel = groupUnit === 'round' ? 'Rodada' : 'Noite';
@@ -276,21 +304,21 @@ const Rankings: React.FC = () => {
           </div>
 
           {roundWinnersList && roundWinnersList.length > 0 ? (
-            <div className="round-winners-list">
-              {roundWinnersList.map((winner, idx) => (
-                <div
-                  key={`${winner.id}-${idx}`}
-                  className="round-winner-card"
-                  onClick={() => setSelectedPlayer(winner)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      setSelectedPlayer(winner);
-                    }
-                  }}
-                >
+              <div className="round-winners-list" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
+                {roundWinnersList.map((winner, idx) => (
+                  <div
+                    key={`${winner.id}-${idx}`}
+                    className={`round-winner-card ${highlightedPlayerId === winner.id ? 'golden-highlight blinking' : ''}`}
+                    onClick={() => setSelectedPlayer(winner)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setSelectedPlayer(winner);
+                      }
+                    }}
+                  >
                   <div className="winner-avatar-box">
                     {winner.photo_url ? (
                       <img

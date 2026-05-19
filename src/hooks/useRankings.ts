@@ -413,8 +413,7 @@ export const useRankings = () => {
         }))
         // Excluir goleiros de equipes que nao jogaram
         .filter((p) => (teamMatchesPlayed[p.team_id] || 0) > 0)
-        // Excluir goleiros que nao tiveram qualquer evento (provavel que nao entraram em campo)
-        .filter((p) => (p as any)._eventsCount > 0)
+        // manter goleiros mesmo que nao tenham eventos, pois podem ter jogado mesmo sem registros de eventos
         .sort((a, b) => {
           if ((a.goals_conceded || 0) !== (b.goals_conceded || 0)) {
             return (a.goals_conceded || 0) - (b.goals_conceded || 0);
@@ -430,6 +429,7 @@ export const useRankings = () => {
       // --- LOGICA CRAQUE DA UNIDADE ATUAL (NOITE/RODADA) por partida ---
       const roundMvpsList: Record<string, RankingPlayer[]> = {};
       const calculatedRoundMvps: Record<string, RankingPlayer> = {};
+      const roundHighlights: Record<string, string | null> = {};
 
       // Create map of matches by unit (round/night)
       const matchesByUnit: Record<string, Array<{
@@ -506,6 +506,37 @@ export const useRankings = () => {
         if (winners.length > 0) calculatedRoundMvps[unitKey] = winners[0];
       });
 
+      // Compute highlights per unit: goals per player across the unit
+      const unitGoals: Record<string, Record<string, number>> = {};
+      eventsData.forEach((ev) => {
+        if (ev.event_type !== 'gol') return;
+        const goalType = ev.metadata?.goal_type;
+        const isOwnGoal = goalType === 'contra' || Boolean(ev.metadata?.goal_type === 'contra');
+        if (isOwnGoal) return;
+        const roundValue = Number(ev.matches?.round || 0);
+        const unitValue = groupUnit === 'round' ? roundValue : ev.matches?.night;
+        const unitKey = unitValue === null || unitValue === undefined ? '' : String(unitValue).trim();
+        if (!unitGoals[unitKey]) unitGoals[unitKey] = {};
+        if (ev.player_id) unitGoals[unitKey][ev.player_id] = (unitGoals[unitKey][ev.player_id] || 0) + 1;
+      });
+
+      Object.keys(unitGoals).forEach((unitKey) => {
+        const goalsMap = unitGoals[unitKey] || {};
+        const sorted = Object.entries(goalsMap).sort(([, a], [, b]) => b - a);
+        if (sorted.length === 0) {
+          roundHighlights[unitKey] = null;
+          return;
+        }
+        const top = sorted[0][1] || 0;
+        const second = sorted[1] ? sorted[1][1] : 0;
+        // highlight if top is notably greater than second (>= second + 2)
+        if (top >= second + 2) {
+          roundHighlights[unitKey] = sorted[0][0];
+        } else {
+          roundHighlights[unitKey] = null;
+        }
+      });
+
       const sortedRounds = Object.keys(matchesByUnit).filter(k => k !== '').sort((a, b) => {
         // numeric compare when possible
         const na = Number(a);
@@ -526,6 +557,7 @@ export const useRankings = () => {
         disciplined: mostCardedList,
         roundMvps: calculatedRoundMvps,
         roundMvpsList,
+        roundHighlights,
         availableRounds: sortedRounds
       };
       saveCachedRankings(result);

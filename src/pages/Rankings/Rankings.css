@@ -398,6 +398,21 @@
   gap: 0.75rem;
 }
 
+.golden-highlight {
+  border: 1px solid rgba(234, 179, 8, 0.6) !important;
+  box-shadow: 0 10px 30px rgba(234,179,8,0.12);
+}
+
+.blinking {
+  animation: golden-blink 1s linear infinite;
+}
+
+@keyframes golden-blink {
+  0% { box-shadow: 0 0 0 0 rgba(234,179,8,0.0); }
+  50% { box-shadow: 0 0 18px 4px rgba(234,179,8,0.18); }
+  100% { box-shadow: 0 0 0 0 rgba(234,179,8,0.0); }
+}
+
 .rank-row-item {
   display: flex;
   align-items: center;
