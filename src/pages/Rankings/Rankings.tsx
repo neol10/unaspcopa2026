@@ -12,7 +12,7 @@ import { useAuthContext } from '../../contexts/AuthContext';
 import { useTournamentConfig } from '../../hooks/useTournamentConfig';
 
 const Rankings: React.FC = () => {
-  const { scorers, assistants, goalkeepers, disciplined, roundMvps, availableRounds, loading, error, refresh } = useRankings();
+  const { scorers, assistants, goalkeepers, disciplined, roundMvps, roundMvpsList, availableRounds, loading, error, refresh } = useRankings();
   const { config } = useTournamentConfig();
   const { role: authRole } = useAuthContext();
   const [selectedPlayer, setSelectedPlayer] = useState<RankingPlayer | null>(null);
@@ -146,6 +146,7 @@ const Rankings: React.FC = () => {
   const hasScorers = scorers.length > 0;
   const top3Scorers = scorers.slice(0, 3);
   const roundWinner = selectedRound ? roundMvps[selectedRound] : null;
+  const roundWinnersList = selectedRound && roundMvpsList ? (roundMvpsList[selectedRound] || []) : [];
 
   const groupUnit = config?.group_unit === 'round' ? 'round' : 'night';
   const unitLabel = groupUnit === 'round' ? 'Rodada' : 'Noite';
@@ -274,69 +275,74 @@ const Rankings: React.FC = () => {
             </div>
           </div>
 
-          {roundWinner ? (
-            <div
-              className="round-winner-card"
-              onClick={() => setSelectedPlayer(roundWinner)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  setSelectedPlayer(roundWinner);
-                }
-              }}
-            >
-               <div className="winner-avatar-box">
-                  {roundWinner.photo_url ? (
-                    <img 
-                      src={roundWinner.photo_url} 
-                      alt="" 
-                      width="64" 
-                      height="64" 
-                      loading="lazy" 
-                      decoding="async"
-                    />
-                  ) : (
-                    <User size={32} />
-                  )}
-                  <div className="winner-badge">#1</div>
-               </div>
-               <div className="winner-details">
-                  <h4>{roundWinner.name}</h4>
-                  <span className="winner-team">{roundWinner.team_name}</span>
-                  <p className="winner-reason">Destaque estatístico da {unitLabel} {selectedRound}.</p>
-                  {authRole === 'admin' && (
-                    <button
-                      type="button"
-                      className="rank-row-download-btn mvp-download-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDownloadRankingCard(
-                          `mvp-${selectedRound}-${roundWinner.id}`,
-                          roundWinner,
-                          `Craque da ${unitLabel}`,
-                          `${unitLabel} ${selectedRound} da Copa Unasp`,
-                          'gold',
-                          [
-                            { label: unitLabel, value: selectedRound || '-' },
-                            { label: 'Status', value: 'Destaque' },
-                            { label: 'Categoria', value: 'MVP' },
-                          ],
-                        );
-                      }}
-                      disabled={downloadingCardKey === `mvp-${selectedRound}-${roundWinner.id}`}
-                    >
-                      <Download size={14} />
-                      <span>{downloadingCardKey === `mvp-${selectedRound}-${roundWinner.id}` ? 'Gerando...' : 'Baixar card'}</span>
-                    </button>
-                  )}
-               </div>
+          {roundWinnersList && roundWinnersList.length > 0 ? (
+            <div className="round-winners-list">
+              {roundWinnersList.map((winner, idx) => (
+                <div
+                  key={`${winner.id}-${idx}`}
+                  className="round-winner-card"
+                  onClick={() => setSelectedPlayer(winner)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setSelectedPlayer(winner);
+                    }
+                  }}
+                >
+                  <div className="winner-avatar-box">
+                    {winner.photo_url ? (
+                      <img
+                        src={winner.photo_url}
+                        alt=""
+                        width="64"
+                        height="64"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : (
+                      <User size={32} />
+                    )}
+                    <div className="winner-badge">#1</div>
+                  </div>
+                  <div className="winner-details">
+                    <h4>{winner.name}</h4>
+                    <span className="winner-team">{winner.team_name}</span>
+                    <p className="winner-reason">Craque do jogo — {unitLabel} {selectedRound}.</p>
+                    {authRole === 'admin' && (
+                      <button
+                        type="button"
+                        className="rank-row-download-btn mvp-download-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownloadRankingCard(
+                            `mvp-${selectedRound}-${winner.id}`,
+                            winner,
+                            `Craque da ${unitLabel}`,
+                            `${unitLabel} ${selectedRound} da Copa Unasp`,
+                            'gold',
+                            [
+                              { label: unitLabel, value: selectedRound || '-' },
+                              { label: 'Status', value: 'Destaque' },
+                              { label: 'Categoria', value: 'MVP' },
+                            ],
+                          );
+                        }}
+                        disabled={downloadingCardKey === `mvp-${selectedRound}-${winner.id}`}
+                      >
+                        <Download size={14} />
+                        <span>{downloadingCardKey === `mvp-${selectedRound}-${winner.id}` ? 'Gerando...' : 'Baixar card'}</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
             <div className="round-empty-state">
-               <Zap size={24} opacity={0.3} />
-               <p>Selecione uma {unitLabel.toLowerCase()} finalizada.</p>
+              <Zap size={24} opacity={0.3} />
+              <p>Selecione uma {unitLabel.toLowerCase()} finalizada.</p>
             </div>
           )}
         </section>

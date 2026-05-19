@@ -168,6 +168,7 @@ export const useRankings = () => {
           event_type: 'gol' | 'assistencia' | string;
           minute: number;
           metadata?: { goal_type?: string | null } | null;
+          match_id?: string | null;
           matches?: { round?: unknown; night?: unknown; division?: unknown } | null;
         }>(
           () => {
@@ -205,7 +206,7 @@ export const useRankings = () => {
                 supabase
                   .from('match_events')
                   .select(
-                    `player_id, assistant_id, event_type, minute, metadata, matches:match_id!inner(${nightSelect}, division)`,
+                    `match_id, player_id, assistant_id, event_type, minute, metadata, matches:match_id!inner(${nightSelect}, division)`,
                   )
                   .eq('matches.division', division)
                   .in('event_type', ['gol', 'assistencia']),
@@ -240,9 +241,9 @@ export const useRankings = () => {
               matches?: { round?: unknown; night?: unknown; division?: unknown } | null;
             }>(
               supabase
-                .from('match_events')
-                .select('player_id, assistant_id, event_type, minute, metadata, matches:match_id!inner(round)')
-                .in('event_type', ['gol', 'assistencia']),
+              .from('match_events')
+              .select('match_id, player_id, assistant_id, event_type, minute, metadata, matches:match_id!inner(round)')
+              .in('event_type', ['gol', 'assistencia']),
             ),
         ),
         safeList<{
@@ -253,6 +254,7 @@ export const useRankings = () => {
           team_b_id: string;
           team_a_score: number;
           team_b_score: number;
+          id?: string | null;
         }>(
           () => {
             const currentStatus = getDivisionColumnStatus();
@@ -261,8 +263,8 @@ export const useRankings = () => {
             const fetchOnce = async (includeNight: boolean) => {
               const base = supabase.from('matches').select(
                 includeNight
-                  ? 'round, night, status, team_a_id, team_b_id, team_a_score, team_b_score'
-                  : 'round, status, team_a_id, team_b_id, team_a_score, team_b_score'
+                  ? 'id, round, night, status, team_a_id, team_b_id, team_a_score, team_b_score'
+                  : 'id, round, status, team_a_id, team_b_id, team_a_score, team_b_score'
               );
               if (currentStatus === 'missing') return await asListResponse<{
                 round: unknown;
@@ -306,6 +308,7 @@ export const useRankings = () => {
           () => {
             const includeNight = getNightColumnStatus() !== 'missing';
             return asListResponse<{
+              id?: string | null;
               round: unknown;
               night?: unknown;
               status: unknown;
@@ -318,8 +321,8 @@ export const useRankings = () => {
                 .from('matches')
                 .select(
                   includeNight
-                    ? 'round, night, status, team_a_id, team_b_id, team_a_score, team_b_score'
-                    : 'round, status, team_a_id, team_b_id, team_a_score, team_b_score',
+                    ? 'id, round, night, status, team_a_id, team_b_id, team_a_score, team_b_score'
+                    : 'id, round, status, team_a_id, team_b_id, team_a_score, team_b_score',
                 ),
             );
           },
@@ -375,6 +378,13 @@ export const useRankings = () => {
         teamMatchesPlayed[m.team_b_id] = (teamMatchesPlayed[m.team_b_id] || 0) + 1;
       });
 
+      // Proxy de tempo jogado: contar eventos em que o jogador aparece (player_id ou assistant_id)
+      const playerEventCounts: Record<string, number> = {};
+      eventsData.forEach((ev) => {
+        if (ev.player_id) playerEventCounts[ev.player_id] = (playerEventCounts[ev.player_id] || 0) + 1;
+        if (ev.assistant_id) playerEventCounts[ev.assistant_id] = (playerEventCounts[ev.assistant_id] || 0) + 1;
+      });
+
       const mostCardedList = [...playersWithTeam]
         .map((p) => ({
           ...p,
@@ -399,72 +409,110 @@ export const useRankings = () => {
         .map((p) => ({
           ...p,
           goals_conceded: teamGoalsAgainst[p.team_id] || 0,
+          _eventsCount: playerEventCounts[p.id] || 0,
         }))
+        // Excluir goleiros de equipes que nao jogaram
         .filter((p) => (teamMatchesPlayed[p.team_id] || 0) > 0)
+        // Excluir goleiros que nao tiveram qualquer evento (provavel que nao entraram em campo)
+        .filter((p) => (p as any)._eventsCount > 0)
         .sort((a, b) => {
           if ((a.goals_conceded || 0) !== (b.goals_conceded || 0)) {
             return (a.goals_conceded || 0) - (b.goals_conceded || 0);
           }
+          // preferir quem teve mais eventos (proxy de tempo jogado)
+          if (((b as any)._eventsCount || 0) !== ((a as any)._eventsCount || 0)) return ((b as any)._eventsCount || 0) - ((a as any)._eventsCount || 0);
           if ((b.clean_sheets || 0) !== (a.clean_sheets || 0)) return (b.clean_sheets || 0) - (a.clean_sheets || 0);
           return a.name.localeCompare(b.name);
         })
         .slice(0, 10);
 
       // --- LOGICA CRAQUE DA UNIDADE ATUAL (NOITE/RODADA) ---
-      const unitStats: Record<string, { points: number; goals: number; assists: number; firstEvent: number }> = {};
-      const canComputeCurrentUnit = Boolean(currentUnitKey);
-
-      if (canComputeCurrentUnit) {
-        eventsData.forEach((ev) => {
-          const roundValue = Number(ev.matches?.round || 0);
-          if (!Number.isFinite(roundValue) || roundValue >= 1000) return;
-
-          const unitValue = groupUnit === 'round' ? roundValue : ev.matches?.night;
-          const unitKey = unitValue === null || unitValue === undefined ? '' : String(unitValue).trim();
-          if (unitKey !== currentUnitKey) return;
-
-          if (ev.event_type === 'gol') {
-            const goalType = ev.metadata?.goal_type;
-            const isOwnGoal = goalType === 'contra' || Boolean(ev.commentary && String(ev.commentary).toUpperCase().includes('[CONTRA]'));
-            if (ev.player_id && !isOwnGoal) {
-              if (!unitStats[ev.player_id]) unitStats[ev.player_id] = { points: 0, goals: 0, assists: 0, firstEvent: ev.minute };
-              unitStats[ev.player_id].points += 1;
-              unitStats[ev.player_id].goals += 1;
-              if (ev.minute < unitStats[ev.player_id].firstEvent) unitStats[ev.player_id].firstEvent = ev.minute;
-            }
-            if (ev.assistant_id && !isOwnGoal) {
-              if (!unitStats[ev.assistant_id]) unitStats[ev.assistant_id] = { points: 0, goals: 0, assists: 0, firstEvent: ev.minute };
-              unitStats[ev.assistant_id].points += 1;
-              unitStats[ev.assistant_id].assists += 1;
-              if (ev.minute < unitStats[ev.assistant_id].firstEvent) unitStats[ev.assistant_id].firstEvent = ev.minute;
-            }
-          }
-
-          if (ev.event_type === 'assistencia' && ev.player_id) {
-            if (!unitStats[ev.player_id]) unitStats[ev.player_id] = { points: 0, goals: 0, assists: 0, firstEvent: ev.minute };
-            unitStats[ev.player_id].points += 1;
-            unitStats[ev.player_id].assists += 1;
-            if (ev.minute < unitStats[ev.player_id].firstEvent) unitStats[ev.player_id].firstEvent = ev.minute;
-          }
-        });
-      }
-
+      // --- LOGICA CRAQUE DA UNIDADE ATUAL (NOITE/RODADA) por partida ---
+      const roundMvpsList: Record<string, RankingPlayer[]> = {};
       const calculatedRoundMvps: Record<string, RankingPlayer> = {};
-      if (canComputeCurrentUnit) {
-        const sorted = Object.entries(unitStats).sort(([, a], [, b]) => {
-          if (b.points !== a.points) return b.points - a.points;
-          if (b.goals !== a.goals) return b.goals - a.goals;
-          if (b.assists !== a.assists) return b.assists - a.assists;
-          return a.firstEvent - b.firstEvent;
-        });
-        if (sorted.length > 0) {
-          const winnerId = sorted[0][0];
-          const player = playersWithTeam.find((p) => p.id === winnerId);
-          if (player) calculatedRoundMvps[currentUnitKey] = player;
-        }
-      }
 
-      const sortedRounds = currentUnitKey ? [currentUnitKey] : [];
+      // Create map of matches by unit (round/night)
+      const matchesByUnit: Record<string, Array<{
+        id?: string | null;
+        round: unknown;
+        night?: unknown;
+        status: unknown;
+        team_a_id: string;
+        team_b_id: string;
+        team_a_score: number;
+        team_b_score: number;
+      }>> = {};
+
+      matchesData.forEach((m) => {
+        const roundValue = Number(m.round || 0);
+        const unitValue = groupUnit === 'round' ? roundValue : m.night;
+        const unitKey = unitValue === null || unitValue === undefined ? '' : String(unitValue).trim();
+        if (!matchesByUnit[unitKey]) matchesByUnit[unitKey] = [];
+        matchesByUnit[unitKey].push(m as any);
+      });
+
+      Object.keys(matchesByUnit).forEach((unitKey) => {
+        const matchesInUnit = matchesByUnit[unitKey] || [];
+        const winners: RankingPlayer[] = [];
+
+        matchesInUnit.forEach((mt) => {
+          // compute stats for this match only
+          const matchStats: Record<string, { points: number; goals: number; assists: number; firstEvent: number }> = {};
+          const matchId = mt.id ? String((mt.id as unknown) || '') : '';
+
+          eventsData.forEach((ev) => {
+            const evMatchId = ev.match_id ? String(ev.match_id) : (ev.matches ? String(ev.matches?.round || '') : '');
+            if (!matchId || evMatchId !== matchId) return;
+
+            if (ev.event_type === 'gol') {
+              const goalType = ev.metadata?.goal_type;
+              const isOwnGoal = goalType === 'contra' || Boolean(ev.commentary && String(ev.commentary).toUpperCase().includes('[CONTRA]'));
+              if (ev.player_id && !isOwnGoal) {
+                if (!matchStats[ev.player_id]) matchStats[ev.player_id] = { points: 0, goals: 0, assists: 0, firstEvent: ev.minute };
+                matchStats[ev.player_id].points += 1;
+                matchStats[ev.player_id].goals += 1;
+                if (ev.minute < matchStats[ev.player_id].firstEvent) matchStats[ev.player_id].firstEvent = ev.minute;
+              }
+              if (ev.assistant_id && !isOwnGoal) {
+                if (!matchStats[ev.assistant_id]) matchStats[ev.assistant_id] = { points: 0, goals: 0, assists: 0, firstEvent: ev.minute };
+                matchStats[ev.assistant_id].points += 1;
+                matchStats[ev.assistant_id].assists += 1;
+                if (ev.minute < matchStats[ev.assistant_id].firstEvent) matchStats[ev.assistant_id].firstEvent = ev.minute;
+              }
+            }
+            if (ev.event_type === 'assistencia' && ev.player_id) {
+              if (!matchStats[ev.player_id]) matchStats[ev.player_id] = { points: 0, goals: 0, assists: 0, firstEvent: ev.minute };
+              matchStats[ev.player_id].points += 1;
+              matchStats[ev.player_id].assists += 1;
+              if (ev.minute < matchStats[ev.player_id].firstEvent) matchStats[ev.player_id].firstEvent = ev.minute;
+            }
+          });
+
+          const sorted = Object.entries(matchStats).sort(([, a], [, b]) => {
+            if (b.points !== a.points) return b.points - a.points;
+            if (b.goals !== a.goals) return b.goals - a.goals;
+            if (b.assists !== a.assists) return b.assists - a.assists;
+            return a.firstEvent - b.firstEvent;
+          });
+
+          if (sorted.length > 0) {
+            const winnerId = sorted[0][0];
+            const player = playersWithTeam.find((p) => p.id === winnerId);
+            if (player) winners.push(player);
+          }
+        });
+
+        roundMvpsList[unitKey] = winners;
+        if (winners.length > 0) calculatedRoundMvps[unitKey] = winners[0];
+      });
+
+      const sortedRounds = Object.keys(matchesByUnit).filter(k => k !== '').sort((a, b) => {
+        // numeric compare when possible
+        const na = Number(a);
+        const nb = Number(b);
+        if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
+        return a.localeCompare(b);
+      });
 
       const result = {
         scorers: [...playersWithTeam].sort((a, b) => b.goals_count - a.goals_count).filter(p => p.goals_count > 0).slice(0, 10),
@@ -477,6 +525,7 @@ export const useRankings = () => {
         galeraRank: [...playersWithTeam].filter(p => p.mvp_votes > 0).sort((a, b) => b.mvp_votes - a.mvp_votes).slice(0, 10),
         disciplined: mostCardedList,
         roundMvps: calculatedRoundMvps,
+        roundMvpsList,
         availableRounds: sortedRounds
       };
       saveCachedRankings(result);
