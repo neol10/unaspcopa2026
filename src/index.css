@@ -69,11 +69,10 @@ body {
   color: var(--text-main);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
-  min-height: 100%;
+  min-height: 100vh;
   margin: 0;
   overflow-x: hidden; /* Prevent horizontal shift */
-  overflow-y: auto;
-  overscroll-behavior-y: auto;
+  overflow-y: scroll;
   transition: background-color 0.4s ease, color 0.4s ease;
   width: 100%;
   position: relative;
@@ -82,7 +81,7 @@ body {
 #root {
   overflow-x: hidden;
   width: 100%;
-  min-height: 100%;
+  min-height: 100vh;
 }
 
 [data-theme='light'] body {
@@ -123,7 +122,6 @@ textarea:focus-visible {
 html {
   scroll-behavior: smooth;
   width: 100%;
-  height: auto;
   -webkit-text-size-adjust: 100%;
 }
 

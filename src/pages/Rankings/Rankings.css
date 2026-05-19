@@ -351,8 +351,8 @@
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-  overflow: visible;
-  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   content-visibility: auto;
   contain-intrinsic-size: 320px 320px;
 }
@@ -771,35 +771,38 @@
 
 @media (max-width: 768px) {
   .scorers-podium {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.45rem;
-    padding: 1rem 0.35rem;
+    gap: 0.5rem;
+    padding: 1.5rem 0.5rem;
     min-height: auto;
-    align-items: stretch;
-    justify-content: stretch;
-    overflow: visible;
+    align-items: flex-end;
+    overflow-x: auto;
+    justify-content: flex-start;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .scorers-podium::-webkit-scrollbar {
+    display: none;
   }
   
   .podium-item {
-    min-width: 0;
-    max-width: none;
-    width: 100%;
+    min-width: 140px;
+    flex-shrink: 0;
   }
   
   .podium-player-box {
-    padding: 0.9rem 0.45rem;
+    padding: 1rem 0.5rem;
     border-radius: 16px;
   }
   
   .podium-avatar-wrapper {
-    width: 52px;
-    height: 52px;
+    width: 50px;
+    height: 50px;
   }
   
   .first-place .podium-avatar-wrapper {
-    width: 64px;
-    height: 64px;
+    width: 70px;
+    height: 70px;
   }
   
   .podium-player-name {
@@ -820,18 +823,15 @@
   }
 
   .first-place .podium-player-box {
-    min-height: 270px;
-    height: 100%;
+    height: 300px;
   }
   
   .second-place .podium-player-box {
-    min-height: 245px;
-    height: 100%;
+    height: 260px;
   }
   
   .third-place .podium-player-box {
-    min-height: 220px;
-    height: 100%;
+    height: 230px;
   }
 }
 
@@ -862,8 +862,8 @@
   }
 
   .scorers-podium {
-    gap: 0.35rem;
-    padding: 0.8rem 0.25rem;
+    gap: 0.45rem;
+    padding: 1rem 0.5rem;
   }
 
   .podium-player-name {
@@ -942,6 +942,14 @@
 }
 
 @media (max-width: 320px) {
+  .scorers-podium {
+    gap: 0.35rem;
+  }
+
+  .podium-item {
+    min-width: 120px;
+  }
+
   .podium-player-box {
     padding: 0.75rem 0.4rem;
   }

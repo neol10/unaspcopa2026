@@ -14,7 +14,6 @@ export function usePullToRefresh({ onRefresh, threshold = 70, disabled = false }
   const startYRef = useRef<number | null>(null);
   const isAtTopRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const targetRef = useRef<HTMLDivElement | Window | null>(null);
   
   // Refs para capturar os valores mais recentes sem invalidar os listeners
   const onRefreshRef = useRef(onRefresh);
@@ -32,43 +31,28 @@ export function usePullToRefresh({ onRefresh, threshold = 70, disabled = false }
   const handleTouchStart = useCallback((e: TouchEvent) => {
     if (disabled || isRefreshingRef.current) return;
     const container = containerRef.current;
-    const computed = container ? window.getComputedStyle(container) : null;
-    const canUseContainerScroll = Boolean(
-      container &&
-      (container.scrollHeight > container.clientHeight + 1) &&
-      (computed?.overflowY === 'auto' || computed?.overflowY === 'scroll')
-    );
-    const hasScrollableContent = canUseContainerScroll
+    const hasScrollableContent = container
       ? container.scrollHeight > container.clientHeight
       : document.documentElement.scrollHeight > window.innerHeight;
     if (!hasScrollableContent) {
       startYRef.current = null;
       isAtTopRef.current = false;
-      targetRef.current = null;
       return;
     }
-    const scrollTop = canUseContainerScroll ? (container?.scrollTop ?? 0) : window.scrollY;
+    const scrollTop = container?.scrollTop ?? window.scrollY;
     const atTop = scrollTop <= 0;
     isAtTopRef.current = atTop;
     if (atTop) {
       startYRef.current = e.touches[0].clientY;
-      targetRef.current = canUseContainerScroll ? container : window;
     } else {
       startYRef.current = null;
-      targetRef.current = null;
     }
   }, [disabled]);
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
     if (startYRef.current === null || disabled || isRefreshingRef.current) return;
     const container = containerRef.current;
-    const computed = container ? window.getComputedStyle(container) : null;
-    const canUseContainerScroll = Boolean(
-      container &&
-      (container.scrollHeight > container.clientHeight + 1) &&
-      (computed?.overflowY === 'auto' || computed?.overflowY === 'scroll')
-    );
-    const hasScrollableContent = canUseContainerScroll
+    const hasScrollableContent = container
       ? container.scrollHeight > container.clientHeight
       : document.documentElement.scrollHeight > window.innerHeight;
     if (!hasScrollableContent || !isAtTopRef.current) return;
@@ -99,15 +83,7 @@ export function usePullToRefresh({ onRefresh, threshold = 70, disabled = false }
   }, [threshold]);
 
   useEffect(() => {
-    const container = containerRef.current;
-    const computed = container ? window.getComputedStyle(container) : null;
-    const shouldUseContainer = Boolean(
-      container &&
-      (container.scrollHeight > container.clientHeight + 1) &&
-      (computed?.overflowY === 'auto' || computed?.overflowY === 'scroll')
-    );
-    const el = shouldUseContainer ? container : window;
-    targetRef.current = el;
+    const el = containerRef.current ?? window;
     el.addEventListener('touchstart', handleTouchStart as EventListener, { passive: true });
     el.addEventListener('touchmove', handleTouchMove as EventListener, { passive: false });
     el.addEventListener('touchend', handleTouchEnd as EventListener);
@@ -115,7 +91,6 @@ export function usePullToRefresh({ onRefresh, threshold = 70, disabled = false }
       el.removeEventListener('touchstart', handleTouchStart as EventListener);
       el.removeEventListener('touchmove', handleTouchMove as EventListener);
       el.removeEventListener('touchend', handleTouchEnd as EventListener);
-      targetRef.current = null;
     };
   }, [handleTouchStart, handleTouchMove, handleTouchEnd]);
 
