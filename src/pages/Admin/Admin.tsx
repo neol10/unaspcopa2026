@@ -4116,7 +4116,6 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           <h5>{match.teams_a?.name || 'Equipe A'}</h5>
           
           <div className="roster-section">
-            <span className="roster-label"><Zap size={12} /> Em Campo ({lineupMetaA.selectedCount}/5 • GK {lineupMetaA.goalkeepers}/1)</span>
             <div className="admin-player-btns">
               {(playersA || []).filter(p => onFieldA.includes(p.id)).map(p => (
                 <button 
@@ -4139,39 +4138,6 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
               ))}
             </div>
           </div>
-
-          <div className="roster-section">
-            <span className="roster-label"><Users size={12} /> Banco</span>
-            <div className="admin-player-btns">
-              {(playersA || []).filter(p => !onFieldA.includes(p.id)).map(p => (
-                <button 
-                  key={p.id} 
-                  onClick={() => {
-                    if (isPreGame) {
-                      togglePlayerStatus(p.id, 'a');
-                      return;
-                    }
-                    if (eventType === 'gol') {
-                      setGoalWizard({ team: 'a', open: true, pId: p.id });
-                      return;
-                    }
-                    if (eventType === 'amarelo' || eventType === 'vermelho') {
-                      addEvent(p.id, 'a');
-                      return;
-                    }
-                    togglePlayerStatus(p.id, 'a');
-                  }} 
-                  className={`p-btn bench${isPreGame && isSuspendedForNextMatch(p) ? ' is-suspended' : ''}`}
-                  disabled={isPreGame && isSuspendedForNextMatch(p)}
-                  title={isPreGame && isSuspendedForNextMatch(p) ? 'Suspenso por 2 amarelos ou 1 vermelho' : undefined}
-                >
-                  <span className="p-num">{p.number}</span>
-                  <span className="p-name">{p.name.split(' ')[0]}</span>
-                  {renderSuspendedChip(p)}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
 
         <div className="divider-vertical"></div>
@@ -4180,7 +4146,6 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           <h5>{match.teams_b?.name || 'Equipe B'}</h5>
           
           <div className="roster-section">
-            <span className="roster-label"><Zap size={12} /> Em Campo ({lineupMetaB.selectedCount}/5 • GK {lineupMetaB.goalkeepers}/1)</span>
             <div className="admin-player-btns">
               {(playersB || []).filter(p => onFieldB.includes(p.id)).map(p => (
                 <button 
@@ -4199,39 +4164,6 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                   <span className="p-name">{p.name.split(' ')[0]}</span>
                   {renderSuspendedChip(p)}
                   <ChevronDown size={10} className="btn-status-toggle" onClick={(e) => { e.stopPropagation(); togglePlayerStatus(p.id, 'b'); }} />
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="roster-section">
-            <span className="roster-label"><Users size={12} /> Banco</span>
-            <div className="admin-player-btns">
-              {(playersB || []).filter(p => !onFieldB.includes(p.id)).map(p => (
-                <button 
-                  key={p.id} 
-                  onClick={() => {
-                    if (isPreGame) {
-                      togglePlayerStatus(p.id, 'b');
-                      return;
-                    }
-                    if (eventType === 'gol') {
-                      setGoalWizard({ team: 'b', open: true, pId: p.id });
-                      return;
-                    }
-                    if (eventType === 'amarelo' || eventType === 'vermelho') {
-                      addEvent(p.id, 'b');
-                      return;
-                    }
-                    togglePlayerStatus(p.id, 'b');
-                  }} 
-                  className={`p-btn bench${isPreGame && isSuspendedForNextMatch(p) ? ' is-suspended' : ''}`}
-                  disabled={isPreGame && isSuspendedForNextMatch(p)}
-                  title={isPreGame && isSuspendedForNextMatch(p) ? 'Suspenso por 2 amarelos ou 1 vermelho' : undefined}
-                >
-                  <span className="p-num">{p.number}</span>
-                  <span className="p-name">{p.name.split(' ')[0]}</span>
-                  {renderSuspendedChip(p)}
                 </button>
               ))}
             </div>
