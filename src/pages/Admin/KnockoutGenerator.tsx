@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useStandings } from '../../hooks/useStandings';
+import { supabase } from '../../lib/supabase';
 
 type SeedItem = {
   team_id: string;
@@ -130,6 +131,36 @@ const KnockoutGenerator: React.FC = () => {
     }
   };
 
+  // Subscribe to matches changes to auto-advance winners when matches finalize
+  React.useEffect(() => {
+    const channel = supabase
+      .channel('public:auto_advance')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matches' }, async (payload) => {
+        try {
+          const oldStatus = (payload.old as any)?.status;
+          const newStatus = (payload.new as any)?.status;
+          if (oldStatus !== 'finalizado' && newStatus === 'finalizado') {
+            const m = payload.new as any;
+            const a = m.team_a_id;
+            const b = m.team_b_id;
+            const aScore = m.team_a_score ?? 0;
+            const bScore = m.team_b_score ?? 0;
+            const winner = aScore > bScore ? a : (bScore > aScore ? b : null);
+            if (winner) {
+              await fetch('/api/auto-advance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ match_id: m.id, winner_team_id: winner, current_round: m.round }) });
+            }
+          }
+        } catch (err) {
+          // ignore
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   return (
     <div className="knockout-generator glass" style={{ marginTop: 16, padding: 12 }}>
       <h6>Gerar Mata-mata</h6>
@@ -179,3 +210,4 @@ const KnockoutGenerator: React.FC = () => {
 };
 
 export default KnockoutGenerator;
+
