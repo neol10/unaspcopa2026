@@ -118,6 +118,18 @@ const KnockoutGenerator: React.FC = () => {
     }
   };
 
+  const handleAdvanceWinner = async (teamId?: string) => {
+    if (!teamId) return;
+    try {
+      const resp = await fetch('/api/advance-winner', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ winner_team_id: teamId }) });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data?.error || 'Erro ao avançar vencedor');
+      setMessage('Vencedor avançado (partida criada).');
+    } catch (err: any) {
+      setMessage(String(err?.message || err));
+    }
+  };
+
   return (
     <div className="knockout-generator glass" style={{ marginTop: 16, padding: 12 }}>
       <h6>Gerar Mata-mata</h6>
@@ -152,8 +164,10 @@ const KnockoutGenerator: React.FC = () => {
                 <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>seed: {m.teamA?.seedLabel || '-'} x {m.teamB?.seedLabel || '-'}</div>
                 {(m as any).match_date && <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>data: {(new Date((m as any).match_date)).toLocaleString()}</div>}
               </div>
-              <div>
+              <div style={{ display: 'flex', gap: 8 }}>
                 <button className="btn-cancel" onClick={() => handleSwap(i)} style={{ marginLeft: 8 }}>Trocar lados</button>
+                <button className="btn-add" onClick={() => handleAdvanceWinner(m.teamA?.team_id)} disabled={!m.teamA?.team_id}>Avançar {m.teamA?.team_name}</button>
+                <button className="btn-add" onClick={() => handleAdvanceWinner(m.teamB?.team_id)} disabled={!m.teamB?.team_id}>Avançar {m.teamB?.team_name}</button>
               </div>
             </div>
           ))}
