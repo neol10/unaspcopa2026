@@ -4110,7 +4110,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         
       <div
         ref={lineupAnchorRef}
-        className={`teams-lanes event-selector-active-${eventType} ${lineupNudge ? 'lineup-nudge' : ''}`}
+        className={`teams-lanes event-selector-active-${eventType} ${lineupNudge ? 'lineup-nudge' : ''} ${onFieldA.length === 0 && onFieldB.length === 0 ? 'no-roster' : ''}`}
       >
         <div className="lane">
           <h5>{match.teams_a?.name || 'Equipe A'}</h5>
