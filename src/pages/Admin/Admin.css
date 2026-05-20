@@ -3387,6 +3387,11 @@
   letter-spacing: 1.5px;
 }
 
+/* Hide team name headers in admin live roster to reduce visual clutter */
+.teams-lanes .lane h5 {
+  display: none;
+}
+
 .roster-section {
   display: flex;
   flex-direction: column;
