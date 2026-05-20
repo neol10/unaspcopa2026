@@ -3090,6 +3090,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   // Pre-jogo aqui significa: cronometro ainda nao iniciou (independente do status estar 'agendado' ou 'ao_vivo').
   // Isso garante que a escalação seja exigida antes do apito inicial.
   const isPreGame = match.status !== 'finalizado' && !hasStarted;
+  const requireLineupToStart = false;
 
   const isSuspendedForNextMatch = useCallback((player?: { yellow_cards?: number | null; red_cards?: number | null; suspensions_served?: number | null }) => {
     if (!player) return false;
@@ -3153,7 +3154,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   }, [isGoalkeeper, isSuspendedForNextMatch]);
 
   const startBlockReason = useMemo(() => {
-    if (!isPreGame) return null;
+    if (!isPreGame || !requireLineupToStart) return null;
 
     const errA = getLineupError(match.teams_a?.name || 'Equipe A', playersA, onFieldA);
     if (errA) return errA;
@@ -3162,7 +3163,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
     if (errB) return errB;
 
     return null;
-  }, [getLineupError, isPreGame, match.teams_a?.name, match.teams_b?.name, playersA, playersB, onFieldA, onFieldB]);
+  }, [getLineupError, isPreGame, match.teams_a?.name, match.teams_b?.name, playersA, playersB, onFieldA, onFieldB, requireLineupToStart]);
 
   const lineupAnchorRef = useRef<HTMLDivElement | null>(null);
   const [lineupNudge, setLineupNudge] = useState(false);
@@ -3174,13 +3175,13 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   }, []);
 
   const handleStartTimerWithLineup = useCallback(async () => {
-    if (startBlockReason) {
+    if (requireLineupToStart && startBlockReason) {
       toast.error(`Escalação obrigatória: ${startBlockReason}`);
       scrollToLineup();
       return;
     }
     await handleStartTimer();
-  }, [handleStartTimer, scrollToLineup, startBlockReason]);
+  }, [handleStartTimer, scrollToLineup, startBlockReason, requireLineupToStart]);
 
   const handlePauseTimerRef = useRef(handlePauseTimer);
   const handleRetomarRef = useRef(handleRetomar);
@@ -3308,10 +3309,17 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         player_id: null,
       };
 
+      const allPlayers = [...(playersA || []), ...(playersB || [])];
+      const isRegisteredPlayer = !!allPlayers.find(p => p.id === playerId);
+
       if (eventType === 'comentario' || eventType === 'momento') {
         eventData.player_id = null;
+      } else if (eventType === 'gol' && playerId && !isRegisteredPlayer) {
+        // Free-text scorer name: store in metadata and keep player_id null
+        eventData.player_id = null;
+        eventData.metadata = { ...(eventData.metadata || {}), scorer_name: playerId } as any;
       } else {
-        eventData.player_id = playerId;
+        eventData.player_id = isRegisteredPlayer ? playerId : null;
       }
 
       if (eventType === 'gol') {
@@ -3349,9 +3357,11 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       }
       
       if (eventType === 'gol' && finalGoalType !== 'contra') {
-        const { data: p } = await supabase.from('players').select('goals_count').eq('id', playerId).single();
-        await supabase.from('players').update({ goals_count: (p?.goals_count || 0) + 1 }).eq('id', playerId);
-        
+        if (isRegisteredPlayer) {
+          const { data: p } = await supabase.from('players').select('goals_count').eq('id', playerId).single();
+          await supabase.from('players').update({ goals_count: (p?.goals_count || 0) + 1 }).eq('id', playerId);
+        }
+
         if (finalAssistantId) {
           const { data: ast } = await supabase.from('players').select('assists').eq('id', finalAssistantId).single();
           await supabase.from('players').update({ assists: (ast?.assists || 0) + 1 }).eq('id', finalAssistantId);
@@ -3376,12 +3386,14 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         const player = [...playersA, ...playersB].find(p => p.id === playerId);
         const teamName = team === 'a' ? (match.teams_a?.name || 'Equipe A') : (match.teams_b?.name || 'Equipe B');
         let title = '⚽ GOOOOOOL!';
-        let body = `Gol de ${player?.name || 'alguém'} para o ${teamName}!`;
+        const scorerName = player?.name || (eventData.metadata as any)?.scorer_name || 'alguém';
+        let body = `Gol de ${scorerName} para o ${teamName}!`;
         
         if (finalGoalType === 'penalti') body = `[PÊNALTI] ${body}`;
         if (finalGoalType === 'contra') {
           title = '⚽ GOL CONTRA!';
-          body = `Gol contra de ${player?.name}!`;
+          const contraName = player?.name || (eventData.metadata as any)?.scorer_name || 'alguém';
+          body = `Gol contra de ${contraName}!`;
         }
 
         sendPushNotification(title, body, {
@@ -3506,6 +3518,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   };
 
   const [goalWizard, setGoalWizard] = useState<{ team: 'a' | 'b', open: boolean, pId?: string }>({ team: 'a', open: false });
+  const [goalFreeName, setGoalFreeName] = useState<string>('');
 
   const handleManualScore = async (team: 'a' | 'b', increment: number) => {
     if (increment > 0) {
@@ -3756,13 +3769,39 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                       <button 
                         key={p.id} 
                         className={`p-wizard-btn ${onFieldA.includes(p.id) || onFieldB.includes(p.id) ? 'on-field' : ''} ${goalWizard.pId === p.id ? 'pre-selected' : ''}`}
-                        onClick={() => handleGoalWizardSubmit(p.id, goalType, assistantId)}
+                        onClick={() => {
+                          setGoalFreeName('');
+                          handleGoalWizardSubmit(p.id, goalType, assistantId);
+                        }}
                       >
                         <span className="p-num">{p.number}</span>
                         <span className="p-name">{p.name}</span>
                         {goalWizard.pId === p.id && <Zap size={10} style={{ color: 'var(--secondary)' }} />}
                       </button>
                     ))}
+                  </div>
+
+                  <div style={{ marginTop: 12 }}>
+                    <label>Outro (digite o nome)</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input
+                        type="text"
+                        placeholder="Nome do artilheiro (ex: Jogador Não-registrado)"
+                        value={goalFreeName}
+                        onChange={e => setGoalFreeName(e.target.value)}
+                        className="mvp-desc-input"
+                      />
+                      <button
+                        className="btn-save"
+                        disabled={!goalFreeName.trim()}
+                        onClick={() => {
+                          handleGoalWizardSubmit(goalFreeName.trim(), goalType, assistantId);
+                          setGoalFreeName('');
+                        }}
+                      >
+                        Registrar
+                      </button>
+                    </div>
                   </div>
                 </div>
 

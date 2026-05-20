@@ -58,6 +58,7 @@ export const MatchTimeline: React.FC<MatchTimelineProps> = ({
               const playerName =
                 event.players?.name ||
                 (event.player_id ? players.find((p) => p.id === event.player_id)?.name : undefined) ||
+                (event.metadata && typeof event.metadata === 'object' && (event.metadata as any).scorer_name ? (event.metadata as any).scorer_name : undefined) ||
                 'Atleta';
 
               const assistantName = event.assistant_id
