@@ -133,6 +133,19 @@ const KnockoutGenerator: React.FC = () => {
 
   const onDragOver = (e: React.DragEvent) => e.preventDefault();
 
+  const saveBracketToServer = async () => {
+    if (!preview || preview.length === 0) return setMessage('Nada para salvar');
+    try {
+      const payload = { name: `Bracket ${new Date().toLocaleString()}`, matches: preview.map((m) => ({ team_a_id: m.teamA?.team_id || null, team_b_id: m.teamB?.team_id || null, match_date: (m as any).match_date || null, round: 1000 })) };
+      const resp = await fetch('/api/save-bracket', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data?.error || 'Erro ao salvar chave no servidor');
+      setMessage(`Chave salva no servidor (id: ${data.bracket_id})`);
+    } catch (err: any) {
+      setMessage(String(err?.message || err));
+    }
+  };
+
   const handleSwap = (idx: number) => {
     if (!preview) return;
     const copy = preview.slice();
