@@ -14,7 +14,7 @@ const groupBy = (arr: any[], key: string) => arr.reduce((acc: Record<string, any
   return acc;
 }, {});
 
-const KnockoutGenerator: React.FC = () => {
+const KnockoutGenerator: React.FC<{ enableAutoAdvance?: boolean }> = ({ enableAutoAdvance = false }) => {
   const { standings, loading } = useStandings();
   const [advancePerGroup, setAdvancePerGroup] = useState<number>(2);
   const [includeThirdPlace, setIncludeThirdPlace] = useState<boolean>(false);
@@ -184,7 +184,9 @@ const KnockoutGenerator: React.FC = () => {
   };
 
   // Subscribe to matches changes to auto-advance winners when matches finalize
+  // Only subscribe when explicitly enabled to avoid interfering with live phase
   React.useEffect(() => {
+    if (!enableAutoAdvance) return;
     const channel = supabase
       .channel('public:auto_advance')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matches' }, async (payload) => {
@@ -211,7 +213,7 @@ const KnockoutGenerator: React.FC = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [enableAutoAdvance]);
 
   return (
     <div className="knockout-generator glass" style={{ marginTop: 16, padding: 12 }}>

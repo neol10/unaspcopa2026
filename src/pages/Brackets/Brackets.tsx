@@ -8,6 +8,7 @@ import { KNOCKOUT_ROUND_LABELS } from '../../lib/tournamentRules';
 import { deriveMatchStatus } from '../../lib/matchStatus';
 import { splitLocationCourt } from '../../lib/court';
 import { Trophy, ChevronRight, ChevronLeft, Target, Timer, ZoomIn, ZoomOut } from 'lucide-react';
+import KnockoutGenerator from '../Admin/KnockoutGenerator';
 import './Brackets.css';
 
 const Brackets: React.FC = () => {
@@ -127,6 +128,7 @@ const Brackets: React.FC = () => {
 
   const { role } = useAuthContext();
   const isAdmin = role === 'admin';
+  const [autoAdvanceEnabled, setAutoAdvanceEnabled] = useState<boolean>(false);
   const { visibility } = useGroupCVisibility();
 
   const isTestGroup = (groupName?: string | null) => {
@@ -1110,6 +1112,19 @@ const Brackets: React.FC = () => {
           <Timer size={16} /> Lista de Rodadas
         </button>
       </div>
+      {isAdmin && (
+        <div className="brackets-admin-panel glass" style={{ marginTop: 12, padding: 12 }}>
+          <h4 style={{ margin: 0, marginBottom: 8 }}>Admin — Mata-mata</h4>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
+            <label style={{ fontSize: 13 }}>
+              <input type="checkbox" checked={autoAdvanceEnabled} onChange={e => setAutoAdvanceEnabled(e.target.checked)} />{' '}
+              Ativar auto-advance (desligado por padrão — evita alterar fases automaticamente)
+            </label>
+            <button className="btn" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>Ir para topo</button>
+          </div>
+          <KnockoutGenerator enableAutoAdvance={autoAdvanceEnabled} />
+        </div>
+      )}
       {!hasKnockout && (
         <div className="no-knockout-hint glass" role="status" aria-live="polite">
           Chaveamento (Teia) sera liberado automaticamente quando voce cadastrar fases de mata-mata no Admin.
