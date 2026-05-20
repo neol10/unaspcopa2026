@@ -24,6 +24,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const rows = payload.matches.map((m: any) => ({
       team_a_id: m.team_a_id || null,
       team_b_id: m.team_b_id || null,
+      match_date: m.match_date || null,
       status: 'agendado',
     }));
 

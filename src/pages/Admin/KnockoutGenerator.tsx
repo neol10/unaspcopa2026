@@ -34,44 +34,79 @@ const KnockoutGenerator: React.FC = () => {
   }, [standings]);
 
   const generateSeeds = () : SeedItem[] => {
-    const seeds: SeedItem[] = [];
-    const groupCount = groups.length;
+    // Produce arrays per finishing position: pos1 = [1A,1B,1C...], pos2 = [2A,2B,2C...]
+    const positions: SeedItem[][] = [];
     for (let pos = 1; pos <= advancePerGroup; pos++) {
-      for (let gi = 0; gi < groupCount; gi++) {
-        const g = groups[gi];
+      const list: SeedItem[] = [];
+      for (const g of groups) {
         const team = g?.teams?.[pos - 1];
-        if (team) {
-          seeds.push({ team_id: team.team_id, team_name: team.team_name, group: g.name, seedLabel: `${pos}${g.name}` });
-        }
+        if (team) list.push({ team_id: team.team_id, team_name: team.team_name, group: g.name, seedLabel: `${pos}${g.name}` });
       }
+      positions.push(list);
     }
-    return seeds;
+    // Flatten by positions: [1A,1B,...,2A,2B,...]
+    return positions.flat();
   };
 
-  const buildBracket = (seeds: SeedItem[]) => {
+  const buildBracketClassic = (seeds: SeedItem[]) => {
+    // Classic mapping for advancePerGroup = 2: pair 1st placed against 2nd placed in reverse order
+    const pairs: Array<{ teamA?: SeedItem; teamB?: SeedItem; round: number; idx: number }> = [];
+    if (advancePerGroup === 2) {
+      const firsts = seeds.filter(s => s.seedLabel.startsWith('1'));
+      const seconds = seeds.filter(s => s.seedLabel.startsWith('2'));
+      const N = Math.min(firsts.length, seconds.length);
+      for (let i = 0; i < N; i++) {
+        const a = firsts[i];
+        const b = seconds[N - 1 - i];
+        pairs.push({ teamA: a, teamB: b, round: 1, idx: i + 1 });
+      }
+      return pairs;
+    }
+
+    // Fallback: simple mirror pairing
     const M = seeds.length;
-    const matches: Array<{ teamA?: SeedItem; teamB?: SeedItem; round: number; idx: number }> = [];
-    const pairs = Math.floor(M/2);
-    for (let i = 0; i < pairs; i++) {
+    const pairCount = Math.floor(M/2);
+    for (let i = 0; i < pairCount; i++) {
       const a = seeds[i];
       const b = seeds[M - 1 - i];
-      matches.push({ teamA: a, teamB: b, round: 1, idx: i + 1 });
+      pairs.push({ teamA: a, teamB: b, round: 1, idx: i + 1 });
     }
-    return matches;
+    return pairs;
   };
+
+  const [autoDates, setAutoDates] = useState<boolean>(false);
+  const [startDate, setStartDate] = useState<string>('');
+  const [intervalMinutes, setIntervalMinutes] = useState<number>(60);
 
   const handlePreview = () => {
     const seeds = generateSeeds();
-    const bracket = buildBracket(seeds);
+    const bracket = buildBracketClassic(seeds);
+    // If autoDates and startDate provided, assign match_date sequentially
+    if (autoDates && startDate) {
+      const start = new Date(startDate);
+      bracket.forEach((m, i) => {
+        const d = new Date(start.getTime() + i * intervalMinutes * 60 * 1000);
+        (m as any).match_date = d.toISOString();
+      });
+    }
     setPreview(bracket);
     setMessage(null);
+  };
+
+  const handleSwap = (idx: number) => {
+    if (!preview) return;
+    const copy = preview.slice();
+    const m = copy[idx];
+    const a = m.teamA;
+    copy[idx] = { ...m, teamA: m.teamB, teamB: a };
+    setPreview(copy);
   };
 
   const handleCreate = async () => {
     if (!preview || preview.length === 0) return;
     setCreating(true); setMessage(null);
     try {
-      const body = preview.map((m) => ({ team_a_id: m.teamA?.team_id || null, team_b_id: m.teamB?.team_id || null }));
+      const body = preview.map((m) => ({ team_a_id: m.teamA?.team_id || null, team_b_id: m.teamB?.team_id || null, match_date: (m as any).match_date || null }));
       const resp = await fetch('/api/generate-knockout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ matches: body }) });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data?.error || 'Erro ao criar partidas');
@@ -86,12 +121,22 @@ const KnockoutGenerator: React.FC = () => {
   return (
     <div className="knockout-generator glass" style={{ marginTop: 16, padding: 12 }}>
       <h6>Gerar Mata-mata</h6>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
         <label style={{ fontSize: 12 }}>Avançam por grupo:</label>
         <input type="number" min={1} max={8} value={advancePerGroup} onChange={e => setAdvancePerGroup(Math.max(1, Math.min(8, Number(e.target.value || 1))))} style={{ width: 72 }} />
         <label style={{ fontSize: 12 }}>
           <input type="checkbox" checked={includeThirdPlace} onChange={e => setIncludeThirdPlace(e.target.checked)} /> Incluir 3º lugar
         </label>
+        <label style={{ fontSize: 12 }}>
+          <input type="checkbox" checked={autoDates} onChange={e => setAutoDates(e.target.checked)} /> Atribuir datas automaticamente
+        </label>
+        {autoDates && (
+          <>
+            <input type="datetime-local" value={startDate} onChange={e => setStartDate(e.target.value)} />
+            <label style={{ fontSize: 12 }}>Intervalo (min)</label>
+            <input type="number" min={1} value={intervalMinutes} onChange={e => setIntervalMinutes(Math.max(1, Number(e.target.value || 60)))} style={{ width: 80 }} />
+          </>
+        )}
         <button className="btn-add" onClick={handlePreview} disabled={loading}>Gerar Visualização</button>
         <button className="btn-save" onClick={handleCreate} disabled={!preview || preview.length===0 || creating}>{creating ? 'Criando...' : 'Criar partidas'}</button>
       </div>
@@ -99,9 +144,17 @@ const KnockoutGenerator: React.FC = () => {
       {preview && (
         <div className="knockout-preview">
           {preview.map((m, i) => (
-            <div key={i} style={{ padding: 8, borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-              <strong>{m.teamA?.team_name || 'TBD'}</strong> vs <strong>{m.teamB?.team_name || 'TBD'}</strong>
-              <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>seed: {m.teamA?.seedLabel || '-'} x {m.teamB?.seedLabel || '-'}</div>
+            <div key={i} style={{ padding: 8, borderBottom: '1px solid rgba(255,255,255,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <strong style={{ cursor: 'pointer' }} onClick={() => handleSwap(i)}>{m.teamA?.team_name || 'TBD'}</strong>
+                <span style={{ margin: '0 8px' }}> vs </span>
+                <strong style={{ cursor: 'pointer' }} onClick={() => handleSwap(i)}>{m.teamB?.team_name || 'TBD'}</strong>
+                <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>seed: {m.teamA?.seedLabel || '-'} x {m.teamB?.seedLabel || '-'}</div>
+                {(m as any).match_date && <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>data: {(new Date((m as any).match_date)).toLocaleString()}</div>}
+              </div>
+              <div>
+                <button className="btn-cancel" onClick={() => handleSwap(i)} style={{ marginLeft: 8 }}>Trocar lados</button>
+              </div>
             </div>
           ))}
         </div>
