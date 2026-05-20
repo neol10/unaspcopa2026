@@ -1,3 +1,4 @@
+import KnockoutGenerator from './KnockoutGenerator';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase, supabaseStorage } from '../../lib/supabase';
@@ -4172,6 +4173,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       </div>
 
       <div className="recent-events-undo">
+          <KnockoutGenerator />
         <div className="recent-header">
           <h6>Lances Recentes</h6>
           <span className="undo-tip">Clique no minuto para editar o tempo</span>
