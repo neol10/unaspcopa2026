@@ -21,6 +21,7 @@ const KnockoutGenerator: React.FC = () => {
   const [preview, setPreview] = useState<any[] | null>(null);
   const [creating, setCreating] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const BRACKET_STORE_KEY = 'knockout_bracket_config_v1';
 
   const groups = useMemo(() => {
     const map = groupBy(standings || [], 'group');
@@ -93,6 +94,44 @@ const KnockoutGenerator: React.FC = () => {
     setPreview(bracket);
     setMessage(null);
   };
+
+  const saveBracketToLocal = () => {
+    if (!preview) return setMessage('Nada para salvar');
+    try {
+      localStorage.setItem(BRACKET_STORE_KEY, JSON.stringify(preview));
+      setMessage('Chave salva localmente');
+    } catch {
+      setMessage('Falha ao salvar');
+    }
+  };
+
+  const loadBracketFromLocal = () => {
+    try {
+      const raw = localStorage.getItem(BRACKET_STORE_KEY);
+      if (!raw) return setMessage('Nenhuma chave salva');
+      const parsed = JSON.parse(raw);
+      setPreview(parsed);
+      setMessage('Chave carregada');
+    } catch {
+      setMessage('Falha ao carregar');
+    }
+  };
+
+  const onDragStart = (e: React.DragEvent, index: number) => {
+    e.dataTransfer.setData('text/plain', String(index));
+  };
+
+  const onDrop = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    const from = Number(e.dataTransfer.getData('text/plain'));
+    if (isNaN(from) || !preview) return;
+    const copy = preview.slice();
+    const [m] = copy.splice(from, 1);
+    copy.splice(index, 0, m);
+    setPreview(copy);
+  };
+
+  const onDragOver = (e: React.DragEvent) => e.preventDefault();
 
   const handleSwap = (idx: number) => {
     if (!preview) return;
@@ -182,23 +221,25 @@ const KnockoutGenerator: React.FC = () => {
         )}
         <button className="btn-add" onClick={handlePreview} disabled={loading}>Gerar Visualização</button>
         <button className="btn-save" onClick={handleCreate} disabled={!preview || preview.length===0 || creating}>{creating ? 'Criando...' : 'Criar partidas'}</button>
+        <button className="btn" onClick={saveBracketToLocal}>Salvar Chave</button>
+        <button className="btn" onClick={loadBracketFromLocal}>Carregar Chave</button>
       </div>
 
       {preview && (
         <div className="knockout-preview">
           {preview.map((m, i) => (
-            <div key={i} style={{ padding: 8, borderBottom: '1px solid rgba(255,255,255,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div key={i} draggable onDragStart={(e) => onDragStart(e, i)} onDrop={(e) => onDrop(e, i)} onDragOver={onDragOver} style={{ padding: 8, borderBottom: '1px solid rgba(255,255,255,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'grab' }}>
               <div>
                 <strong style={{ cursor: 'pointer' }} onClick={() => handleSwap(i)}>{m.teamA?.team_name || 'TBD'}</strong>
                 <span style={{ margin: '0 8px' }}> vs </span>
                 <strong style={{ cursor: 'pointer' }} onClick={() => handleSwap(i)}>{m.teamB?.team_name || 'TBD'}</strong>
                 <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>seed: {m.teamA?.seedLabel || '-'} x {m.teamB?.seedLabel || '-'}</div>
                 {(m as any).match_date && <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>data: {(new Date((m as any).match_date)).toLocaleString()}</div>}
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div>
                 <button className="btn-cancel" onClick={() => handleSwap(i)} style={{ marginLeft: 8 }}>Trocar lados</button>
                 <button className="btn-add" onClick={() => handleAdvanceWinner(m.teamA?.team_id)} disabled={!m.teamA?.team_id}>Avançar {m.teamA?.team_name}</button>
                 <button className="btn-add" onClick={() => handleAdvanceWinner(m.teamB?.team_id)} disabled={!m.teamB?.team_id}>Avançar {m.teamB?.team_name}</button>
+              </div>
               </div>
             </div>
           ))}
