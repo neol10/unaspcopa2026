@@ -4172,7 +4172,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                   type="button"
                   disabled={isSubmittingEvent}
                   onClick={() => {
-                    if (isPreGame) {
+                    if (isPreGame && (eventType === 'gol' || eventType === 'substituicao')) {
                       togglePlayerStatus(p.id, 'a');
                       return;
                     }
@@ -4204,7 +4204,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                   type="button"
                   disabled={isSubmittingEvent}
                   onClick={() => {
-                    if (isPreGame) {
+                    if (isPreGame && (eventType === 'gol' || eventType === 'substituicao')) {
                       togglePlayerStatus(p.id, 'b');
                       return;
                     }
