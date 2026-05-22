@@ -13,6 +13,7 @@ import {
   markNightColumnMissing,
   markNightColumnPresent,
 } from '../lib/supabaseOptionalColumns';
+import { readFreshCache, shouldUseClientCache } from '../lib/clientCache';
 
 export interface RankingPlayer extends Player {
   team_name?: string;
@@ -39,29 +40,15 @@ export const useRankings = () => {
   const groupUnit = config?.group_unit === 'round' ? 'round' : 'night';
   const CACHE_KEY = `rankings_cache_v1_${division}_${groupUnit}`;
 
-  const loadCachedRankings = () => {
-    if (typeof window === 'undefined') return null;
-    try {
-      const raw = localStorage.getItem(CACHE_KEY);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw) as {
-        ts: number;
-        data: {
-          scorers: RankingPlayer[];
-          assistants: RankingPlayer[];
-          goalkeepers: RankingPlayer[];
-          galeraRank: RankingPlayer[];
-          disciplined: RankingPlayer[];
-          roundMvps: Record<string, RankingPlayer>;
-          availableRounds: string[];
-        };
-      };
-      if (!parsed?.ts || !parsed?.data) return null;
-      return parsed;
-    } catch {
-      return null;
-    }
-  };
+  const loadCachedRankings = () => shouldUseClientCache() ? readFreshCache<{
+    scorers: RankingPlayer[];
+    assistants: RankingPlayer[];
+    goalkeepers: RankingPlayer[];
+    galeraRank: RankingPlayer[];
+    disciplined: RankingPlayer[];
+    roundMvps: Record<string, RankingPlayer>;
+    availableRounds: string[];
+  }>(CACHE_KEY, 1000 * 60 * 2) : null;
 
   const saveCachedRankings = (data: {
     scorers: RankingPlayer[];

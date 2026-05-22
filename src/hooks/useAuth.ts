@@ -70,14 +70,14 @@ export const useAuth = () => {
       if (cached) setRole(prev => prev || cached);
 
       try {
-        const { data, error } = await supabase.from('profiles').select('role').eq('id', uid).single();
+        const { data, error } = await supabase.from('profiles').select('role').eq('id', uid).maybeSingle();
         if (error) throw error;
         const nextRole: 'admin' | 'user' = data?.role === 'admin' ? 'admin' : 'user';
         setRole(nextRole);
         setCachedRole(uid, nextRole);
       } catch (err) {
         if (!isIgnorableAuthAbort(err)) {
-          console.error('Error fetching profile:', err);
+          console.warn('Profile lookup failed, using cached/default role.', err);
         }
         // Não rebaixa para 'user' em erro transitório; mantém o que já tinha/cached.
         const fallback = cached;

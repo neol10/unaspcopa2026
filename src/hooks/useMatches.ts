@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useDivisionContext } from '../contexts/DivisionContext';
 import type { Division } from '../lib/division';
+import { readFreshCache, shouldUseClientCache } from '../lib/clientCache';
 import {
   getDivisionColumnStatus,
   getNightColumnStatus,
@@ -39,19 +40,7 @@ export const useMatches = (limit?: number) => {
   const { division } = useDivisionContext();
 
   const cacheKey = `copa_unasp_cache_matches_${division}_${limit || 'all'}`;
-  const loadCache = () => {
-    try {
-      const raw = localStorage.getItem(cacheKey);
-      if (!raw) return null as null | { ts: number; data: Match[] };
-      const parsed = JSON.parse(raw) as { ts: number; data: Match[] };
-      if (!parsed?.ts || !Array.isArray(parsed.data)) return null;
-      // Aceita cache de até 24h (só para "pintar" rápido no refresh)
-      if (Date.now() - parsed.ts > 24 * 60 * 60 * 1000) return null;
-      return parsed;
-    } catch {
-      return null;
-    }
-  };
+  const loadCache = () => shouldUseClientCache() ? readFreshCache<Match[]>(cacheKey, 1000 * 60 * 2) : null;
 
   const saveCache = (data: Match[]) => {
     try {

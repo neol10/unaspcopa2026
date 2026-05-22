@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../contexts/AuthContext';
+import { readFreshCache, shouldUseClientCache } from '../lib/clientCache';
 
 export type WinnerVoteOption = 'team_a' | 'draw' | 'team_b';
 
@@ -17,21 +18,7 @@ export const useMatchWinnerVoting = (matchId: string) => {
   const queryClient = useQueryClient();
   const cacheKey = `match_winner_votes_cache_v1_${matchId || 'none'}_${user?.id || 'anon'}`;
 
-  const loadCachedVotes = () => {
-    if (typeof window === 'undefined') return null;
-    try {
-      const raw = localStorage.getItem(cacheKey);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw) as {
-        ts: number;
-        data: { votes: MatchWinnerVotes; userVote: WinnerVoteOption | null };
-      };
-      if (!parsed?.ts || !parsed?.data) return null;
-      return parsed;
-    } catch {
-      return null;
-    }
-  };
+  const loadCachedVotes = () => shouldUseClientCache() ? readFreshCache<{ votes: MatchWinnerVotes; userVote: WinnerVoteOption | null }>(cacheKey, 1000 * 60 * 2) : null;
 
   const saveCachedVotes = (data: { votes: MatchWinnerVotes; userVote: WinnerVoteOption | null }) => {
     if (typeof window === 'undefined') return;

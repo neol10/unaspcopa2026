@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../contexts/AuthContext';
+import { readFreshCache, shouldUseClientCache } from '../lib/clientCache';
 
 export interface MvpVoteCount {
   player_id: string;
@@ -15,18 +16,7 @@ export const useMvpVoting = (round: string) => {
   const { user } = useAuthContext();
   const cacheKey = `round_mvp_cache_v1_${round || 'none'}`;
 
-  const loadCachedVotes = () => {
-    if (typeof window === 'undefined') return null;
-    try {
-      const raw = localStorage.getItem(cacheKey);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw) as { ts: number; data: { voteCounts: MvpVoteCount[]; userVote: string | null } };
-      if (!parsed?.ts || !parsed?.data) return null;
-      return parsed;
-    } catch {
-      return null;
-    }
-  };
+  const loadCachedVotes = () => shouldUseClientCache() ? readFreshCache<{ voteCounts: MvpVoteCount[]; userVote: string | null }>(cacheKey, 1000 * 60 * 2) : null;
 
   const saveCachedVotes = (data: { voteCounts: MvpVoteCount[]; userVote: string | null }) => {
     if (typeof window === 'undefined') return;

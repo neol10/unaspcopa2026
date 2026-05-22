@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useDivisionContext } from '../contexts/DivisionContext';
 import type { Division } from '../lib/division';
+import { readFreshCache, shouldUseClientCache } from '../lib/clientCache';
 import {
   getDivisionColumnStatus,
   isMissingColumnError,
@@ -36,17 +37,7 @@ export const useTeams = () => {
   const { division } = useDivisionContext();
 
   const cacheKey = `copa_unasp_cache_teams_${division}`;
-  const loadCache = () => {
-    try {
-      const raw = localStorage.getItem(cacheKey);
-      if (!raw) return null as null | { ts: number; data: Team[] };
-      const parsed = JSON.parse(raw) as { ts: number; data: Team[] };
-      if (!parsed?.ts || !Array.isArray(parsed.data)) return null;
-      return parsed;
-    } catch {
-      return null;
-    }
-  };
+  const loadCache = () => shouldUseClientCache() ? readFreshCache<Team[]>(cacheKey, 1000 * 60 * 2) : null;
 
   const saveCache = useCallback(
     (data: Team[], ts: number) => {
