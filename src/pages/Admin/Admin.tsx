@@ -3318,6 +3318,11 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         // Free-text scorer name: store in metadata and keep player_id null
         eventData.player_id = null;
         eventData.metadata = { ...(eventData.metadata || {}), scorer_name: playerId } as any;
+      } else if ((eventType === 'amarelo' || eventType === 'vermelho') && playerId && !isRegisteredPlayer) {
+        // Free-text card (unregistered player): keep player_id null and store name in metadata
+        eventData.player_id = null;
+        const key = eventType === 'amarelo' ? 'card_player_name' : 'card_player_name';
+        eventData.metadata = { ...(eventData.metadata || {}), [key]: playerId } as any;
       } else {
         eventData.player_id = isRegisteredPlayer ? playerId : null;
       }
@@ -3367,14 +3372,18 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           await supabase.from('players').update({ assists: (ast?.assists || 0) + 1 }).eq('id', finalAssistantId);
         }
       } else if (eventType === 'amarelo') {
-        const { data: p } = await supabase.from('players').select('yellow_cards').eq('id', playerId).single();
-        await supabase.from('players').update({ yellow_cards: (p?.yellow_cards || 0) + 1 }).eq('id', playerId);
+        if (isRegisteredPlayer) {
+          const { data: p } = await supabase.from('players').select('yellow_cards').eq('id', playerId).single();
+          await supabase.from('players').update({ yellow_cards: (p?.yellow_cards || 0) + 1 }).eq('id', playerId);
+        }
       } else if (eventType === 'vermelho') {
-        const { data: p } = await supabase.from('players').select('red_cards').eq('id', playerId).single();
-        await supabase.from('players').update({ red_cards: (p?.red_cards || 0) + 1 }).eq('id', playerId);
-        // Expulso sai de campo automaticamente
-        if (team === 'a') setOnFieldA(prev => prev.filter(id => id !== playerId));
-        else setOnFieldB(prev => prev.filter(id => id !== playerId));
+        if (isRegisteredPlayer) {
+          const { data: p } = await supabase.from('players').select('red_cards').eq('id', playerId).single();
+          await supabase.from('players').update({ red_cards: (p?.red_cards || 0) + 1 }).eq('id', playerId);
+          // Expulso sai de campo automaticamente
+          if (team === 'a') setOnFieldA(prev => prev.filter(id => id !== playerId));
+          else setOnFieldB(prev => prev.filter(id => id !== playerId));
+        }
       }
 
       setAssistantId('');
@@ -3487,19 +3496,21 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       }
 
       if (event.event_type === 'amarelo') {
-        if (!event.player_id) throw new Error('Evento de cartão sem jogador vinculado');
-        const { data: p } = await supabase.from('players').select('yellow_cards').eq('id', event.player_id).single();
-        await supabase
-          .from('players')
-          .update({ yellow_cards: Math.max(0, (p?.yellow_cards || 0) - 1) })
-          .eq('id', event.player_id);
+        if (event.player_id) {
+          const { data: p } = await supabase.from('players').select('yellow_cards').eq('id', event.player_id).single();
+          await supabase
+            .from('players')
+            .update({ yellow_cards: Math.max(0, (p?.yellow_cards || 0) - 1) })
+            .eq('id', event.player_id);
+        }
       } else if (event.event_type === 'vermelho') {
-        if (!event.player_id) throw new Error('Evento de cartão sem jogador vinculado');
-        const { data: p } = await supabase.from('players').select('red_cards').eq('id', event.player_id).single();
-        await supabase
-          .from('players')
-          .update({ red_cards: Math.max(0, (p?.red_cards || 0) - 1) })
-          .eq('id', event.player_id);
+        if (event.player_id) {
+          const { data: p } = await supabase.from('players').select('red_cards').eq('id', event.player_id).single();
+          await supabase
+            .from('players')
+            .update({ red_cards: Math.max(0, (p?.red_cards || 0) - 1) })
+            .eq('id', event.player_id);
+        }
       }
 
       await supabase.from('match_events').delete().eq('id', event.id);
