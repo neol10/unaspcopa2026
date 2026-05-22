@@ -4166,7 +4166,10 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           
           <div className="roster-section">
             <div className="admin-player-btns">
-              {(playersA || []).filter(p => onFieldA.includes(p.id)).map(p => (
+              {(eventType === 'amarelo' || eventType === 'vermelho'
+                ? (playersA || [])
+                : (playersA || []).filter(p => onFieldA.includes(p.id))
+              ).map(p => (
                 <button 
                   key={p.id} 
                   type="button"
@@ -4198,7 +4201,10 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           
           <div className="roster-section">
             <div className="admin-player-btns">
-              {(playersB || []).filter(p => onFieldB.includes(p.id)).map(p => (
+              {(eventType === 'amarelo' || eventType === 'vermelho'
+                ? (playersB || [])
+                : (playersB || []).filter(p => onFieldB.includes(p.id))
+              ).map(p => (
                 <button 
                   key={p.id} 
                   type="button"
