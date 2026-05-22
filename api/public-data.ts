@@ -15,7 +15,7 @@ const SUPABASE_KEY = readEnv('SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_ROLE
 const json = (res: VercelResponse, status: number, body: unknown) => res.status(status).json(body);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'GET') return json(res, 405, { error: 'Method Not Allowed' });
+  if (req.method !== 'GET' && req.method !== 'POST') return json(res, 405, { error: 'Method Not Allowed' });
   const NO_SUPABASE = !SUPABASE_URL || !SUPABASE_KEY;
   if (NO_SUPABASE) {
     console.warn('public-data: SUPABASE config missing, returning safe fallback responses. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel env to enable live data.');
@@ -131,6 +131,67 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         : null;
 
       return json(res, 200, { data: responseData, userVote });
+    }
+
+    if (req.method === 'POST' && resource === 'polls') {
+      if (NO_SUPABASE) return json(res, 200, { ok: true });
+      const body = typeof req.body === 'string' ? (() => { try { return JSON.parse(req.body); } catch { return {}; } })() : (req.body || {});
+      const pollId = String((body as { pollId?: unknown; poll_id?: unknown }).pollId || (body as { pollId?: unknown; poll_id?: unknown }).poll_id || '').trim();
+      const optionId = String((body as { optionId?: unknown; option_id?: unknown }).optionId || (body as { optionId?: unknown; option_id?: unknown }).option_id || '').trim();
+      if (!pollId || !optionId) return json(res, 400, { error: 'pollId and optionId required' });
+
+      const { error: rpcError } = await supabase.rpc('increment_poll_vote', {
+        poll_id_param: pollId,
+        option_id_param: optionId,
+      });
+      if (!rpcError) return json(res, 200, { ok: true, method: 'rpc' });
+
+      const { data: pollRow, error: fetchError } = await supabase.from('polls').select('id, options').eq('id', pollId).maybeSingle();
+      if (fetchError) throw fetchError;
+      if (!pollRow) return json(res, 404, { error: 'Poll not found' });
+
+      const options = (() => {
+        const raw = (pollRow as { options?: unknown }).options;
+        if (Array.isArray(raw)) return raw;
+        if (typeof raw === 'string') {
+          try {
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed : [];
+          } catch {
+            return [];
+          }
+        }
+        return [];
+      })().map((option, index) => {
+        if (!option || typeof option !== 'object') return option;
+        const candidate = option as { id?: unknown; votes?: unknown };
+        const id = typeof candidate.id === 'string' && candidate.id.trim() ? candidate.id : `opt_${index}`;
+        const votes = Number(candidate.votes || 0);
+        if (id !== optionId) {
+          return { ...candidate, id, votes: Number.isFinite(votes) ? votes : 0 };
+        }
+        return { ...candidate, id, votes: (Number.isFinite(votes) ? votes : 0) + 1 };
+      });
+
+      const { error: updateError } = await supabase.from('polls').update({ options }).eq('id', pollId);
+      if (updateError) throw updateError;
+      return json(res, 200, { ok: true, method: 'row-update' });
+    }
+
+    if (req.method === 'POST' && resource === 'match_winner_votes') {
+      if (NO_SUPABASE) return json(res, 200, { ok: true });
+      const body = typeof req.body === 'string' ? (() => { try { return JSON.parse(req.body); } catch { return {}; } })() : (req.body || {});
+      const bodyMatchId = String((body as { matchId?: unknown; match_id?: unknown }).matchId || (body as { matchId?: unknown; match_id?: unknown }).match_id || matchId || '').trim();
+      const userId = String((body as { userId?: unknown; user_id?: unknown }).userId || (body as { userId?: unknown; user_id?: unknown }).user_id || '').trim();
+      const vote = String((body as { vote?: unknown }).vote || '').trim();
+      if (!bodyMatchId || !userId || !vote) return json(res, 400, { error: 'matchId, userId and vote required' });
+
+      const { error } = await supabase.from('match_winner_votes').upsert(
+        { match_id: bodyMatchId, user_id: userId, vote },
+        { onConflict: 'match_id,user_id' }
+      );
+      if (error) throw error;
+      return json(res, 200, { ok: true });
     }
 
     if (resource === 'polls') {

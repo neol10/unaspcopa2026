@@ -70,7 +70,7 @@ export const useMatchWinnerVoting = (matchId: string) => {
       if (!user) throw new Error('Faça login para votar!');
       if (!matchId) return;
 
-      const response = await fetch('/api/match-winner-votes', {
+      const response = await fetch('/api/public-data?resource=match_winner_votes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ matchId, userId: user.id, vote }),

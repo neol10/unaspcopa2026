@@ -122,7 +122,7 @@ export const usePolls = () => {
     mutationFn: async (optionId: string) => {
       if (!query.data || hasVoted) return null;
 
-      const response = await fetch('/api/polls', {
+      const response = await fetch('/api/public-data?resource=polls', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pollId: query.data.id, optionId }),

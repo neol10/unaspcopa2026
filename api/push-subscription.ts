@@ -5,7 +5,7 @@ import { verifyAuth } from "./auth.js";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, DELETE, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
 };
 
 const readEnv = (...keys: string[]) => {
@@ -235,6 +235,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .setHeader('Access-Control-Allow-Headers', corsHeaders['Access-Control-Allow-Headers'])
       .setHeader('Access-Control-Allow-Methods', corsHeaders['Access-Control-Allow-Methods'])
       .send('ok');
+  }
+
+  if (req.method === 'GET') {
+    if (!VAPID_PUBLIC_KEY) {
+      return res.status(500).json({ error: 'Missing VAPID_PUBLIC_KEY' });
+    }
+    return res.status(200).setHeader('Access-Control-Allow-Origin', corsHeaders['Access-Control-Allow-Origin']).json({ publicKey: VAPID_PUBLIC_KEY });
   }
 
   if (req.method !== 'POST' && req.method !== 'DELETE') {

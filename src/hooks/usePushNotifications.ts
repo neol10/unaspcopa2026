@@ -82,8 +82,8 @@ const urlBase64ToUint8Array = (base64String: string) => {
 
 const getServerVapidPublicKey = async (): Promise<string> => {
   try {
-    const response = await fetch(`/api/push-public-key?t=${Date.now()}`, { method: 'GET' });
-    if (!response.ok) throw new Error(`push-public-key failed (${response.status})`);
+    const response = await fetch(`/api/push-subscription?t=${Date.now()}`, { method: 'GET' });
+    if (!response.ok) throw new Error(`push-subscription public key failed (${response.status})`);
     const data = (await response.json()) as { publicKey?: unknown };
     if (typeof data.publicKey === 'string' && data.publicKey.trim()) {
       return data.publicKey.trim();
