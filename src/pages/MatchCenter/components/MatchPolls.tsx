@@ -1,7 +1,7 @@
 import React from 'react';
 import { HelpCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { supabase } from '../../../lib/supabase';
+import { fetchPublicData } from '../../../lib/apiData';
 
 interface MatchPollsProps {
   match: {
@@ -41,34 +41,17 @@ export const MatchPolls: React.FC<MatchPollsProps> = ({
     if (!isAdmin) return;
     setLoadingVoters(true);
     try {
-      // Busca os votos primeiro
-      const { data: votesData, error: votesError } = await supabase
-        .from('match_winner_votes')
-        .select('vote, user_id')
-        .eq('match_id', match.id);
-      
-      if (votesError) throw votesError;
-      if (!votesData || votesData.length === 0) {
+      const response = await fetchPublicData<{ data: Array<{ vote: string; user_id: string; profiles?: { email?: string } }> }>('match_winner_votes', {
+        matchId: match.id,
+        includeProfiles: '1',
+      });
+
+      if (!response.data || response.data.length === 0) {
         setVoters([]);
         return;
       }
 
-      // Busca os perfis para esses user_ids
-      const userIds = Array.from(new Set(votesData.map(v => v.user_id)));
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, email')
-        .in('id', userIds);
-
-      if (profilesError) throw profilesError;
-
-      // Mapeia os dados
-      const combined = votesData.map(v => ({
-        ...v,
-        profiles: profilesData?.find(p => p.id === v.user_id) || { email: 'Anônimo' }
-      }));
-
-      setVoters(combined);
+      setVoters(response.data);
     } catch (err) {
       console.error('Erro ao buscar votantes:', err);
     } finally {

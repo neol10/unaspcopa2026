@@ -104,10 +104,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (resource === 'match_winner_votes') {
       if (!matchId) return json(res, 400, { error: 'matchId required' });
-      if (NO_SUPABASE) return json(res, 200, { data: [] });
+      if (NO_SUPABASE) return json(res, 200, { data: [], userVote: null });
+      const includeProfiles = String(req.query.includeProfiles || '').trim() === '1' || String(req.query.includeProfiles || '').trim().toLowerCase() === 'true';
+      const userId = String(req.query.userId || '').trim();
       const { data, error } = await supabase.from('match_winner_votes').select('vote, user_id').eq('match_id', matchId);
       if (error) throw error;
-      return json(res, 200, { data: data || [] });
+
+      let responseData: unknown[] = data || [];
+      if (includeProfiles && responseData.length > 0) {
+        const userIds = Array.from(new Set(responseData.map((item) => String((item as { user_id?: string | null }).user_id || '')).filter(Boolean)));
+        if (userIds.length > 0) {
+          const { data: profilesData, error: profilesError } = await supabase.from('profiles').select('id, email').in('id', userIds);
+          if (profilesError) throw profilesError;
+          responseData = responseData.map((item) => ({
+            ...item,
+            profiles: profilesData?.find((profile) => profile.id === (item as { user_id?: string | null }).user_id) || { email: 'Anônimo' },
+          }));
+        }
+      }
+
+      const userVote = userId
+        ? (data || []).find((item) => String((item as { user_id?: string | null }).user_id || '') === userId)?.vote || null
+        : null;
+
+      return json(res, 200, { data: responseData, userVote });
+    }
+
+    if (resource === 'polls') {
+      if (NO_SUPABASE) return json(res, 200, { data: null });
+      const { data, error } = await supabase
+        .from('polls')
+        .select('id, question, options, active, created_at')
+        .eq('active', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error && error.code !== 'PGRST116') throw error;
+      return json(res, 200, { data: data || null });
     }
 
     if (resource === 'round_mvp_votes') {

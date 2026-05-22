@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../contexts/AuthContext';
 import { readFreshCache, shouldUseClientCache } from '../lib/clientCache';
 import { fetchPublicData } from '../lib/apiData';
@@ -40,8 +39,10 @@ export const useMatchWinnerVoting = (matchId: string) => {
     queryFn: async () => {
       if (!matchId) return { votes: { team_a: 0, draw: 0, team_b: 0, total: 0 }, userVote: null };
 
-      const votesRes = await fetchPublicData<{ data: { vote: WinnerVoteOption; user_id?: string | null }[] }>('match_winner_votes', { matchId });
-      const myVoteRes = user ? await fetchPublicData<{ data: { vote: WinnerVoteOption | null } | null }>('match_winner_votes', { matchId }) : { data: null };
+      const votesRes = await fetchPublicData<{ data: { vote: WinnerVoteOption; user_id?: string | null }[]; userVote?: WinnerVoteOption | null }>('match_winner_votes', {
+        matchId,
+        userId: user?.id || '',
+      });
 
       const counts: MatchWinnerVotes = { team_a: 0, draw: 0, team_b: 0, total: 0 };
       (votesRes.data || []).forEach((v: { vote: WinnerVoteOption }) => {
@@ -53,7 +54,7 @@ export const useMatchWinnerVoting = (matchId: string) => {
 
       const result = {
         votes: counts,
-        userVote: (myVoteRes as { data?: { vote?: WinnerVoteOption | null } | null }).data?.vote || null
+        userVote: votesRes.userVote || null
       };
       saveCachedVotes(result);
       return result;
@@ -69,13 +70,17 @@ export const useMatchWinnerVoting = (matchId: string) => {
       if (!user) throw new Error('Faça login para votar!');
       if (!matchId) return;
 
-      const { error } = await supabase.from('match_winner_votes').upsert({
-        match_id: matchId,
-        user_id: user.id,
-        vote: vote
-      }, { onConflict: 'match_id,user_id' });
+      const response = await fetch('/api/match-winner-votes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId, userId: user.id, vote }),
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const body = await response.text().catch(() => '');
+        throw new Error(body || 'Falha ao registrar voto');
+      }
+
       return vote;
     },
     onSuccess: () => {
@@ -85,21 +90,12 @@ export const useMatchWinnerVoting = (matchId: string) => {
 
   useEffect(() => {
     if (!matchId) return;
-
-    const channel = supabase
-      .channel(`public:match_winner_votes:${matchId}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'match_winner_votes',
-        filter: `match_id=eq.${matchId}`
-      }, () => {
-        queryClient.invalidateQueries({ queryKey: ['matchWinnerVotes', matchId] });
-      })
-      .subscribe();
+    const channel = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ['matchWinnerVotes', matchId] });
+    }, 30000);
 
     return () => {
-      supabase.removeChannel(channel);
+      window.clearInterval(channel);
     };
   }, [matchId, queryClient]);
 

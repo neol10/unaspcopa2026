@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
+import { fetchPublicData } from '../lib/apiData';
 
 export interface PollOption {
   id: string;
@@ -99,15 +99,8 @@ export const usePolls = () => {
   const query = useQuery({
     queryKey: ['activePoll'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('polls')
-        .select('*')
-        .eq('active', true)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (error) throw error;
-      const result = normalizePoll(data);
+      const response = await fetchPublicData<{ data: unknown }>('polls');
+      const result = normalizePoll(response.data);
       saveCachedPoll(result);
       return result;
     },
@@ -128,12 +121,18 @@ export const usePolls = () => {
   const voteMutation = useMutation({
     mutationFn: async (optionId: string) => {
       if (!query.data || hasVoted) return null;
-      
-      const { error } = await supabase.rpc('increment_poll_vote', {
-        poll_id_param: query.data.id,
-        option_id_param: optionId
+
+      const response = await fetch('/api/polls', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pollId: query.data.id, optionId }),
       });
-      if (error) throw error;
+
+      if (!response.ok) {
+        const body = await response.text().catch(() => '');
+        throw new Error(body || 'Falha ao registrar voto');
+      }
+
       return optionId;
     },
     onSuccess: (optionId) => {
