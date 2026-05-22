@@ -2684,6 +2684,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [editEventMinute, setEditEventMinute] = useState<number>(0);
   const [isSwapped, setIsSwapped] = useState(false);
+  const [isSubmittingEvent, setIsSubmittingEvent] = useState(false);
 
   const vibrate = (pattern: number | number[] = 50) => {
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
@@ -3287,6 +3288,8 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   };
 
   const addEvent = async (playerId: string, team: 'a' | 'b', overrides?: { goalType?: string, assistantId?: string }) => {
+    if (isSubmittingEvent) return;
+    setIsSubmittingEvent(true);
     try {
       const eventMinute = selectedMinute > 0 ? selectedMinute : Math.floor(seconds / 60) || 1;
       const finalGoalType = overrides?.goalType || goalType;
@@ -3456,6 +3459,8 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       toast.success('Evento registrado!');
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Erro ao registrar evento'));
+    } finally {
+      setIsSubmittingEvent(false);
     }
   };
 
@@ -3776,11 +3781,12 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                 <div className="form-group">
                   <label>Quem fez o gol?</label>
                   <div className="player-grid-wizard">
-                    {((goalWizard.team === 'a' ? playersA : playersB) || []).map(p => (
+                      {((goalWizard.team === 'a' ? playersA : playersB) || []).map(p => (
                       <button 
                         key={p.id} 
                         className={`p-wizard-btn ${onFieldA.includes(p.id) || onFieldB.includes(p.id) ? 'on-field' : ''} ${goalWizard.pId === p.id ? 'pre-selected' : ''}`}
                         type="button"
+                        disabled={isSubmittingEvent}
                         onClick={() => {
                           setGoalFreeName('');
                           handleGoalWizardSubmit(p.id, goalType, assistantId);
@@ -3806,7 +3812,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                       <button
                         type="button"
                         className="btn-save"
-                        disabled={!goalFreeName.trim()}
+                        disabled={!goalFreeName.trim() || isSubmittingEvent}
                         onClick={() => {
                           handleGoalWizardSubmit(goalFreeName.trim(), goalType, assistantId);
                           setGoalFreeName('');
@@ -4136,6 +4142,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                 <button 
                   key={p.id} 
                   type="button"
+                  disabled={isSubmittingEvent}
                   onClick={() => {
                     if (isPreGame) {
                       togglePlayerStatus(p.id, 'a');
@@ -4167,6 +4174,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                 <button 
                   key={p.id} 
                   type="button"
+                  disabled={isSubmittingEvent}
                   onClick={() => {
                     if (isPreGame) {
                       togglePlayerStatus(p.id, 'b');
