@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Session, User } from '@supabase/supabase-js';
 import toast from 'react-hot-toast';
+import { withTimeout } from '../lib/withTimeout';
 
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -167,7 +168,11 @@ export const useAuth = () => {
   const signIn = async (email: string, password: string) => {
     const gmailEmail = ensureGmailEmail(email);
     const attempt = async () => {
-      const { data, error } = await supabase.auth.signInWithPassword({ email: gmailEmail, password });
+      const { data, error } = await withTimeout(
+        supabase.auth.signInWithPassword({ email: gmailEmail, password }),
+        15000,
+        'O login demorou demais e foi interrompido. Tente novamente.',
+      );
       if (error) throw error;
       return data;
     };
@@ -191,7 +196,11 @@ export const useAuth = () => {
 
   const signUp = async (email: string, password: string) => {
     const gmailEmail = ensureGmailEmail(email);
-    const { data, error } = await supabase.auth.signUp({ email: gmailEmail, password });
+    const { data, error } = await withTimeout(
+      supabase.auth.signUp({ email: gmailEmail, password }),
+      15000,
+      'O cadastro demorou demais e foi interrompido. Tente novamente.',
+    );
     if (error) throw error;
     return data;
   };
