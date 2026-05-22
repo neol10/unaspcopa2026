@@ -3350,42 +3350,70 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         eventData.commentary = commentaryText;
       }
 
-      const { error } = await supabase.from('match_events').insert([eventData]);
-      if (error) throw error;
-      
-      if (eventType === 'gol') {
-        let newScore = {};
-        if (finalGoalType === 'contra') {
-          newScore = team === 'a' ? { team_b_score: (match.team_b_score || 0) + 1 } : { team_a_score: (match.team_a_score || 0) + 1 };
-        } else {
-          newScore = team === 'a' ? { team_a_score: (match.team_a_score || 0) + 1 } : { team_b_score: (match.team_b_score || 0) + 1 };
-        }
-        updateOptimisticMatch(newScore);
-        await supabase.from('matches').update(newScore).eq('id', match.id);
-      }
-      
-      if (eventType === 'gol' && finalGoalType !== 'contra') {
-        if (isRegisteredPlayer) {
-          const { data: p } = await supabase.from('players').select('goals_count').eq('id', playerId).single();
-          await supabase.from('players').update({ goals_count: (p?.goals_count || 0) + 1 }).eq('id', playerId);
+      // Prefer server-side endpoint that performs insert + updates atomically to avoid client-side race conditions and delays.
+      try {
+        const resp = await fetch('/api/add-match-event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            match_id: match.id,
+            event_type: eventData.event_type,
+            minute: eventData.minute,
+            player_id: eventData.player_id,
+            assistant_id: eventData.assistant_id || null,
+            commentary: eventData.commentary || null,
+            metadata: eventData.metadata || null,
+            team,
+            goal_type: (eventData.metadata as any)?.goal_type || finalGoalType,
+          })
+        });
+
+        if (!resp.ok) {
+          // fallback to client-side supabase flow if server endpoint fails
+          throw new Error(`Server endpoint failed: ${resp.status}`);
         }
 
-        if (finalAssistantId) {
-          const { data: ast } = await supabase.from('players').select('assists').eq('id', finalAssistantId).single();
-          await supabase.from('players').update({ assists: (ast?.assists || 0) + 1 }).eq('id', finalAssistantId);
+        const json = await resp.json();
+        if (json?.match) updateOptimisticMatch(json.match);
+      } catch (err) {
+        // Fallback: perform the older client-side behavior
+        const { error } = await supabase.from('match_events').insert([eventData]);
+        if (error) throw error;
+
+        if (eventType === 'gol') {
+          let newScore = {};
+          if (finalGoalType === 'contra') {
+            newScore = team === 'a' ? { team_b_score: (match.team_b_score || 0) + 1 } : { team_a_score: (match.team_a_score || 0) + 1 };
+          } else {
+            newScore = team === 'a' ? { team_a_score: (match.team_a_score || 0) + 1 } : { team_b_score: (match.team_b_score || 0) + 1 };
+          }
+          updateOptimisticMatch(newScore);
+          await supabase.from('matches').update(newScore).eq('id', match.id);
         }
-      } else if (eventType === 'amarelo') {
-        if (isRegisteredPlayer) {
-          const { data: p } = await supabase.from('players').select('yellow_cards').eq('id', playerId).single();
-          await supabase.from('players').update({ yellow_cards: (p?.yellow_cards || 0) + 1 }).eq('id', playerId);
-        }
-      } else if (eventType === 'vermelho') {
-        if (isRegisteredPlayer) {
-          const { data: p } = await supabase.from('players').select('red_cards').eq('id', playerId).single();
-          await supabase.from('players').update({ red_cards: (p?.red_cards || 0) + 1 }).eq('id', playerId);
-          // Expulso sai de campo automaticamente
-          if (team === 'a') setOnFieldA(prev => prev.filter(id => id !== playerId));
-          else setOnFieldB(prev => prev.filter(id => id !== playerId));
+
+        if (eventType === 'gol' && finalGoalType !== 'contra') {
+          if (isRegisteredPlayer) {
+            const { data: p } = await supabase.from('players').select('goals_count').eq('id', playerId).single();
+            await supabase.from('players').update({ goals_count: (p?.goals_count || 0) + 1 }).eq('id', playerId);
+          }
+
+          if (finalAssistantId) {
+            const { data: ast } = await supabase.from('players').select('assists').eq('id', finalAssistantId).single();
+            await supabase.from('players').update({ assists: (ast?.assists || 0) + 1 }).eq('id', finalAssistantId);
+          }
+        } else if (eventType === 'amarelo') {
+          if (isRegisteredPlayer) {
+            const { data: p } = await supabase.from('players').select('yellow_cards').eq('id', playerId).single();
+            await supabase.from('players').update({ yellow_cards: (p?.yellow_cards || 0) + 1 }).eq('id', playerId);
+          }
+        } else if (eventType === 'vermelho') {
+          if (isRegisteredPlayer) {
+            const { data: p } = await supabase.from('players').select('red_cards').eq('id', playerId).single();
+            await supabase.from('players').update({ red_cards: (p?.red_cards || 0) + 1 }).eq('id', playerId);
+            // Expulso sai de campo automaticamente
+            if (team === 'a') setOnFieldA(prev => prev.filter(id => id !== playerId));
+            else setOnFieldB(prev => prev.filter(id => id !== playerId));
+          }
         }
       }
 
