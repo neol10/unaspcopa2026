@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../contexts/AuthContext';
 import { readFreshCache, shouldUseClientCache } from '../lib/clientCache';
+import { fetchPublicData } from '../lib/apiData';
 
 export interface MvpVoteCount {
   player_id: string;
@@ -44,24 +45,8 @@ export const useMvpVoting = (round: string) => {
     queryFn: async () => {
       if (!round) return { voteCounts: [], userVote: null };
       
-      const [votesRes, myVoteRes] = await Promise.all([
-        supabase
-          .from('round_mvp_votes')
-          .select(`
-            player_id,
-            players (
-              id, name, number,
-              teams (name)
-            )
-          `)
-          .eq('round', round),
-        user ? supabase
-          .from('round_mvp_votes')
-          .select('player_id')
-          .eq('user_id', user.id)
-          .eq('round', round)
-          .maybeSingle() : Promise.resolve({ data: null })
-      ]);
+      const votesRes = await fetchPublicData<{ data: VoteRow[] }>('round_mvp_votes', { round });
+      const myVoteRes = user ? await fetchPublicData<{ data: { player_id?: string | null } | null }>('round_mvp_votes', { round }) : { data: null };
 
       const counts: Record<string, MvpVoteCount> = {};
       (votesRes.data as VoteRow[] || []).forEach((v) => {
@@ -81,7 +66,7 @@ export const useMvpVoting = (round: string) => {
       const sorted = Object.values(counts).sort((a, b) => b.vote_count - a.vote_count);
       const result = {
         voteCounts: sorted,
-        userVote: myVoteRes.data?.player_id || null
+        userVote: (myVoteRes as { data?: { player_id?: string | null } | null }).data?.player_id || null
       };
       saveCachedVotes(result);
       return result;

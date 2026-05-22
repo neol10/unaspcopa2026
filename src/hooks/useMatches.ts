@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useDivisionContext } from '../contexts/DivisionContext';
 import type { Division } from '../lib/division';
 import { readFreshCache, shouldUseClientCache } from '../lib/clientCache';
+import { fetchPublicData } from '../lib/apiData';
 import {
   getDivisionColumnStatus,
   getNightColumnStatus,
@@ -127,8 +128,8 @@ export const useMatches = (limit?: number) => {
 
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
-          const { data, error } = await fetchOnce({ includeDivision, includeNight });
-          if (!error) {
+          const data = await fetchPublicData<Match[]>('matches', { division, limit: limit || '' });
+          if (Array.isArray(data)) {
             if (includeDivision) markDivisionColumnPresent();
             if (includeNight) markNightColumnPresent();
 
@@ -144,21 +145,6 @@ export const useMatches = (limit?: number) => {
 
             return rows;
           }
-
-          if (includeDivision && isMissingColumnError(error, 'division')) {
-            markDivisionColumnMissing();
-            includeDivision = false;
-            continue;
-          }
-
-          if (includeNight && isMissingColumnError(error, 'night')) {
-            markNightColumnMissing();
-            includeNight = false;
-            continue;
-          }
-
-          // Erros do PostgREST normalmente não se resolvem com retry imediato.
-          throw error;
         } catch (err) {
           const shouldRetry = attempt < 2 && isRetriable(err);
           if (shouldRetry) {

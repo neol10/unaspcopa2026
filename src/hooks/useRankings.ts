@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
 import { Player } from './usePlayers';
 import { useDivisionContext } from '../contexts/DivisionContext';
 import { useTournamentConfig } from './useTournamentConfig';
@@ -14,6 +13,7 @@ import {
   markNightColumnPresent,
 } from '../lib/supabaseOptionalColumns';
 import { readFreshCache, shouldUseClientCache } from '../lib/clientCache';
+import { fetchPublicData } from '../lib/apiData';
 
 export interface RankingPlayer extends Player {
   team_name?: string;
@@ -60,234 +60,15 @@ export const useRankings = () => {
     availableRounds: string[];
   }) => {
     if (typeof window === 'undefined') return;
-    try {
-      localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
-    } catch {
-      // noop
-    }
-  };
+      const [playersData, votesPayload, eventsPayload, matchesData] = await Promise.all([
+        fetchPublicData<any[]>('players', { division }),
+        fetchPublicData<{ data: { player_id: string }[] }>('match_winner_votes', { matchId: '' }).catch(() => ({ data: [] })),
+        fetchPublicData<{ data: { player_id: string | null; assistant_id?: string | null; event_type: 'gol' | 'assistencia' | string; minute: number; metadata?: { goal_type?: string | null } | null; match_id?: string | null; matches?: { round?: unknown; night?: unknown; division?: unknown } | null; }[] }>('rankings', { division }),
+        fetchPublicData<any[]>('matches', { division }),
+      ]);
 
-  const cached = loadCachedRankings();
-  const emptyRankings = {
-    scorers: [],
-    assistants: [],
-    goalkeepers: [],
-    galeraRank: [],
-    disciplined: [],
-    roundMvps: {},
-    availableRounds: []
-  } as {
-    scorers: RankingPlayer[];
-    assistants: RankingPlayer[];
-    goalkeepers: RankingPlayer[];
-    galeraRank: RankingPlayer[];
-    disciplined: RankingPlayer[];
-    roundMvps: Record<string, RankingPlayer>;
-    availableRounds: string[];
-  };
-
-  const query = useQuery({
-    queryKey: ['rankings', division, groupUnit],
-    queryFn: async () => {
-      const status = getDivisionColumnStatus();
-
-      const safeList = async <T>(
-        primary: () => Promise<ListResponse<T>>,
-        fallbackOnMissingDivision?: () => Promise<ListResponse<T>>,
-      ) => {
-        try {
-          const { data, error } = await primary();
-          if (error) throw error;
-          return (data as T[]) || [];
-        } catch (err: unknown) {
-          if (fallbackOnMissingDivision && isMissingColumnError(err as unknown as PostgrestErrorLike, 'division')) {
-            markDivisionColumnMissing();
-            try {
-              const { data, error } = await fallbackOnMissingDivision();
-              if (error) throw error;
-              return (data as T[]) || [];
-            } catch {
-              return [] as T[];
-            }
-          }
-          return [] as T[];
-        }
-      };
-
-      // Players (precisa, se falhar deve estourar)
-      let playersQ = supabase
-        .from('players')
-        .select('id, name, number, position, photo_url, goals_count, assists, yellow_cards, red_cards, clean_sheets, team_id, teams:team_id(name, badge_url)');
-      if (status !== 'missing') playersQ = playersQ.eq('division', division);
-
-      let playersRes = await playersQ;
-      if (playersRes.error) {
-        if (status !== 'missing' && isMissingColumnError(playersRes.error as unknown as PostgrestErrorLike, 'division')) {
-          markDivisionColumnMissing();
-          playersRes = await supabase
-            .from('players')
-            .select('id, name, number, position, photo_url, goals_count, assists, yellow_cards, red_cards, clean_sheets, team_id, teams:team_id(name, badge_url)');
-        }
-      }
-
-      if (playersRes.error) throw playersRes.error;
-      if (status !== 'missing') markDivisionColumnPresent();
-
-      const [votesData, eventsData, matchesData] = await Promise.all([
-        safeList<{ player_id: string }>(
-          () => {
-            const currentStatus = getDivisionColumnStatus();
-            if (currentStatus === 'missing') {
-              return asListResponse<{ player_id: string }>(supabase.from('match_mvp_votes').select('player_id'));
-            }
-            return asListResponse<{ player_id: string }>(
-              supabase
-                .from('match_mvp_votes')
-                .select('player_id, matches:match_id!inner(division)')
-                .eq('matches.division', division),
-            );
-          },
-          () => asListResponse<{ player_id: string }>(supabase.from('match_mvp_votes').select('player_id')),
-        ),
-        safeList<{
-          player_id: string | null;
-          assistant_id?: string | null;
-          event_type: 'gol' | 'assistencia' | string;
-          minute: number;
-          metadata?: { goal_type?: string | null } | null;
-          match_id?: string | null;
-          matches?: { round?: unknown; night?: unknown; division?: unknown } | null;
-        }>(
-          () => {
-            const currentStatus = getDivisionColumnStatus();
-            const includeNightInitial = getNightColumnStatus() !== 'missing';
-
-            const fetchOnce = async (includeNight: boolean) => {
-              const nightSelect = includeNight ? 'round, night' : 'round';
-              if (currentStatus === 'missing') {
-                return await asListResponse<{
-                  player_id: string | null;
-                  assistant_id?: string | null;
-                  event_type: 'gol' | 'assistencia' | string;
-                  minute: number;
-                  metadata?: { goal_type?: string | null } | null;
-                  matches?: { round?: unknown; night?: unknown; division?: unknown } | null;
-                }>(
-                  supabase
-                    .from('match_events')
-                    .select(
-                      `player_id, assistant_id, event_type, minute, metadata, matches:match_id!inner(${nightSelect})`,
-                    )
-                    .in('event_type', ['gol', 'assistencia']),
-                );
-              }
-
-              return await asListResponse<{
-                player_id: string | null;
-                assistant_id?: string | null;
-                event_type: 'gol' | 'assistencia' | string;
-                minute: number;
-                metadata?: { goal_type?: string | null } | null;
-                matches?: { round?: unknown; night?: unknown; division?: unknown } | null;
-              }>(
-                supabase
-                  .from('match_events')
-                  .select(
-                    `match_id, player_id, assistant_id, event_type, minute, metadata, matches:match_id!inner(${nightSelect}, division)`,
-                  )
-                  .eq('matches.division', division)
-                  .in('event_type', ['gol', 'assistencia']),
-              );
-            };
-
-            return (async () => {
-              let includeNight = includeNightInitial;
-              let res = await fetchOnce(includeNight);
-
-              if (
-                includeNight &&
-                res?.error &&
-                isMissingColumnError(res.error as unknown as PostgrestErrorLike, 'night')
-              ) {
-                markNightColumnMissing();
-                includeNight = false;
-                res = await fetchOnce(includeNight);
-              }
-
-              if (includeNight && !res?.error) markNightColumnPresent();
-              return res;
-            })();
-          },
-          () =>
-            asListResponse<{
-              player_id: string | null;
-              assistant_id?: string | null;
-              event_type: 'gol' | 'assistencia' | string;
-              minute: number;
-              metadata?: { goal_type?: string | null } | null;
-              matches?: { round?: unknown; night?: unknown; division?: unknown } | null;
-            }>(
-              supabase
-              .from('match_events')
-              .select('match_id, player_id, assistant_id, event_type, minute, metadata, matches:match_id!inner(round)')
-              .in('event_type', ['gol', 'assistencia']),
-            ),
-        ),
-        safeList<{
-          round: unknown;
-          night?: unknown;
-          status: unknown;
-          team_a_id: string;
-          team_b_id: string;
-          team_a_score: number;
-          team_b_score: number;
-          id?: string | null;
-        }>(
-          () => {
-            const currentStatus = getDivisionColumnStatus();
-            const includeNightInitial = getNightColumnStatus() !== 'missing';
-
-            const fetchOnce = async (includeNight: boolean) => {
-              const base = supabase.from('matches').select(
-                includeNight
-                  ? 'id, round, night, status, team_a_id, team_b_id, team_a_score, team_b_score'
-                  : 'id, round, status, team_a_id, team_b_id, team_a_score, team_b_score'
-              );
-              if (currentStatus === 'missing') return await asListResponse<{
-                round: unknown;
-                night?: unknown;
-                status: unknown;
-                team_a_id: string;
-                team_b_id: string;
-                team_a_score: number;
-                team_b_score: number;
-              }>(base);
-
-              return await asListResponse<{
-                round: unknown;
-                night?: unknown;
-                status: unknown;
-                team_a_id: string;
-                team_b_id: string;
-                team_a_score: number;
-                team_b_score: number;
-              }>(base.eq('division', division));
-            };
-
-            return (async () => {
-              let includeNight = includeNightInitial;
-              let res = await fetchOnce(includeNight);
-
-              if (
-                includeNight &&
-                res?.error &&
-                isMissingColumnError(res.error as unknown as PostgrestErrorLike, 'night')
-              ) {
-                markNightColumnMissing();
-                includeNight = false;
-                res = await fetchOnce(includeNight);
-              }
-
+      const votesData = (votesPayload as { data?: { player_id: string }[] })?.data || [];
+      const eventsData = (eventsPayload as { data?: any[] })?.data || [];
               if (includeNight && !res?.error) markNightColumnPresent();
               return res;
             })();

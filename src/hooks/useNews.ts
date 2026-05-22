@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { fetchPublicData } from '../lib/apiData';
 
 export interface News {
   id: string;
@@ -50,14 +51,7 @@ export const useNews = (limit?: number) => {
   const query = useQuery({
     queryKey: ['news', limit || 'all'],
     queryFn: async () => {
-      // Evita depender de coluna específica para ordenação (ex.: published_at)
-      // e reduz chance de travar por erro de schema/RLS.
-      let q = supabase.from('news').select('*');
-      if (limit) q = q.limit(limit);
-      const { data, error } = await q;
-      if (error) throw error;
-
-      const items = ((data as NewsRow[]) || []).slice();
+      const items = (await fetchPublicData<NewsRow[]>('news', { limit: limit || '' })).slice();
       items.sort((a, b) => parseNewsTime(b) - parseNewsTime(a));
       const result = items as News[];
       saveCachedNews(result);

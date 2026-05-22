@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useDivisionContext } from '../contexts/DivisionContext';
 import type { Division } from '../lib/division';
+import { fetchPublicData } from '../lib/apiData';
 import {
   getDivisionColumnStatus,
   getGroupUnitColumnStatus,
@@ -89,30 +90,8 @@ export const useTournamentConfig = () => {
   const query = useQuery({
     queryKey: ['tournament_config', division],
     queryFn: async () => {
-      const status = getDivisionColumnStatus();
-
-      const baseQuery = supabase.from('tournament_config').select('*');
-      const q = status === 'missing' ? baseQuery : baseQuery.eq('division', division);
-
-      const { data, error } = await q.maybeSingle();
-      if (error && error.code !== 'PGRST116') {
-        if (status !== 'missing' && isMissingColumnError(error as unknown as PostgrestErrorLike, 'division')) {
-          markDivisionColumnMissing();
-          const retry = await supabase.from('tournament_config').select('*').maybeSingle();
-          if (retry.error && retry.error.code !== 'PGRST116') throw retry.error;
-          const base = (retry.data as TournamentConfig) || DEFAULT;
-          return {
-            ...base,
-            group_unit: (base.group_unit || 'night') as TournamentConfig['group_unit'],
-            group_c_visibility: normalizeGroupCVisibility((base as { group_c_visibility?: unknown }).group_c_visibility),
-          };
-        }
-        throw error;
-      }
-
-      if (status !== 'missing') markDivisionColumnPresent();
-
-      const base = (data as TournamentConfig) || DEFAULT;
+      const payload = await fetchPublicData<{ data: TournamentConfig | null }>('tournament_config', { division });
+      const base = (payload.data as TournamentConfig) || DEFAULT;
       return {
         ...base,
         group_unit: (base.group_unit || 'night') as TournamentConfig['group_unit'],

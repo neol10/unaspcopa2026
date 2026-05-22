@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { fetchPublicData } from '../lib/apiData';
 
 export interface MatchEvent {
   id: string;
@@ -64,38 +65,13 @@ export const useMatchEvents = (matchId: string, onNewEvent?: (event: MatchEvent)
     queryKey: ['match_events', matchId],
     queryFn: async () => {
       if (!matchId) return [];
-      const { data, error } = await supabase
-        .from('match_events')
-        .select('id, match_id, player_id, user_id, author_name, event_type, minute, assistant_id, commentary, metadata, created_at')
-        .eq('match_id', matchId)
-        .order('minute', { ascending: false })
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-
-      const rows = (data as EventRow[]) || [];
-      const playerIds = Array.from(
-        new Set(
-          rows
-            .flatMap((row) => [row.player_id, row.assistant_id])
-            .filter((v): v is string => typeof v === 'string' && v.length > 0)
-        )
-      );
-
-      let playerMap: Record<string, { name: string; photo_url?: string }> = {};
-      if (playerIds.length > 0) {
-        const { data: playersData } = await supabase
-          .from('players')
-          .select('id, name, photo_url')
-          .in('id', playerIds);
-        if (playersData) {
-          playerMap = Object.fromEntries(
-            (playersData as unknown as PlayerRow[]).map((p) => [
-              String(p.id),
-              { name: String(p.name || 'Atleta'), photo_url: p.photo_url || undefined },
-            ]),
-          );
-        }
-      }
+      const rows = await fetchPublicData<EventRow[]>('match_events', { matchId });
+      const playerMap: Record<string, { name: string; photo_url?: string }> = {};
+      rows.forEach((row) => {
+        const player = row as unknown as MatchEvent & { players?: { name?: string; photo_url?: string }; assistant_player?: { name?: string; photo_url?: string } };
+        if (player.player_id && player.players) playerMap[player.player_id] = { name: player.players.name || 'Atleta', photo_url: player.players.photo_url || undefined };
+        if (player.assistant_id && player.assistant_player) playerMap[player.assistant_id] = { name: player.assistant_player.name || 'Atleta', photo_url: player.assistant_player.photo_url || undefined };
+      });
 
       const result = rows.map((row) => ({
         ...row,

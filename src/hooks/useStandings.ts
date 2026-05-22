@@ -1,13 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
 import { useDivisionContext } from '../contexts/DivisionContext';
-import {
-  getDivisionColumnStatus,
-  isMissingColumnError,
-  markDivisionColumnMissing,
-  markDivisionColumnPresent,
-} from '../lib/supabaseOptionalColumns';
+import { fetchPublicData } from '../lib/apiData';
 
 type PostgrestErrorLike = {
   message?: unknown;
@@ -65,93 +59,10 @@ export const useStandings = () => {
   const query = useQuery({
     queryKey: ['standings', division],
     queryFn: async () => {
-      const isRetriable = (err: unknown) => {
-        const name = (err as { name?: unknown })?.name;
-        const message =
-          typeof (err as { message?: unknown })?.message === 'string'
-            ? String((err as { message: string }).message)
-            : '';
-        const lower = message.toLowerCase();
-        return (
-          name === 'TimeoutError' ||
-          lower.includes('timeout') ||
-          lower.includes('failed to fetch') ||
-          lower.includes('networkerror') ||
-          (lower.includes('fetch') && lower.includes('failed'))
-        );
-      };
-
-      const status = getDivisionColumnStatus();
-
-      const buildTeamsQuery = (withDivision: boolean) => {
-        let q = supabase.from('teams').select('id, name, group, badge_url');
-        if (withDivision) q = q.eq('division', division);
-        return q;
-      };
-
-      const buildMatchesQuery = (withDivision: boolean) => {
-        let q = supabase
-          .from('matches')
-          .select('team_a_id, team_b_id, team_a_score, team_b_score, match_date, status')
-          .in('status', ['finalizado', 'ao_vivo'])
-          .order('match_date', { ascending: true });
-        if (withDivision) q = q.eq('division', division);
-        return q;
-      };
-
-      // 1-2. Buscar dados em paralelo com tolerância a timeout/rede instável
-      // (evita quebrar a classificação em intermitência do Supabase/rede do usuário)
-      let teamsRes: Awaited<ReturnType<ReturnType<typeof buildTeamsQuery>>>;
-      let matchesRes: Awaited<ReturnType<ReturnType<typeof buildMatchesQuery>>>;
-      let missingDivision = false;
-      let completed = false;
-      const withDivision = status !== 'missing';
-
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          [teamsRes, matchesRes] = await Promise.all([
-            buildTeamsQuery(withDivision),
-            buildMatchesQuery(withDivision),
-          ]);
-
-          missingDivision =
-            Boolean(teamsRes.error && isMissingColumnError(teamsRes.error as unknown as PostgrestErrorLike, 'division')) ||
-            Boolean(matchesRes.error && isMissingColumnError(matchesRes.error as unknown as PostgrestErrorLike, 'division'));
-
-          if (withDivision && missingDivision) {
-            markDivisionColumnMissing();
-            [teamsRes, matchesRes] = await Promise.all([
-              buildTeamsQuery(false),
-              buildMatchesQuery(false),
-            ]);
-          }
-
-          if (teamsRes.error) throw teamsRes.error;
-          if (matchesRes.error) throw matchesRes.error;
-
-          if (withDivision && !missingDivision) markDivisionColumnPresent();
-          completed = true;
-          break;
-        } catch (err) {
-          const shouldRetry = attempt < 2 && isRetriable(err);
-          if (shouldRetry) {
-            await new Promise((resolve) => setTimeout(resolve, 600 * (attempt + 1)));
-            continue;
-          }
-          if (isRetriable(err) && cached?.data?.length) {
-            return cached.data;
-          }
-          throw err;
-        }
-      }
-
-      if (!completed) {
-        if (cached?.data?.length) return cached.data;
-        return [];
-      }
-
-      const teams = teamsRes!.data || [];
-      const matches = matchesRes!.data || [];
+      const [teams, matches] = await Promise.all([
+        fetchPublicData<Array<{ id: string; name: string; group: string; badge_url: string }>>('teams', { division }),
+        fetchPublicData<Array<{ team_a_id: string; team_b_id: string; team_a_score: number; team_b_score: number; match_date: string; status: string }>>('matches', { division }),
+      ]);
 
       // 3. Processar classificação
       const statsMap: Record<string, Standing> = {};

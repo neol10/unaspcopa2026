@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../contexts/AuthContext';
 import { readFreshCache, shouldUseClientCache } from '../lib/clientCache';
+import { fetchPublicData } from '../lib/apiData';
 
 export type WinnerVoteOption = 'team_a' | 'draw' | 'team_b';
 
@@ -39,20 +40,8 @@ export const useMatchWinnerVoting = (matchId: string) => {
     queryFn: async () => {
       if (!matchId) return { votes: { team_a: 0, draw: 0, team_b: 0, total: 0 }, userVote: null };
 
-      const [votesRes, myVoteRes] = await Promise.all([
-        supabase
-          .from('match_winner_votes')
-          .select('vote')
-          .eq('match_id', matchId),
-        user ? supabase
-          .from('match_winner_votes')
-          .select('vote')
-          .eq('match_id', matchId)
-          .eq('user_id', user.id)
-          .maybeSingle() : Promise.resolve({ data: null })
-      ]);
-
-      if (votesRes.error) throw votesRes.error;
+      const votesRes = await fetchPublicData<{ data: { vote: WinnerVoteOption; user_id?: string | null }[] }>('match_winner_votes', { matchId });
+      const myVoteRes = user ? await fetchPublicData<{ data: { vote: WinnerVoteOption | null } | null }>('match_winner_votes', { matchId }) : { data: null };
 
       const counts: MatchWinnerVotes = { team_a: 0, draw: 0, team_b: 0, total: 0 };
       (votesRes.data || []).forEach((v: { vote: WinnerVoteOption }) => {
@@ -64,7 +53,7 @@ export const useMatchWinnerVoting = (matchId: string) => {
 
       const result = {
         votes: counts,
-        userVote: myVoteRes.data?.vote || null
+        userVote: (myVoteRes as { data?: { vote?: WinnerVoteOption | null } | null }).data?.vote || null
       };
       saveCachedVotes(result);
       return result;

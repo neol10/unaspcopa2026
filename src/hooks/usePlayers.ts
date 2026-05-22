@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useDivisionContext } from '../contexts/DivisionContext';
 import type { Division } from '../lib/division';
 import { readFreshCache, shouldUseClientCache } from '../lib/clientCache';
+import { fetchPublicData } from '../lib/apiData';
 import {
   getDivisionColumnStatus,
   isMissingColumnError,
@@ -91,45 +92,7 @@ export const usePlayers = (teamId?: string) => {
   const query = useQuery({
     queryKey: ['players', division, teamId || 'all'],
     queryFn: async () => {
-      const status = getDivisionColumnStatus();
-
-      let q = supabase
-        .from('players')
-        .select('*, teams(name, badge_url, group, leader)');
-
-      if (status !== 'missing') q = q.eq('division', division);
-      if (teamId) q = q.eq('team_id', teamId);
-
-      const { data, error } = await q.order('name');
-      if (error) {
-        if (status !== 'missing' && isMissingColumnError(error, 'division')) {
-          markDivisionColumnMissing();
-          let retryQ = supabase
-            .from('players')
-            .select('*, teams(name, badge_url, group, leader)');
-          if (teamId) retryQ = retryQ.eq('team_id', teamId);
-          const retry = await retryQ.order('name');
-          if (retry.error) throw retry.error;
-          const retryRows = (retry.data as PlayerRow[]) || [];
-          return retryRows.map((row) => {
-            const team = Array.isArray(row.teams) ? row.teams[0] : row.teams;
-            return {
-              ...row,
-              photo_url: normalizeImageSrc(row.photo_url),
-              team_name: team?.name || row.team_name || 'Equipe',
-              team_badge_url: normalizeImageSrc(team?.badge_url || row.team_badge_url || ''),
-              team_group: team?.group || row.team_group || '',
-              team_leader: team?.leader || row.team_leader || '',
-              team_primary_color: team?.primary_color || row.team_primary_color || null,
-            } as Player;
-          });
-        }
-        throw error;
-      }
-
-      if (status !== 'missing') markDivisionColumnPresent();
-
-      const rows = (data as PlayerRow[]) || [];
+      const rows = await fetchPublicData<PlayerRow[]>('players', { division, teamId: teamId || '' });
       return rows.map((row) => {
         // Robust check for team data (handles object or array from Supabase join)
         const team = Array.isArray(row.teams) ? row.teams[0] : row.teams;

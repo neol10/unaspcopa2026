@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import type { Session, User } from '@supabase/supabase-js';
 import toast from 'react-hot-toast';
 import { withTimeout } from '../lib/withTimeout';
+import { fetchPublicData } from '../lib/apiData';
 
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -71,8 +72,7 @@ export const useAuth = () => {
       if (cached) setRole(prev => prev || cached);
 
       try {
-        const { data, error } = await supabase.from('profiles').select('role').eq('id', uid).maybeSingle();
-        if (error) throw error;
+        const data = await fetchPublicData<{ role: 'admin' | 'user' }>('profile_role', { uid });
         const nextRole: 'admin' | 'user' = data?.role === 'admin' ? 'admin' : 'user';
         setRole(nextRole);
         setCachedRole(uid, nextRole);

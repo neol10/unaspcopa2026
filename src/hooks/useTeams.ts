@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useDivisionContext } from '../contexts/DivisionContext';
 import type { Division } from '../lib/division';
 import { readFreshCache, shouldUseClientCache } from '../lib/clientCache';
+import { fetchPublicData } from '../lib/apiData';
 import {
   getDivisionColumnStatus,
   isMissingColumnError,
@@ -62,28 +63,7 @@ export const useTeams = () => {
   const query = useQuery({
     queryKey: ['teams', division],
     queryFn: async () => {
-      const status = getDivisionColumnStatus();
-      const base = supabase.from('teams').select('*');
-      const q = status === 'missing' ? base : base.eq('division', division);
-
-      const { data, error } = await q.order('name');
-      if (error) {
-        if (status !== 'missing' && isMissingColumnError(error, 'division')) {
-          markDivisionColumnMissing();
-          const retry = await supabase.from('teams').select('*').order('name');
-          if (retry.error) throw retry.error;
-          const rows = (retry.data as Team[]) || [];
-          return rows.map((team) => ({
-            ...team,
-            badge_url: normalizeImageSrc(team.badge_url),
-          }));
-        }
-        throw error;
-      }
-
-      if (status !== 'missing') markDivisionColumnPresent();
-
-      const rows = (data as Team[]) || [];
+      const rows = await fetchPublicData<Team[]>('teams', { division });
       return rows.map((team) => ({
         ...team,
         badge_url: normalizeImageSrc(team.badge_url),
