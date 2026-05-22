@@ -1,19 +1,11 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Player } from './usePlayers';
+import { supabase } from '../lib/supabase';
 import { useDivisionContext } from '../contexts/DivisionContext';
 import { useTournamentConfig } from './useTournamentConfig';
-import {
-  getDivisionColumnStatus,
-  getNightColumnStatus,
-  isMissingColumnError,
-  markDivisionColumnMissing,
-  markDivisionColumnPresent,
-  markNightColumnMissing,
-  markNightColumnPresent,
-} from '../lib/supabaseOptionalColumns';
 import { readFreshCache, shouldUseClientCache } from '../lib/clientCache';
 import { fetchPublicData } from '../lib/apiData';
+import { Player } from './usePlayers';
 
 export interface RankingPlayer extends Player {
   team_name?: string;
@@ -23,114 +15,101 @@ export interface RankingPlayer extends Player {
   fair_play_points?: number;
 }
 
-type PostgrestErrorLike = {
-  message?: unknown;
-  details?: unknown;
-  hint?: unknown;
-  code?: unknown;
+type RankingsPayload = {
+  players: Array<Player & { teams?: { name?: string; badge_url?: string } }>;
+  votes: Array<{ player_id: string }>;
+  events: Array<{
+    player_id: string | null;
+    assistant_id?: string | null;
+    event_type: 'gol' | 'assistencia' | string;
+    minute: number;
+    metadata?: { goal_type?: string | null } | null;
+    match_id?: string | null;
+    commentary?: string | null;
+  }>;
+  matches: Array<{
+    id?: string | null;
+    round: number;
+    night?: number | null;
+    status: string;
+    team_a_id: string;
+    team_b_id: string;
+    team_a_score: number;
+    team_b_score: number;
+  }>;
 };
 
-type ListResponse<T> = { data: T[] | null; error: unknown };
-const asListResponse = <T>(value: unknown) => value as Promise<ListResponse<T>>;
+const emptyRankings = {
+  scorers: [] as RankingPlayer[],
+  assistants: [] as RankingPlayer[],
+  goalkeepers: [] as RankingPlayer[],
+  galeraRank: [] as RankingPlayer[],
+  disciplined: [] as RankingPlayer[],
+  roundMvps: {} as Record<string, RankingPlayer>,
+  roundMvpsList: {} as Record<string, RankingPlayer[]>,
+  roundHighlights: {} as Record<string, string | null>,
+  availableRounds: [] as string[],
+};
 
 export const useRankings = () => {
   const queryClient = useQueryClient();
   const { division } = useDivisionContext();
   const { config } = useTournamentConfig();
   const groupUnit = config?.group_unit === 'round' ? 'round' : 'night';
-  const CACHE_KEY = `rankings_cache_v1_${division}_${groupUnit}`;
+  const cacheKey = `rankings_cache_v3_${division}_${groupUnit}`;
+  const useCache = shouldUseClientCache();
 
-  const loadCachedRankings = () => shouldUseClientCache() ? readFreshCache<{
-    scorers: RankingPlayer[];
-    assistants: RankingPlayer[];
-    goalkeepers: RankingPlayer[];
-    galeraRank: RankingPlayer[];
-    disciplined: RankingPlayer[];
-    roundMvps: Record<string, RankingPlayer>;
-    availableRounds: string[];
-  }>(CACHE_KEY, 1000 * 60 * 2) : null;
+  const loadCached = () => {
+    if (!useCache) return null;
+    return readFreshCache<typeof emptyRankings>(cacheKey, 1000 * 60 * 2);
+  };
 
-  const saveCachedRankings = (data: {
-    scorers: RankingPlayer[];
-    assistants: RankingPlayer[];
-    goalkeepers: RankingPlayer[];
-    galeraRank: RankingPlayer[];
-    disciplined: RankingPlayer[];
-    roundMvps: Record<string, RankingPlayer>;
-    availableRounds: string[];
-  }) => {
-    if (typeof window === 'undefined') return;
-      const [playersData, votesPayload, eventsPayload, matchesData] = await Promise.all([
-        fetchPublicData<any[]>('players', { division }),
-        fetchPublicData<{ data: { player_id: string }[] }>('match_winner_votes', { matchId: '' }).catch(() => ({ data: [] })),
-        fetchPublicData<{ data: { player_id: string | null; assistant_id?: string | null; event_type: 'gol' | 'assistencia' | string; minute: number; metadata?: { goal_type?: string | null } | null; match_id?: string | null; matches?: { round?: unknown; night?: unknown; division?: unknown } | null; }[] }>('rankings', { division }),
-        fetchPublicData<any[]>('matches', { division }),
-      ]);
+  const saveCached = (data: typeof emptyRankings) => {
+    if (typeof window === 'undefined' || !useCache) return;
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data }));
+    } catch {
+      // noop
+    }
+  };
 
-      const votesData = (votesPayload as { data?: { player_id: string }[] })?.data || [];
-      const eventsData = (eventsPayload as { data?: any[] })?.data || [];
-              if (includeNight && !res?.error) markNightColumnPresent();
-              return res;
-            })();
-          },
-          () => {
-            const includeNight = getNightColumnStatus() !== 'missing';
-            return asListResponse<{
-              id?: string | null;
-              round: unknown;
-              night?: unknown;
-              status: unknown;
-              team_a_id: string;
-              team_b_id: string;
-              team_a_score: number;
-              team_b_score: number;
-            }>(
-              supabase
-                .from('matches')
-                .select(
-                  includeNight
-                    ? 'id, round, night, status, team_a_id, team_b_id, team_a_score, team_b_score'
-                    : 'id, round, status, team_a_id, team_b_id, team_a_score, team_b_score',
-                ),
-            );
-          },
-        ),
-      ]);
+  const cached = loadCached();
 
-      const playersData = playersRes.data || [];
+  const query = useQuery({
+    queryKey: ['rankings', division, groupUnit],
+    queryFn: async () => {
+      const payload = await fetchPublicData<RankingsPayload>('rankings', { division });
+      const playersData = payload.players || [];
+      const votesData = payload.votes || [];
+      const eventsData = payload.events || [];
+      const matchesData = payload.matches || [];
 
-      const currentUnitValueRaw = config?.current_phase === 'grupos' ? (config?.current_round ?? null) : null;
-      const currentUnitKey = currentUnitValueRaw === null || currentUnitValueRaw === undefined ? '' : String(currentUnitValueRaw).trim();
-
-      // Contabilizar votos por jogador
       const voteCounts: Record<string, number> = {};
-      votesData.forEach(v => {
-        if (v.player_id) {
-          voteCounts[v.player_id] = (voteCounts[v.player_id] || 0) + 1;
-        }
+      votesData.forEach((v) => {
+        if (v.player_id) voteCounts[v.player_id] = (voteCounts[v.player_id] || 0) + 1;
       });
 
-      // Assistências computadas por eventos (mais confiável do que depender do contador em players)
+      const playersWithTeam: RankingPlayer[] = playersData.map((p) => ({
+        ...p,
+        team_name: p.teams?.name,
+        team_badge_url: p.teams?.badge_url,
+        mvp_votes: voteCounts[p.id] || 0,
+      }));
+
       const assistCounts: Record<string, number> = {};
       eventsData.forEach((ev) => {
         if (ev.event_type === 'gol') {
           const goalType = ev.metadata?.goal_type;
-          const isOwnGoal = goalType === 'contra' || Boolean(ev.metadata?.goal_type === 'contra');
-          if (isOwnGoal) return;
-          if (ev.assistant_id) assistCounts[ev.assistant_id] = (assistCounts[ev.assistant_id] || 0) + 1;
+          const isOwnGoal = goalType === 'contra' || Boolean(ev.commentary && String(ev.commentary).toUpperCase().includes('[CONTRA]'));
+          if (!isOwnGoal && ev.assistant_id) {
+            assistCounts[ev.assistant_id] = (assistCounts[ev.assistant_id] || 0) + 1;
+          }
           return;
         }
         if (ev.event_type === 'assistencia' && ev.player_id) {
           assistCounts[ev.player_id] = (assistCounts[ev.player_id] || 0) + 1;
         }
       });
-
-      const playersWithTeam = playersData.map(p => ({
-        ...p,
-        team_name: p.teams?.name,
-        team_badge_url: p.teams?.badge_url,
-        mvp_votes: voteCounts[p.id] || 0
-      }));
 
       const teamGoalsAgainst: Record<string, number> = {};
       const teamMatchesPlayed: Record<string, number> = {};
@@ -139,31 +118,14 @@ export const useRankings = () => {
         const scoreB = m.team_b_score || 0;
         const looksPlayed = m.status === 'finalizado' || m.status === 'ao_vivo' || scoreA > 0 || scoreB > 0;
         if (!looksPlayed) return;
-        teamGoalsAgainst[m.team_a_id] = (teamGoalsAgainst[m.team_a_id] || 0) + (m.team_b_score || 0);
-        teamGoalsAgainst[m.team_b_id] = (teamGoalsAgainst[m.team_b_id] || 0) + (m.team_a_score || 0);
-
+        teamGoalsAgainst[m.team_a_id] = (teamGoalsAgainst[m.team_a_id] || 0) + scoreB;
+        teamGoalsAgainst[m.team_b_id] = (teamGoalsAgainst[m.team_b_id] || 0) + scoreA;
         teamMatchesPlayed[m.team_a_id] = (teamMatchesPlayed[m.team_a_id] || 0) + 1;
         teamMatchesPlayed[m.team_b_id] = (teamMatchesPlayed[m.team_b_id] || 0) + 1;
       });
 
-      // Proxy de tempo jogado: contar eventos em que o jogador aparece (player_id ou assistant_id)
-      const playerEventCounts: Record<string, number> = {};
-      // Per-match event counts (used to attribute goals conceded to GK on court)
-      const perMatchEventCounts: Record<string, Record<string, number>> = {};
-      eventsData.forEach((ev) => {
-        if (ev.player_id) playerEventCounts[ev.player_id] = (playerEventCounts[ev.player_id] || 0) + 1;
-        if (ev.assistant_id) playerEventCounts[ev.assistant_id] = (playerEventCounts[ev.assistant_id] || 0) + 1;
-        const matchId = ev.match_id ? String(ev.match_id) : (ev.matches ? String(ev.matches?.round || '') : '');
-        if (!perMatchEventCounts[matchId]) perMatchEventCounts[matchId] = {};
-        if (ev.player_id) perMatchEventCounts[matchId][ev.player_id] = (perMatchEventCounts[matchId][ev.player_id] || 0) + 1;
-        if (ev.assistant_id) perMatchEventCounts[matchId][ev.assistant_id] = (perMatchEventCounts[matchId][ev.assistant_id] || 0) + 1;
-      });
-
       const mostCardedList = [...playersWithTeam]
-        .map((p) => ({
-          ...p,
-          fair_play_points: (p.red_cards || 0) * 3 + (p.yellow_cards || 0),
-        }))
+        .map((p) => ({ ...p, fair_play_points: (p.red_cards || 0) * 3 + (p.yellow_cards || 0) }))
         .filter((p) => ((p.yellow_cards || 0) + (p.red_cards || 0)) > 0)
         .sort((a, b) => {
           const aTotal = (a.yellow_cards || 0) + (a.red_cards || 0);
@@ -175,34 +137,35 @@ export const useRankings = () => {
         })
         .slice(0, 20);
 
-      // Compute goals conceded per goalkeeper while they were likely on court (heuristic)
-      const goalsConcededByGk: Record<string, number> = {};
-      // Build quick map of matches by id
-      const matchesById: Record<string, any> = {};
-      matchesData.forEach(m => {
-        const id = m.id ? String(m.id) : '';
-        if (id) matchesById[id] = m;
+      const matchesById: Record<string, (typeof matchesData)[number]> = {};
+      matchesData.forEach((m) => { if (m.id) matchesById[m.id] = m; });
+
+      const playerEventCounts: Record<string, number> = {};
+      const perMatchEventCounts: Record<string, Record<string, number>> = {};
+      eventsData.forEach((ev) => {
+        if (ev.player_id) playerEventCounts[ev.player_id] = (playerEventCounts[ev.player_id] || 0) + 1;
+        if (ev.assistant_id) playerEventCounts[ev.assistant_id] = (playerEventCounts[ev.assistant_id] || 0) + 1;
+        const matchId = ev.match_id || '';
+        if (!perMatchEventCounts[matchId]) perMatchEventCounts[matchId] = {};
+        if (ev.player_id) perMatchEventCounts[matchId][ev.player_id] = (perMatchEventCounts[matchId][ev.player_id] || 0) + 1;
+        if (ev.assistant_id) perMatchEventCounts[matchId][ev.assistant_id] = (perMatchEventCounts[matchId][ev.assistant_id] || 0) + 1;
       });
 
-      // For each goal event, attribute the conceded goal to the GK of the conceding team with highest event count in that match
+      const goalsConcededByGk: Record<string, number> = {};
       eventsData.forEach((ev) => {
         if (ev.event_type !== 'gol') return;
         const goalType = ev.metadata?.goal_type;
-        const isOwnGoal = goalType === 'contra' || Boolean(ev.metadata?.goal_type === 'contra');
+        const isOwnGoal = goalType === 'contra';
         if (isOwnGoal) return;
-        const matchId = ev.match_id ? String(ev.match_id) : (ev.matches ? String(ev.matches?.round || '') : '');
+        const matchId = ev.match_id || '';
         const scorerId = ev.player_id;
         if (!scorerId || !matchId) return;
-        const scorer = playersWithTeam.find(p => p.id === scorerId);
-        if (!scorer) return;
+        const scorer = playersWithTeam.find((p) => p.id === scorerId);
         const match = matchesById[matchId];
-        if (!match) return;
-        // determine conceding team id
+        if (!scorer || !match) return;
         const concededTeamId = match.team_a_id === scorer.team_id ? match.team_b_id : match.team_a_id;
-        // candidate GKs: players in playersWithTeam with matching team_id and GK position
-        const candidateGks = playersWithTeam.filter(p => (p.team_id === concededTeamId) && ((p.position || '').toString().toLowerCase().includes('gole')));
+        const candidateGks = playersWithTeam.filter((p) => p.team_id === concededTeamId && String(p.position || '').toLowerCase().includes('gole'));
         if (candidateGks.length === 0) return;
-        // pick GK with highest perMatchEventCounts
         const counts = perMatchEventCounts[matchId] || {};
         let bestGk = candidateGks[0];
         let bestCount = counts[bestGk.id] || 0;
@@ -217,70 +180,44 @@ export const useRankings = () => {
         goalsConcededByGk[bestGk.id] = (goalsConcededByGk[bestGk.id] || 0) + 1;
       });
 
-      const goldenGloveList = [...playersWithTeam]
+      const goalkeepers = [...playersWithTeam]
         .filter((p) => {
-          const pos = (p.position || '').toString().trim().toLowerCase();
+          const pos = String(p.position || '').trim().toLowerCase();
           return pos === 'goleiro' || pos === 'gol' || pos === 'gk' || pos.includes('gole');
         })
         .map((p) => ({
           ...p,
-          // prefer goals conceded while the GK was likely on court; fallback to team goals against
           goals_conceded: goalsConcededByGk[p.id] ?? (teamGoalsAgainst[p.team_id] || 0),
           _eventsCount: playerEventCounts[p.id] || 0,
         }))
-        // Excluir goleiros de equipes que nao jogaram
         .filter((p) => (teamMatchesPlayed[p.team_id] || 0) > 0)
-        // manter goleiros mesmo que nao tenham eventos, pois podem ter jogado mesmo sem registros de eventos
         .sort((a, b) => {
-          if ((a.goals_conceded || 0) !== (b.goals_conceded || 0)) {
-            return (a.goals_conceded || 0) - (b.goals_conceded || 0);
-          }
-          // preferir quem teve mais eventos (proxy de tempo jogado)
+          if ((a.goals_conceded || 0) !== (b.goals_conceded || 0)) return (a.goals_conceded || 0) - (b.goals_conceded || 0);
           if (((b as any)._eventsCount || 0) !== ((a as any)._eventsCount || 0)) return ((b as any)._eventsCount || 0) - ((a as any)._eventsCount || 0);
           if ((b.clean_sheets || 0) !== (a.clean_sheets || 0)) return (b.clean_sheets || 0) - (a.clean_sheets || 0);
           return a.name.localeCompare(b.name);
         })
         .slice(0, 10);
 
-      // --- LOGICA CRAQUE DA UNIDADE ATUAL (NOITE/RODADA) ---
-      // --- LOGICA CRAQUE DA UNIDADE ATUAL (NOITE/RODADA) por partida ---
       const roundMvpsList: Record<string, RankingPlayer[]> = {};
-      const calculatedRoundMvps: Record<string, RankingPlayer> = {};
+      const roundMvps: Record<string, RankingPlayer> = {};
       const roundHighlights: Record<string, string | null> = {};
-
-      // Create map of matches by unit (round/night)
-      const matchesByUnit: Record<string, Array<{
-        id?: string | null;
-        round: unknown;
-        night?: unknown;
-        status: unknown;
-        team_a_id: string;
-        team_b_id: string;
-        team_a_score: number;
-        team_b_score: number;
-      }>> = {};
+      const matchesByUnit: Record<string, typeof matchesData> = {};
 
       matchesData.forEach((m) => {
-        const roundValue = Number(m.round || 0);
-        const unitValue = groupUnit === 'round' ? roundValue : m.night;
+        const unitValue = groupUnit === 'round' ? m.round : m.night;
         const unitKey = unitValue === null || unitValue === undefined ? '' : String(unitValue).trim();
         if (!matchesByUnit[unitKey]) matchesByUnit[unitKey] = [];
-        matchesByUnit[unitKey].push(m as any);
+        matchesByUnit[unitKey].push(m);
       });
 
       Object.keys(matchesByUnit).forEach((unitKey) => {
-        const matchesInUnit = matchesByUnit[unitKey] || [];
         const winners: RankingPlayer[] = [];
-
-        matchesInUnit.forEach((mt) => {
-          // compute stats for this match only
+        for (const mt of matchesByUnit[unitKey] || []) {
           const matchStats: Record<string, { points: number; goals: number; assists: number; firstEvent: number }> = {};
-          const matchId = mt.id ? String((mt.id as unknown) || '') : '';
-
+          const matchId = mt.id || '';
           eventsData.forEach((ev) => {
-            const evMatchId = ev.match_id ? String(ev.match_id) : (ev.matches ? String(ev.matches?.round || '') : '');
-            if (!matchId || evMatchId !== matchId) return;
-
+            if (!matchId || ev.match_id !== matchId) return;
             if (ev.event_type === 'gol') {
               const goalType = ev.metadata?.goal_type;
               const isOwnGoal = goalType === 'contra' || Boolean(ev.commentary && String(ev.commentary).toUpperCase().includes('[CONTRA]'));
@@ -311,51 +248,42 @@ export const useRankings = () => {
             if (b.assists !== a.assists) return b.assists - a.assists;
             return a.firstEvent - b.firstEvent;
           });
-
           if (sorted.length > 0) {
-            const winnerId = sorted[0][0];
-            const player = playersWithTeam.find((p) => p.id === winnerId);
+            const player = playersWithTeam.find((p) => p.id === sorted[0][0]);
             if (player) winners.push(player);
           }
-        });
+        }
 
         roundMvpsList[unitKey] = winners;
-        if (winners.length > 0) calculatedRoundMvps[unitKey] = winners[0];
+        if (winners.length > 0) roundMvps[unitKey] = winners[0];
       });
 
-      // Compute highlights per unit: goals per player across the unit
       const unitGoals: Record<string, Record<string, number>> = {};
       eventsData.forEach((ev) => {
         if (ev.event_type !== 'gol') return;
         const goalType = ev.metadata?.goal_type;
-        const isOwnGoal = goalType === 'contra' || Boolean(ev.metadata?.goal_type === 'contra');
-        if (isOwnGoal) return;
-        const roundValue = Number(ev.matches?.round || 0);
-        const unitValue = groupUnit === 'round' ? roundValue : ev.matches?.night;
+        const isOwnGoal = goalType === 'contra';
+        if (isOwnGoal || !ev.player_id) return;
+        const match = matchesById[ev.match_id || ''];
+        if (!match) return;
+        const unitValue = groupUnit === 'round' ? match.round : match.night;
         const unitKey = unitValue === null || unitValue === undefined ? '' : String(unitValue).trim();
         if (!unitGoals[unitKey]) unitGoals[unitKey] = {};
-        if (ev.player_id) unitGoals[unitKey][ev.player_id] = (unitGoals[unitKey][ev.player_id] || 0) + 1;
+        unitGoals[unitKey][ev.player_id] = (unitGoals[unitKey][ev.player_id] || 0) + 1;
       });
 
       Object.keys(unitGoals).forEach((unitKey) => {
-        const goalsMap = unitGoals[unitKey] || {};
-        const sorted = Object.entries(goalsMap).sort(([, a], [, b]) => b - a);
+        const sorted = Object.entries(unitGoals[unitKey] || {}).sort(([, a], [, b]) => b - a);
         if (sorted.length === 0) {
           roundHighlights[unitKey] = null;
           return;
         }
         const top = sorted[0][1] || 0;
         const second = sorted[1] ? sorted[1][1] : 0;
-        // highlight if top is notably greater than second (>= second + 2)
-        if (top >= second + 2) {
-          roundHighlights[unitKey] = sorted[0][0];
-        } else {
-          roundHighlights[unitKey] = null;
-        }
+        roundHighlights[unitKey] = top >= second + 2 ? sorted[0][0] : null;
       });
 
-      const sortedRounds = Object.keys(matchesByUnit).filter(k => k !== '').sort((a, b) => {
-        // numeric compare when possible
+      const availableRounds = Object.keys(matchesByUnit).filter((k) => k !== '').sort((a, b) => {
         const na = Number(a);
         const nb = Number(b);
         if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
@@ -363,28 +291,31 @@ export const useRankings = () => {
       });
 
       const result = {
-        scorers: [...playersWithTeam].sort((a, b) => b.goals_count - a.goals_count).filter(p => p.goals_count > 0).slice(0, 10),
+        scorers: [...playersWithTeam].sort((a, b) => b.goals_count - a.goals_count).filter((p) => p.goals_count > 0).slice(0, 10),
         assistants: [...playersWithTeam]
           .map((p) => ({ ...p, assists: assistCounts[p.id] ?? p.assists ?? 0 }))
           .sort((a, b) => (b.assists || 0) - (a.assists || 0))
           .filter((p) => (p.assists || 0) > 0)
           .slice(0, 10),
-        goalkeepers: goldenGloveList,
-        galeraRank: [...playersWithTeam].filter(p => p.mvp_votes > 0).sort((a, b) => b.mvp_votes - a.mvp_votes).slice(0, 10),
+        goalkeepers,
+        galeraRank: [...playersWithTeam].filter((p) => (p.mvp_votes || 0) > 0).sort((a, b) => (b.mvp_votes || 0) - (a.mvp_votes || 0)).slice(0, 10),
         disciplined: mostCardedList,
-        roundMvps: calculatedRoundMvps,
+        roundMvps,
         roundMvpsList,
         roundHighlights,
-        availableRounds: sortedRounds
+        availableRounds,
       };
-      saveCachedRankings(result);
+
+      saveCached(result);
       return result;
     },
-    initialData: cached?.data ?? emptyRankings,
+    initialData: cached?.data || emptyRankings,
     initialDataUpdatedAt: cached?.ts,
     placeholderData: (prev) => prev,
-    staleTime: 1000 * 60 * 15, // 15 min
-    gcTime: 1000 * 60 * 30,   // 30 min
+    staleTime: 1000 * 60 * 15,
+    gcTime: 1000 * 60 * 30,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 
   useEffect(() => {
@@ -400,20 +331,12 @@ export const useRankings = () => {
     };
   }, [queryClient, division]);
 
-  const data = query.data || {
-    scorers: [], assistants: [], goalkeepers: [], galeraRank: [], disciplined: [], roundMvps: {}, availableRounds: []
-  };
-
   return {
-    ...data,
+    ...(query.data || emptyRankings),
     loading: query.isLoading && query.data === undefined,
-    error: (
-      query.error &&
-      typeof (query.error as { message?: unknown }).message === 'string'
-        ? String((query.error as { message: string }).message)
-        : null
-    ),
+    error: query.error && typeof (query.error as { message?: unknown }).message === 'string'
+      ? String((query.error as { message: string }).message)
+      : null,
     refresh: query.refetch,
   };
 };
-
