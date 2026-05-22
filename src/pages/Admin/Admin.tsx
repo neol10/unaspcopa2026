@@ -4135,6 +4135,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
               {(playersA || []).filter(p => onFieldA.includes(p.id)).map(p => (
                 <button 
                   key={p.id} 
+                  type="button"
                   onClick={() => {
                     if (isPreGame) {
                       togglePlayerStatus(p.id, 'a');
@@ -4165,6 +4166,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
               {(playersB || []).filter(p => onFieldB.includes(p.id)).map(p => (
                 <button 
                   key={p.id} 
+                  type="button"
                   onClick={() => {
                     if (isPreGame) {
                       togglePlayerStatus(p.id, 'b');
@@ -4232,7 +4234,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                   )}
                 </div>
                 <div className="undo-actions">
-                  <button className="btn-undo" onClick={() => removeEvent(event)} title="Remover e reverter">
+                  <button type="button" className="btn-undo" onClick={() => removeEvent(event)} title="Remover e reverter">
                     <Trash2 size={14} />
                   </button>
                 </div>
