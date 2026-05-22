@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useDivisionContext } from '../contexts/DivisionContext';
 import { fetchPublicData } from '../lib/apiData';
+import { supabase } from '../lib/supabase';
 
 type PostgrestErrorLike = {
   message?: unknown;

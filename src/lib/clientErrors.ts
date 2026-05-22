@@ -1,5 +1,3 @@
-import { supabase } from './supabase';
-
 type ClientErrorInsert = {
   source: string;
   message: string;
@@ -175,9 +173,14 @@ export const flushClientErrorQueue = async () => {
 
   try {
     const batch = queue.slice(0, 10);
-
-    const { error } = await supabase.from('client_errors').insert(batch);
-    if (error) throw error;
+    const response = await fetch('/api/client-errors', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ batch }),
+    });
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
 
     const remaining = queue.slice(batch.length);
     saveQueue(remaining);

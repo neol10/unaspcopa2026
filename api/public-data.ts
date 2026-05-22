@@ -110,16 +110,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (resource === 'rankings') {
-      const [playersRes, votesRes, eventsRes, matchesRes] = await Promise.all([
+      const matchesBaseQuery = supabase
+        .from('matches')
+        .select('id, round, night, status, team_a_id, team_b_id, team_a_score, team_b_score')
+        .eq('division', division);
+
+      const [playersRes, matchesRes] = await Promise.all([
         supabase.from('players').select('id, name, number, position, photo_url, goals_count, assists, yellow_cards, red_cards, clean_sheets, team_id, teams:team_id(name, badge_url, group, leader, primary_color)').eq('division', division),
-        supabase.from('match_mvp_votes').select('player_id').eq('matches.division', division),
-        supabase.from('match_events').select('match_id, player_id, assistant_id, event_type, minute, metadata, matches:match_id!inner(round, night, division)').eq('matches.division', division).in('event_type', ['gol', 'assistencia']),
-        supabase.from('matches').select('id, round, night, status, team_a_id, team_b_id, team_a_score, team_b_score').eq('division', division),
+        matchesBaseQuery,
       ]);
+
       if (playersRes.error) throw playersRes.error;
+      if (matchesRes.error) throw matchesRes.error;
+
+      const matchIds = (matchesRes.data || []).map((match) => match.id).filter((id): id is string => Boolean(id));
+      const [votesRes, eventsRes] = await Promise.all([
+        matchIds.length > 0
+          ? supabase.from('match_mvp_votes').select('player_id, match_id').in('match_id', matchIds)
+          : Promise.resolve({ data: [], error: null }),
+        matchIds.length > 0
+          ? supabase.from('match_events').select('match_id, player_id, assistant_id, event_type, minute, metadata').in('match_id', matchIds).in('event_type', ['gol', 'assistencia'])
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+
       if (votesRes.error) throw votesRes.error;
       if (eventsRes.error) throw eventsRes.error;
-      if (matchesRes.error) throw matchesRes.error;
       return json(res, 200, {
         players: playersRes.data || [],
         votes: votesRes.data || [],

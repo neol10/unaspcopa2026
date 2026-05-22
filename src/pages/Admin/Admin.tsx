@@ -1359,14 +1359,12 @@ const ClientErrorsPanel = () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const { data, error } = await supabase
-        .from('client_errors')
-        .select('id, created_at, source, message, stack, path, user_agent, app_version, extra')
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (error) throw error;
-      setItems((data || []) as ClientErrorRow[]);
+      const response = await fetch('/api/client-errors?limit=50');
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+      const payload = (await response.json()) as { data?: ClientErrorRow[] };
+      setItems((payload.data || []) as ClientErrorRow[]);
     } catch (err: unknown) {
       const unavailable = isClientErrorsUnavailable(err);
       if (!isClientErrorsUnavailable(err)) {
