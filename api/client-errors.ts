@@ -15,11 +15,9 @@ const SUPABASE_KEY = readEnv('SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_ROLE
 const json = (res: VercelResponse, status: number, body: unknown) => res.status(status).json(body);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (!SUPABASE_URL || !SUPABASE_KEY) {
-    return json(res, 500, {
-      error: 'Missing Supabase config',
-      hint: 'Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel project env',
-    });
+  const NO_SUPABASE = !SUPABASE_URL || !SUPABASE_KEY;
+  if (NO_SUPABASE) {
+    console.warn('client-errors: SUPABASE config missing, will not persist errors. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel env to enable persistence.');
   }
 
   try {
@@ -27,6 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (req.method === 'GET') {
       const limit = Math.min(Number(req.query.limit || 50) || 50, 100);
+      if (NO_SUPABASE) return json(res, 200, { data: [] });
       const { data, error } = await supabase
         .from('client_errors')
         .select('id, created_at, source, message, stack, path, user_agent, app_version, extra')
@@ -50,6 +49,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         app_version: item?.app_version ?? null,
         extra: item?.extra ?? null,
       }));
+
+      if (NO_SUPABASE) {
+        console.info('client-errors: received batch but SUPABASE not configured — skipping insert. items:', batch.length);
+        return json(res, 200, { ok: true, inserted: 0 });
+      }
 
       const { error } = await supabase.from('client_errors').insert(batch);
       if (error) throw error;

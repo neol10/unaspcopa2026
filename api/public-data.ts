@@ -16,11 +16,10 @@ const json = (res: VercelResponse, status: number, body: unknown) => res.status(
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return json(res, 405, { error: 'Method Not Allowed' });
-  if (!SUPABASE_URL || !SUPABASE_KEY) {
-    return json(res, 500, {
-      error: 'Missing Supabase config',
-      hint: 'Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel project env',
-    });
+  const NO_SUPABASE = !SUPABASE_URL || !SUPABASE_KEY;
+  if (NO_SUPABASE) {
+    console.warn('public-data: SUPABASE config missing, returning safe fallback responses. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel env to enable live data.');
+    // don't return 500 here — return safe fallbacks below so the UI can render instead of showing a 500
   }
 
   try {
@@ -47,6 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .order('match_date', { ascending: true });
       if (division) q = q.or(`division.eq.${division},division.is.null`);
       if (limit) q = q.limit(limit);
+      if (NO_SUPABASE) return json(res, 200, { data: [] });
       const { data, error } = await q;
       if (error) throw error;
       return json(res, 200, { data: data || [] });
@@ -55,6 +55,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (resource === 'teams') {
       let q = supabase.from('teams').select('id, name, badge_url, group, leader, primary_color, division').order('name');
       if (division) q = q.eq('division', division);
+      if (NO_SUPABASE) return json(res, 200, { data: [] });
       const { data, error } = await q;
       if (error) throw error;
       return json(res, 200, { data: data || [] });
@@ -64,12 +65,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       let q = supabase.from('players').select('*, teams(name, badge_url, group, leader, primary_color)').order('name');
       if (division) q = q.eq('division', division);
       if (teamId) q = q.eq('team_id', teamId);
+      if (NO_SUPABASE) return json(res, 200, { data: [] });
       const { data, error } = await q;
       if (error) throw error;
       return json(res, 200, { data: data || [] });
     }
 
     if (resource === 'news') {
+      if (NO_SUPABASE) return json(res, 200, { data: [] });
       let q = supabase.from('news').select('*');
       if (limit) q = q.limit(limit);
       const { data, error } = await q;
@@ -78,6 +81,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (resource === 'tournament_config') {
+      if (NO_SUPABASE) return json(res, 200, { data: null });
       let q = supabase.from('tournament_config').select('*');
       if (division) q = q.eq('division', division);
       const { data, error } = await q.maybeSingle();
@@ -87,6 +91,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (resource === 'match_events') {
       if (!matchId) return json(res, 400, { error: 'matchId required' });
+      if (NO_SUPABASE) return json(res, 200, { data: [] });
       const { data, error } = await supabase
         .from('match_events')
         .select('id, match_id, player_id, assistant_id, user_id, author_name, event_type, minute, commentary, metadata, created_at, players:player_id(name, photo_url), assistant_player:assistant_id(name, photo_url)')
@@ -99,6 +104,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (resource === 'match_winner_votes') {
       if (!matchId) return json(res, 400, { error: 'matchId required' });
+      if (NO_SUPABASE) return json(res, 200, { data: [] });
       const { data, error } = await supabase.from('match_winner_votes').select('vote, user_id').eq('match_id', matchId);
       if (error) throw error;
       return json(res, 200, { data: data || [] });
@@ -106,6 +112,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (resource === 'round_mvp_votes') {
       if (!round) return json(res, 400, { error: 'round required' });
+      if (NO_SUPABASE) return json(res, 200, { data: [] });
       const { data, error } = await supabase
         .from('round_mvp_votes')
         .select('player_id, players(id, name, number, teams(name))')
@@ -115,6 +122,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (resource === 'rankings') {
+      if (NO_SUPABASE) {
+        return json(res, 200, { players: [], votes: [], events: [], matches: [] });
+      }
       const matchesBaseQuery = supabase
         .from('matches')
         .select('id, round, night, status, team_a_id, team_b_id, team_a_score, team_b_score')
