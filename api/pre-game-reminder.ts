@@ -88,7 +88,7 @@ const isSchemaCompatibilityError = (err: unknown) => {
 };
 
 const selectUpcomingMatchesAdaptive = async (
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   windowStart: string,
   windowEnd: string,
 ) => {
@@ -189,7 +189,7 @@ const normalizeSubscriptionRow = (row: SubscriptionRowLegacy): SubscriptionRow |
   return { subscription: reconstructed };
 };
 
-const selectSubscriptionsAdaptive = async (supabase: ReturnType<typeof createClient>) => {
+const selectSubscriptionsAdaptive = async (supabase: any) => {
   const queries = [
     'subscription',
     'subscription, preferences',

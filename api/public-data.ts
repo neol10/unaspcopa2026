@@ -116,10 +116,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (userIds.length > 0) {
           const { data: profilesData, error: profilesError } = await supabase.from('profiles').select('id, email').in('id', userIds);
           if (profilesError) throw profilesError;
-          responseData = responseData.map((item) => ({
-            ...item,
-            profiles: profilesData?.find((profile) => profile.id === (item as { user_id?: string | null }).user_id) || { email: 'Anônimo' },
-          }));
+          responseData = responseData.map((item) => {
+            const current = item && typeof item === 'object' ? item as Record<string, unknown> : {};
+            return {
+              ...current,
+              profiles: profilesData?.find((profile) => profile.id === (current.user_id as string | undefined)) || { email: 'Anônimo' },
+            };
+          });
         }
       }
 

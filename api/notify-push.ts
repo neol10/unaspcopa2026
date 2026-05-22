@@ -181,7 +181,7 @@ const getErrorInfo = (err: unknown): { statusCode?: number; message: string } =>
 };
 
 const deleteByEndpointBestEffort = async (
-  supabaseAdmin: ReturnType<typeof createClient>,
+  supabaseAdmin: any,
   endpoint: string,
 ) => {
   const filters = ['subscription->>endpoint', 'endpoint'];
@@ -294,7 +294,7 @@ const isSchemaCompatibilityError = (error: unknown) => {
   );
 };
 
-const selectSubscriptionsAdaptive = async (client: ReturnType<typeof createClient>) => {
+const selectSubscriptionsAdaptive = async (client: any) => {
   const queries = [
     'subscription',
     'subscription, preferences',
@@ -359,7 +359,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const keysToTry = getUsableSupabaseKeys();
 
-    let supabaseAdmin: ReturnType<typeof createClient> | null = null;
+    let supabaseAdmin: any = null;
     let subscriptions: SubscriptionRow[] | null = null;
     let lastKeyError: unknown = null;
 
