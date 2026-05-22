@@ -54,8 +54,11 @@ export const useMatches = (limit?: number) => {
 
   const friendlyError = (raw: string | undefined) => {
     if (!raw) return null;
-    if (raw.includes('Request timeout')) return 'Tempo limite ao carregar partidas';
-    if (raw.toLowerCase().includes('abort')) return 'Tempo limite ao carregar partidas';
+    const lower = raw.toLowerCase();
+    if (lower.includes('request timeout') || lower.includes('supabase request timeout') || lower.includes('timeout')) {
+      return 'Tempo limite ao carregar partidas';
+    }
+    if (lower.includes('abort')) return 'Tempo limite ao carregar partidas';
     return raw;
   };
 
@@ -161,6 +164,9 @@ export const useMatches = (limit?: number) => {
           if (shouldRetry) {
             await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
             continue;
+          }
+          if (isRetriable(err) && cached?.data?.length) {
+            return cached.data;
           }
           console.error('Supabase Matches Error:', err);
           throw err;

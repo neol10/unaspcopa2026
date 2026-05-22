@@ -22,6 +22,8 @@ const Rankings: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const deferredSearchTerm = useDeferredValue(searchTerm);
   const [viewLimit, setViewLimit] = useState<5 | 10>(10);
+  const touchStartXRef = React.useRef<number | null>(null);
+  const touchMoveXRef = React.useRef<number | null>(null);
 
   const normalize = (value: string) => value
     .toLowerCase()
@@ -150,8 +152,6 @@ const Rankings: React.FC = () => {
   const highlightedPlayerId = selectedRound && roundHighlights ? roundHighlights[selectedRound] : null;
 
   // Swipe handlers for touch devices to change selectedRound
-  const touchStartXRef = React.useRef<number | null>(null);
-  const touchMoveXRef = React.useRef<number | null>(null);
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartXRef.current = e.touches[0].clientX;
   };

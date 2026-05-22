@@ -3,11 +3,16 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
+const hasSupabaseEnv = Boolean(supabaseUrl && supabaseAnonKey);
+
+if (!hasSupabaseEnv) {
   console.error('Supabase credentials missing! Check your .env file.');
 }
 
-const createSupabaseClient = () => createClient(supabaseUrl, supabaseAnonKey, {
+const fallbackSupabaseUrl = 'https://example.invalid';
+const fallbackSupabaseAnonKey = 'placeholder-anon-key';
+
+const createSupabaseClient = () => createClient(supabaseUrl || fallbackSupabaseUrl, supabaseAnonKey || fallbackSupabaseAnonKey, {
   auth: {
     // Evita conflito de Lock causado pelo React StrictMode
     // que monta cada componente 2x em desenvolvimento
@@ -23,14 +28,14 @@ const createSupabaseClient = () => createClient(supabaseUrl, supabaseAnonKey, {
       const asString = typeof url === 'string' ? url : url.toString();
 
       // Timeouts balanceados para estabilidade em rede móvel/instável.
-      // Auth: 90s, Realtime: 45s, Storage (upload): 180s, Queries padrão: 20s
+      // Auth: 90s, Realtime: 45s, Storage (upload): 180s, Queries padrão: 45s
       const timeoutMs = asString.includes('/auth/v1/')
         ? 90000
         : asString.includes('/realtime/v1/')
           ? 45000
           : asString.includes('/storage/v1/')
             ? 180000
-          : 20000;
+          : 45000;
       const controller = new AbortController();
       let parentAbortHandler: (() => void) | null = null;
 
@@ -57,7 +62,7 @@ const createSupabaseClient = () => createClient(supabaseUrl, supabaseAnonKey, {
   }
 });
 
-const createStorageClient = () => createClient(supabaseUrl, supabaseAnonKey, {
+const createStorageClient = () => createClient(supabaseUrl || fallbackSupabaseUrl, supabaseAnonKey || fallbackSupabaseAnonKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false,

@@ -65,6 +65,22 @@ export const useStandings = () => {
   const query = useQuery({
     queryKey: ['standings', division],
     queryFn: async () => {
+      const isRetriable = (err: unknown) => {
+        const name = (err as { name?: unknown })?.name;
+        const message =
+          typeof (err as { message?: unknown })?.message === 'string'
+            ? String((err as { message: string }).message)
+            : '';
+        const lower = message.toLowerCase();
+        return (
+          name === 'TimeoutError' ||
+          lower.includes('timeout') ||
+          lower.includes('failed to fetch') ||
+          lower.includes('networkerror') ||
+          (lower.includes('fetch') && lower.includes('failed'))
+        );
+      };
+
       const status = getDivisionColumnStatus();
 
       const buildTeamsQuery = (withDivision: boolean) => {
@@ -83,34 +99,59 @@ export const useStandings = () => {
         return q;
       };
 
-      // 1-2. Buscar dados em paralelo
-      // Importante: evitamos um timeout manual aqui para não "cortar" requests
-      // lentos (ex.: Supabase acordando). O próprio fetch do Supabase já tem timeout.
+      // 1-2. Buscar dados em paralelo com tolerância a timeout/rede instável
+      // (evita quebrar a classificação em intermitência do Supabase/rede do usuário)
+      let teamsRes: Awaited<ReturnType<ReturnType<typeof buildTeamsQuery>>>;
+      let matchesRes: Awaited<ReturnType<ReturnType<typeof buildMatchesQuery>>>;
+      let missingDivision = false;
+      let completed = false;
       const withDivision = status !== 'missing';
-      let [teamsRes, matchesRes] = await Promise.all([
-        buildTeamsQuery(withDivision),
-        buildMatchesQuery(withDivision),
-      ]);
 
-      const missingDivision =
-        (teamsRes.error && isMissingColumnError(teamsRes.error as unknown as PostgrestErrorLike, 'division')) ||
-        (matchesRes.error && isMissingColumnError(matchesRes.error as unknown as PostgrestErrorLike, 'division'));
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          [teamsRes, matchesRes] = await Promise.all([
+            buildTeamsQuery(withDivision),
+            buildMatchesQuery(withDivision),
+          ]);
 
-      if (withDivision && missingDivision) {
-        markDivisionColumnMissing();
-        [teamsRes, matchesRes] = await Promise.all([
-          buildTeamsQuery(false),
-          buildMatchesQuery(false),
-        ]);
+          missingDivision =
+            Boolean(teamsRes.error && isMissingColumnError(teamsRes.error as unknown as PostgrestErrorLike, 'division')) ||
+            Boolean(matchesRes.error && isMissingColumnError(matchesRes.error as unknown as PostgrestErrorLike, 'division'));
+
+          if (withDivision && missingDivision) {
+            markDivisionColumnMissing();
+            [teamsRes, matchesRes] = await Promise.all([
+              buildTeamsQuery(false),
+              buildMatchesQuery(false),
+            ]);
+          }
+
+          if (teamsRes.error) throw teamsRes.error;
+          if (matchesRes.error) throw matchesRes.error;
+
+          if (withDivision && !missingDivision) markDivisionColumnPresent();
+          completed = true;
+          break;
+        } catch (err) {
+          const shouldRetry = attempt < 2 && isRetriable(err);
+          if (shouldRetry) {
+            await new Promise((resolve) => setTimeout(resolve, 600 * (attempt + 1)));
+            continue;
+          }
+          if (isRetriable(err) && cached?.data?.length) {
+            return cached.data;
+          }
+          throw err;
+        }
       }
 
-      if (teamsRes.error) throw teamsRes.error;
-      if (matchesRes.error) throw matchesRes.error;
+      if (!completed) {
+        if (cached?.data?.length) return cached.data;
+        return [];
+      }
 
-      if (withDivision && !missingDivision) markDivisionColumnPresent();
-
-      const teams = teamsRes.data || [];
-      const matches = matchesRes.data || [];
+      const teams = teamsRes!.data || [];
+      const matches = matchesRes!.data || [];
 
       // 3. Processar classificação
       const statsMap: Record<string, Standing> = {};
@@ -199,7 +240,21 @@ export const useStandings = () => {
     staleTime: 1000 * 60 * 1, // 1 min
     gcTime: 1000 * 60 * 10,  // 10 min
     refetchInterval: 1000 * 60 * 2, // Fallback: atualiza classificacao a cada 2 minutos
-    retry: 0,
+    retry: (failureCount, error) => {
+      const name = (error as { name?: unknown })?.name;
+      const raw =
+        typeof (error as { message?: unknown })?.message === 'string'
+          ? String((error as { message: string }).message)
+          : '';
+      const lower = raw.toLowerCase();
+      const retriable =
+        name === 'TimeoutError' ||
+        lower.includes('timeout') ||
+        lower.includes('failed to fetch') ||
+        lower.includes('networkerror') ||
+        (lower.includes('fetch') && lower.includes('failed'));
+      return retriable && failureCount < 1;
+    },
     refetchOnReconnect: true,
     refetchOnWindowFocus: true,
     networkMode: 'online',
@@ -224,9 +279,11 @@ export const useStandings = () => {
 
   const friendlyError = (raw: string | undefined) => {
     if (!raw) return null;
-    if (raw.includes('Request timeout')) return 'Tempo limite ao carregar classificação';
-    if (raw.includes('Tempo limite')) return 'Tempo limite ao carregar classificação';
-    if (raw.toLowerCase().includes('abort')) return 'Tempo limite ao carregar classificação';
+    const lower = raw.toLowerCase();
+    if (lower.includes('request timeout') || lower.includes('supabase request timeout') || lower.includes('timeout')) {
+      return 'Tempo limite ao carregar classificação';
+    }
+    if (lower.includes('abort')) return 'Tempo limite ao carregar classificação';
     return raw;
   };
 
