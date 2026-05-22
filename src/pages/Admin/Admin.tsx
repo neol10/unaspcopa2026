@@ -1,4 +1,3 @@
-import KnockoutGenerator from './KnockoutGenerator';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase, supabaseStorage } from '../../lib/supabase';
@@ -3326,7 +3325,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       if (eventType === 'gol') {
         eventData.commentary = finalGoalType === 'normal' ? '' : `[${finalGoalType.toUpperCase()}]`;
         if (finalAssistantId && finalGoalType !== 'penalti') eventData.assistant_id = finalAssistantId;
-        eventData.metadata = { goal_type: finalGoalType };
+        eventData.metadata = { ...(eventData.metadata || {}), goal_type: finalGoalType };
       }
       
       if (eventType === 'substituicao' && finalAssistantId) {
@@ -3770,6 +3769,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                       <button 
                         key={p.id} 
                         className={`p-wizard-btn ${onFieldA.includes(p.id) || onFieldB.includes(p.id) ? 'on-field' : ''} ${goalWizard.pId === p.id ? 'pre-selected' : ''}`}
+                        type="button"
                         onClick={() => {
                           setGoalFreeName('');
                           handleGoalWizardSubmit(p.id, goalType, assistantId);
@@ -3793,6 +3793,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                         className="mvp-desc-input"
                       />
                       <button
+                        type="button"
                         className="btn-save"
                         disabled={!goalFreeName.trim()}
                         onClick={() => {
@@ -3827,9 +3828,9 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                   <div className="form-group">
                     <label>Tipo</label>
                     <div className="goal-type-btns">
-                      <button className={goalType === 'normal' ? 'active' : ''} onClick={() => setGoalType('normal')}>Normal</button>
-                      <button className={goalType === 'penalti' ? 'active' : ''} onClick={() => { setGoalType('penalti'); setAssistantId(''); }}>Pênalti</button>
-                      <button className={goalType === 'contra' ? 'active red' : ''} onClick={() => setGoalType('contra')}>Contra</button>
+                      <button type="button" className={goalType === 'normal' ? 'active' : ''} onClick={() => setGoalType('normal')}>Normal</button>
+                      <button type="button" className={goalType === 'penalti' ? 'active' : ''} onClick={() => { setGoalType('penalti'); setAssistantId(''); }}>Pênalti</button>
+                      <button type="button" className={goalType === 'contra' ? 'active red' : ''} onClick={() => setGoalType('contra')}>Contra</button>
                     </div>
                   </div>
                 </div>
@@ -3987,22 +3988,22 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
 
       <div className="event-selector">
-        <button className={eventType === 'gol' ? 'active' : ''} onClick={() => setEventType('gol')}>
+        <button type="button" className={eventType === 'gol' ? 'active' : ''} onClick={() => setEventType('gol')}>
           <Target size={16} /> GOL
         </button>
-        <button className={eventType === 'amarelo' ? 'active yellow' : ''} onClick={() => setEventType('amarelo')}>
+        <button type="button" className={eventType === 'amarelo' ? 'active yellow' : ''} onClick={() => setEventType('amarelo')}>
           <Square size={16} fill={eventType === 'amarelo' ? '#fbbf24' : 'none'} /> AMARELO
         </button>
-        <button className={eventType === 'vermelho' ? 'active red' : ''} onClick={() => setEventType('vermelho')}>
+        <button type="button" className={eventType === 'vermelho' ? 'active red' : ''} onClick={() => setEventType('vermelho')}>
           <Square size={16} fill={eventType === 'vermelho' ? '#ef4444' : 'none'} /> VERMELHO
         </button>
-        <button className={eventType === 'substituicao' ? 'active' : ''} onClick={() => setEventType('substituicao')}>
+        <button type="button" className={eventType === 'substituicao' ? 'active' : ''} onClick={() => setEventType('substituicao')}>
           <ArrowRightLeft size={16} /> SUBST.
         </button>
-        <button className={eventType === 'momento' ? 'active' : ''} onClick={() => setEventType('momento')}>
+        <button type="button" className={eventType === 'momento' ? 'active' : ''} onClick={() => setEventType('momento')}>
           <Clock size={16} /> MOMENTO
         </button>
-        <button className={eventType === 'comentario' ? 'active' : ''} onClick={() => setEventType('comentario')}>
+        <button type="button" className={eventType === 'comentario' ? 'active' : ''} onClick={() => setEventType('comentario')}>
           <MessageSquare size={16} /> TEXTO
         </button>
       </div>
@@ -4011,9 +4012,9 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         <div className="goal-type-selector animate-slide-down">
           <label>Tipo de Gol: </label>
           <div className="goal-type-btns">
-            <button className={goalType === 'normal' ? 'active' : ''} onClick={() => setGoalType('normal')}>Normal</button>
-            <button className={goalType === 'penalti' ? 'active' : ''} onClick={() => { setGoalType('penalti'); setAssistantId(''); }}>Pênalti</button>
-            <button className={goalType === 'contra' ? 'active red' : ''} onClick={() => setGoalType('contra')}>Contra</button>
+            <button type="button" className={goalType === 'normal' ? 'active' : ''} onClick={() => setGoalType('normal')}>Normal</button>
+            <button type="button" className={goalType === 'penalti' ? 'active' : ''} onClick={() => { setGoalType('penalti'); setAssistantId(''); }}>Pênalti</button>
+            <button type="button" className={goalType === 'contra' ? 'active red' : ''} onClick={() => setGoalType('contra')}>Contra</button>
           </div>
         </div>
       )}
@@ -4042,7 +4043,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
               value={commentaryText} 
               onChange={e => setCommentaryText(e.target.value)} 
             />
-            <button className="btn-send-msg" onClick={() => addEvent('', 'a')} disabled={!commentaryText.trim()}>
+            <button type="button" className="btn-send-msg" onClick={() => addEvent('', 'a')} disabled={!commentaryText.trim()}>
               Enviar
             </button>
           </div>
@@ -4069,6 +4070,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                   </select>
                 </div>
                 <button 
+                  type="button"
                   className="btn-confirm-sub" 
                   onClick={() => addEvent(playerOutId, 'a')}
                   disabled={!playerOutId || !assistantId}
@@ -4097,6 +4099,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                   </select>
                 </div>
                 <button 
+                  type="button"
                   className="btn-confirm-sub btn-team-b" 
                   onClick={() => addEvent(playerOutId, 'b')}
                   disabled={!playerOutId || !assistantId}
@@ -4173,7 +4176,6 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       </div>
 
       <div className="recent-events-undo">
-          <KnockoutGenerator />
         <div className="recent-header">
           <h6>Lances Recentes</h6>
           <span className="undo-tip">Clique no minuto para editar o tempo</span>
