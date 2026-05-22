@@ -10,7 +10,7 @@ const readEnv = (...keys: string[]) => {
 };
 
 const SUPABASE_URL = readEnv('SUPABASE_URL', 'VITE_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL');
-const SUPABASE_KEY = readEnv('SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_ROLE', 'SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
+const SUPABASE_KEY = readEnv('SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_ROLE');
 
 const json = (res: VercelResponse, status: number, body: unknown) => res.status(status).json(body);
 
@@ -150,8 +150,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return json(res, 400, { error: `Unknown resource: ${resource}` });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const raw = err as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown };
+    const message = typeof raw?.message === 'string' ? raw.message : (err instanceof Error ? err.message : String(err));
+    const details = typeof raw?.details === 'string' ? raw.details : undefined;
+    const hint = typeof raw?.hint === 'string' ? raw.hint : undefined;
+    const code = typeof raw?.code === 'string' ? raw.code : undefined;
     console.error('public-data error:', err);
-    return json(res, 500, { error: msg });
+    return json(res, 500, { error: message, details, hint, code });
   }
 }
