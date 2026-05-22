@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
 import { fetchPublicData } from '../lib/apiData';
 
 export interface News {
@@ -51,7 +50,8 @@ export const useNews = (limit?: number) => {
   const query = useQuery({
     queryKey: ['news', limit || 'all'],
     queryFn: async () => {
-      const items = (await fetchPublicData<NewsRow[]>('news', { limit: limit || '' })).slice();
+      const payload = await fetchPublicData<{ data: NewsRow[] }>('news', { limit: limit || '' });
+      const items = (payload.data || []).slice();
       items.sort((a, b) => parseNewsTime(b) - parseNewsTime(a));
       const result = items as News[];
       saveCachedNews(result);

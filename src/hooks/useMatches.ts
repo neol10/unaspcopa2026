@@ -128,7 +128,8 @@ export const useMatches = (limit?: number) => {
 
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
-          const data = await fetchPublicData<Match[]>('matches', { division, limit: limit || '' });
+          const payload = await fetchPublicData<{ data: Match[] }>('matches', { division, limit: limit || '' });
+          const data = payload.data || [];
           if (Array.isArray(data)) {
             if (includeDivision) markDivisionColumnPresent();
             if (includeNight) markNightColumnPresent();

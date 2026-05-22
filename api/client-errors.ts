@@ -68,6 +68,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const hint = typeof raw?.hint === 'string' ? raw.hint : undefined;
     const code = typeof raw?.code === 'string' ? raw.code : undefined;
     console.error('client-errors error:', err);
+
+    const text = String(message).toLowerCase();
+    const isTimeout = text.includes('522') || text.includes('connection timed out') || text.includes('timeout') || (hint && String(hint).toLowerCase().includes('supabase'));
+    if (isTimeout || NO_SUPABASE) {
+      return json(res, 200, { ok: true, inserted: 0, fallback: true });
+    }
+
     return json(res, 500, { error: message, details, hint, code });
   }
 }

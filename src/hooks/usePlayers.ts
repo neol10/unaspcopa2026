@@ -92,8 +92,8 @@ export const usePlayers = (teamId?: string) => {
   const query = useQuery({
     queryKey: ['players', division, teamId || 'all'],
     queryFn: async () => {
-      const rows = await fetchPublicData<PlayerRow[]>('players', { division, teamId: teamId || '' });
-      return rows.map((row) => {
+      const payload = await fetchPublicData<{ data: PlayerRow[] }>('players', { division, teamId: teamId || '' });
+      return (payload.data || []).map((row) => {
         // Robust check for team data (handles object or array from Supabase join)
         const team = Array.isArray(row.teams) ? row.teams[0] : row.teams;
         

@@ -60,10 +60,12 @@ export const useStandings = () => {
   const query = useQuery({
     queryKey: ['standings', division],
     queryFn: async () => {
-      const [teams, matches] = await Promise.all([
-        fetchPublicData<Array<{ id: string; name: string; group: string; badge_url: string }>>('teams', { division }),
-        fetchPublicData<Array<{ team_a_id: string; team_b_id: string; team_a_score: number; team_b_score: number; match_date: string; status: string }>>('matches', { division }),
+      const [teamsPayload, matchesPayload] = await Promise.all([
+        fetchPublicData<{ data: Array<{ id: string; name: string; group: string; badge_url: string }> }>('teams', { division }),
+        fetchPublicData<{ data: Array<{ team_a_id: string; team_b_id: string; team_a_score: number; team_b_score: number; match_date: string; status: string }> }>('matches', { division }),
       ]);
+      const teams = teamsPayload.data || [];
+      const matches = matchesPayload.data || [];
 
       // 3. Processar classificação
       const statsMap: Record<string, Standing> = {};

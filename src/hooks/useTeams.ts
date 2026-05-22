@@ -63,8 +63,8 @@ export const useTeams = () => {
   const query = useQuery({
     queryKey: ['teams', division],
     queryFn: async () => {
-      const rows = await fetchPublicData<Team[]>('teams', { division });
-      return rows.map((team) => ({
+      const payload = await fetchPublicData<{ data: Team[] }>('teams', { division });
+      return (payload.data || []).map((team) => ({
         ...team,
         badge_url: normalizeImageSrc(team.badge_url),
       }));
