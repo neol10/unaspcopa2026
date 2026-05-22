@@ -14,9 +14,9 @@ const fallbackSupabaseAnonKey = 'placeholder-anon-key';
 
 const createSupabaseClient = () => createClient(supabaseUrl || fallbackSupabaseUrl, supabaseAnonKey || fallbackSupabaseAnonKey, {
   auth: {
-    // Evita conflito de Lock causado pelo React StrictMode
-    // que monta cada componente 2x em desenvolvimento
-    autoRefreshToken: true,
+    // Mitigacao: evita loop de refresh_token quando o endpoint de auth
+    // fica instavel (522/timeout), reduzindo lock contention e spam de erros.
+    autoRefreshToken: false,
     persistSession: true,
     detectSessionInUrl: false,
     multiTab: false,
@@ -28,9 +28,9 @@ const createSupabaseClient = () => createClient(supabaseUrl || fallbackSupabaseU
       const asString = typeof url === 'string' ? url : url.toString();
 
       // Timeouts balanceados para estabilidade em rede móvel/instável.
-      // Auth: 90s, Realtime: 45s, Storage (upload): 180s, Queries padrão: 45s
+      // Auth: 20s, Realtime: 45s, Storage (upload): 180s, Queries padrão: 45s
       const timeoutMs = asString.includes('/auth/v1/')
-        ? 90000
+        ? 20000
         : asString.includes('/realtime/v1/')
           ? 45000
           : asString.includes('/storage/v1/')

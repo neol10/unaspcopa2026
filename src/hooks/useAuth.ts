@@ -125,26 +125,6 @@ export const useAuth = () => {
       }
     });
 
-    // Fallback: tenta recuperar sessão sem forçar guest prematuramente.
-    // Isso evita cair em "Acesso Restrito" por corrida transitória de inicialização.
-    const fallbackTimer = setTimeout(() => {
-      if (resolvedOnce.current) return;
-      void (async () => {
-        try {
-          const { data, error } = await supabase.auth.getSession();
-          if (error) throw error;
-          if (data?.session) {
-            await applySession(data.session);
-            return;
-          }
-        } catch (err) {
-          if (!isIgnorableAuthAbort(err)) {
-            console.warn('Fallback getSession failed:', err);
-          }
-        }
-      })();
-    }, 4000);
-
     // Safety timeout: o GoTrue pode segurar lock por alguns segundos ao inicializar/refresh.
     // Se cairmos em "guest" cedo demais, dá a impressão de deslogar/sumir admin.
     // 12s mantém a proteção contra loading infinito sem ser agressivo demais.
@@ -160,7 +140,6 @@ export const useAuth = () => {
 
     return () => {
       subscription.unsubscribe();
-      clearTimeout(fallbackTimer);
       clearTimeout(timeout);
     };
   }, []);
