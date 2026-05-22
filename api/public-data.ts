@@ -156,6 +156,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const hint = typeof raw?.hint === 'string' ? raw.hint : undefined;
     const code = typeof raw?.code === 'string' ? raw.code : undefined;
     console.error('public-data error:', err);
+
+    // Detect Supabase/Cloudflare timeout (522) and return safe fallbacks so UI can still render.
+    const text = String(message).toLowerCase();
+    const isTimeout = text.includes('522') || text.includes('connection timed out') || text.includes('timeout') || (hint && String(hint).toLowerCase().includes('supabase'));
+    if (isTimeout) {
+      console.warn('public-data: Supabase timeout detected, returning safe fallback for', String(req.query.resource || ''));
+      const resource = String(req.query.resource || '').trim();
+      switch (resource) {
+        case 'profile_role':
+          return json(res, 200, { role: 'user' });
+        case 'matches':
+        case 'teams':
+        case 'players':
+        case 'news':
+        case 'match_events':
+        case 'match_winner_votes':
+        case 'round_mvp_votes':
+          return json(res, 200, { data: [] });
+        case 'tournament_config':
+          return json(res, 200, { data: null });
+        case 'rankings':
+          return json(res, 200, { players: [], votes: [], events: [], matches: [] });
+        default:
+          return json(res, 200, { data: [] });
+      }
+    }
+
     return json(res, 500, { error: message, details, hint, code });
   }
 }
