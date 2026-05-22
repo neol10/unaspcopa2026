@@ -16,7 +16,12 @@ const json = (res: VercelResponse, status: number, body: unknown) => res.status(
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return json(res, 405, { error: 'Method Not Allowed' });
-  if (!SUPABASE_URL || !SUPABASE_KEY) return json(res, 500, { error: 'Missing Supabase config' });
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    return json(res, 500, {
+      error: 'Missing Supabase config',
+      hint: 'Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel project env',
+    });
+  }
 
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);

@@ -15,7 +15,12 @@ const SUPABASE_KEY = readEnv('SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_ROLE
 const json = (res: VercelResponse, status: number, body: unknown) => res.status(status).json(body);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (!SUPABASE_URL || !SUPABASE_KEY) return json(res, 500, { error: 'Missing Supabase config' });
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    return json(res, 500, {
+      error: 'Missing Supabase config',
+      hint: 'Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel project env',
+    });
+  }
 
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
