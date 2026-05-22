@@ -3333,7 +3333,11 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       if (eventType === 'gol') {
         eventData.commentary = finalGoalType === 'normal' ? '' : `[${finalGoalType.toUpperCase()}]`;
         if (finalAssistantId && finalGoalType !== 'penalti') eventData.assistant_id = finalAssistantId;
-        eventData.metadata = { ...(eventData.metadata || {}), goal_type: finalGoalType };
+        eventData.metadata = { ...(eventData.metadata || {}), goal_type: finalGoalType, team_side: team } as any;
+      } else if (eventType === 'amarelo' || eventType === 'vermelho') {
+        eventData.metadata = { ...(eventData.metadata || {}), team_side: team } as any;
+      } else if (eventType === 'substituicao') {
+        eventData.metadata = { ...(eventData.metadata || {}), team_side: team } as any;
       }
       
       if (eventType === 'substituicao' && finalAssistantId) {
@@ -4233,7 +4237,28 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       <div className="recent-events-undo">
         <div className="recent-header">
           <h6>Lances Recentes</h6>
-          <span className="undo-tip">Clique no minuto para editar o tempo</span>
+          <div className="undo-tip">Clique no minuto para editar o tempo</div>
+          <button
+            type="button"
+            className="btn-undo"
+            onClick={async () => {
+              if (!confirm('Recontar estatisticas e placares? Isso pode levar alguns segundos.')) return;
+              try {
+                const resp = await fetch('/api/rebuild-player-stats', { method: 'POST' });
+                if (!resp.ok) throw new Error('Falha ao recontar');
+                toast.success('Estatisticas recalculadas. Atualizando...');
+                queryClient.invalidateQueries({ queryKey: ['players'] });
+                queryClient.invalidateQueries({ queryKey: ['rankings'] });
+                queryClient.invalidateQueries({ queryKey: ['matches'] });
+                refreshEvents();
+              } catch (err) {
+                toast.error('Erro ao recontar estatisticas');
+              }
+            }}
+            title="Recontar estatisticas"
+          >
+            Recontar estatisticas
+          </button>
         </div>
         <div className="undo-list">
           {(events || []).slice(0, 8).map(event => (

@@ -33,6 +33,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!match_id || !event_type) return res.status(400).json({ error: 'match_id and event_type required' });
 
+    const baseMeta = (metadata && typeof metadata === 'object') ? { ...metadata } : {};
+    if (team && !(baseMeta as any).team_side) {
+      (baseMeta as any).team_side = team;
+    }
+
+    // Idempotency: avoid duplicate insert if same event was just registered
+    const { data: recent, error: recentErr } = await supabase
+      .from('match_events')
+      .select('id, created_at')
+      .eq('match_id', match_id)
+      .eq('event_type', event_type)
+      .eq('player_id', player_id)
+      .eq('assistant_id', assistant_id)
+      .eq('minute', Number(minute) || 1)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    if (recentErr) throw recentErr;
+    if (recent && recent.length > 0) {
+      const last = recent[0];
+      if (last?.created_at && (Date.now() - new Date(String(last.created_at)).getTime()) < 2500) {
+        return res.status(200).json({ event: last, match: null, players: [], duplicate: true });
+      }
+    }
+
     // Insert event
     const insertPayload: Record<string, unknown> = {
       match_id,
@@ -41,7 +65,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       player_id: player_id || null,
       assistant_id: assistant_id || null,
       commentary: commentary || null,
-      metadata: metadata || null,
+      metadata: Object.keys(baseMeta).length > 0 ? baseMeta : null,
     };
 
     const { data: inserted, error: insertError } = await supabase.from('match_events').insert([insertPayload]).select('*').single();
