@@ -1,5 +1,5 @@
 -- Script para criar trigger de sincronização automática entre auth.users e public.profiles
--- Garante que novos cadastros no aplicativo apareçam de forma instantânea na listagem do painel de admin.
+-- E correção de RLS recursivo (fim do Erro 500 no Supabase ao carregar estatísticas)
 
 -- 1. Cria a função de sincronização do perfil
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -37,3 +37,10 @@ SELECT
   updated_at
 FROM auth.users
 ON CONFLICT (id) DO NOTHING;
+
+-- 4. Remove a política RLS que causava recursão infinita (Infinite Recursion) no banco de dados e gerava erros 500
+DROP POLICY IF EXISTS profiles_select_own_or_admin ON public.profiles;
+
+-- 5. Cria a nova política que permite leitura pública de perfis (essencial para exibição de autoria de lances e votos)
+CREATE POLICY profiles_select_all ON public.profiles 
+  FOR SELECT USING (true);

@@ -11,7 +11,7 @@ import AuthModal from '../../components/Auth/AuthModal';
 import { useStandings } from '../../hooks/useStandings';
 import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
 import { supabase } from '../../lib/supabase';
-import { TrendingUp, Award } from 'lucide-react';
+import { TrendingUp, Award, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import ShareCard, { useShareCard } from '../../components/ShareCard/ShareCard';
@@ -39,6 +39,7 @@ const MatchCenter: React.FC = () => {
   const isAdmin = role === 'admin';
   const { visibility } = useGroupCVisibility();
   const { config } = useTournamentConfig();
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   
   const isTestGroup = (groupName?: string | null) => {
     const clean = (groupName || '').trim().toUpperCase().replace(/\s+/g, '');
@@ -384,46 +385,67 @@ const MatchCenter: React.FC = () => {
         counts={counts}
       />
 
-      <section className="match-history-panel glass">
-        <div className="history-header-row">
+      <section className={`match-history-panel glass ${isHistoryOpen ? 'open' : ''}`}>
+        <button 
+          type="button" 
+          className="history-header-row btn-collapse" 
+          onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+          aria-expanded={isHistoryOpen}
+        >
           <div className="history-title">
             <Award size={16} color="var(--secondary)" />
             <span>Histórico de jogos</span>
+            <ChevronDown size={16} className={`chevron-icon ${isHistoryOpen ? 'rotated' : ''}`} />
           </div>
-          <span className="history-subtitle">Últimos 20 finalizados</span>
-        </div>
-        <div className="history-list" role="list">
-          {finishedMatches.length === 0 ? (
-            <p className="history-empty">Sem jogos finalizados ainda.</p>
-          ) : (
-            finishedMatches.map((m) => {
-              const mvpName = m.match_mvp_player_id
-                ? (players.find((p) => p.id === m.match_mvp_player_id)?.name || null)
-                : null;
+          <span className="history-subtitle">Últimos 20 finalizados ({finishedMatches.length})</span>
+        </button>
+        <AnimatePresence initial={false}>
+          {isHistoryOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.25, ease: 'easeInOut' }}
+              className="history-list-collapsible"
+            >
+              <div className="history-list" role="list">
+                {finishedMatches.length === 0 ? (
+                  <p className="history-empty">Sem jogos finalizados ainda.</p>
+                ) : (
+                  finishedMatches.map((m) => {
+                    const mvpName = m.match_mvp_player_id
+                      ? (players.find((p) => p.id === m.match_mvp_player_id)?.name || null)
+                      : null;
 
-              return (
-                <button
-                  key={m.id}
-                  type="button"
-                  className={`history-item ${activeMatch?.id === m.id ? 'active' : ''}`}
-                  onClick={() => handleSelectMatch(m.id)}
-                >
-                  <div className="history-left">
-                    <div className="history-teams">
-                      <strong>{m.teams_a?.name || 'Equipe A'}</strong>
-                      <span className="history-vs">{m.team_a_score} x {m.team_b_score}</span>
-                      <strong>{m.teams_b?.name || 'Equipe B'}</strong>
-                    </div>
-                    <div className="history-meta">
-                      <span>{formatHistoryLabel(m)}</span>
-                      {mvpName && <span className="history-mvp">Craque: {mvpName}</span>}
-                    </div>
-                  </div>
-                </button>
-              );
-            })
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        className={`history-item ${activeMatch?.id === m.id ? 'active' : ''}`}
+                        onClick={() => {
+                          handleSelectMatch(m.id);
+                          setIsHistoryOpen(false);
+                        }}
+                      >
+                        <div className="history-left">
+                          <div className="history-teams">
+                            <strong>{m.teams_a?.name || 'Equipe A'}</strong>
+                            <span className="history-vs">{m.team_a_score} x {m.team_b_score}</span>
+                            <strong>{m.teams_b?.name || 'Equipe B'}</strong>
+                          </div>
+                          <div className="history-meta">
+                            <span>{formatHistoryLabel(m)}</span>
+                            {mvpName && <span className="history-mvp">Craque: {mvpName}</span>}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </motion.div>
           )}
-        </div>
+        </AnimatePresence>
       </section>
 
       <div className="match-layout">
