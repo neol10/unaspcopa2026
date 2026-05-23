@@ -130,10 +130,13 @@ export const fetchPublicData = async <T,>(resource: string, params?: Record<stri
 
     if (resource === 'round_mvp_votes') {
       if (!round) throw new Error('round required');
-      const { data, error } = await supabase
+      const userId = params?.userId ? String(params.userId).trim() : '';
+      let q = supabase
         .from('round_mvp_votes')
-        .select('player_id, players(id, name, number, teams(name))')
+        .select('player_id, user_id, players(id, name, number, teams(name))')
         .eq('round', round);
+      if (userId) q = q.eq('user_id', userId);
+      const { data, error } = await q;
       if (error) throw error;
       return { data: data || [] } as unknown as T;
     }

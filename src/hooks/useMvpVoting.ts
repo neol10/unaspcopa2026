@@ -46,7 +46,17 @@ export const useMvpVoting = (round: string) => {
       if (!round) return { voteCounts: [], userVote: null };
       
       const votesRes = await fetchPublicData<{ data: VoteRow[] }>('round_mvp_votes', { round });
-      const myVoteRes = user ? await fetchPublicData<{ data: { player_id?: string | null } | null }>('round_mvp_votes', { round }) : { data: null };
+      
+      // Busca o voto do usuário logado (filtrando por userId)
+      let myPlayerId: string | null = null;
+      if (user) {
+        try {
+          const myVoteRes = await fetchPublicData<{ data: Array<{ player_id: string }> }>('round_mvp_votes', { round, userId: user.id });
+          myPlayerId = (myVoteRes.data && myVoteRes.data.length > 0) ? myVoteRes.data[0].player_id : null;
+        } catch {
+          // Se falhar, assume que não votou
+        }
+      }
 
       const counts: Record<string, MvpVoteCount> = {};
       (votesRes.data as VoteRow[] || []).forEach((v) => {
@@ -66,7 +76,7 @@ export const useMvpVoting = (round: string) => {
       const sorted = Object.values(counts).sort((a, b) => b.vote_count - a.vote_count);
       const result = {
         voteCounts: sorted,
-        userVote: (myVoteRes as { data?: { player_id?: string | null } | null }).data?.player_id || null
+        userVote: myPlayerId,
       };
       saveCachedVotes(result);
       return result;
