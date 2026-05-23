@@ -26,7 +26,7 @@ returns trigger
 language plpgsql
 as $$
 declare
-  allowed_statuses text[] := array['agendado', 'em_andamento', 'encerrado', 'cancelado'];
+  allowed_statuses text[] := array['agendado', 'ao_vivo', 'finalizado', 'cancelado'];
 begin
   if new.team_a_id is not null and new.team_b_id is not null and new.team_a_id = new.team_b_id then
     raise exception 'Uma partida nao pode usar o mesmo time dos dois lados';
