@@ -13,9 +13,12 @@ const buildQuery = (params?: Record<string, QueryValue>) => {
   return qs ? `?${qs}` : '';
 };
 
-// Bypass da rota de API Serverless em desenvolvimento e produção
-// para evitar cold starts de 10+ segundos do Vercel e obter carregamento instantâneo.
-const bypassServerless = true;
+// Bypass da rota de API Serverless em desenvolvimento apenas.
+// Em produção preferimos usar a API serverless para evitar CORS e expor chaves.
+const _bypassEnv = String(import.meta.env.VITE_BYPASS_SERVERLESS || '').trim().toLowerCase();
+const bypassServerless = _bypassEnv
+  ? _bypassEnv === 'true'
+  : !Boolean(import.meta.env.PROD); // default: true in dev, false in production
 
 export const fetchPublicData = async <T,>(resource: string, params?: Record<string, QueryValue>): Promise<T> => {
   if (bypassServerless) {
@@ -219,36 +222,78 @@ export const fetchPublicData = async <T,>(resource: string, params?: Record<stri
       if (matchesRes.error) throw matchesRes.error;
 
       const matchIds = (matchesRes.data || []).map((match) => match.id).filter((id): id is string => Boolean(id));
+
+      const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
       const fetchBatches = async <Row,>(
         queryFactory: (ids: string[]) => Promise<{ data: Row[] | null; error: Error | null }>,
-        chunkSize = 40,
+        chunkSize = 20,
+        retries = 2,
       ) => {
         const rows: Row[] = [];
         for (let i = 0; i < matchIds.length; i += chunkSize) {
           const ids = matchIds.slice(i, i + chunkSize);
-          const { data, error } = await queryFactory(ids);
-          if (error) throw error;
-          if (Array.isArray(data) && data.length > 0) rows.push(...data);
+          let attempt = 0;
+          while (attempt <= retries) {
+            try {
+              const { data, error } = await queryFactory(ids);
+              if (error) throw error;
+              if (Array.isArray(data) && data.length > 0) rows.push(...data);
+              break;
+            } catch (e) {
+              attempt += 1;
+              if (attempt > retries) throw e;
+              // exponential backoff jitter
+              const backoff = 200 * Math.pow(2, attempt) + Math.round(Math.random() * 100);
+              // eslint-disable-next-line no-await-in-loop
+              await sleep(backoff);
+            }
+          }
         }
         return rows;
       };
 
-      const [votesData, eventsData] = await Promise.all([
-        matchIds.length > 0
-          ? fetchBatches<{ player_id: string; match_id: string }>((ids) =>
-              supabase.from('match_mvp_votes').select('player_id, match_id').in('match_id', ids)
-            )
-          : Promise.resolve([]),
-        matchIds.length > 0
-          ? fetchBatches<{ match_id: string; player_id: string | null; assistant_id: string | null; event_type: string; minute: number; metadata: unknown }>((ids) =>
-              supabase
-                .from('match_events')
-                .select('match_id, player_id, assistant_id, event_type, minute, metadata')
-                .in('match_id', ids)
-                .in('event_type', ['gol', 'assistencia'])
-            )
-          : Promise.resolve([]),
-      ]);
+      let votesData: Array<{ player_id: string; match_id: string }> = [];
+      let eventsData: Array<{ match_id: string; player_id?: string | null; assistant_id?: string | null; event_type: string; minute: number; metadata: unknown }> = [];
+
+      try {
+        const results = await Promise.all([
+          matchIds.length > 0
+            ? fetchBatches<{ player_id: string; match_id: string }>((ids) =>
+                supabase.from('match_mvp_votes').select('player_id, match_id').in('match_id', ids)
+              )
+            : Promise.resolve([]),
+          matchIds.length > 0
+            ? fetchBatches<{ match_id: string; player_id: string | null; assistant_id: string | null; event_type: string; minute: number; metadata: unknown }>((ids) =>
+                supabase
+                  .from('match_events')
+                  .select('match_id, player_id, assistant_id, event_type, minute, metadata')
+                  .in('match_id', ids)
+                  .in('event_type', ['gol', 'assistencia'])
+              )
+            : Promise.resolve([]),
+        ]);
+        votesData = results[0] as any;
+        eventsData = results[1] as any;
+      } catch (e) {
+        try {
+          void trackFallback('rankings_batch_error', { division, error: String(e) });
+        } catch {}
+        // If direct supabase batching fails, fallback to serverless endpoint which may have different networking
+        try {
+          const resp = await fetch(`/api/public-data?resource=rankings&division=${encodeURIComponent(String(division))}`);
+          if (resp.ok) {
+            const json = await resp.json();
+            votesData = (json.votes || []) as any;
+            eventsData = (json.events || []) as any;
+          } else {
+            throw new Error(`serverless fallback failed: ${resp.status}`);
+          }
+        } catch (e2) {
+          // rethrow original error if fallback also fails
+          throw e;
+        }
+      }
 
       return {
         players: rankingPlayers,
