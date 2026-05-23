@@ -3356,9 +3356,14 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
       // Prefer server-side endpoint that performs insert + updates atomically to avoid client-side race conditions and delays.
       try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
         const resp = await fetch('/api/add-match-event', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({
             match_id: match.id,
             event_type: eventData.event_type,

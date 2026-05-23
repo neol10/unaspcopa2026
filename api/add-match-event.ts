@@ -17,7 +17,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!SUPABASE_URL || !SUPABASE_KEY) return res.status(500).json({ error: 'Missing Supabase config' });
 
   try {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : '';
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+      global: {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      }
+    });
     const body = req.body || {};
     const {
       match_id,

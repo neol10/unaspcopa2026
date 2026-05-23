@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthContext } from '../contexts/AuthContext';
 import { readFreshCache, shouldUseClientCache } from '../lib/clientCache';
 import { fetchPublicData } from '../lib/apiData';
+import { supabase } from '../lib/supabase';
 
 export type WinnerVoteOption = 'team_a' | 'draw' | 'team_b';
 
@@ -70,15 +71,24 @@ export const useMatchWinnerVoting = (matchId: string) => {
       if (!user) throw new Error('Faça login para votar!');
       if (!matchId) return;
 
-      const response = await fetch('/api/public-data?resource=match_winner_votes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matchId, userId: user.id, vote }),
-      });
+      // Inserindo diretamente no Supabase (sem serverless) para evitar cold starts.
+      // O RLS garante que auth.uid() = user_id na tabela match_winner_votes.
+      const { error } = await supabase.from('match_winner_votes').upsert(
+        { match_id: matchId, user_id: user.id, vote },
+        { onConflict: 'match_id,user_id' }
+      );
 
-      if (!response.ok) {
-        const body = await response.text().catch(() => '');
-        throw new Error(body || 'Falha ao registrar voto');
+      if (error) {
+        // Fallback: tenta pela rota serverless se o cliente direto falhar
+        const response = await fetch('/api/public-data?resource=match_winner_votes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ matchId, userId: user.id, vote }),
+        });
+        if (!response.ok) {
+          const body = await response.text().catch(() => '');
+          throw new Error(body || 'Falha ao registrar voto');
+        }
       }
 
       return vote;

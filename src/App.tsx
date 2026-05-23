@@ -28,18 +28,7 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 1000 * 60 * 10, // 10 minutos - mais agressivo para reduzir refetch
       refetchOnWindowFocus: false, // Não refetch ao voltar para a aba (evita carregamento infinito)
-      // Auto-refresh por rota para reduzir carga e manter telas críticas mais vivas.
-      refetchInterval: () => {
-        if (typeof window !== 'undefined') {
-          const path = window.location.pathname;
-          if (path.startsWith('/admin')) return false;
-          return 1000 * 10;
-        }
-        if (typeof navigator !== 'undefined' && !navigator.onLine) {
-          return false;
-        }
-        return 1000 * 10;
-      },
+      refetchInterval: false, // Sem refetch global automático para evitar gargalo e travamento em celulares
       refetchIntervalInBackground: false, // Evita tempestade de requests quando aba não está ativa
       retry: 2, // Retry 2 vezes em erro antes de falhar
       retryDelay: (attemptIndex) => Math.min(300 * Math.pow(2, attemptIndex), 5000), // Exponential backoff, max 5s
