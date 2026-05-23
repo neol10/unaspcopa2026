@@ -83,8 +83,8 @@ export const useMatchEvents = (matchId: string, onNewEvent?: (event: MatchEvent)
       return result;
     },
     enabled: !!matchId,
-    initialData: cached?.data ?? [],
-    initialDataUpdatedAt: cached?.ts,
+    initialData: cached?.data ?? undefined,
+    initialDataUpdatedAt: cached?.ts ?? undefined,
     placeholderData: (prev) => prev,
     staleTime: 1000 * 15, // 15 segundos
     // Se o realtime falhar, polling mais rápido na Central para o placar/ações não "atrasarem".

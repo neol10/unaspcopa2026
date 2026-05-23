@@ -178,8 +178,8 @@ export const useMatches = (limit?: number) => {
     refetchOnReconnect: true,
     refetchOnWindowFocus: true,
     networkMode: 'online',
-    initialData: cached?.data ?? [],
-    initialDataUpdatedAt: cached?.ts,
+    initialData: cached?.data ?? undefined,
+    initialDataUpdatedAt: cached?.ts ?? undefined,
     placeholderData: (prev) => prev,
   });
 

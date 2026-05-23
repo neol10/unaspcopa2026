@@ -12,7 +12,7 @@ import { useAuthContext } from '../../contexts/AuthContext';
 import { useTournamentConfig } from '../../hooks/useTournamentConfig';
 
 const Rankings: React.FC = () => {
-  const { scorers, assistants, goalkeepers, disciplined, roundMvps, roundMvpsList, roundHighlights, availableRounds, loading, error, refresh } = useRankings();
+  const { scorers, assistants, participationRank, goalkeepers, disciplined, roundMvps, roundMvpsList, roundHighlights, availableRounds, loading, error, refresh } = useRankings();
   const { config } = useTournamentConfig();
   const { role: authRole } = useAuthContext();
   const [selectedPlayer, setSelectedPlayer] = useState<RankingPlayer | null>(null);
@@ -183,6 +183,7 @@ const Rankings: React.FC = () => {
   const visibleScorers = filterPlayers(scorers);
   const visibleGoalkeepers = filterPlayers(goalkeepers);
   const visibleAssistants = filterPlayers(assistants);
+  const visibleParticipation = filterPlayers(participationRank || []);
   const visibleDisciplined = filterPlayersTop20(disciplined);
 
   // Podium order: 2nd, 1st, 3rd
@@ -502,6 +503,84 @@ const Rankings: React.FC = () => {
               </div>
             ))}
             {visibleScorers.length === 0 && <p className="empty-rank">{searchTerm ? 'Nenhum atleta encontrado neste ranking.' : 'Nenhum gol registrado.'}</p>}
+          </div>
+        </section>
+
+        {/* Participações em Gols (G.A) */}
+        <section className="rank-panel glass highlighted-gold">
+          <div className="panel-header">
+            <Zap size={20} color="#facc15" />
+            <h3>Participações em Gols (G.A)</h3>
+          </div>
+          <div className="rank-rows">
+            {visibleParticipation.map((p, i) => (
+              <div key={p.id} className="rank-row-item glass-hover" onClick={() => setSelectedPlayer(p)}>
+                <div className="rank-idx">{i + 1}º</div>
+                <div className="rank-avatar">
+                  {p.photo_url ? (
+                    <img 
+                      src={p.photo_url} 
+                      alt={p.name} 
+                      width="32" 
+                      height="32" 
+                      loading="lazy" 
+                      decoding="async"
+                    />
+                  ) : <div className="avatar-dummy"><User size={14} /></div>}
+                </div>
+                <div className="rank-player">
+                  <div className="player-name-wrapper">
+                    <strong>{p.name}</strong>
+                    <div className="team-mini-info">
+                      {p.team_badge_url && (
+                        <img 
+                          src={p.team_badge_url} 
+                          alt="" 
+                          className="mini-badge" 
+                          width="16" 
+                          height="16" 
+                          loading="lazy" 
+                          decoding="async"
+                        />
+                      )}
+                      <span>{p.team_name}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="rank-val" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                  <strong style={{ color: 'var(--secondary)', fontSize: '1.05rem' }}>{(p as any).goals_and_assists} G.A</strong>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{p.goals_count || 0} G + {p.assists || 0} A</span>
+                </div>
+                {authRole === 'admin' && (
+                  <button
+                    type="button"
+                    className="rank-row-download-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDownloadRankingCard(
+                        `participation-${p.id}`,
+                        p,
+                        'Participações (G.A)',
+                        'Gols e Assistências da Copa Unasp',
+                        'gold',
+                        [
+                          { label: 'Posicao', value: `${i + 1}o` },
+                          { label: 'G.A', value: (p as any).goals_and_assists || 0 },
+                          { label: 'Gols', value: p.goals_count || 0 },
+                          { label: 'Assistencias', value: p.assists || 0 },
+                        ],
+                      );
+                    }}
+                    disabled={downloadingCardKey === `participation-${p.id}`}
+                    aria-label={`Baixar card de ${p.name}`}
+                  >
+                    <Download size={14} />
+                    <span>{downloadingCardKey === `participation-${p.id}` ? 'Gerando...' : 'Card'}</span>
+                  </button>
+                )}
+              </div>
+            ))}
+            {visibleParticipation.length === 0 && <p className="empty-rank">{searchTerm ? 'Nenhum atleta encontrado neste ranking.' : 'Aguardando estatísticas...'}</p>}
           </div>
         </section>
 

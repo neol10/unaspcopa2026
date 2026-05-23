@@ -42,6 +42,7 @@ type RankingsPayload = {
 const emptyRankings = {
   scorers: [] as RankingPlayer[],
   assistants: [] as RankingPlayer[],
+  participationRank: [] as RankingPlayer[],
   goalkeepers: [] as RankingPlayer[],
   galeraRank: [] as RankingPlayer[],
   disciplined: [] as RankingPlayer[],
@@ -290,6 +291,24 @@ export const useRankings = () => {
         return a.localeCompare(b);
       });
 
+      const participationRank = [...playersWithTeam]
+        .map((p) => {
+          const assists = assistCounts[p.id] ?? p.assists ?? 0;
+          const goals = p.goals_count || 0;
+          return {
+            ...p,
+            assists,
+            goals_and_assists: goals + assists
+          };
+        })
+        .filter((p) => p.goals_and_assists > 0)
+        .sort((a, b) => {
+          if (b.goals_and_assists !== a.goals_and_assists) return b.goals_and_assists - a.goals_and_assists;
+          if (b.goals_count !== a.goals_count) return b.goals_count - a.goals_count;
+          return a.name.localeCompare(b.name);
+        })
+        .slice(0, 10);
+
       const result = {
         scorers: [...playersWithTeam].sort((a, b) => b.goals_count - a.goals_count).filter((p) => p.goals_count > 0).slice(0, 10),
         assistants: [...playersWithTeam]
@@ -297,6 +316,7 @@ export const useRankings = () => {
           .sort((a, b) => (b.assists || 0) - (a.assists || 0))
           .filter((p) => (p.assists || 0) > 0)
           .slice(0, 10),
+        participationRank,
         goalkeepers,
         galeraRank: [...playersWithTeam].filter((p) => (p.mvp_votes || 0) > 0).sort((a, b) => (b.mvp_votes || 0) - (a.mvp_votes || 0)).slice(0, 10),
         disciplined: mostCardedList,
@@ -309,8 +329,8 @@ export const useRankings = () => {
       saveCached(result);
       return result;
     },
-    initialData: cached?.data || emptyRankings,
-    initialDataUpdatedAt: cached?.ts,
+    initialData: cached?.data ?? undefined,
+    initialDataUpdatedAt: cached?.ts ?? undefined,
     placeholderData: (prev) => prev,
     staleTime: 1000 * 60 * 5, // 5 minutos (atualiza imediatamente via realtime quando houver gols/votos)
     gcTime: 1000 * 60 * 30,
