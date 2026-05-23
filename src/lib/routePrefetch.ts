@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { supabase } from './supabase';
 import { readStoredDivision } from './division';
+import { fetchPublicData } from './apiData';
 import {
   getDivisionColumnStatus,
   isMissingColumnError,
@@ -149,6 +150,15 @@ const prefetchQueriesByRoute = async (path: string, queryClient: QueryClient) =>
         staleTime: 60_000,
       }),
     ]);
+    return;
+  }
+
+  if (path === '/rankings') {
+    await queryClient.prefetchQuery({
+      queryKey: ['rankings-payload', division],
+      queryFn: async () => fetchPublicData('rankings', { division }),
+      staleTime: 30_000,
+    });
     return;
   }
 

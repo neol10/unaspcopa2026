@@ -18,6 +18,7 @@ const KnockoutGenerator: React.FC<{ enableAutoAdvance?: boolean }> = ({ enableAu
   const { standings, loading } = useStandings();
   const [advancePerGroup, setAdvancePerGroup] = useState<number>(2);
   const [includeThirdPlace, setIncludeThirdPlace] = useState<boolean>(false);
+  const [tournamentMode, setTournamentMode] = useState<boolean>(false);
   const [preview, setPreview] = useState<any[] | null>(null);
   const [creating, setCreating] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -36,6 +37,13 @@ const KnockoutGenerator: React.FC<{ enableAutoAdvance?: boolean }> = ({ enableAu
   }, [standings]);
 
   const generateSeeds = () : SeedItem[] => {
+    // Tournament mode: advance all teams from standings in overall order, then pair 1xN, 2xN-1, ...
+    if (tournamentMode) {
+      // Use overall standings ordering so the top-ranked team faces the bottom-ranked team.
+      const allTeams: SeedItem[] = (standings || []).map((s: any) => ({ team_id: s.team_id, team_name: s.team_name, group: s.group || 'Geral', seedLabel: `${s.team_name}` }));
+      return allTeams;
+    }
+
     // Produce arrays per finishing position: pos1 = [1A,1B,1C...], pos2 = [2A,2B,2C...]
     const positions: SeedItem[][] = [];
     for (let pos = 1; pos <= advancePerGroup; pos++) {
@@ -53,6 +61,22 @@ const KnockoutGenerator: React.FC<{ enableAutoAdvance?: boolean }> = ({ enableAu
   const buildBracketClassic = (seeds: SeedItem[]) => {
     // Classic mapping for advancePerGroup = 2: pair 1st placed against 2nd placed in reverse order
     const pairs: Array<{ teamA?: SeedItem; teamB?: SeedItem; round: number; idx: number }> = [];
+    // Tournament mode: mirror pairing 1xN, 2xN-1, ...
+    if (tournamentMode) {
+      const M = seeds.length;
+      const pairCount = Math.floor(M / 2);
+      for (let i = 0; i < pairCount; i++) {
+        const a = seeds[i];
+        const b = seeds[M - 1 - i];
+        pairs.push({ teamA: a, teamB: b, round: 1, idx: i + 1 });
+      }
+      // If odd number of teams, leave middle team as a bye (advances automatically)
+      if (M % 2 === 1) {
+        const mid = seeds[pairCount];
+        pairs.push({ teamA: mid, teamB: undefined, round: 1, idx: pairCount + 1 });
+      }
+      return pairs;
+    }
     if (advancePerGroup === 2) {
       const firsts = seeds.filter(s => s.seedLabel.startsWith('1'));
       const seconds = seeds.filter(s => s.seedLabel.startsWith('2'));
@@ -159,11 +183,8 @@ const KnockoutGenerator: React.FC<{ enableAutoAdvance?: boolean }> = ({ enableAu
     if (!preview || preview.length === 0) return;
     setCreating(true); setMessage(null);
     try {
-      const body = preview.map((m) => ({ team_a_id: m.teamA?.team_id || null, team_b_id: m.teamB?.team_id || null, match_date: (m as any).match_date || null }));
-      const resp = await fetch('/api/generate-knockout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ matches: body }) });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data?.error || 'Erro ao criar partidas');
-      setMessage('Partidas criadas com sucesso.');
+      // Automatically save bracket to server (uses /api/save-bracket to create bracket+matches+parents)
+      await saveBracketToServer();
     } catch (err: any) {
       setMessage(String(err?.message || err));
     } finally {
@@ -221,6 +242,9 @@ const KnockoutGenerator: React.FC<{ enableAutoAdvance?: boolean }> = ({ enableAu
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
         <label style={{ fontSize: 12 }}>Avançam por grupo:</label>
         <input type="number" min={1} max={8} value={advancePerGroup} onChange={e => setAdvancePerGroup(Math.max(1, Math.min(8, Number(e.target.value || 1))))} style={{ width: 72 }} />
+        <label style={{ fontSize: 12, marginLeft: 8 }}>
+          <input type="checkbox" checked={tournamentMode} onChange={e => setTournamentMode(e.target.checked)} /> Modo torneio (todas passam)
+        </label>
         <label style={{ fontSize: 12 }}>
           <input type="checkbox" checked={includeThirdPlace} onChange={e => setIncludeThirdPlace(e.target.checked)} /> Incluir 3º lugar
         </label>

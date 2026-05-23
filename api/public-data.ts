@@ -62,13 +62,63 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (resource === 'players') {
-      let q = supabase.from('players').select('*, teams(name, badge_url, group, leader, primary_color)').order('name');
-      if (division) q = q.eq('division', division);
-      if (teamId) q = q.eq('team_id', teamId);
       if (NO_SUPABASE) return json(res, 200, { data: [] });
-      const { data, error } = await q;
-      if (error) throw error;
-      return json(res, 200, { data: data || [] });
+      const baseFields = 'id, division, team_id, name, number, position, photo_url, goals_count, yellow_cards, red_cards, suspensions_served, assists, clean_sheets, bio';
+
+      let joinedQuery = supabase
+        .from('players')
+        .select(`${baseFields}, teams(name, badge_url, group, leader, primary_color)`)
+        .order('name');
+      if (division) joinedQuery = joinedQuery.eq('division', division);
+      if (teamId) joinedQuery = joinedQuery.eq('team_id', teamId);
+
+      const joinedRes = await joinedQuery;
+      if (!joinedRes.error) {
+        return json(res, 200, { data: joinedRes.data || [] });
+      }
+
+      // Server-side telemetry (best-effort): record fallback when players join fails
+      try {
+        await supabase.from('fallback_logs').insert([{ event: 'players_join_failed', details: JSON.stringify({ division, teamId, error: String((joinedRes.error as any)?.message || joinedRes.error), ts: new Date().toISOString() }), created_at: new Date().toISOString() }]);
+      } catch (e) {
+        // ignore logging failures
+        // eslint-disable-next-line no-console
+        console.warn('public-data: fallback logging insert failed', e);
+      }
+
+      let flatQuery = supabase.from('players').select(baseFields).order('name');
+      if (division) flatQuery = flatQuery.eq('division', division);
+      if (teamId) flatQuery = flatQuery.eq('team_id', teamId);
+      const { data: playersData, error: flatError } = await flatQuery;
+      if (flatError) throw flatError;
+
+      const teamIds = Array.from(new Set((playersData || []).map((p) => String((p as { team_id?: string }).team_id || '')).filter(Boolean)));
+      let teamsById: Record<string, { name?: string; badge_url?: string; group?: string; leader?: string; primary_color?: string | null }> = {};
+
+      if (teamIds.length > 0) {
+        const { data: teamsData } = await supabase
+          .from('teams')
+          .select('id, name, badge_url, group, leader, primary_color')
+          .in('id', teamIds);
+
+        teamsById = (teamsData || []).reduce((acc, team) => {
+          acc[String(team.id)] = {
+            name: team.name,
+            badge_url: team.badge_url,
+            group: team.group,
+            leader: team.leader,
+            primary_color: team.primary_color,
+          };
+          return acc;
+        }, {} as Record<string, { name?: string; badge_url?: string; group?: string; leader?: string; primary_color?: string | null }>);
+      }
+
+      const enriched = (playersData || []).map((player) => ({
+        ...player,
+        teams: teamsById[String((player as { team_id?: string }).team_id || '')] || null,
+      }));
+
+      return json(res, 200, { data: enriched });
     }
 
     if (resource === 'news') {
@@ -224,33 +274,70 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       const matchesBaseQuery = supabase
         .from('matches')
-        .select('id, round, night, status, team_a_id, team_b_id, team_a_score, team_b_score')
+        .select('id, match_date, round, night, status, match_mvp_player_id, match_mvp_description, team_a_id, team_b_id, team_a_score, team_b_score')
+        .order('match_date', { ascending: true })
         .eq('division', division);
 
       const [playersRes, matchesRes] = await Promise.all([
-        supabase.from('players').select('id, name, number, position, photo_url, goals_count, assists, yellow_cards, red_cards, clean_sheets, team_id, teams(name, badge_url, group, leader, primary_color)').eq('division', division),
+        supabase
+          .from('players')
+          .select('id, name, number, position, photo_url, goals_count, assists, yellow_cards, red_cards, clean_sheets, team_id, teams(name, badge_url, group, leader, primary_color)')
+          .eq('division', division),
         matchesBaseQuery,
       ]);
 
-      if (playersRes.error) throw playersRes.error;
+      let rankingPlayers = playersRes.data || [];
+      if (playersRes.error) {
+        try {
+          await supabase.from('fallback_logs').insert([{ event: 'rankings_players_join_fallback', details: JSON.stringify({ division, error: String((playersRes.error as any)?.message || playersRes.error), ts: new Date().toISOString() }), created_at: new Date().toISOString() }]);
+        } catch (e) {
+          // ignore
+        }
+        const fallbackPlayers = await supabase
+          .from('players')
+          .select('id, name, number, position, photo_url, goals_count, assists, yellow_cards, red_cards, clean_sheets, team_id')
+          .eq('division', division);
+        if (fallbackPlayers.error) throw fallbackPlayers.error;
+        rankingPlayers = (fallbackPlayers.data || []).map((p) => ({ ...p, teams: null }));
+      }
       if (matchesRes.error) throw matchesRes.error;
 
       const matchIds = (matchesRes.data || []).map((match) => match.id).filter((id): id is string => Boolean(id));
-      const [votesRes, eventsRes] = await Promise.all([
+      const fetchBatches = async <Row,>(
+        queryFactory: (ids: string[]) => Promise<{ data: Row[] | null; error: Error | null }>,
+        chunkSize = 40,
+      ) => {
+        const rows: Row[] = [];
+        for (let i = 0; i < matchIds.length; i += chunkSize) {
+          const ids = matchIds.slice(i, i + chunkSize);
+          const { data, error } = await queryFactory(ids);
+          if (error) throw error;
+          if (Array.isArray(data) && data.length > 0) rows.push(...data);
+        }
+        return rows;
+      };
+
+      const [votesData, eventsData] = await Promise.all([
         matchIds.length > 0
-          ? supabase.from('match_mvp_votes').select('player_id, match_id').in('match_id', matchIds)
-          : Promise.resolve({ data: [], error: null }),
+          ? fetchBatches<{ player_id: string; match_id: string }>((ids) =>
+              supabase.from('match_mvp_votes').select('player_id, match_id').in('match_id', ids)
+            )
+          : Promise.resolve([]),
         matchIds.length > 0
-          ? supabase.from('match_events').select('match_id, player_id, assistant_id, event_type, minute, metadata').in('match_id', matchIds).in('event_type', ['gol', 'assistencia'])
-          : Promise.resolve({ data: [], error: null }),
+          ? fetchBatches<{ match_id: string; player_id: string | null; assistant_id: string | null; event_type: string; minute: number; metadata: unknown }>((ids) =>
+              supabase
+                .from('match_events')
+                .select('match_id, player_id, assistant_id, event_type, minute, metadata')
+                .in('match_id', ids)
+                .in('event_type', ['gol', 'assistencia'])
+            )
+          : Promise.resolve([]),
       ]);
 
-      if (votesRes.error) throw votesRes.error;
-      if (eventsRes.error) throw eventsRes.error;
       return json(res, 200, {
-        players: playersRes.data || [],
-        votes: votesRes.data || [],
-        events: eventsRes.data || [],
+        players: rankingPlayers,
+        votes: votesData,
+        events: eventsData,
         matches: matchesRes.data || [],
       });
     }

@@ -6,6 +6,7 @@ import { useTournamentConfig } from './useTournamentConfig';
 import { readFreshCache, shouldUseClientCache } from '../lib/clientCache';
 import { fetchPublicData } from '../lib/apiData';
 import { Player } from './usePlayers';
+import { trackFallback } from '../lib/telemetry';
 
 export interface RankingPlayer extends Player {
   team_name?: string;
@@ -29,9 +30,12 @@ type RankingsPayload = {
   }>;
   matches: Array<{
     id?: string | null;
+    match_date?: string | null;
     round: number;
     night?: number | null;
     status: string;
+    match_mvp_player_id?: string | null;
+    match_mvp_description?: string | null;
     team_a_id: string;
     team_b_id: string;
     team_a_score: number;
@@ -57,7 +61,7 @@ export const useRankings = () => {
   const { division } = useDivisionContext();
   const { config } = useTournamentConfig();
   const groupUnit = config?.group_unit === 'round' ? 'round' : 'night';
-  const cacheKey = `rankings_cache_v3_${division}_${groupUnit}`;
+  const cacheKey = `rankings_cache_v4_${division}_${groupUnit}`;
   const useCache = shouldUseClientCache();
 
   const loadCached = () => {
@@ -74,16 +78,35 @@ export const useRankings = () => {
     }
   };
 
+  const loadAnyCached = () => {
+    if (typeof window === 'undefined' || !useCache) return null;
+    try {
+      const raw = localStorage.getItem(cacheKey);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { ts?: number; data?: typeof emptyRankings };
+      if (!parsed || typeof parsed !== 'object' || !parsed.data) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  };
+
   const cached = loadCached();
 
   const query = useQuery({
     queryKey: ['rankings', division, groupUnit],
     queryFn: async () => {
-      const payload = await fetchPublicData<RankingsPayload>('rankings', { division });
-      const playersData = payload.players || [];
-      const votesData = payload.votes || [];
-      const eventsData = payload.events || [];
-      const matchesData = payload.matches || [];
+      try {
+        const prefetchedPayload = queryClient.getQueryData<RankingsPayload>(['rankings-payload', division]);
+        const payload = prefetchedPayload || await fetchPublicData<RankingsPayload>('rankings', { division });
+        if (!prefetchedPayload) {
+          queryClient.setQueryData(['rankings-payload', division], payload);
+        }
+
+        const playersData = payload.players || [];
+        const votesData = payload.votes || [];
+        const eventsData = payload.events || [];
+        const matchesData = payload.matches || [];
 
       const voteCounts: Record<string, number> = {};
       votesData.forEach((v) => {
@@ -96,6 +119,15 @@ export const useRankings = () => {
         team_badge_url: p.teams?.badge_url,
         mvp_votes: voteCounts[p.id] || 0,
       }));
+      const playersById = new Map(playersWithTeam.map((player) => [player.id, player]));
+      const goalkeepersByTeamId: Record<string, RankingPlayer[]> = {};
+      playersWithTeam.forEach((player) => {
+        const pos = String(player.position || '').trim().toLowerCase();
+        const isGoalkeeper = pos === 'goleiro' || pos === 'gol' || pos === 'gk' || pos.includes('gole');
+        if (!isGoalkeeper) return;
+        if (!goalkeepersByTeamId[player.team_id]) goalkeepersByTeamId[player.team_id] = [];
+        goalkeepersByTeamId[player.team_id].push(player);
+      });
 
       const assistCounts: Record<string, number> = {};
       eventsData.forEach((ev) => {
@@ -141,6 +173,14 @@ export const useRankings = () => {
       const matchesById: Record<string, (typeof matchesData)[number]> = {};
       matchesData.forEach((m) => { if (m.id) matchesById[m.id] = m; });
 
+      const eventsByMatchId: Record<string, typeof eventsData> = {};
+      eventsData.forEach((ev) => {
+        const matchId = ev.match_id || '';
+        if (!matchId) return;
+        if (!eventsByMatchId[matchId]) eventsByMatchId[matchId] = [];
+        eventsByMatchId[matchId].push(ev);
+      });
+
       const playerEventCounts: Record<string, number> = {};
       const perMatchEventCounts: Record<string, Record<string, number>> = {};
       eventsData.forEach((ev) => {
@@ -161,11 +201,11 @@ export const useRankings = () => {
         const matchId = ev.match_id || '';
         const scorerId = ev.player_id;
         if (!scorerId || !matchId) return;
-        const scorer = playersWithTeam.find((p) => p.id === scorerId);
+        const scorer = playersById.get(scorerId);
         const match = matchesById[matchId];
         if (!scorer || !match) return;
         const concededTeamId = match.team_a_id === scorer.team_id ? match.team_b_id : match.team_a_id;
-        const candidateGks = playersWithTeam.filter((p) => p.team_id === concededTeamId && String(p.position || '').toLowerCase().includes('gole'));
+        const candidateGks = goalkeepersByTeamId[concededTeamId] || [];
         if (candidateGks.length === 0) return;
         const counts = perMatchEventCounts[matchId] || {};
         let bestGk = candidateGks[0];
@@ -214,11 +254,23 @@ export const useRankings = () => {
 
       Object.keys(matchesByUnit).forEach((unitKey) => {
         const winners: RankingPlayer[] = [];
-        for (const mt of matchesByUnit[unitKey] || []) {
+        const unitMatches = [...(matchesByUnit[unitKey] || [])].sort((a, b) => {
+          const at = new Date(a.match_date || '').getTime();
+          const bt = new Date(b.match_date || '').getTime();
+          return at - bt;
+        });
+
+        for (const mt of unitMatches) {
+          const fromFinalSelection = mt.match_mvp_player_id ? playersById.get(mt.match_mvp_player_id) : null;
+          if (fromFinalSelection) {
+            winners.push(fromFinalSelection);
+            continue;
+          }
+
           const matchStats: Record<string, { points: number; goals: number; assists: number; firstEvent: number }> = {};
           const matchId = mt.id || '';
-          eventsData.forEach((ev) => {
-            if (!matchId || ev.match_id !== matchId) return;
+          const eventsForMatch = eventsByMatchId[matchId] || [];
+          eventsForMatch.forEach((ev) => {
             if (ev.event_type === 'gol') {
               const goalType = ev.metadata?.goal_type;
               const isOwnGoal = goalType === 'contra' || Boolean(ev.commentary && String(ev.commentary).toUpperCase().includes('[CONTRA]'));
@@ -250,7 +302,7 @@ export const useRankings = () => {
             return a.firstEvent - b.firstEvent;
           });
           if (sorted.length > 0) {
-            const player = playersWithTeam.find((p) => p.id === sorted[0][0]);
+            const player = playersById.get(sorted[0][0]);
             if (player) winners.push(player);
           }
         }
@@ -328,6 +380,14 @@ export const useRankings = () => {
 
       saveCached(result);
       return result;
+      } catch (error) {
+        const cachedAny = loadAnyCached();
+        if (cachedAny?.data) {
+          try { void trackFallback('rankings_fetch_failed_using_cache', { division, error: String(error) }); } catch {}
+          return cachedAny.data;
+        }
+        throw error;
+      }
     },
     initialData: cached?.data ?? undefined,
     initialDataUpdatedAt: cached?.ts ?? undefined,
@@ -341,9 +401,22 @@ export const useRankings = () => {
   useEffect(() => {
     const channel = supabase
       .channel('public:rankings_sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, () => queryClient.invalidateQueries({ queryKey: ['rankings', division] }))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'match_events' }, () => queryClient.invalidateQueries({ queryKey: ['rankings', division] }))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'match_mvp_votes' }, () => queryClient.invalidateQueries({ queryKey: ['rankings', division] }))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['rankings', division] });
+        queryClient.invalidateQueries({ queryKey: ['rankings-payload', division] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'match_events' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['rankings', division] });
+        queryClient.invalidateQueries({ queryKey: ['rankings-payload', division] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'match_mvp_votes' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['rankings', division] });
+        queryClient.invalidateQueries({ queryKey: ['rankings-payload', division] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['rankings', division] });
+        queryClient.invalidateQueries({ queryKey: ['rankings-payload', division] });
+      })
       .subscribe();
 
     return () => {

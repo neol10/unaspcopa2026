@@ -41,6 +41,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { data: parents, error: parentError } = await supabase.from('matches').insert(parentRows).select('id');
     if (parentError) throw parentError;
 
+    // 3.1) If any child is a bye (team_b_id null), propagate the team to the corresponding parent so it advances
+    try {
+      const parentUpdates: Array<{ id: string; team_a_id?: string | null; team_b_id?: string | null }> = [];
+      for (let i = 0; i < rows.length; i++) {
+        const parentIndex = Math.floor(i / 2);
+        const parentId = parents[parentIndex]?.id;
+        if (!parentId) continue;
+        const child = rows[i];
+        // If child has team_a and no team_b, advance team_a into parent.team_a
+        if (child.team_a_id && !child.team_b_id) {
+          parentUpdates.push({ id: parentId, team_a_id: child.team_a_id });
+        }
+        // If child has team_b and no team_a, advance team_b into parent.team_b (unlikely here but handle generically)
+        if (child.team_b_id && !child.team_a_id) {
+          parentUpdates.push({ id: parentId, team_b_id: child.team_b_id });
+        }
+      }
+
+      // Apply parent updates (best-effort, sequential)
+      for (const u of parentUpdates) {
+        await supabase.from('matches').update({ team_a_id: u.team_a_id ?? null, team_b_id: u.team_b_id ?? null }).eq('id', u.id);
+      }
+    } catch (e) {
+      // ignore failures to avoid breaking bracket creation; admin can adjust manually
+      // eslint-disable-next-line no-console
+      console.warn('save-bracket: failed to propagate byes to parents', e);
+    }
+
     // 4) update children next_match_id mapping: pair children [0,1] -> parents[0], [2,3] -> parents[1], etc.
     const updates = [] as any[];
     for (let i = 0; i < childIds.length; i++) {
