@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePlayers, Player } from '../../hooks/usePlayers';
 import { useTeams } from '../../hooks/useTeams';
@@ -21,11 +21,13 @@ const Players: React.FC = () => {
   const { teams } = useTeams();
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const deferredSearchTerm = useDeferredValue(searchTerm);
   const [selectedPosition, setSelectedPosition] = useState('all');
   const [sortBy, setSortBy] = useState<'name' | 'goals' | 'assists' | 'cards'>('name');
   const [stuck, setStuck] = useState(false);
   const [brokenImageMap, setBrokenImageMap] = useState<Record<string, true>>({});
   const [downloadingPlayerId, setDownloadingPlayerId] = useState<string | null>(null);
+  const [visibleLimit, setVisibleLimit] = useState(80);
   const isAdmin = authRole === 'admin';
 
   const normalizeImageSrc = (value: string) => {
@@ -105,9 +107,19 @@ const Players: React.FC = () => {
   const teamBadgeKey = teamId ? `team-badge-${teamId}` : 'team-badge-global';
 
   const positionOptions = Array.from(new Set(basePlayers.map((p) => p.position).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  const teamById = useMemo(() => {
+    return (teams || []).reduce<Record<string, { name?: string; badge_url?: string }>>((acc, teamItem) => {
+      acc[teamItem.id] = { name: teamItem.name, badge_url: teamItem.badge_url };
+      return acc;
+    }, {});
+  }, [teams]);
+
+  useEffect(() => {
+    setVisibleLimit(80);
+  }, [deferredSearchTerm, selectedPosition, sortBy]);
 
   const filteredPlayers = useMemo(() => {
-    const term = normalize(searchTerm.trim());
+    const term = normalize(deferredSearchTerm.trim());
     const list = basePlayers.filter((p) => {
       const matchesPosition = selectedPosition === 'all' || p.position === selectedPosition;
       if (!matchesPosition) return false;
@@ -130,7 +142,12 @@ const Players: React.FC = () => {
     });
 
     return sorted;
-  }, [basePlayers, searchTerm, selectedPosition, sortBy]);
+  }, [basePlayers, deferredSearchTerm, selectedPosition, sortBy]);
+
+  const visiblePlayers = useMemo(() => {
+    if (!isGlobalView) return filteredPlayers;
+    return filteredPlayers.slice(0, visibleLimit);
+  }, [filteredPlayers, isGlobalView, visibleLimit]);
 
   const handleDownloadPlayerCard = async (player: Player) => {
     const playerTeamName = player.team_name || teams.find((t) => t.id === player.team_id)?.name || resolvedTeamName;
@@ -306,12 +323,15 @@ const Players: React.FC = () => {
         </div>
         
         <div className="players-v2-grid">
-          {filteredPlayers.length > 0 ? (
-            filteredPlayers.map((player) => {
+          {visiblePlayers.length > 0 ? (
+            visiblePlayers.map((player) => {
               const playerImageKey = `player-photo-${player.id}`;
               const hasValidPhoto = Boolean(player.photo_url && !brokenImageMap[playerImageKey]);
+              const resolvedTeam = teamById[player.team_id] || {};
+              const displayTeamName = player.team_name || resolvedTeam.name || 'Time não encontrado';
+              const displayTeamBadge = player.team_badge_url || resolvedTeam.badge_url || '';
               const teamSeed = isGlobalView
-                ? `${player.team_name || ''}-${player.team_id || ''}`
+                ? `${displayTeamName || ''}-${player.team_id || ''}`
                 : `${resolvedTeamName}-${teamId || ''}`;
               const tone = getTeamCardTone(teamSeed, player.team_primary_color);
               return (
@@ -329,11 +349,11 @@ const Players: React.FC = () => {
                   } as React.CSSProperties}
                 >
                   <div className="p-header">
-                    <div className="p-team-badge-chip" title={player.team_name || 'Equipe'}>
-                      {player.team_badge_url && !brokenImageMap[`team-chip-${player.team_id}`] ? (
+                    <div className="p-team-badge-chip" title={displayTeamName}>
+                      {displayTeamBadge && !brokenImageMap[`team-chip-${player.team_id}`] ? (
                         <img
-                          src={normalizeImageSrc(player.team_badge_url)}
-                          alt={player.team_name || 'Equipe'}
+                          src={normalizeImageSrc(displayTeamBadge)}
+                          alt={displayTeamName}
                           className="p-team-badge-img"
                           width="22"
                           height="22"
@@ -402,7 +422,7 @@ const Players: React.FC = () => {
                      <h3>{player.name}</h3>
                      {isGlobalView && (
                        <div className="p-team-name">
-                         {player.team_name || 'Time não encontrado'}
+                         {displayTeamName}
                        </div>
                      )}
                   </div>
@@ -457,13 +477,24 @@ const Players: React.FC = () => {
             </div>
           )}
         </div>
+        {isGlobalView && filteredPlayers.length > visiblePlayers.length && (
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
+            <button
+              type="button"
+              className="btn-secondary-glass"
+              onClick={() => setVisibleLimit((prev) => Math.min(prev + 80, filteredPlayers.length))}
+            >
+              Carregar mais ({visiblePlayers.length}/{filteredPlayers.length})
+            </button>
+          </div>
+        )}
       </section>
 
       {selectedPlayer && (
         <PlayerProfileModal 
           player={selectedPlayer} 
           onClose={() => setSelectedPlayer(null)} 
-          teamName={selectedPlayer?.team_name || teams.find(t => t.id === selectedPlayer?.team_id)?.name}
+          teamName={selectedPlayer?.team_name || teamById[selectedPlayer?.team_id || '']?.name}
         />
       )}
     </div>
