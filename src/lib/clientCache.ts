@@ -16,4 +16,7 @@ export const readFreshCache = <T,>(key: string, maxAgeMs: number) => {
   }
 };
 
-export const shouldUseClientCache = () => !isProbablyMobile();
+export const shouldUseClientCache = () => {
+  // Cache local acelera rankings/jogadores no mobile, reduzindo telas vazias longas.
+  return true;
+};

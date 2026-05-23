@@ -227,7 +227,7 @@ export const fetchPublicData = async <T,>(resource: string, params?: Record<stri
 
       const fetchBatches = async <Row,>(
         queryFactory: (ids: string[]) => Promise<{ data: Row[] | null; error: Error | null }>,
-        chunkSize = 20,
+        chunkSize = 60,
         retries = 2,
       ) => {
         const rows: Row[] = [];

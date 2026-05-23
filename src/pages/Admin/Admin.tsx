@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase, supabaseStorage } from '../../lib/supabase';
 import { Trophy, Users, Calendar, Plus, Save, Trash2, Shield, ChevronDown, ChevronUp, Newspaper, CheckCircle, Play, Camera, Search, Settings2, Vote, ShieldAlert, Bell, Star, CreditCard, Target, Square, ArrowRightLeft, MessageSquare, Zap, Clock, Pause, RotateCcw, Coffee, Flag, Check } from 'lucide-react';
@@ -7334,6 +7334,8 @@ const PollManagement = () => {
 
 const GlobalPlayerManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const deferredSearchTerm = useDeferredValue(searchTerm);
+  const [visibleLimit, setVisibleLimit] = useState(200);
   const [isAdding, setIsAdding] = useState(false);
   const [isBulkAdding, setIsBulkAdding] = useState(false);
   const [bulkText, setBulkText] = useState('');
@@ -7351,6 +7353,10 @@ const GlobalPlayerManagement = () => {
   const [editingGlobalPlayerId, setEditingGlobalPlayerId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    setVisibleLimit(200);
+  }, [deferredSearchTerm]);
 
   type PlayerListItem = Player & { teams?: { name?: string } | null };
 
@@ -8092,12 +8098,18 @@ const GlobalPlayerManagement = () => {
 
   const filteredPlayers = React.useMemo(() => {
     const list = (Array.isArray(allPlayers) ? allPlayers : []) as PlayerListItem[];
-    const term = searchTerm.toLowerCase();
+    const term = deferredSearchTerm.toLowerCase();
+    if (!term) return list;
     return list.filter((p) => {
       const teamName = (p.team_name || p.teams?.name || '').toLowerCase();
       return p.name.toLowerCase().includes(term) || teamName.includes(term);
     });
-  }, [allPlayers, searchTerm]);
+  }, [allPlayers, deferredSearchTerm]);
+
+  const visiblePlayers = React.useMemo(() => {
+    if (visibleLimit <= 0) return [] as PlayerListItem[];
+    return filteredPlayers.slice(0, visibleLimit);
+  }, [filteredPlayers, visibleLimit]);
 
   return (
     <div className="admin-section glass">
@@ -8375,7 +8387,7 @@ const GlobalPlayerManagement = () => {
             <p>Buscando Atletas no Banco de Dados...</p>
           </div>
         ) : (
-          (filteredPlayers || []).map(p => (
+          (visiblePlayers || []).map(p => (
             <React.Fragment key={p.id}>
               <div className="admin-list-item player-search-row">
                 <div className="item-main">
@@ -8403,6 +8415,18 @@ const GlobalPlayerManagement = () => {
         )}
         {!loading && filteredPlayers.length === 0 && <p className="empty-msg">Nenhum atleta encontrado.</p>}
       </div>
+
+      {!loading && filteredPlayers.length > visibleLimit && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
+          <button
+            className="btn-add"
+            type="button"
+            onClick={() => setVisibleLimit((prev) => Math.min(prev + 200, filteredPlayers.length))}
+          >
+            Carregar mais ({visiblePlayers.length}/{filteredPlayers.length})
+          </button>
+        </div>
+      )}
 
       {editingGlobalPlayerId && typeof document !== 'undefined' && createPortal(
         <div className="global-player-edit-modal-backdrop" onClick={() => setEditingGlobalPlayerId(null)}>

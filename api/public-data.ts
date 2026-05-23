@@ -305,7 +305,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const matchIds = (matchesRes.data || []).map((match) => match.id).filter((id): id is string => Boolean(id));
       const fetchBatches = async <Row,>(
         queryFactory: (ids: string[]) => Promise<{ data: Row[] | null; error: Error | null }>,
-        chunkSize = 40,
+        chunkSize = 60,
       ) => {
         const rows: Row[] = [];
         for (let i = 0; i < matchIds.length; i += chunkSize) {

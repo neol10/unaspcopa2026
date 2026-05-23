@@ -4327,9 +4327,6 @@
   .btn-undo-preview {
     max-width: 130px;
   }
-}
-  }
-
   /* MVP Section Mobile */
   .mvp-selection-admin {
     padding: 1rem;
@@ -4366,7 +4363,6 @@
     font-size: 1.8rem;
   }
 }
-
 .live-mini-header h6 {
   font-size: 0.85rem;
   font-weight: 900;
