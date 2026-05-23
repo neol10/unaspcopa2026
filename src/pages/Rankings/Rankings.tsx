@@ -24,6 +24,7 @@ const Rankings: React.FC = () => {
   const [viewLimit, setViewLimit] = useState<5 | 10>(10);
   const touchStartXRef = React.useRef<number | null>(null);
   const touchMoveXRef = React.useRef<number | null>(null);
+  const [activeTab, setActiveTab] = useState<'scorers' | 'participation' | 'assistants' | 'goalkeepers' | 'disciplined'>('scorers');
 
   const normalize = (value: string) => value
     .toLowerCase()
@@ -146,7 +147,7 @@ const Rankings: React.FC = () => {
   );
 
   const hasScorers = scorers.length > 0;
-  const top3Scorers = scorers.slice(0, 3);
+  const top3Scorers = useMemo(() => scorers.slice(0, 3), [scorers]);
   const roundWinner = selectedRound ? roundMvps[selectedRound] : null;
   const roundWinnersList = selectedRound && roundMvpsList ? (roundMvpsList[selectedRound] || []) : [];
   const highlightedPlayerId = selectedRound && roundHighlights ? roundHighlights[selectedRound] : null;
@@ -180,18 +181,18 @@ const Rankings: React.FC = () => {
   const unitLabel = groupUnit === 'round' ? 'Rodada' : 'Noite';
   const unitChipPrefix = groupUnit === 'round' ? 'R' : 'N';
 
-  const visibleScorers = filterPlayers(scorers);
-  const visibleGoalkeepers = filterPlayers(goalkeepers);
-  const visibleAssistants = filterPlayers(assistants);
-  const visibleParticipation = filterPlayers(participationRank || []);
-  const visibleDisciplined = filterPlayersTop20(disciplined);
+  const visibleScorers = useMemo(() => filterPlayers(scorers), [filterPlayers, scorers]);
+  const visibleGoalkeepers = useMemo(() => filterPlayers(goalkeepers), [filterPlayers, goalkeepers]);
+  const visibleAssistants = useMemo(() => filterPlayers(assistants), [filterPlayers, assistants]);
+  const visibleParticipation = useMemo(() => filterPlayers(participationRank || []), [filterPlayers, participationRank]);
+  const visibleDisciplined = useMemo(() => filterPlayersTop20(disciplined), [filterPlayersTop20, disciplined]);
 
   // Podium order: 2nd, 1st, 3rd
-  const podiumOrder = [
+  const podiumOrder = useMemo(() => [
     top3Scorers[1] || null,
     top3Scorers[0] || null,
     top3Scorers[2] || null
-  ];
+  ], [top3Scorers]);
 
   const handleDownloadRankingCard = async (
     key: string,
@@ -431,366 +432,425 @@ const Rankings: React.FC = () => {
         )}
       </div>
 
-      <div className="rankings-grid">
-        {/* Artilharia */}
-        <section className="rank-panel glass">
-          <div className="panel-header">
-            <Trophy size={20} color="#facc15" />
-            <h3>Artilharia do Torneio</h3>
-          </div>
-          <div className="rank-rows">
-            {visibleScorers.map((p, i) => (
-              <div key={p.id} className="rank-row-item glass-hover" onClick={() => setSelectedPlayer(p)}>
-                <div className="rank-idx">{i + 1}º</div>
-                <div className="rank-avatar">
-                  {p.photo_url ? (
-                    <img 
-                      src={p.photo_url} 
-                      alt={p.name} 
-                      width="32" 
-                      height="32" 
-                      loading="lazy" 
-                      decoding="async"
-                    />
-                  ) : <div className="avatar-dummy"><User size={14} /></div>}
-                </div>
-                <div className="rank-player">
-                  <div className="player-name-wrapper">
-                    <strong>{p.name}</strong>
-                    <div className="team-mini-info">
-                      {p.team_badge_url && (
+      {/* Abas Premium Selector */}
+      <div className="rankings-tabs-container animate-fade-in">
+        <div className="rankings-tabs glass">
+          <button
+            type="button"
+            className={`tab-btn ${activeTab === 'scorers' ? 'active gold' : ''}`}
+            onClick={() => setActiveTab('scorers')}
+          >
+            <Trophy size={16} />
+            <span>Artilharia</span>
+          </button>
+          <button
+            type="button"
+            className={`tab-btn ${activeTab === 'participation' ? 'active gold' : ''}`}
+            onClick={() => setActiveTab('participation')}
+          >
+            <Zap size={16} />
+            <span>Participações (G.A)</span>
+          </button>
+          <button
+            type="button"
+            className={`tab-btn ${activeTab === 'assistants' ? 'active blue' : ''}`}
+            onClick={() => setActiveTab('assistants')}
+          >
+            <Zap size={16} style={{ transform: 'rotate(15deg)' }} />
+            <span>Assistências</span>
+          </button>
+          <button
+            type="button"
+            className={`tab-btn ${activeTab === 'goalkeepers' ? 'active green' : ''}`}
+            onClick={() => setActiveTab('goalkeepers')}
+          >
+            <ShieldAlert size={16} />
+            <span>Luva de Ouro</span>
+          </button>
+          <button
+            type="button"
+            className={`tab-btn ${activeTab === 'disciplined' ? 'active red' : ''}`}
+            onClick={() => setActiveTab('disciplined')}
+          >
+            <ShieldAlert size={16} />
+            <span>Disciplina</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="rankings-active-panel-wrapper">
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25 }}
+          className="rankings-single-grid"
+        >
+          {activeTab === 'scorers' && (
+            <section className="rank-panel glass active-full-panel">
+              <div className="panel-header">
+                <Trophy size={20} color="#facc15" />
+                <h3>Artilharia do Torneio</h3>
+              </div>
+              <div className="rank-rows">
+                {visibleScorers.map((p, i) => (
+                  <div key={p.id} className="rank-row-item glass-hover" onClick={() => setSelectedPlayer(p)}>
+                    <div className="rank-idx">{i + 1}º</div>
+                    <div className="rank-avatar">
+                      {p.photo_url ? (
                         <img 
-                          src={p.team_badge_url} 
-                          alt="" 
-                          className="mini-badge" 
-                          width="16" 
-                          height="16" 
+                          src={p.photo_url} 
+                          alt={p.name} 
+                          width="32" 
+                          height="32" 
                           loading="lazy" 
                           decoding="async"
                         />
-                      )}
-                      <span>{p.team_name}</span>
+                      ) : <div className="avatar-dummy"><User size={14} /></div>}
                     </div>
+                    <div className="rank-player">
+                      <div className="player-name-wrapper">
+                        <strong>{p.name}</strong>
+                        <div className="team-mini-info">
+                          {p.team_badge_url && (
+                            <img 
+                              src={p.team_badge_url} 
+                              alt="" 
+                              className="mini-badge" 
+                              width="16" 
+                              height="16" 
+                              loading="lazy" 
+                              decoding="async"
+                            />
+                          )}
+                          <span>{p.team_name}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="rank-val">{p.goals_count} G</div>
+                    {authRole === 'admin' && (
+                      <button
+                        type="button"
+                        className="rank-row-download-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownloadRankingCard(
+                            `scorers-${p.id}`,
+                            p,
+                            'Artilharia',
+                            'Top goleadores da Copa Unasp',
+                            'gold',
+                            [
+                              { label: 'Posicao', value: `${i + 1}o` },
+                              { label: 'Gols', value: p.goals_count || 0 },
+                              { label: 'Assistencias', value: p.assists || 0 },
+                            ],
+                          );
+                        }}
+                        disabled={downloadingCardKey === `scorers-${p.id}`}
+                        aria-label={`Baixar card de ${p.name}`}
+                      >
+                        <Download size={14} />
+                        <span>{downloadingCardKey === `scorers-${p.id}` ? 'Gerando...' : 'Card'}</span>
+                      </button>
+                    )}
                   </div>
-                </div>
-                <div className="rank-val">{p.goals_count} G</div>
-                {authRole === 'admin' && (
-                  <button
-                    type="button"
-                    className="rank-row-download-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDownloadRankingCard(
-                        `scorers-${p.id}`,
-                        p,
-                        'Artilharia',
-                        'Top goleadores da Copa Unasp',
-                        'gold',
-                        [
-                          { label: 'Posicao', value: `${i + 1}o` },
-                          { label: 'Gols', value: p.goals_count || 0 },
-                          { label: 'Assistencias', value: p.assists || 0 },
-                        ],
-                      );
-                    }}
-                    disabled={downloadingCardKey === `scorers-${p.id}`}
-                    aria-label={`Baixar card de ${p.name}`}
-                  >
-                    <Download size={14} />
-                    <span>{downloadingCardKey === `scorers-${p.id}` ? 'Gerando...' : 'Card'}</span>
-                  </button>
-                )}
+                ))}
+                {visibleScorers.length === 0 && <p className="empty-rank">{searchTerm ? 'Nenhum atleta encontrado neste ranking.' : 'Nenhum gol registrado.'}</p>}
               </div>
-            ))}
-            {visibleScorers.length === 0 && <p className="empty-rank">{searchTerm ? 'Nenhum atleta encontrado neste ranking.' : 'Nenhum gol registrado.'}</p>}
-          </div>
-        </section>
+            </section>
+          )}
 
-        {/* Participações em Gols (G.A) */}
-        <section className="rank-panel glass highlighted-gold">
-          <div className="panel-header">
-            <Zap size={20} color="#facc15" />
-            <h3>Participações em Gols (G.A)</h3>
-          </div>
-          <div className="rank-rows">
-            {visibleParticipation.map((p, i) => (
-              <div key={p.id} className="rank-row-item glass-hover" onClick={() => setSelectedPlayer(p)}>
-                <div className="rank-idx">{i + 1}º</div>
-                <div className="rank-avatar">
-                  {p.photo_url ? (
-                    <img 
-                      src={p.photo_url} 
-                      alt={p.name} 
-                      width="32" 
-                      height="32" 
-                      loading="lazy" 
-                      decoding="async"
-                    />
-                  ) : <div className="avatar-dummy"><User size={14} /></div>}
-                </div>
-                <div className="rank-player">
-                  <div className="player-name-wrapper">
-                    <strong>{p.name}</strong>
-                    <div className="team-mini-info">
-                      {p.team_badge_url && (
+          {activeTab === 'participation' && (
+            <section className="rank-panel glass highlighted-gold active-full-panel">
+              <div className="panel-header">
+                <Zap size={20} color="#facc15" />
+                <h3>Participações em Gols (G.A)</h3>
+              </div>
+              <div className="rank-rows">
+                {visibleParticipation.map((p, i) => (
+                  <div key={p.id} className="rank-row-item glass-hover" onClick={() => setSelectedPlayer(p)}>
+                    <div className="rank-idx">{i + 1}º</div>
+                    <div className="rank-avatar">
+                      {p.photo_url ? (
                         <img 
-                          src={p.team_badge_url} 
-                          alt="" 
-                          className="mini-badge" 
-                          width="16" 
-                          height="16" 
+                          src={p.photo_url} 
+                          alt={p.name} 
+                          width="32" 
+                          height="32" 
                           loading="lazy" 
                           decoding="async"
                         />
-                      )}
-                      <span>{p.team_name}</span>
+                      ) : <div className="avatar-dummy"><User size={14} /></div>}
                     </div>
+                    <div className="rank-player">
+                      <div className="player-name-wrapper">
+                        <strong>{p.name}</strong>
+                        <div className="team-mini-info">
+                          {p.team_badge_url && (
+                            <img 
+                              src={p.team_badge_url} 
+                              alt="" 
+                              className="mini-badge" 
+                              width="16" 
+                              height="16" 
+                              loading="lazy" 
+                              decoding="async"
+                            />
+                          )}
+                          <span>{p.team_name}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="rank-val" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                      <strong style={{ color: 'var(--secondary)', fontSize: '1.05rem' }}>{(p as any).goals_and_assists} G.A</strong>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{p.goals_count || 0} G + {p.assists || 0} A</span>
+                    </div>
+                    {authRole === 'admin' && (
+                      <button
+                        type="button"
+                        className="rank-row-download-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownloadRankingCard(
+                            `participation-${p.id}`,
+                            p,
+                            'Participações (G.A)',
+                            'Gols e Assistências da Copa Unasp',
+                            'gold',
+                            [
+                              { label: 'Posicao', value: `${i + 1}o` },
+                              { label: 'G.A', value: (p as any).goals_and_assists || 0 },
+                              { label: 'Gols', value: p.goals_count || 0 },
+                              { label: 'Assistencias', value: p.assists || 0 },
+                            ],
+                          );
+                        }}
+                        disabled={downloadingCardKey === `participation-${p.id}`}
+                        aria-label={`Baixar card de ${p.name}`}
+                      >
+                        <Download size={14} />
+                        <span>{downloadingCardKey === `participation-${p.id}` ? 'Gerando...' : 'Card'}</span>
+                      </button>
+                    )}
                   </div>
-                </div>
-                <div className="rank-val" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
-                  <strong style={{ color: 'var(--secondary)', fontSize: '1.05rem' }}>{(p as any).goals_and_assists} G.A</strong>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{p.goals_count || 0} G + {p.assists || 0} A</span>
-                </div>
-                {authRole === 'admin' && (
-                  <button
-                    type="button"
-                    className="rank-row-download-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDownloadRankingCard(
-                        `participation-${p.id}`,
-                        p,
-                        'Participações (G.A)',
-                        'Gols e Assistências da Copa Unasp',
-                        'gold',
-                        [
-                          { label: 'Posicao', value: `${i + 1}o` },
-                          { label: 'G.A', value: (p as any).goals_and_assists || 0 },
-                          { label: 'Gols', value: p.goals_count || 0 },
-                          { label: 'Assistencias', value: p.assists || 0 },
-                        ],
-                      );
-                    }}
-                    disabled={downloadingCardKey === `participation-${p.id}`}
-                    aria-label={`Baixar card de ${p.name}`}
-                  >
-                    <Download size={14} />
-                    <span>{downloadingCardKey === `participation-${p.id}` ? 'Gerando...' : 'Card'}</span>
-                  </button>
-                )}
+                ))}
+                {visibleParticipation.length === 0 && <p className="empty-rank">{searchTerm ? 'Nenhum atleta encontrado neste ranking.' : 'Aguardando estatísticas...'}</p>}
               </div>
-            ))}
-            {visibleParticipation.length === 0 && <p className="empty-rank">{searchTerm ? 'Nenhum atleta encontrado neste ranking.' : 'Aguardando estatísticas...'}</p>}
-          </div>
-        </section>
+            </section>
+          )}
 
-        {/* Luva de Ouro */}
-        <section className="rank-panel glass highlighted-gold">
-          <div className="panel-header">
-            <ShieldAlert size={20} color="#facc15" />
-            <h3>Luva de Ouro</h3>
-          </div>
-          <div className="rank-rows">
-            {visibleGoalkeepers.map((p, i) => (
-              <div key={p.id} className="rank-row-item glass-hover" onClick={() => setSelectedPlayer(p)}>
-                <div className="rank-idx">{i + 1}º</div>
-                <div className="rank-avatar">
-                   {p.photo_url ? <img src={p.photo_url} alt={p.name} loading="lazy" decoding="async" /> : <div className="avatar-dummy"><User size={14} /></div>}
-                </div>
-                <div className="rank-player">
-                   <div className="player-name-wrapper">
-                     <strong>{p.name}</strong>
-                     <div className="team-mini-info">
-                        {p.team_badge_url && <img src={p.team_badge_url} alt="" className="mini-badge" loading="lazy" decoding="async" />}
-                        <span>{p.team_name}</span>
-                     </div>
-                   </div>
-                </div>
-                <div className="rank-val">{p.goals_conceded || 0} Gols Sofridos</div>
-                {authRole === 'admin' && (
-                  <button
-                    type="button"
-                    className="rank-row-download-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDownloadRankingCard(
-                        `goalkeepers-${p.id}`,
-                        p,
-                        'Luva de Ouro',
-                        'Ranking de goleiros da Copa Unasp',
-                        'green',
-                        [
-                          { label: 'Posicao', value: `${i + 1}o` },
-                          { label: 'Gols Sofridos', value: p.goals_conceded || 0 },
-                          { label: 'Clean Sheets', value: p.clean_sheets || 0 },
-                        ],
-                      );
-                    }}
-                    disabled={downloadingCardKey === `goalkeepers-${p.id}`}
-                    aria-label={`Baixar card de ${p.name}`}
-                  >
-                    <Download size={14} />
-                    <span>{downloadingCardKey === `goalkeepers-${p.id}` ? 'Gerando...' : 'Card'}</span>
-                  </button>
-                )}
+          {activeTab === 'goalkeepers' && (
+            <section className="rank-panel glass highlighted-gold active-full-panel" style={{ borderColor: 'rgba(34, 197, 94, 0.3)', background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.08), rgba(17, 25, 40, 0.95))' }}>
+              <div className="panel-header">
+                <ShieldAlert size={20} color="#22c55e" />
+                <h3>Luva de Ouro</h3>
               </div>
-            ))}
-            {visibleGoalkeepers.length === 0 && <p className="empty-rank">{searchTerm ? 'Nenhum atleta encontrado neste ranking.' : 'Aguardando súmulas...'}</p>}
-          </div>
-        </section>
+              <div className="rank-rows">
+                {visibleGoalkeepers.map((p, i) => (
+                  <div key={p.id} className="rank-row-item glass-hover" onClick={() => setSelectedPlayer(p)}>
+                    <div className="rank-idx">{i + 1}º</div>
+                    <div className="rank-avatar">
+                       {p.photo_url ? <img src={p.photo_url} alt={p.name} loading="lazy" decoding="async" /> : <div className="avatar-dummy"><User size={14} /></div>}
+                    </div>
+                    <div className="rank-player">
+                       <div className="player-name-wrapper">
+                         <strong>{p.name}</strong>
+                         <div className="team-mini-info">
+                            {p.team_badge_url && <img src={p.team_badge_url} alt="" className="mini-badge" loading="lazy" decoding="async" />}
+                            <span>{p.team_name}</span>
+                         </div>
+                       </div>
+                    </div>
+                    <div className="rank-val">{p.goals_conceded || 0} Gols Sofridos</div>
+                    {authRole === 'admin' && (
+                      <button
+                        type="button"
+                        className="rank-row-download-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownloadRankingCard(
+                            `goalkeepers-${p.id}`,
+                            p,
+                            'Luva de Ouro',
+                            'Ranking de goleiros da Copa Unasp',
+                            'green',
+                            [
+                              { label: 'Posicao', value: `${i + 1}o` },
+                              { label: 'Gols Sofridos', value: p.goals_conceded || 0 },
+                              { label: 'Clean Sheets', value: p.clean_sheets || 0 },
+                            ],
+                          );
+                        }}
+                        disabled={downloadingCardKey === `goalkeepers-${p.id}`}
+                        aria-label={`Baixar card de ${p.name}`}
+                      >
+                        <Download size={14} />
+                        <span>{downloadingCardKey === `goalkeepers-${p.id}` ? 'Gerando...' : 'Card'}</span>
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {visibleGoalkeepers.length === 0 && <p className="empty-rank">{searchTerm ? 'Nenhum atleta encontrado neste ranking.' : 'Aguardando súmulas...'}</p>}
+              </div>
+            </section>
+          )}
 
-        {/* Assistências */}
-        <section className="rank-panel glass">
-          <div className="panel-header">
-            <Zap size={20} color="var(--accent-blue)" />
-            <h3>Assistências da Copa</h3>
-          </div>
-          <div className="rank-rows">
-            {visibleAssistants.map((p, i) => (
-              <div key={p.id} className="rank-row-item glass-hover" onClick={() => setSelectedPlayer(p)}>
-                <div className="rank-idx">{i + 1}º</div>
-                <div className="rank-avatar">
-                  {p.photo_url ? (
-                    <img 
-                      src={p.photo_url} 
-                      alt={p.name} 
-                      width="32" 
-                      height="32" 
-                      loading="lazy" 
-                      decoding="async"
-                    />
-                  ) : <div className="avatar-dummy"><User size={14} /></div>}
-                </div>
-                <div className="rank-player">
-                  <div className="player-name-wrapper">
-                    <strong>{p.name}</strong>
-                    <div className="team-mini-info">
-                      {p.team_badge_url && (
+          {activeTab === 'assistants' && (
+            <section className="rank-panel glass active-full-panel" style={{ borderColor: 'rgba(59, 130, 246, 0.3)', background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(17, 25, 40, 0.95))' }}>
+              <div className="panel-header">
+                <Zap size={20} color="var(--accent-blue)" />
+                <h3>Assistências da Copa</h3>
+              </div>
+              <div className="rank-rows">
+                {visibleAssistants.map((p, i) => (
+                  <div key={p.id} className="rank-row-item glass-hover" onClick={() => setSelectedPlayer(p)}>
+                    <div className="rank-idx">{i + 1}º</div>
+                    <div className="rank-avatar">
+                      {p.photo_url ? (
                         <img 
-                          src={p.team_badge_url} 
-                          alt="" 
-                          className="mini-badge" 
-                          width="16" 
-                          height="16" 
+                          src={p.photo_url} 
+                          alt={p.name} 
+                          width="32" 
+                          height="32" 
                           loading="lazy" 
                           decoding="async"
                         />
-                      )}
-                      <span>{p.team_name}</span>
+                      ) : <div className="avatar-dummy"><User size={14} /></div>}
                     </div>
+                    <div className="rank-player">
+                      <div className="player-name-wrapper">
+                        <strong>{p.name}</strong>
+                        <div className="team-mini-info">
+                          {p.team_badge_url && (
+                            <img 
+                              src={p.team_badge_url} 
+                              alt="" 
+                              className="mini-badge" 
+                              width="16" 
+                              height="16" 
+                              loading="lazy" 
+                              decoding="async"
+                            />
+                          )}
+                          <span>{p.team_name}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="rank-val">{p.assists} ASS</div>
+                    {authRole === 'admin' && (
+                      <button
+                        type="button"
+                        className="rank-row-download-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownloadRankingCard(
+                            `assistants-${p.id}`,
+                            p,
+                            'Rei das Assistencias',
+                            'Top criadores de jogada da Copa Unasp',
+                            'blue',
+                            [
+                              { label: 'Posicao', value: `${i + 1}o` },
+                              { label: 'Assistencias', value: p.assists || 0 },
+                              { label: 'Gols', value: p.goals_count || 0 },
+                            ],
+                          );
+                        }}
+                        disabled={downloadingCardKey === `assistants-${p.id}`}
+                        aria-label={`Baixar card de ${p.name}`}
+                      >
+                        <Download size={14} />
+                        <span>{downloadingCardKey === `assistants-${p.id}` ? 'Gerando...' : 'Card'}</span>
+                      </button>
+                    )}
                   </div>
-                </div>
-                <div className="rank-val">{p.assists} ASS</div>
-                {authRole === 'admin' && (
-                  <button
-                    type="button"
-                    className="rank-row-download-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDownloadRankingCard(
-                        `assistants-${p.id}`,
-                        p,
-                        'Rei das Assistencias',
-                        'Top criadores de jogada da Copa Unasp',
-                        'blue',
-                        [
-                          { label: 'Posicao', value: `${i + 1}o` },
-                          { label: 'Assistencias', value: p.assists || 0 },
-                          { label: 'Gols', value: p.goals_count || 0 },
-                        ],
-                      );
-                    }}
-                    disabled={downloadingCardKey === `assistants-${p.id}`}
-                    aria-label={`Baixar card de ${p.name}`}
-                  >
-                    <Download size={14} />
-                    <span>{downloadingCardKey === `assistants-${p.id}` ? 'Gerando...' : 'Card'}</span>
-                  </button>
-                )}
+                ))}
+                {visibleAssistants.length === 0 && <p className="empty-rank">{searchTerm ? 'Nenhum atleta encontrado neste ranking.' : 'Nenhuma assistência.'}</p>}
               </div>
-            ))}
-            {visibleAssistants.length === 0 && <p className="empty-rank">{searchTerm ? 'Nenhum atleta encontrado neste ranking.' : 'Nenhuma assistência.'}</p>}
-          </div>
-        </section>
+            </section>
+          )}
 
-        {/* Disciplina */}
-        <section className="rank-panel glass">
-          <div className="panel-header">
-            <ShieldAlert size={20} color="var(--primary)" />
-            <h3>Mais Cartões (Top 20)</h3>
-          </div>
-          <div className="rank-rows">
-            {visibleDisciplined.map((p, i) => (
-              <div key={p.id} className="rank-row-item glass-hover" onClick={() => setSelectedPlayer(p)}>
-                <div className="rank-idx">{i + 1}º</div>
-                <div className="rank-avatar">
-                  {p.photo_url ? (
-                    <img 
-                      src={p.photo_url} 
-                      alt={p.name} 
-                      width="32" 
-                      height="32" 
-                      loading="lazy" 
-                      decoding="async"
-                    />
-                  ) : <div className="avatar-dummy"><User size={14} /></div>}
-                </div>
-                <div className="rank-player">
-                  <div className="player-name-wrapper">
-                    <strong>{p.name}</strong>
-                    <div className="team-mini-info">
-                      {p.team_badge_url && (
+          {activeTab === 'disciplined' && (
+            <section className="rank-panel glass active-full-panel" style={{ borderColor: 'rgba(239, 68, 68, 0.3)', background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.08), rgba(17, 25, 40, 0.95))' }}>
+              <div className="panel-header">
+                <ShieldAlert size={20} color="var(--primary)" />
+                <h3>Mais Cartões (Top 20)</h3>
+              </div>
+              <div className="rank-rows">
+                {visibleDisciplined.map((p, i) => (
+                  <div key={p.id} className="rank-row-item glass-hover" onClick={() => setSelectedPlayer(p)}>
+                    <div className="rank-idx">{i + 1}º</div>
+                    <div className="rank-avatar">
+                      {p.photo_url ? (
                         <img 
-                          src={p.team_badge_url} 
-                          alt="" 
-                          className="mini-badge" 
-                          width="16" 
-                          height="16" 
+                          src={p.photo_url} 
+                          alt={p.name} 
+                          width="32" 
+                          height="32" 
                           loading="lazy" 
                           decoding="async"
                         />
-                      )}
-                      <span>{p.team_name}</span>
+                      ) : <div className="avatar-dummy"><User size={14} /></div>}
                     </div>
+                    <div className="rank-player">
+                      <div className="player-name-wrapper">
+                        <strong>{p.name}</strong>
+                        <div className="team-mini-info">
+                          {p.team_badge_url && (
+                            <img 
+                              src={p.team_badge_url} 
+                              alt="" 
+                              className="mini-badge" 
+                              width="16" 
+                              height="16" 
+                              loading="lazy" 
+                              decoding="async"
+                            />
+                          )}
+                          <span>{p.team_name}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="rank-cards">
+                      <span className="p-card-new yellow">{p.yellow_cards || 0}</span>
+                      <span className="p-card-new red">{p.red_cards || 0}</span>
+                    </div>
+                    <div className="rank-val">{(p.yellow_cards || 0) + (p.red_cards || 0)} cartões</div>
+                    {authRole === 'admin' && (
+                      <button
+                        type="button"
+                        className="rank-row-download-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownloadRankingCard(
+                            `discipline-${p.id}`,
+                            p,
+                            'Mais Cartões',
+                            'Ranking de cartões da Copa Unasp',
+                            'red',
+                            [
+                              { label: 'Posicao', value: `${i + 1}o` },
+                              { label: 'Cartoes', value: (p.yellow_cards || 0) + (p.red_cards || 0) },
+                              { label: 'Amarelos', value: p.yellow_cards || 0 },
+                              { label: 'Vermelhos', value: p.red_cards || 0 },
+                            ],
+                          );
+                        }}
+                        disabled={downloadingCardKey === `discipline-${p.id}`}
+                        aria-label={`Baixar card de ${p.name}`}
+                      >
+                        <Download size={14} />
+                        <span>{downloadingCardKey === `discipline-${p.id}` ? 'Gerando...' : 'Card'}</span>
+                      </button>
+                    )}
                   </div>
-                </div>
-                <div className="rank-cards">
-                  <span className="p-card-new yellow">{p.yellow_cards || 0}</span>
-                  <span className="p-card-new red">{p.red_cards || 0}</span>
-                </div>
-                <div className="rank-val">{(p.yellow_cards || 0) + (p.red_cards || 0)} cartões</div>
-                {authRole === 'admin' && (
-                  <button
-                    type="button"
-                    className="rank-row-download-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDownloadRankingCard(
-                        `discipline-${p.id}`,
-                        p,
-                        'Mais Cartões',
-                        'Ranking de cartões da Copa Unasp',
-                        'red',
-                        [
-                          { label: 'Posicao', value: `${i + 1}o` },
-                          { label: 'Cartoes', value: (p.yellow_cards || 0) + (p.red_cards || 0) },
-                          { label: 'Amarelos', value: p.yellow_cards || 0 },
-                          { label: 'Vermelhos', value: p.red_cards || 0 },
-                        ],
-                      );
-                    }}
-                    disabled={downloadingCardKey === `discipline-${p.id}`}
-                    aria-label={`Baixar card de ${p.name}`}
-                  >
-                    <Download size={14} />
-                    <span>{downloadingCardKey === `discipline-${p.id}` ? 'Gerando...' : 'Card'}</span>
-                  </button>
-                )}
+                ))}
+                {visibleDisciplined.length === 0 && <p className="empty-rank">{searchTerm ? 'Nenhum atleta encontrado neste ranking.' : 'Sem dados de cartões.'}</p>}
               </div>
-            ))}
-            {visibleDisciplined.length === 0 && <p className="empty-rank">{searchTerm ? 'Nenhum atleta encontrado neste ranking.' : 'Sem dados de cartões.'}</p>}
-          </div>
-        </section>
+            </section>
+          )}
+        </motion.div>
       </div>
 
       <PlayerProfileModal 
