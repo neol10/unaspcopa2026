@@ -95,7 +95,8 @@
   flex-direction: column;
   align-items: center;
   gap: 40px;
-  width: 40%;
+  width: 35%;
+  flex-shrink: 1;
 }
 
 .badge-frame {
@@ -126,14 +127,27 @@
 }
 
 .team-name-social {
-  font-size: 3rem;
+  font-size: 2.6rem;
   font-weight: 800;
   text-align: center;
   text-transform: uppercase;
+  max-width: 100%;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.2;
+}
+
+.score-numbers {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+  flex-shrink: 0;
+  min-width: 300px;
 }
 
 .social-score {
-  font-size: 15rem;
+  font-size: 10rem;
   font-weight: 950;
   font-family: 'Inter', sans-serif;
   background: linear-gradient(180deg, var(--secondary) 0%, #d97706 100%);
@@ -143,7 +157,7 @@
 }
 
 .vs-social {
-  font-size: 4rem;
+  font-size: 3.5rem;
   font-weight: 200;
   opacity: 0.3;
 }

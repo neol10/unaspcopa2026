@@ -59,6 +59,20 @@ const Rankings: React.FC = () => {
     };
   }, [deferredSearchTerm]);
 
+  const top3Scorers = useMemo(() => scorers.slice(0, 3), [scorers]);
+
+  const visibleScorers = useMemo(() => filterPlayers(scorers), [filterPlayers, scorers]);
+  const visibleGoalkeepers = useMemo(() => filterPlayers(goalkeepers), [filterPlayers, goalkeepers]);
+  const visibleAssistants = useMemo(() => filterPlayers(assistants), [filterPlayers, assistants]);
+  const visibleParticipation = useMemo(() => filterPlayers(participationRank || []), [filterPlayers, participationRank]);
+  const visibleDisciplined = useMemo(() => filterPlayersTop20(disciplined), [filterPlayersTop20, disciplined]);
+
+  const podiumOrder = useMemo(() => [
+    top3Scorers[1] || null,
+    top3Scorers[0] || null,
+    top3Scorers[2] || null
+  ], [top3Scorers]);
+
   const { containerRef, isPulling, pullDistance, isRefreshing } = usePullToRefresh({
     onRefresh: async () => {
       await refresh();
@@ -147,7 +161,6 @@ const Rankings: React.FC = () => {
   );
 
   const hasScorers = scorers.length > 0;
-  const top3Scorers = useMemo(() => scorers.slice(0, 3), [scorers]);
   const roundWinner = selectedRound ? roundMvps[selectedRound] : null;
   const roundWinnersList = selectedRound && roundMvpsList ? (roundMvpsList[selectedRound] || []) : [];
   const highlightedPlayerId = selectedRound && roundHighlights ? roundHighlights[selectedRound] : null;
@@ -180,19 +193,6 @@ const Rankings: React.FC = () => {
   const groupUnit = config?.group_unit === 'round' ? 'round' : 'night';
   const unitLabel = groupUnit === 'round' ? 'Rodada' : 'Noite';
   const unitChipPrefix = groupUnit === 'round' ? 'R' : 'N';
-
-  const visibleScorers = useMemo(() => filterPlayers(scorers), [filterPlayers, scorers]);
-  const visibleGoalkeepers = useMemo(() => filterPlayers(goalkeepers), [filterPlayers, goalkeepers]);
-  const visibleAssistants = useMemo(() => filterPlayers(assistants), [filterPlayers, assistants]);
-  const visibleParticipation = useMemo(() => filterPlayers(participationRank || []), [filterPlayers, participationRank]);
-  const visibleDisciplined = useMemo(() => filterPlayersTop20(disciplined), [filterPlayersTop20, disciplined]);
-
-  // Podium order: 2nd, 1st, 3rd
-  const podiumOrder = useMemo(() => [
-    top3Scorers[1] || null,
-    top3Scorers[0] || null,
-    top3Scorers[2] || null
-  ], [top3Scorers]);
 
   const handleDownloadRankingCard = async (
     key: string,
