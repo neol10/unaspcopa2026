@@ -312,9 +312,9 @@ export const useRankings = () => {
     initialData: cached?.data || emptyRankings,
     initialDataUpdatedAt: cached?.ts,
     placeholderData: (prev) => prev,
-    staleTime: 1000 * 10,
+    staleTime: 1000 * 60 * 5, // 5 minutos (atualiza imediatamente via realtime quando houver gols/votos)
     gcTime: 1000 * 60 * 30,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false, // Evita spam de queries pesadas ao alternar abas ou abrir o console
     refetchOnReconnect: true,
   });
 

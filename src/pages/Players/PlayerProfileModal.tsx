@@ -119,13 +119,12 @@ const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose
                       <User size={64} />
                     </div>
                   )}
-                  <div className="player-number-pill">{player.number}</div>
                 </div>
                 <div className="player-main-meta">
                   <h2>{player.name}</h2>
                   <div className="player-sub-meta">
                     <div className="meta-item">
-                      <Hash size={14} /> <span>{player.position}</span>
+                      <Hash size={14} /> <span>Nº {player.number || 'S/N'} • {player.position}</span>
                     </div>
                     <div className="meta-item">
                       <Trophy size={14} /> <span>{teamName || player.team_name || 'Equipe Unasp'}</span>
