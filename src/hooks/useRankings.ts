@@ -96,12 +96,17 @@ export const useRankings = () => {
   const query = useQuery({
     queryKey: ['rankings', division, groupUnit],
     queryFn: async () => {
+      console.log('[Rankings] Starting fetch at', new Date().toISOString());
+      
       try {
+        const fetchStart = performance.now();
         const prefetchedPayload = queryClient.getQueryData<RankingsPayload>(['rankings-payload', division]);
         const payload = prefetchedPayload || await fetchPublicData<RankingsPayload>('rankings', { division });
         if (!prefetchedPayload) {
           queryClient.setQueryData(['rankings-payload', division], payload);
         }
+        console.log('[Rankings] Fetch took', (performance.now() - fetchStart).toFixed(0), 'ms');
+        console.log('[Rankings] Payload sizes - players:', payload.players?.length, 'votes:', payload.votes?.length, 'events:', payload.events?.length, 'matches:', payload.matches?.length);
 
         const playersData = payload.players || [];
         const votesData = payload.votes || [];
@@ -109,28 +114,91 @@ export const useRankings = () => {
         const matchesData = payload.matches || [];
 
       const voteCounts: Record<string, number> = {};
+      const assistCounts: Record<string, number> = {};
+      const goalkeepersByTeamId: Record<string, RankingPlayer[]> = {};
+
+      const processStart = performance.now();
+      const playersWithTeam: RankingPlayer[] = playersData.map((p) => {
+        const pos = String(p.position || '').trim().toLowerCase();
+        const isGoalkeeper = pos === 'goleiro' || pos === 'gol' || pos === 'gk' || pos.includes('gole');
+        
+        if (isGoalkeeper) {
+          if (!goalkeepersByTeamId[p.team_id]) goalkeepersByTeamId[p.team_id] = [];
+          goalkeepersByTeamId[p.team_id].push(p as RankingPlayer);
+        }
+
+        return {
+          ...p,
+          team_name: p.teams?.name,
+          team_badge_url: p.teams?.badge_url,
+          mvp_votes: 0,
+        } as RankingPlayer;
+      });
+
       votesData.forEach((v) => {
         if (v.player_id) voteCounts[v.player_id] = (voteCounts[v.player_id] || 0) + 1;
       });
 
-      const playersWithTeam: RankingPlayer[] = playersData.map((p) => ({
-        ...p,
-        team_name: p.teams?.name,
-        team_badge_url: p.teams?.badge_url,
-        mvp_votes: voteCounts[p.id] || 0,
-      }));
-      const playersById = new Map(playersWithTeam.map((player) => [player.id, player]));
-      const goalkeepersByTeamId: Record<string, RankingPlayer[]> = {};
-      playersWithTeam.forEach((player) => {
-        const pos = String(player.position || '').trim().toLowerCase();
-        const isGoalkeeper = pos === 'goleiro' || pos === 'gol' || pos === 'gk' || pos.includes('gole');
-        if (!isGoalkeeper) return;
-        if (!goalkeepersByTeamId[player.team_id]) goalkeepersByTeamId[player.team_id] = [];
-        goalkeepersByTeamId[player.team_id].push(player);
+      playersWithTeam.forEach((p) => {
+        p.mvp_votes = voteCounts[p.id] || 0;
       });
 
-      const assistCounts: Record<string, number> = {};
+      const playersById = new Map(playersWithTeam.map((player) => [player.id, player]));
+      console.log('[Rankings] Player processing took', (performance.now() - processStart).toFixed(0), 'ms');
+
+      const eventsStart = performance.now();
+      const matchesById: Record<string, (typeof matchesData)[number]> = {};
+      const eventsByMatchId: Record<string, typeof eventsData> = {};
+      const playerEventCounts: Record<string, number> = {};
+      const perMatchEventCounts: Record<string, Record<string, number>> = {};
+      const goalsConcededByGk: Record<string, number> = {};
+
+      matchesData.forEach((m) => { if (m.id) matchesById[m.id] = m; });
+
       eventsData.forEach((ev) => {
+        const matchId = ev.match_id || '';
+        if (!matchId) return;
+        
+        if (!eventsByMatchId[matchId]) eventsByMatchId[matchId] = [];
+        eventsByMatchId[matchId].push(ev);
+
+        if (ev.player_id) {
+          playerEventCounts[ev.player_id] = (playerEventCounts[ev.player_id] || 0) + 1;
+          if (!perMatchEventCounts[matchId]) perMatchEventCounts[matchId] = {};
+          perMatchEventCounts[matchId][ev.player_id] = (perMatchEventCounts[matchId][ev.player_id] || 0) + 1;
+        }
+        if (ev.assistant_id) {
+          playerEventCounts[ev.assistant_id] = (playerEventCounts[ev.assistant_id] || 0) + 1;
+          if (!perMatchEventCounts[matchId]) perMatchEventCounts[matchId] = {};
+          perMatchEventCounts[matchId][ev.assistant_id] = (perMatchEventCounts[matchId][ev.assistant_id] || 0) + 1;
+        }
+
+        if (ev.event_type === 'gol') {
+          const goalType = ev.metadata?.goal_type;
+          const isOwnGoal = goalType === 'contra';
+          if (isOwnGoal) return;
+          const scorerId = ev.player_id;
+          if (!scorerId) return;
+          const scorer = playersById.get(scorerId);
+          const match = matchesById[matchId];
+          if (!scorer || !match) return;
+          const concededTeamId = match.team_a_id === scorer.team_id ? match.team_b_id : match.team_a_id;
+          const candidateGks = goalkeepersByTeamId[concededTeamId] || [];
+          if (candidateGks.length === 0) return;
+          const counts = perMatchEventCounts[matchId] || {};
+          let bestGk = candidateGks[0];
+          let bestCount = counts[bestGk.id] || 0;
+          for (let i = 1; i < candidateGks.length; i++) {
+            const g = candidateGks[i];
+            const c = counts[g.id] || 0;
+            if (c > bestCount) {
+              bestCount = c;
+              bestGk = g;
+            }
+          }
+          goalsConcededByGk[bestGk.id] = (goalsConcededByGk[bestGk.id] || 0) + 1;
+        }
+
         if (ev.event_type === 'gol') {
           const goalType = ev.metadata?.goal_type;
           const isOwnGoal = goalType === 'contra' || Boolean(ev.commentary && String(ev.commentary).toUpperCase().includes('[CONTRA]'));
@@ -143,7 +211,9 @@ export const useRankings = () => {
           assistCounts[ev.player_id] = (assistCounts[ev.player_id] || 0) + 1;
         }
       });
+      console.log('[Rankings] Events processing took', (performance.now() - eventsStart).toFixed(0), 'ms');
 
+      const matchesStart = performance.now();
       const teamGoalsAgainst: Record<string, number> = {};
       const teamMatchesPlayed: Record<string, number> = {};
       matchesData.forEach((m) => {
@@ -156,6 +226,7 @@ export const useRankings = () => {
         teamMatchesPlayed[m.team_a_id] = (teamMatchesPlayed[m.team_a_id] || 0) + 1;
         teamMatchesPlayed[m.team_b_id] = (teamMatchesPlayed[m.team_b_id] || 0) + 1;
       });
+      console.log('[Rankings] Matches processing took', (performance.now() - matchesStart).toFixed(0), 'ms');
 
       const mostCardedList = [...playersWithTeam]
         .map((p) => ({ ...p, fair_play_points: (p.red_cards || 0) * 3 + (p.yellow_cards || 0) }))
@@ -170,62 +241,7 @@ export const useRankings = () => {
         })
         .slice(0, 20);
 
-      const matchesById: Record<string, (typeof matchesData)[number]> = {};
-      matchesData.forEach((m) => { if (m.id) matchesById[m.id] = m; });
-
-      const eventsByMatchId: Record<string, typeof eventsData> = {};
-      eventsData.forEach((ev) => {
-        const matchId = ev.match_id || '';
-        if (!matchId) return;
-        if (!eventsByMatchId[matchId]) eventsByMatchId[matchId] = [];
-        eventsByMatchId[matchId].push(ev);
-      });
-
-      const playerEventCounts: Record<string, number> = {};
-      const perMatchEventCounts: Record<string, Record<string, number>> = {};
-      eventsData.forEach((ev) => {
-        if (ev.player_id) playerEventCounts[ev.player_id] = (playerEventCounts[ev.player_id] || 0) + 1;
-        if (ev.assistant_id) playerEventCounts[ev.assistant_id] = (playerEventCounts[ev.assistant_id] || 0) + 1;
-        const matchId = ev.match_id || '';
-        if (!perMatchEventCounts[matchId]) perMatchEventCounts[matchId] = {};
-        if (ev.player_id) perMatchEventCounts[matchId][ev.player_id] = (perMatchEventCounts[matchId][ev.player_id] || 0) + 1;
-        if (ev.assistant_id) perMatchEventCounts[matchId][ev.assistant_id] = (perMatchEventCounts[matchId][ev.assistant_id] || 0) + 1;
-      });
-
-      const goalsConcededByGk: Record<string, number> = {};
-      eventsData.forEach((ev) => {
-        if (ev.event_type !== 'gol') return;
-        const goalType = ev.metadata?.goal_type;
-        const isOwnGoal = goalType === 'contra';
-        if (isOwnGoal) return;
-        const matchId = ev.match_id || '';
-        const scorerId = ev.player_id;
-        if (!scorerId || !matchId) return;
-        const scorer = playersById.get(scorerId);
-        const match = matchesById[matchId];
-        if (!scorer || !match) return;
-        const concededTeamId = match.team_a_id === scorer.team_id ? match.team_b_id : match.team_a_id;
-        const candidateGks = goalkeepersByTeamId[concededTeamId] || [];
-        if (candidateGks.length === 0) return;
-        const counts = perMatchEventCounts[matchId] || {};
-        let bestGk = candidateGks[0];
-        let bestCount = counts[bestGk.id] || 0;
-        for (let i = 1; i < candidateGks.length; i++) {
-          const g = candidateGks[i];
-          const c = counts[g.id] || 0;
-          if (c > bestCount) {
-            bestCount = c;
-            bestGk = g;
-          }
-        }
-        goalsConcededByGk[bestGk.id] = (goalsConcededByGk[bestGk.id] || 0) + 1;
-      });
-
-      const goalkeepers = [...playersWithTeam]
-        .filter((p) => {
-          const pos = String(p.position || '').trim().toLowerCase();
-          return pos === 'goleiro' || pos === 'gol' || pos === 'gk' || pos.includes('gole');
-        })
+      const goalkeepers = Object.values(goalkeepersByTeamId).flat()
         .map((p) => ({
           ...p,
           goals_conceded: goalsConcededByGk[p.id] ?? (teamGoalsAgainst[p.team_id] || 0),
@@ -244,6 +260,7 @@ export const useRankings = () => {
       const roundMvps: Record<string, RankingPlayer> = {};
       const roundHighlights: Record<string, string | null> = {};
       const matchesByUnit: Record<string, typeof matchesData> = {};
+      const unitGoals: Record<string, Record<string, number>> = {};
 
       matchesData.forEach((m) => {
         const unitValue = groupUnit === 'round' ? m.round : m.night;
@@ -311,7 +328,6 @@ export const useRankings = () => {
         if (winners.length > 0) roundMvps[unitKey] = winners[0];
       });
 
-      const unitGoals: Record<string, Record<string, number>> = {};
       eventsData.forEach((ev) => {
         if (ev.event_type !== 'gol') return;
         const goalType = ev.metadata?.goal_type;
@@ -379,6 +395,7 @@ export const useRankings = () => {
       };
 
       saveCached(result);
+      console.log('[Rankings] Total processing took', (performance.now() - fetchStart).toFixed(0), 'ms');
       return result;
       } catch (error) {
         const cachedAny = loadAnyCached();

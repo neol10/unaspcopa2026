@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useDeferredValue } from 'react';
+import React, { useEffect, useMemo, useState, useDeferredValue, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import './Rankings.css';
 import { useRankings, RankingPlayer } from '../../hooks/useRankings';
@@ -26,38 +26,34 @@ const Rankings: React.FC = () => {
   const touchMoveXRef = React.useRef<number | null>(null);
   const [activeTab, setActiveTab] = useState<'scorers' | 'participation' | 'assistants' | 'goalkeepers' | 'disciplined'>('scorers');
 
-  const normalize = (value: string) => value
+  const normalize = useCallback((value: string) => value
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
+    .replace(/[\u0300-\u036f]/g, ''), []);
 
   const filterPlayers = useMemo(() => {
     const term = normalize(deferredSearchTerm.trim());
     return (list: RankingPlayer[]) => {
-      const filtered = term
-        ? list.filter((p) => {
-            const name = normalize(p.name || '');
-            const team = normalize(p.team_name || '');
-            return name.includes(term) || team.includes(term);
-          })
-        : list;
-      return filtered.slice(0, viewLimit);
+      if (!term) return list.slice(0, viewLimit);
+      return list.filter((p) => {
+        const name = normalize(p.name || '');
+        const team = normalize(p.team_name || '');
+        return name.includes(term) || team.includes(term);
+      }).slice(0, viewLimit);
     };
-  }, [deferredSearchTerm, viewLimit]);
+  }, [deferredSearchTerm, viewLimit, normalize]);
 
   const filterPlayersTop20 = useMemo(() => {
     const term = normalize(deferredSearchTerm.trim());
     return (list: RankingPlayer[]) => {
-      const filtered = term
-        ? list.filter((p) => {
-            const name = normalize(p.name || '');
-            const team = normalize(p.team_name || '');
-            return name.includes(term) || team.includes(term);
-          })
-        : list;
-      return filtered.slice(0, 20);
+      if (!term) return list.slice(0, 20);
+      return list.filter((p) => {
+        const name = normalize(p.name || '');
+        const team = normalize(p.team_name || '');
+        return name.includes(term) || team.includes(term);
+      }).slice(0, 20);
     };
-  }, [deferredSearchTerm]);
+  }, [deferredSearchTerm, normalize]);
 
   const top3Scorers = useMemo(() => scorers.slice(0, 3), [scorers]);
 
@@ -166,13 +162,15 @@ const Rankings: React.FC = () => {
   const highlightedPlayerId = selectedRound && roundHighlights ? roundHighlights[selectedRound] : null;
 
   // Swipe handlers for touch devices to change selectedRound
-  const handleTouchStart = (e: React.TouchEvent) => {
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
     touchStartXRef.current = e.touches[0].clientX;
-  };
-  const handleTouchMove = (e: React.TouchEvent) => {
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
     touchMoveXRef.current = e.touches[0].clientX;
-  };
-  const handleTouchEnd = () => {
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
     const start = touchStartXRef.current;
     const end = touchMoveXRef.current;
     if (start === null || end === null) return;
@@ -188,13 +186,13 @@ const Rankings: React.FC = () => {
     }
     touchStartXRef.current = null;
     touchMoveXRef.current = null;
-  };
+  }, [availableRounds, selectedRound]);
 
   const groupUnit = config?.group_unit === 'round' ? 'round' : 'night';
   const unitLabel = groupUnit === 'round' ? 'Rodada' : 'Noite';
   const unitChipPrefix = groupUnit === 'round' ? 'R' : 'N';
 
-  const handleDownloadRankingCard = async (
+  const handleDownloadRankingCard = useCallback(async (
     key: string,
     player: RankingPlayer,
     category: string,
@@ -233,7 +231,7 @@ const Rankings: React.FC = () => {
     } finally {
       setDownloadingCardKey(null);
     }
-  };
+  }, []);
 
   return (
     <div className="rankings-container animate-fade-in" ref={containerRef}>

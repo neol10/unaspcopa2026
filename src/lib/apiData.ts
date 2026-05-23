@@ -195,6 +195,9 @@ export const fetchPublicData = async <T,>(resource: string, params?: Record<stri
     }
 
     if (resource === 'rankings') {
+      console.log('[apiData] Starting rankings fetch for division:', division);
+      const fetchStart = performance.now();
+      
       const matchesBaseQuery = supabase
         .from('matches')
         .select('id, match_date, round, night, status, match_mvp_player_id, match_mvp_description, team_a_id, team_b_id, team_a_score, team_b_score')
@@ -208,6 +211,9 @@ export const fetchPublicData = async <T,>(resource: string, params?: Record<stri
           .eq('division', division),
         matchesBaseQuery,
       ]);
+      
+      console.log('[apiData] Players + matches fetch took', (performance.now() - fetchStart).toFixed(0), 'ms');
+      console.log('[apiData] Players count:', playersRes.data?.length, 'Matches count:', matchesRes.data?.length);
 
       let rankingPlayers = playersRes.data || [];
       if (playersRes.error) {
@@ -222,17 +228,21 @@ export const fetchPublicData = async <T,>(resource: string, params?: Record<stri
       if (matchesRes.error) throw matchesRes.error;
 
       const matchIds = (matchesRes.data || []).map((match) => match.id).filter((id): id is string => Boolean(id));
+      console.log('[apiData] Match IDs to fetch:', matchIds.length);
 
       const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
       const fetchBatches = async <Row,>(
         queryFactory: (ids: string[]) => Promise<{ data: Row[] | null; error: Error | null }>,
-        chunkSize = 60,
-        retries = 2,
+        chunkSize = 100,
+        retries = 1,
       ) => {
+        const batchStart = performance.now();
         const rows: Row[] = [];
+        let batchCount = 0;
         for (let i = 0; i < matchIds.length; i += chunkSize) {
           const ids = matchIds.slice(i, i + chunkSize);
+          batchCount++;
           let attempt = 0;
           while (attempt <= retries) {
             try {
@@ -244,12 +254,13 @@ export const fetchPublicData = async <T,>(resource: string, params?: Record<stri
               attempt += 1;
               if (attempt > retries) throw e;
               // exponential backoff jitter
-              const backoff = 200 * Math.pow(2, attempt) + Math.round(Math.random() * 100);
+              const backoff = 100 * Math.pow(2, attempt) + Math.round(Math.random() * 50);
               // eslint-disable-next-line no-await-in-loop
               await sleep(backoff);
             }
           }
         }
+        console.log('[apiData] Batch fetch took', (performance.now() - batchStart).toFixed(0), 'ms for', batchCount, 'batches, returned', rows.length, 'rows');
         return rows;
       };
 
@@ -257,6 +268,7 @@ export const fetchPublicData = async <T,>(resource: string, params?: Record<stri
       let eventsData: Array<{ match_id: string; player_id?: string | null; assistant_id?: string | null; event_type: string; minute: number; metadata: unknown }> = [];
 
       try {
+        const votesEventsStart = performance.now();
         const results = await Promise.all([
           matchIds.length > 0
             ? fetchBatches<{ player_id: string; match_id: string }>((ids) =>
@@ -273,8 +285,10 @@ export const fetchPublicData = async <T,>(resource: string, params?: Record<stri
               )
             : Promise.resolve([]),
         ]);
+        console.log('[apiData] Votes + events fetch took', (performance.now() - votesEventsStart).toFixed(0), 'ms');
         votesData = results[0] as any;
         eventsData = results[1] as any;
+        console.log('[apiData] Votes count:', votesData.length, 'Events count:', eventsData.length);
       } catch (e) {
         try {
           void trackFallback('rankings_batch_error', { division, error: String(e) });
