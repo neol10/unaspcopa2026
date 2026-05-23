@@ -319,13 +319,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const [votesData, eventsData] = await Promise.all([
         matchIds.length > 0
-          ? fetchBatches<{ player_id: string; match_id: string }>((ids) =>
-              supabase.from('match_mvp_votes').select('player_id, match_id').in('match_id', ids)
+          ? fetchBatches<{ player_id: string; match_id: string }>(async (ids) =>
+              await supabase.from('match_mvp_votes').select('player_id, match_id').in('match_id', ids)
             )
           : Promise.resolve([]),
         matchIds.length > 0
-          ? fetchBatches<{ match_id: string; player_id: string | null; assistant_id: string | null; event_type: string; minute: number; metadata: unknown }>((ids) =>
-              supabase
+          ? fetchBatches<{ match_id: string; player_id: string | null; assistant_id: string | null; event_type: string; minute: number; metadata: unknown }>(async (ids) =>
+              await supabase
                 .from('match_events')
                 .select('match_id, player_id, assistant_id, event_type, minute, metadata')
                 .in('match_id', ids)
