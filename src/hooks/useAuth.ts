@@ -125,18 +125,14 @@ export const useAuth = () => {
       }
     });
 
-    // Safety timeout: o GoTrue pode segurar lock por alguns segundos ao inicializar/refresh.
-    // Se cairmos em "guest" cedo demais, dá a impressão de deslogar/sumir admin.
-    // 12s mantém a proteção contra loading infinito sem ser agressivo demais.
+    // Safety timeout: se a sessão não resolver em 10s, libera a UI como guest.
+    // Isso evita tela branca/spinner infinito em dispositivos lentos ou rede instável.
     const timeout = setTimeout(() => {
       setLoading(current => {
-        if (current) {
-          // Se não conseguir resolver sessão a tempo, segue como guest sem travar a UI.
-          return false;
-        }
+        if (current) return false;
         return current;
       });
-    }, 30000);
+    }, 10000);
 
     return () => {
       subscription.unsubscribe();

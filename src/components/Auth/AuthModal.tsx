@@ -5,6 +5,7 @@ import { useTournamentConfig } from '../../hooks/useTournamentConfig';
 import './AuthModal.css';
 
 interface AuthModalProps {
+  isOpen?: boolean;
   onClose: () => void;
 }
 
