@@ -34,13 +34,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const filePath = `${folder}/${fileName}`;
 
     const { error: uploadError } = await supabase.storage.from(bucket).upload(filePath, buffer, { contentType: mime, upsert: false });
-    if (uploadError) return json(res, 500, { error: String(uploadError.message || uploadError) });
+    if (uploadError) {
+      // best-effort telemetry
+      try {
+        await supabase.from('fallback_logs').insert([{ event: 'upload_failed', details: { bucket, filePath, error: String(uploadError.message || uploadError), ts: new Date().toISOString() }, created_at: new Date().toISOString() }]);
+      } catch (e) {
+        // ignore
+      }
+      return json(res, 500, { error: String(uploadError.message || uploadError) });
+    }
 
     const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
+
+    // log success (best-effort)
+    try {
+      await supabase.from('fallback_logs').insert([{ event: 'upload_succeeded', details: { bucket, filePath, publicUrl: data?.publicUrl || null, ts: new Date().toISOString() }, created_at: new Date().toISOString() }]);
+    } catch (e) {
+      // ignore
+    }
+
     return json(res, 200, { publicUrl: data.publicUrl });
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('upload-player-photo error', err);
+    // best-effort telemetry
+    try {
+      const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+      await supabase.from('fallback_logs').insert([{ event: 'upload_exception', details: { error: String(err), ts: new Date().toISOString() }, created_at: new Date().toISOString() }]);
+    } catch (e) {
+      // ignore
+    }
     return json(res, 500, { error: String(err) });
   }
 }
