@@ -12,13 +12,12 @@ const buildQuery = (params?: Record<string, QueryValue>) => {
   return qs ? `?${qs}` : '';
 };
 
-// Em ambiente de desenvolvimento local (Vite dev server),
-// fazemos bypass da API Serverless local para consultar o Supabase diretamente.
-// Isso evita erros de proxy ou necessidade de rodar backend local com vercel dev.
-const isDev = import.meta.env.DEV;
+// Bypass da rota de API Serverless em desenvolvimento e produção
+// para evitar cold starts de 10+ segundos do Vercel e obter carregamento instantâneo.
+const bypassServerless = true;
 
 export const fetchPublicData = async <T,>(resource: string, params?: Record<string, QueryValue>): Promise<T> => {
-  if (isDev) {
+  if (bypassServerless) {
     const division = params?.division ? String(params.division).trim() : '';
     const teamId = params?.teamId ? String(params.teamId).trim() : '';
     const matchId = params?.matchId ? String(params.matchId).trim() : '';
@@ -173,7 +172,7 @@ export const fetchPublicData = async <T,>(resource: string, params?: Record<stri
       } as unknown as T;
     }
 
-    throw new Error(`Unknown resource in dev mode: ${resource}`);
+    throw new Error(`Unknown resource in direct query mode: ${resource}`);
   }
 
   const response = await fetch(`/api/public-data${buildQuery({ resource, ...params })}`);
