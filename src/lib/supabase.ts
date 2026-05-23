@@ -14,12 +14,11 @@ const fallbackSupabaseAnonKey = 'placeholder-anon-key';
 
 const createSupabaseClient = () => createClient(supabaseUrl || fallbackSupabaseUrl, supabaseAnonKey || fallbackSupabaseAnonKey, {
   auth: {
-    // Mitigacao: evita loop de refresh_token quando o endpoint de auth
-    // fica instavel (522/timeout), reduzindo lock contention e spam de erros.
-    autoRefreshToken: false,
+    // autoRefreshToken habilitado para renovar tokens automaticamente e manter sessão ativa.
+    // Sem isso, usuários ficam "deslogados" após o token expirar (~1h).
+    autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
-    multiTab: false,
     storageKey: 'copa-unasp-auth',
   },
   global: {

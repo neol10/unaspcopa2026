@@ -39,14 +39,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Idempotency: avoid duplicate insert if same event was just registered
-    const { data: recent, error: recentErr } = await supabase
+    // IMPORTANTE: .eq('col', null) não funciona no Supabase — deve-se usar .is('col', null)
+    let idempotencyQ = supabase
       .from('match_events')
       .select('id, created_at')
       .eq('match_id', match_id)
       .eq('event_type', event_type)
-      .eq('player_id', player_id)
-      .eq('assistant_id', assistant_id)
-      .eq('minute', Number(minute) || 1)
+      .eq('minute', Number(minute) || 1);
+
+    if (player_id) {
+      idempotencyQ = idempotencyQ.eq('player_id', player_id);
+    } else {
+      idempotencyQ = idempotencyQ.is('player_id', null);
+    }
+
+    if (assistant_id) {
+      idempotencyQ = idempotencyQ.eq('assistant_id', assistant_id);
+    } else {
+      idempotencyQ = idempotencyQ.is('assistant_id', null);
+    }
+
+    const { data: recent, error: recentErr } = await idempotencyQ
       .order('created_at', { ascending: false })
       .limit(1);
     if (recentErr) throw recentErr;
