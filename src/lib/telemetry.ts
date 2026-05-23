@@ -5,10 +5,18 @@ export async function trackFallback(event: string, details?: Record<string, unkn
       // Keep this fire-and-forget and resilient to avoid impacting UX.
       // eslint-disable-next-line no-console
       console.warn('telemetry:fallback', event, details || {});
-      void fetch('/api/logging/fallback', {
+      void fetch('/api/client-errors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event, details: details || {}, ts: Date.now() }),
+        body: JSON.stringify({
+          batch: [
+            {
+              source: 'fallback',
+              message: event,
+              extra: { ...(details || {}), ts: Date.now() },
+            },
+          ],
+        }),
       }).catch(() => {});
     } else {
       // server-side: log to console (no blocking work)
