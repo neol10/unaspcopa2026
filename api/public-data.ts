@@ -228,7 +228,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .eq('division', division);
 
       const [playersRes, matchesRes] = await Promise.all([
-        supabase.from('players').select('id, name, number, position, photo_url, goals_count, assists, yellow_cards, red_cards, clean_sheets, team_id, teams:team_id(name, badge_url, group, leader, primary_color)').eq('division', division),
+        supabase.from('players').select('id, name, number, position, photo_url, goals_count, assists, yellow_cards, red_cards, clean_sheets, team_id, teams(name, badge_url, group, leader, primary_color)').eq('division', division),
         matchesBaseQuery,
       ]);
 
