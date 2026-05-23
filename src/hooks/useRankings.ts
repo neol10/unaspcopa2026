@@ -312,7 +312,7 @@ export const useRankings = () => {
     initialData: cached?.data || emptyRankings,
     initialDataUpdatedAt: cached?.ts,
     placeholderData: (prev) => prev,
-    staleTime: 1000 * 60 * 15,
+    staleTime: 1000 * 10,
     gcTime: 1000 * 60 * 30,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,

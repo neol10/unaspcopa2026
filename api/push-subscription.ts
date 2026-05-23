@@ -39,6 +39,7 @@ const SUPABASE_SERVICE_KEYS = readEnvList(
   'SERVICE_ROLE_KEY',
 );
 const SUPABASE_ANON_KEY = readEnv('SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY', 'NEXT_PUBLIC_SUPABASE_ANON_KEY');
+const VAPID_PUBLIC_KEY = readEnv('VAPID_PUBLIC_KEY', 'VITE_VAPID_PUBLIC_KEY');
 
 const getPayload = (req: VercelRequest): Record<string, unknown> => {
   if (typeof req.body === 'string') {

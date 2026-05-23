@@ -3351,6 +3351,108 @@
 
 .btn-stopwatch:hover { transform: translateY(-1px); filter: brightness(1.2); }
 
+/* Roster Groups (Em Campo vs Reservas) */
+.roster-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.2rem;
+}
+
+.roster-group-title {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 0.3rem;
+  margin-bottom: 0.2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.bench-group {
+  margin-top: 1.25rem;
+  background: rgba(255, 255, 255, 0.01);
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.05);
+  padding: 0.75rem 0.5rem;
+}
+
+.bench-group .roster-group-title {
+  color: var(--text-dim);
+}
+
+/* Event Specific Player Button Styles */
+.p-btn.event-gol:hover {
+  background: rgba(34, 197, 94, 0.08) !important;
+  border-color: #22c55e !important;
+  box-shadow: 0 0 15px rgba(34, 197, 94, 0.15);
+}
+
+.p-btn.event-amarelo:hover {
+  background: rgba(251, 191, 36, 0.08) !important;
+  border-color: #fbbf24 !important;
+  box-shadow: 0 0 15px rgba(251, 191, 36, 0.2);
+}
+
+.p-btn.event-vermelho:hover {
+  background: rgba(239, 68, 68, 0.08) !important;
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.2);
+}
+
+.p-btn.event-substituicao:hover {
+  background: rgba(59, 130, 246, 0.08) !important;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.2);
+}
+
+/* Mini Cards inside Player Buttons */
+.player-btn-cards {
+  display: flex;
+  gap: 2px;
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+}
+
+.mini-card-badge {
+  font-size: 8px;
+  line-height: 1;
+  display: inline-block;
+  transform: scale(0.95);
+}
+
+/* Button Rebuild Stats - Fixed layout (No 32x32px constraint!) */
+.btn-rebuild-stats {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: fit-content;
+}
+
+.btn-rebuild-stats:hover {
+  background: #ef4444;
+  color: #fff;
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.35);
+  transform: translateY(-1px);
+}
+
 .teams-lanes {
   display: grid;
   grid-template-columns: 1fr 1px 1fr;
@@ -4670,13 +4772,24 @@
 @media (max-width: 768px) {
   .live-event-panel,
   .live-event-panel-wrapper,
-  .teams-lanes,
   .lane,
   .event-controls-row,
   .recent-events-undo,
   .mvp-selection-admin {
     max-width: 100%;
     min-width: 0;
+  }
+
+  .teams-lanes {
+    grid-template-columns: 1fr !important;
+    gap: 1.25rem !important;
+    max-width: 100%;
+    min-width: 0;
+    background: transparent !important;
+  }
+
+  .divider-vertical {
+    display: none !important;
   }
 
   .event-selector {

@@ -4163,71 +4163,197 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         ref={lineupAnchorRef}
         className={`teams-lanes event-selector-active-${eventType} ${lineupNudge ? 'lineup-nudge' : ''} ${onFieldA.length === 0 && onFieldB.length === 0 ? 'no-roster' : ''}`}
       >
+        {/* Equipe A */}
         <div className="lane">
           <h5>{match.teams_a?.name || 'Equipe A'}</h5>
           
           <div className="roster-section">
-            <div className="admin-player-btns">
-              {(eventType === 'amarelo' || eventType === 'vermelho'
-                ? (playersA || [])
-                : (playersA || []).filter(p => onFieldA.includes(p.id))
-              ).map(p => (
-                <button 
-                  key={p.id} 
-                  type="button"
-                  disabled={isSubmittingEvent}
-                  onClick={() => {
-                    if (isPreGame && (eventType === 'gol' || eventType === 'substituicao')) {
-                      togglePlayerStatus(p.id, 'a');
-                      return;
-                    }
-                    if (eventType === 'gol') setGoalWizard({ team: 'a', open: true, pId: p.id });
-                    else addEvent(p.id, 'a');
-                  }} 
-                  className="p-btn active-field"
-                >
-                  <span className="p-num">{p.number}</span>
-                  <span className="p-name">{p.name.split(' ')[0]}</span>
-                  {renderSuspendedChip(p)}
-                  <ChevronDown size={10} className="btn-status-toggle" onClick={(e) => { e.stopPropagation(); togglePlayerStatus(p.id, 'a'); }} />
-                </button>
-              ))}
+            {/* Grupo: Em Campo */}
+            <div className="roster-group">
+              <span className="roster-group-title">⚽ Em Campo</span>
+              <div className="admin-player-btns">
+                {(playersA || []).filter(p => onFieldA.includes(p.id)).map(p => {
+                  const matchEvents = events || [];
+                  const yellows = matchEvents.filter(e => e.player_id === p.id && e.event_type === 'amarelo').length;
+                  const reds = matchEvents.filter(e => e.player_id === p.id && e.event_type === 'vermelho').length;
+
+                  return (
+                    <button 
+                      key={p.id} 
+                      type="button"
+                      disabled={isSubmittingEvent}
+                      onClick={() => {
+                        if (isPreGame && (eventType === 'gol' || eventType === 'substituicao')) {
+                          togglePlayerStatus(p.id, 'a');
+                          return;
+                        }
+                        if (eventType === 'gol') setGoalWizard({ team: 'a', open: true, pId: p.id });
+                        else addEvent(p.id, 'a');
+                      }} 
+                      className={`p-btn active-field event-${eventType}`}
+                    >
+                      <span className="p-num">{p.number}</span>
+                      <span className="p-name">{p.name.split(' ')[0]}</span>
+                      {renderSuspendedChip(p)}
+                      
+                      {/* Mini cartões acumulados na partida */}
+                      {(yellows > 0 || reds > 0) && (
+                        <div className="player-btn-cards">
+                          {Array.from({ length: yellows }).map((_, idx) => (
+                            <span key={`y-${p.id}-${idx}`} className="mini-card-badge yellow">🟨</span>
+                          ))}
+                          {Array.from({ length: reds }).map((_, idx) => (
+                            <span key={`r-${p.id}-${idx}`} className="mini-card-badge red">🟥</span>
+                          ))}
+                        </div>
+                      )}
+
+                      <ChevronDown size={10} className="btn-status-toggle" onClick={(e) => { e.stopPropagation(); togglePlayerStatus(p.id, 'a'); }} />
+                    </button>
+                  );
+                })}
+              </div>
             </div>
+
+            {/* Grupo: Reservas (Somente se for Amarelo ou Vermelho) */}
+            {(eventType === 'amarelo' || eventType === 'vermelho') && (
+              <div className="roster-group bench-group">
+                <span className="roster-group-title">🪑 Banco / Reservas</span>
+                <div className="admin-player-btns">
+                  {(playersA || []).filter(p => !onFieldA.includes(p.id)).map(p => {
+                    const matchEvents = events || [];
+                    const yellows = matchEvents.filter(e => e.player_id === p.id && e.event_type === 'amarelo').length;
+                    const reds = matchEvents.filter(e => e.player_id === p.id && e.event_type === 'vermelho').length;
+
+                    return (
+                      <button 
+                        key={p.id} 
+                        type="button"
+                        disabled={isSubmittingEvent}
+                        onClick={() => addEvent(p.id, 'a')} 
+                        className={`p-btn bench event-${eventType}`}
+                      >
+                        <span className="p-num">{p.number}</span>
+                        <span className="p-name">{p.name.split(' ')[0]}</span>
+                        {renderSuspendedChip(p)}
+
+                        {/* Mini cartões acumulados na partida */}
+                        {(yellows > 0 || reds > 0) && (
+                          <div className="player-btn-cards">
+                            {Array.from({ length: yellows }).map((_, idx) => (
+                              <span key={`y-${p.id}-${idx}`} className="mini-card-badge yellow">🟨</span>
+                            ))}
+                            {Array.from({ length: reds }).map((_, idx) => (
+                              <span key={`r-${p.id}-${idx}`} className="mini-card-badge red">🟥</span>
+                            ))}
+                          </div>
+                        )}
+
+                        <ChevronDown size={10} className="btn-status-toggle" onClick={(e) => { e.stopPropagation(); togglePlayerStatus(p.id, 'a'); }} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
         <div className="divider-vertical"></div>
 
+        {/* Equipe B */}
         <div className="lane">
           <h5>{match.teams_b?.name || 'Equipe B'}</h5>
           
           <div className="roster-section">
-            <div className="admin-player-btns">
-              {(eventType === 'amarelo' || eventType === 'vermelho'
-                ? (playersB || [])
-                : (playersB || []).filter(p => onFieldB.includes(p.id))
-              ).map(p => (
-                <button 
-                  key={p.id} 
-                  type="button"
-                  disabled={isSubmittingEvent}
-                  onClick={() => {
-                    if (isPreGame && (eventType === 'gol' || eventType === 'substituicao')) {
-                      togglePlayerStatus(p.id, 'b');
-                      return;
-                    }
-                    if (eventType === 'gol') setGoalWizard({ team: 'b', open: true, pId: p.id });
-                    else addEvent(p.id, 'b');
-                  }} 
-                  className="p-btn active-field"
-                >
-                  <span className="p-num">{p.number}</span>
-                  <span className="p-name">{p.name.split(' ')[0]}</span>
-                  {renderSuspendedChip(p)}
-                  <ChevronDown size={10} className="btn-status-toggle" onClick={(e) => { e.stopPropagation(); togglePlayerStatus(p.id, 'b'); }} />
-                </button>
-              ))}
+            {/* Grupo: Em Campo */}
+            <div className="roster-group">
+              <span className="roster-group-title">⚽ Em Campo</span>
+              <div className="admin-player-btns">
+                {(playersB || []).filter(p => onFieldB.includes(p.id)).map(p => {
+                  const matchEvents = events || [];
+                  const yellows = matchEvents.filter(e => e.player_id === p.id && e.event_type === 'amarelo').length;
+                  const reds = matchEvents.filter(e => e.player_id === p.id && e.event_type === 'vermelho').length;
+
+                  return (
+                    <button 
+                      key={p.id} 
+                      type="button"
+                      disabled={isSubmittingEvent}
+                      onClick={() => {
+                        if (isPreGame && (eventType === 'gol' || eventType === 'substituicao')) {
+                          togglePlayerStatus(p.id, 'b');
+                          return;
+                        }
+                        if (eventType === 'gol') setGoalWizard({ team: 'b', open: true, pId: p.id });
+                        else addEvent(p.id, 'b');
+                      }} 
+                      className={`p-btn active-field event-${eventType}`}
+                    >
+                      <span className="p-num">{p.number}</span>
+                      <span className="p-name">{p.name.split(' ')[0]}</span>
+                      {renderSuspendedChip(p)}
+                      
+                      {/* Mini cartões acumulados na partida */}
+                      {(yellows > 0 || reds > 0) && (
+                        <div className="player-btn-cards">
+                          {Array.from({ length: yellows }).map((_, idx) => (
+                            <span key={`y-${p.id}-${idx}`} className="mini-card-badge yellow">🟨</span>
+                          ))}
+                          {Array.from({ length: reds }).map((_, idx) => (
+                            <span key={`r-${p.id}-${idx}`} className="mini-card-badge red">🟥</span>
+                          ))}
+                        </div>
+                      )}
+
+                      <ChevronDown size={10} className="btn-status-toggle" onClick={(e) => { e.stopPropagation(); togglePlayerStatus(p.id, 'b'); }} />
+                    </button>
+                  );
+                })}
+              </div>
             </div>
+
+            {/* Grupo: Reservas (Somente se for Amarelo ou Vermelho) */}
+            {(eventType === 'amarelo' || eventType === 'vermelho') && (
+              <div className="roster-group bench-group">
+                <span className="roster-group-title">🪑 Banco / Reservas</span>
+                <div className="admin-player-btns">
+                  {(playersB || []).filter(p => !onFieldB.includes(p.id)).map(p => {
+                    const matchEvents = events || [];
+                    const yellows = matchEvents.filter(e => e.player_id === p.id && e.event_type === 'amarelo').length;
+                    const reds = matchEvents.filter(e => e.player_id === p.id && e.event_type === 'vermelho').length;
+
+                    return (
+                      <button 
+                        key={p.id} 
+                        type="button"
+                        disabled={isSubmittingEvent}
+                        onClick={() => addEvent(p.id, 'b')} 
+                        className={`p-btn bench event-${eventType}`}
+                      >
+                        <span className="p-num">{p.number}</span>
+                        <span className="p-name">{p.name.split(' ')[0]}</span>
+                        {renderSuspendedChip(p)}
+
+                        {/* Mini cartões acumulados na partida */}
+                        {(yellows > 0 || reds > 0) && (
+                          <div className="player-btn-cards">
+                            {Array.from({ length: yellows }).map((_, idx) => (
+                              <span key={`y-${p.id}-${idx}`} className="mini-card-badge yellow">🟨</span>
+                            ))}
+                            {Array.from({ length: reds }).map((_, idx) => (
+                              <span key={`r-${p.id}-${idx}`} className="mini-card-badge red">🟥</span>
+                            ))}
+                          </div>
+                        )}
+
+                        <ChevronDown size={10} className="btn-status-toggle" onClick={(e) => { e.stopPropagation(); togglePlayerStatus(p.id, 'b'); }} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -4238,7 +4364,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           <div className="undo-tip">Clique no minuto para editar o tempo</div>
           <button
             type="button"
-            className="btn-undo"
+            className="btn-rebuild-stats"
             onClick={async () => {
               if (!confirm('Recontar estatisticas e placares? Isso pode levar alguns segundos.')) return;
               try {
