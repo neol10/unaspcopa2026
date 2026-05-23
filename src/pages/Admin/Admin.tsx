@@ -110,7 +110,28 @@ const uploadToStorage = async (file: File, bucket: string = 'images', folder: st
     const fileName = `${baseName}_${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
     const filePath = `${folder}/${fileName}`;
 
-    // Retry curto para reduzir falhas intermitentes em rede móvel.
+    // Try serverless uploader first (uses service role, avoids client RLS/storage issues)
+    try {
+      const dataUrl = await fileToDataUrl(fileToUpload);
+      const resp = await fetch('/api/upload-player-photo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ bucket, folder, fileName, dataUrl }),
+      });
+      if (resp.ok) {
+        const body = await resp.json();
+        if (body && body.publicUrl) return String(body.publicUrl);
+      }
+      // fall through to client upload if serverless uploader fails
+    } catch (e) {
+      // continue to client-side attempt
+      // eslint-disable-next-line no-console
+      console.warn('server upload failed, falling back to client upload', e);
+    }
+
+    // Retry curto para reduzir falhas intermitentes em rede móvel (client fallback)
     const { error: uploadError } = await withRetry(async () => {
       return await supabaseStorage.storage
         .from(bucket)
