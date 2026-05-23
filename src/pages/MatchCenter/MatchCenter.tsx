@@ -461,7 +461,7 @@ const MatchCenter: React.FC = () => {
                 isPaused={isPaused}
                 mvpName={players.find(p => p.id === activeMatch.match_mvp_player_id)?.name}
                 isExporting={isExporting}
-                onDownloadCard={handleDownloadCard}
+                onDownloadCard={role === 'admin' ? handleDownloadCard : undefined}
                 onCopySummary={handleCopySummary}
                 groupUnitLabel={(config.group_unit || 'night') === 'night' ? 'Noite' : 'Rodada'}
               />

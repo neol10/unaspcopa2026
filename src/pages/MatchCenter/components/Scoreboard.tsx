@@ -27,7 +27,7 @@ interface ScoreboardProps {
   isPaused: boolean;
   mvpName?: string | null;
   isExporting: boolean;
-  onDownloadCard: () => void;
+  onDownloadCard?: () => void;
   onCopySummary: () => void;
   /** Label configurável: "Noite" ou "Rodada" */
   groupUnitLabel?: string;
@@ -145,14 +145,16 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
       )}
 
       <div className="scoreboard-actions" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-        <button 
-          className="btn-share-result" 
-          onClick={onDownloadCard}
-          disabled={isExporting}
-        >
-          {isExporting ? <div className="spinner-mini"></div> : <Download size={18} />}
-          Baixar Card de Resultado
-        </button>
+        {onDownloadCard && (
+          <button 
+            className="btn-share-result" 
+            onClick={onDownloadCard}
+            disabled={isExporting}
+          >
+            {isExporting ? <div className="spinner-mini"></div> : <Download size={18} />}
+            Baixar Card de Resultado
+          </button>
+        )}
 
         <button className="btn-share-result" onClick={onCopySummary}>
           <Copy size={18} />

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Trophy, ShieldAlert, User, Hash, Timer, Goal, Footprints } from 'lucide-react';
 import { Player } from '../../hooks/usePlayers';
 import { parsePhotoCropFromUrl } from '../../lib/photoCrop';
+import { useAuthContext } from '../../contexts/AuthContext';
 import './PlayerProfileModal.css';
 
 interface PlayerProfileModalProps {
@@ -14,6 +15,7 @@ interface PlayerProfileModalProps {
 }
 
 const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose, teamName, teamPrimaryColor }) => {
+  const { role } = useAuthContext();
   const [brokenPhotoUrl, setBrokenPhotoUrl] = useState<string | null>(null);
   useEffect(() => {
     if (!player) return;
@@ -179,34 +181,36 @@ const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose
               </div>
             </div>
 
-            <footer className="player-modal-footer">
+             <footer className="player-modal-footer">
               <div className="player-bio-snippet">
                 {player.bio || "Atleta em destaque na Copa Unasp 2026. Peça fundamental no esquema tático da equipe."}
               </div>
-              <div style={{ marginTop: 12 }}>
-                <button
-                  type="button"
-                  className="btn-download-card"
-                  onClick={async () => {
-                    // lazy-load download function to avoid circular deps
-                    const mod = await import('../../lib/socialCardExport');
-                    await mod.downloadSocialPlayerCard({
-                      fileName: `card-jogador-${(player.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
-                      category: 'Craque da Noite',
-                      subtitle: `Noite - Craque`,
-                      theme: 'blue',
-                      player: { name: player.name, teamName: teamName || player.team_name, position: player.position, photoUrl: player.photo_url, teamBadgeUrl: player.team_badge_url, teamPrimaryColor: teamPrimaryColor || player.team_primary_color },
-                      stats: [
-                        { label: 'Gols', value: player.goals_count || 0 },
-                        { label: 'Assistências', value: player.assists || 0 },
-                        { label: 'Participações', value: (player.goals_count || 0) + (player.assists || 0) },
-                      ],
-                    });
-                  }}
-                >
-                  Baixar Card
-                </button>
-              </div>
+              {role === 'admin' && (
+                <div style={{ marginTop: 12 }}>
+                  <button
+                    type="button"
+                    className="btn-download-card"
+                    onClick={async () => {
+                      // lazy-load download function to avoid circular deps
+                      const mod = await import('../../lib/socialCardExport');
+                      await mod.downloadSocialPlayerCard({
+                        fileName: `card-jogador-${(player.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+                        category: 'Craque da Noite',
+                        subtitle: `Noite - Craque`,
+                        theme: 'blue',
+                        player: { name: player.name, teamName: teamName || player.team_name, position: player.position, photoUrl: player.photo_url, teamBadgeUrl: player.team_badge_url, teamPrimaryColor: teamPrimaryColor || player.team_primary_color },
+                        stats: [
+                          { label: 'Gols', value: player.goals_count || 0 },
+                          { label: 'Assistências', value: player.assists || 0 },
+                          { label: 'Participações', value: (player.goals_count || 0) + (player.assists || 0) },
+                        ],
+                      });
+                    }}
+                  >
+                    Baixar Card
+                  </button>
+                </div>
+              )}
             </footer>
           </motion.div>
         )}
