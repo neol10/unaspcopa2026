@@ -3029,6 +3029,8 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   // --- Escalação / Roster ---
   const [onFieldA, setOnFieldA] = useState<string[]>([]);
   const [onFieldB, setOnFieldB] = useState<string[]>([]);
+  const [showBenchA, setShowBenchA] = useState(false);
+  const [showBenchB, setShowBenchB] = useState(false);
   const rosterMatchIdRef = useRef<string | null>(null);
 
   const rosterKeyA = `copa_unasp_roster_onfield_v1_${match.id}_a`;
@@ -4170,7 +4172,18 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           <div className="roster-section">
             {/* Grupo: Em Campo */}
             <div className="roster-group">
-              <span className="roster-group-title">⚽ Em Campo</span>
+              <div className="roster-group-header">
+                <span className="roster-group-title">⚽ Em Campo</span>
+                {onFieldA.length > 0 && (eventType === 'gol' || eventType === 'substituicao') && (
+                  <button 
+                    type="button" 
+                    className="btn-toggle-bench"
+                    onClick={() => setShowBenchA(!showBenchA)}
+                  >
+                    {showBenchA ? 'Ocultar Banco' : 'Ajustar Escalação / Banco'}
+                  </button>
+                )}
+              </div>
               <div className="admin-player-btns">
                 {(playersA || []).filter(p => onFieldA.includes(p.id)).map(p => {
                   const matchEvents = events || [];
@@ -4215,8 +4228,8 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
               </div>
             </div>
 
-            {/* Grupo: Reservas (Somente se for Amarelo ou Vermelho) */}
-            {(eventType === 'amarelo' || eventType === 'vermelho') && (
+            {/* Grupo: Reservas */}
+            {(eventType === 'amarelo' || eventType === 'vermelho' || onFieldA.length === 0 || showBenchA) && (
               <div className="roster-group bench-group">
                 <span className="roster-group-title">🪑 Banco / Reservas</span>
                 <div className="admin-player-btns">
@@ -4268,7 +4281,18 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           <div className="roster-section">
             {/* Grupo: Em Campo */}
             <div className="roster-group">
-              <span className="roster-group-title">⚽ Em Campo</span>
+              <div className="roster-group-header">
+                <span className="roster-group-title">⚽ Em Campo</span>
+                {onFieldB.length > 0 && (eventType === 'gol' || eventType === 'substituicao') && (
+                  <button 
+                    type="button" 
+                    className="btn-toggle-bench"
+                    onClick={() => setShowBenchB(!showBenchB)}
+                  >
+                    {showBenchB ? 'Ocultar Banco' : 'Ajustar Escalação / Banco'}
+                  </button>
+                )}
+              </div>
               <div className="admin-player-btns">
                 {(playersB || []).filter(p => onFieldB.includes(p.id)).map(p => {
                   const matchEvents = events || [];
@@ -4313,8 +4337,8 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
               </div>
             </div>
 
-            {/* Grupo: Reservas (Somente se for Amarelo ou Vermelho) */}
-            {(eventType === 'amarelo' || eventType === 'vermelho') && (
+            {/* Grupo: Reservas */}
+            {(eventType === 'amarelo' || eventType === 'vermelho' || onFieldB.length === 0 || showBenchB) && (
               <div className="roster-group bench-group">
                 <span className="roster-group-title">🪑 Banco / Reservas</span>
                 <div className="admin-player-btns">

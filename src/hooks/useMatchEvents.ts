@@ -65,7 +65,8 @@ export const useMatchEvents = (matchId: string, onNewEvent?: (event: MatchEvent)
     queryKey: ['match_events', matchId],
     queryFn: async () => {
       if (!matchId) return [];
-      const rows = await fetchPublicData<EventRow[]>('match_events', { matchId });
+      const payload = await fetchPublicData<{ data: EventRow[] }>('match_events', { matchId });
+      const rows = payload.data || [];
       const playerMap: Record<string, { name: string; photo_url?: string }> = {};
       rows.forEach((row) => {
         const player = row as unknown as MatchEvent & { players?: { name?: string; photo_url?: string }; assistant_player?: { name?: string; photo_url?: string } };
