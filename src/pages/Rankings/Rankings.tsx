@@ -91,6 +91,83 @@ const Rankings: React.FC = () => {
     }
   }, [availableRounds, selectedRound]);
 
+  const hasScorers = scorers.length > 0;
+  const roundWinner = selectedRound ? roundMvps[selectedRound] : null;
+  const roundWinnersList = selectedRound && roundMvpsList ? (roundMvpsList[selectedRound] || []) : [];
+  const highlightedPlayerId = selectedRound && roundHighlights ? roundHighlights[selectedRound] : null;
+
+  // Swipe handlers for touch devices to change selectedRound
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartXRef.current = e.touches[0].clientX;
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    touchMoveXRef.current = e.touches[0].clientX;
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    const start = touchStartXRef.current;
+    const end = touchMoveXRef.current;
+    if (start === null || end === null) return;
+    const dx = end - start;
+    const threshold = 50; // px
+    if (Math.abs(dx) > threshold && availableRounds.length > 0) {
+      const idx = availableRounds.findIndex(r => r === selectedRound);
+      if (dx < 0 && idx < availableRounds.length - 1) {
+        setSelectedRound(availableRounds[idx + 1]);
+      } else if (dx > 0 && idx > 0) {
+        setSelectedRound(availableRounds[idx - 1]);
+      }
+    }
+    touchStartXRef.current = null;
+    touchMoveXRef.current = null;
+  }, [availableRounds, selectedRound]);
+
+  const handleDownloadRankingCard = useCallback(async (
+    key: string,
+    player: RankingPlayer,
+    category: string,
+    subtitle: string,
+    theme: 'gold' | 'blue' | 'red' | 'green',
+    stats: Array<{ label: string; value: string | number }>,
+  ) => {
+    const safeName = player.name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+
+    setDownloadingCardKey(key);
+    try {
+      await downloadSocialPlayerCard({
+        fileName: `card-${category.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${safeName || player.id}`,
+        category,
+        subtitle,
+        theme,
+        player: {
+          name: player.name,
+          teamName: player.team_name,
+          position: player.position,
+          photoUrl: player.photo_url,
+          teamBadgeUrl: player.team_badge_url,
+          teamPrimaryColor: player.team_primary_color,
+        },
+        stats,
+      });
+      toast.success(`Card de ${player.name} baixado!`);
+    } catch (error) {
+      console.error('Erro ao baixar card de ranking:', error);
+      toast.error('Nao foi possivel baixar este card.');
+    } finally {
+      setDownloadingCardKey(null);
+    }
+  }, []);
+
+  const groupUnit = config?.group_unit === 'round' ? 'round' : 'night';
+  const unitLabel = groupUnit === 'round' ? 'Rodada' : 'Noite';
+  const unitChipPrefix = groupUnit === 'round' ? 'R' : 'N';
+
   if ((stuck || (!navigator.onLine && loading)) && scorers.length === 0 && assistants.length === 0 && goalkeepers.length === 0) {
     return (
       <div className="rankings-container animate-fade-in">
@@ -155,83 +232,6 @@ const Rankings: React.FC = () => {
       </div>
     </div>
   );
-
-  const hasScorers = scorers.length > 0;
-  const roundWinner = selectedRound ? roundMvps[selectedRound] : null;
-  const roundWinnersList = selectedRound && roundMvpsList ? (roundMvpsList[selectedRound] || []) : [];
-  const highlightedPlayerId = selectedRound && roundHighlights ? roundHighlights[selectedRound] : null;
-
-  // Swipe handlers for touch devices to change selectedRound
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    touchStartXRef.current = e.touches[0].clientX;
-  }, []);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    touchMoveXRef.current = e.touches[0].clientX;
-  }, []);
-
-  const handleTouchEnd = useCallback(() => {
-    const start = touchStartXRef.current;
-    const end = touchMoveXRef.current;
-    if (start === null || end === null) return;
-    const dx = end - start;
-    const threshold = 50; // px
-    if (Math.abs(dx) > threshold && availableRounds.length > 0) {
-      const idx = availableRounds.findIndex(r => r === selectedRound);
-      if (dx < 0 && idx < availableRounds.length - 1) {
-        setSelectedRound(availableRounds[idx + 1]);
-      } else if (dx > 0 && idx > 0) {
-        setSelectedRound(availableRounds[idx - 1]);
-      }
-    }
-    touchStartXRef.current = null;
-    touchMoveXRef.current = null;
-  }, [availableRounds, selectedRound]);
-
-  const groupUnit = config?.group_unit === 'round' ? 'round' : 'night';
-  const unitLabel = groupUnit === 'round' ? 'Rodada' : 'Noite';
-  const unitChipPrefix = groupUnit === 'round' ? 'R' : 'N';
-
-  const handleDownloadRankingCard = useCallback(async (
-    key: string,
-    player: RankingPlayer,
-    category: string,
-    subtitle: string,
-    theme: 'gold' | 'blue' | 'red' | 'green',
-    stats: Array<{ label: string; value: string | number }>,
-  ) => {
-    const safeName = player.name
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)/g, '');
-
-    setDownloadingCardKey(key);
-    try {
-      await downloadSocialPlayerCard({
-        fileName: `card-${category.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${safeName || player.id}`,
-        category,
-        subtitle,
-        theme,
-        player: {
-          name: player.name,
-          teamName: player.team_name,
-          position: player.position,
-          photoUrl: player.photo_url,
-          teamBadgeUrl: player.team_badge_url,
-          teamPrimaryColor: player.team_primary_color,
-        },
-        stats,
-      });
-      toast.success(`Card de ${player.name} baixado!`);
-    } catch (error) {
-      console.error('Erro ao baixar card de ranking:', error);
-      toast.error('Nao foi possivel baixar este card.');
-    } finally {
-      setDownloadingCardKey(null);
-    }
-  }, []);
 
   return (
     <div className="rankings-container animate-fade-in" ref={containerRef}>
