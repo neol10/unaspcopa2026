@@ -61,23 +61,13 @@ const createSupabaseClient = () => createClient(supabaseUrl || fallbackSupabaseU
   }
 });
 
-const createStorageClient = () => createClient(supabaseUrl || fallbackSupabaseUrl, supabaseAnonKey || fallbackSupabaseAnonKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-    detectSessionInUrl: false,
-  },
-  global: {
-    fetch: (url, options) => fetch(url, options),
-  }
-});
+const createStorageClient = () => createSupabaseClient();
 
 type SupabaseClientSingleton = ReturnType<typeof createSupabaseClient>;
 
 declare global {
   interface Window {
     __copaSupabaseClient?: SupabaseClientSingleton;
-    __copaSupabaseStorageClient?: SupabaseClientSingleton;
   }
 }
 
@@ -86,7 +76,7 @@ export const supabase: SupabaseClientSingleton =
     ? (window.__copaSupabaseClient ?? (window.__copaSupabaseClient = createSupabaseClient()))
     : createSupabaseClient();
 
-export const supabaseStorage: SupabaseClientSingleton =
-  typeof window !== 'undefined'
-    ? (window.__copaSupabaseStorageClient ?? (window.__copaSupabaseStorageClient = createStorageClient()))
-    : createStorageClient();
+// Alias para compatibilidade — usa o mesmo cliente principal
+// (evita conflito de lock do GoTrue que ocorria com um segundo cliente separado)
+export const supabaseStorage: SupabaseClientSingleton = supabase;
+

@@ -1,6 +1,6 @@
 import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { supabase, supabaseStorage } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { Trophy, Users, Calendar, Plus, Save, Trash2, Shield, ChevronDown, ChevronUp, Newspaper, CheckCircle, Play, Camera, Search, Settings2, Vote, ShieldAlert, Bell, Star, CreditCard, Target, Square, ArrowRightLeft, MessageSquare, Zap, Clock, Pause, RotateCcw, Coffee, Flag, Check } from 'lucide-react';
 import { useTeams, type Team } from '../../hooks/useTeams';
 import { usePlayers, type Player } from '../../hooks/usePlayers';
@@ -110,44 +110,20 @@ const uploadToStorage = async (file: File, bucket: string = 'images', folder: st
     const fileName = `${baseName}_${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
     const filePath = `${folder}/${fileName}`;
 
-    // Try serverless uploader first (uses service role, avoids client RLS/storage issues)
-    try {
-      const dataUrl = await fileToDataUrl(fileToUpload);
-      const resp = await fetch('/api/upload-player-photo', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ bucket, folder, fileName, dataUrl }),
-      });
-      if (resp.ok) {
-        const body = await resp.json();
-        if (body && body.publicUrl) return String(body.publicUrl);
-      }
-      // fall through to client upload if serverless uploader fails
-    } catch (e) {
-      // continue to client-side attempt
-      // eslint-disable-next-line no-console
-      console.warn('server upload failed, falling back to client upload', e);
+    // Usa exclusivamente o serverless uploader (service role, sem problemas de RLS)
+    const dataUrl = await fileToDataUrl(fileToUpload);
+    const resp = await fetch('/api/upload-player-photo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bucket, folder, fileName, dataUrl }),
+    });
+    if (resp.ok) {
+      const body = await resp.json();
+      if (body && body.publicUrl) return String(body.publicUrl);
     }
-
-    // Retry curto para reduzir falhas intermitentes em rede móvel (client fallback)
-    const { error: uploadError } = await withRetry(async () => {
-      return await supabaseStorage.storage
-        .from(bucket)
-        .upload(filePath, fileToUpload, {
-          cacheControl: '3600',
-          upsert: false,
-        });
-    }, 2);
-
-    if (uploadError) throw uploadError;
-
-    const { data } = supabaseStorage.storage
-      .from(bucket)
-      .getPublicUrl(filePath);
-
-    return data.publicUrl;
+    // Se serverless falhou, lança erro para cair no catch com fallback local
+    const errText = await resp.text().catch(() => 'Falha no upload');
+    throw new Error(errText || 'Falha no upload');
   } catch (err: unknown) {
     console.error('Upload error:', err);
     const message =

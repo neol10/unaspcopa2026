@@ -33,7 +33,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const buffer = Buffer.from(b64, 'base64');
     const filePath = `${folder}/${fileName}`;
 
-    const { error: uploadError } = await supabase.storage.from(bucket).upload(filePath, buffer, { contentType: mime, upsert: false });
+    const { error: uploadError } = await supabase.storage.from(bucket).upload(filePath, buffer, { contentType: mime, upsert: true });
     if (uploadError) {
       // best-effort telemetry
       try {

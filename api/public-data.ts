@@ -266,33 +266,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .eq('round', round);
       if (error) throw error;
       return json(res, 200, { data: data || [] });
-    }
-
-    if (resource === 'rankings') {
+    }    if (resource === 'rankings') {
       if (NO_SUPABASE) {
         return json(res, 200, { players: [], votes: [], events: [], matches: [] });
       }
-      const matchesBaseQuery = supabase
-        .from('matches')
-        .select('id, match_date, round, night, status, match_mvp_player_id, match_mvp_description, team_a_id, team_b_id, team_a_score, team_b_score')
-        .order('match_date', { ascending: true })
-        .eq('division', division);
 
+      // Busca paralela: jogadores + partidas ao mesmo tempo
       const [playersRes, matchesRes] = await Promise.all([
         supabase
           .from('players')
           .select('id, name, number, position, photo_url, goals_count, assists, yellow_cards, red_cards, clean_sheets, team_id, teams(name, badge_url, group, leader, primary_color)')
           .eq('division', division),
-        matchesBaseQuery,
+        supabase
+          .from('matches')
+          .select('id, match_date, round, night, status, match_mvp_player_id, match_mvp_description, team_a_id, team_b_id, team_a_score, team_b_score')
+          .eq('division', division)
+          .order('match_date', { ascending: true }),
       ]);
 
       let rankingPlayers = playersRes.data || [];
       if (playersRes.error) {
         try {
           await supabase.from('fallback_logs').insert([{ event: 'rankings_players_join_fallback', details: JSON.stringify({ division, error: String((playersRes.error as any)?.message || playersRes.error), ts: new Date().toISOString() }), created_at: new Date().toISOString() }]);
-        } catch (e) {
-          // ignore
-        }
+        } catch (_e) { /* ignore */ }
         const fallbackPlayers = await supabase
           .from('players')
           .select('id, name, number, position, photo_url, goals_count, assists, yellow_cards, red_cards, clean_sheets, team_id')
@@ -302,14 +298,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       if (matchesRes.error) throw matchesRes.error;
 
-      const matchIds = (matchesRes.data || []).map((match) => match.id).filter((id): id is string => Boolean(id));
-      const fetchBatches = async <Row,>(
+      const matchIds = (matchesRes.data || [])
+        .map((m) => m.id)
+        .filter((id): id is string => Boolean(id));
+
+      // Se não há partidas, retorna imediatamente sem queries adicionais
+      if (matchIds.length === 0) {
+        return json(res, 200, {
+          players: rankingPlayers,
+          votes: [],
+          events: [],
+          matches: matchesRes.data || [],
+        });
+      }
+
+      // Busca votos e eventos em paralelo, em um único batch (sem loop sequencial)
+      // Supabase aceita até 200-500 IDs em .in() sem problemas de performance
+      const CHUNK = 200;
+      const fetchAllInBatches = async <Row,>(
         queryFactory: (ids: string[]) => Promise<{ data: Row[] | null; error: Error | null }>,
-        chunkSize = 60,
-      ) => {
+      ): Promise<Row[]> => {
         const rows: Row[] = [];
-        for (let i = 0; i < matchIds.length; i += chunkSize) {
-          const ids = matchIds.slice(i, i + chunkSize);
+        for (let i = 0; i < matchIds.length; i += CHUNK) {
+          const ids = matchIds.slice(i, i + CHUNK);
           const { data, error } = await queryFactory(ids);
           if (error) throw error;
           if (Array.isArray(data) && data.length > 0) rows.push(...data);
@@ -317,21 +328,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return rows;
       };
 
+      // Ambas as queries rodam em paralelo
       const [votesData, eventsData] = await Promise.all([
-        matchIds.length > 0
-          ? fetchBatches<{ player_id: string; match_id: string }>(async (ids) =>
-              await supabase.from('match_mvp_votes').select('player_id, match_id').in('match_id', ids)
-            )
-          : Promise.resolve([]),
-        matchIds.length > 0
-          ? fetchBatches<{ match_id: string; player_id: string | null; assistant_id: string | null; event_type: string; minute: number; metadata: unknown }>(async (ids) =>
-              await supabase
-                .from('match_events')
-                .select('match_id, player_id, assistant_id, event_type, minute, metadata')
-                .in('match_id', ids)
-                .in('event_type', ['gol', 'assistencia'])
-            )
-          : Promise.resolve([]),
+        fetchAllInBatches<{ player_id: string; match_id: string }>((ids) =>
+          supabase.from('match_mvp_votes').select('player_id, match_id').in('match_id', ids)
+        ),
+        fetchAllInBatches<{ match_id: string; player_id: string | null; assistant_id: string | null; event_type: string; minute: number; metadata: unknown }>((ids) =>
+          supabase
+            .from('match_events')
+            .select('match_id, player_id, assistant_id, event_type, minute, metadata')
+            .in('match_id', ids)
+            .in('event_type', ['gol', 'assistencia'])
+        ),
       ]);
 
       return json(res, 200, {
@@ -343,6 +351,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     return json(res, 400, { error: `Unknown resource: ${resource}` });
+
   } catch (err: unknown) {
     const raw = err as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown };
     const message = typeof raw?.message === 'string' ? raw.message : (err instanceof Error ? err.message : String(err));
