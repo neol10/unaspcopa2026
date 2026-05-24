@@ -107,7 +107,7 @@ export const useRankings = () => {
           // Busca sequencial para não congestionar a instância Free Tier do Supabase,
           // E usando supabasePublic para fugir de Auth Locks de 5 segundos de usuários logados intermitentes
           const playersRes = await supabasePublic.from('players')
-              .select('id, name, number, position, goals_count, assists, yellow_cards, red_cards, clean_sheets, team_id, teams(name, badge_url, group, leader, primary_color)')
+              .select('id, name, number, position, photo_url, goals_count, assists, yellow_cards, red_cards, clean_sheets, team_id, teams(name, badge_url, group, leader, primary_color)')
               .eq('division', division);
               
           const matchesRes = await supabasePublic.from('matches')
