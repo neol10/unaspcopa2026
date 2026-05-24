@@ -104,15 +104,15 @@ export const useRankings = () => {
         let payload = prefetchedPayload;
 
         if (!payload) {
-          const [playersRes, matchesRes] = await Promise.all([
-            supabase.from('players')
+          // Busca sequencial para não congestionar a instância Free Tier do Supabase
+          const playersRes = await supabase.from('players')
               .select('id, name, number, position, photo_url, goals_count, assists, yellow_cards, red_cards, clean_sheets, team_id, teams(name, badge_url, group, leader, primary_color)')
-              .eq('division', division),
-            supabase.from('matches')
+              .eq('division', division);
+              
+          const matchesRes = await supabase.from('matches')
               .select('id, match_date, round, night, status, match_mvp_player_id, match_mvp_description, team_a_id, team_b_id, team_a_score, team_b_score')
               .eq('division', division)
-              .order('match_date', { ascending: true })
-          ]);
+              .order('match_date', { ascending: true });
 
           let votesData: { player_id: string; match_id: string }[] = [];
           let eventsData: { match_id: string; player_id: string | null; assistant_id: string | null; event_type: string; minute: number; metadata: unknown }[] = [];
@@ -120,7 +120,7 @@ export const useRankings = () => {
           const matchIds = (matchesRes.data || []).map((m) => m.id).filter(Boolean) as string[];
 
           if (matchIds.length > 0) {
-            const CHUNK = 200;
+            const CHUNK = 100;
             const fetchAllInBatches = async <Row,>(
               queryFactory: (ids: string[]) => Promise<{ data: Row[] | null; error: unknown }>,
             ): Promise<Row[]> => {
@@ -133,14 +133,14 @@ export const useRankings = () => {
               return rows;
             };
 
-            const [votes, events] = await Promise.all([
-              fetchAllInBatches<{ player_id: string; match_id: string }>(async (ids) =>
+            // Batch fetch sequencial também para aliviar o banco
+            const votes = await fetchAllInBatches<{ player_id: string; match_id: string }>(async (ids) =>
                 supabase.from('match_mvp_votes').select('player_id, match_id').in('match_id', ids)
-              ),
-              fetchAllInBatches<{ match_id: string; player_id: string | null; assistant_id: string | null; event_type: string; minute: number; metadata: unknown }>(async (ids) =>
+            );
+            
+            const events = await fetchAllInBatches<{ match_id: string; player_id: string | null; assistant_id: string | null; event_type: string; minute: number; metadata: unknown }>(async (ids) =>
                 supabase.from('match_events').select('match_id, player_id, assistant_id, event_type, minute, metadata').in('match_id', ids).in('event_type', ['gol', 'assistencia'])
-              ),
-            ]);
+            );
 
             votesData = votes;
             eventsData = events;

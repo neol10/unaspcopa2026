@@ -15,7 +15,9 @@ export interface MvpVoteCount {
 export const useMvpVoting = (round: string) => {
   const queryClient = useQueryClient();
   const { user } = useAuthContext();
-  const cacheKey = `round_mvp_cache_v1_${round || 'none'}`;
+  const anonId = typeof window !== 'undefined' ? (localStorage.getItem('anon_device_id') || (() => { const id = crypto.randomUUID(); localStorage.setItem('anon_device_id', id); return id; })()) : 'anon';
+  const effectiveUserId = user?.id || anonId;
+  const cacheKey = `round_mvp_cache_v1_${round || 'none'}_${effectiveUserId}`;
 
   const loadCachedVotes = () => shouldUseClientCache() ? readFreshCache<{ voteCounts: MvpVoteCount[]; userVote: string | null }>(cacheKey, 1000 * 60 * 2) : null;
 
@@ -49,13 +51,11 @@ export const useMvpVoting = (round: string) => {
       
       // Busca o voto do usuário logado (filtrando por userId)
       let myPlayerId: string | null = null;
-      if (user) {
-        try {
-          const myVoteRes = await fetchPublicData<{ data: Array<{ player_id: string }> }>('round_mvp_votes', { round, userId: user.id });
-          myPlayerId = (myVoteRes.data && myVoteRes.data.length > 0) ? myVoteRes.data[0].player_id : null;
-        } catch {
-          // Se falhar, assume que não votou
-        }
+      try {
+        const myVoteRes = await fetchPublicData<{ data: Array<{ player_id: string }> }>('round_mvp_votes', { round, userId: effectiveUserId });
+        myPlayerId = (myVoteRes.data && myVoteRes.data.length > 0) ? myVoteRes.data[0].player_id : null;
+      } catch {
+        // Se falhar, assume que não votou
       }
 
       const counts: Record<string, MvpVoteCount> = {};
@@ -89,14 +89,27 @@ export const useMvpVoting = (round: string) => {
 
   const voteMutation = useMutation({
     mutationFn: async (playerId: string) => {
-      if (!user) throw new Error('Faça login para votar!');
+      let error = null;
+      if (user) {
+        const res = await supabase.from('round_mvp_votes').insert({
+          user_id: user.id,
+          player_id: playerId,
+          round,
+        });
+        error = res.error;
+      }
       
-      const { error } = await supabase.from('round_mvp_votes').insert({
-        user_id: user.id,
-        player_id: playerId,
-        round,
-      });
-      if (error) throw error;
+      if (!user || error) {
+        const response = await fetch('/api/public-data?resource=round_mvp_votes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ round, playerId, userId: effectiveUserId }),
+        });
+        if (!response.ok) {
+          const body = await response.text().catch(() => '');
+          throw new Error(body || 'Falha ao registrar voto');
+        }
+      }
       return playerId;
     },
     onSuccess: () => {

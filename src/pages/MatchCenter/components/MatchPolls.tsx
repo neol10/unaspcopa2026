@@ -60,10 +60,6 @@ export const MatchPolls: React.FC<MatchPollsProps> = ({
   };
 
   const handleVote = (option: 'team_a' | 'draw' | 'team_b') => {
-    if (!user) {
-      onShowAuthModal();
-      return;
-    }
     if (navigator.vibrate) navigator.vibrate(50);
     onCastWinnerVote(option);
   };

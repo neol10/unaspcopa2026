@@ -251,6 +251,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return json(res, 200, { ok: true });
     }
 
+    if (req.method === 'POST' && resource === 'round_mvp_votes') {
+      if (NO_SUPABASE) return json(res, 200, { ok: true });
+      const body = typeof req.body === 'string' ? (() => { try { return JSON.parse(req.body); } catch { return {}; } })() : (req.body || {});
+      const userId = String(body.userId || '').trim();
+      const playerId = String(body.playerId || '').trim();
+      const bodyRound = String(body.round || '').trim();
+      if (!userId || !playerId || !bodyRound) return json(res, 400, { error: 'userId, playerId and round required' });
+
+      // O usuário votou antes? Não podemos usar upsert sem onConflict explícito. Mas RLS foi removido, então insert
+      // Mas para evitar erro caso não tenha UUID PK
+      const { error } = await supabase.from('round_mvp_votes').insert({ user_id: userId, player_id: playerId, round: bodyRound });
+      if (error) throw error;
+      return json(res, 200, { ok: true });
+    }
+
     if (resource === 'polls') {
       if (NO_SUPABASE) return json(res, 200, { data: null });
       const { data, error } = await supabase

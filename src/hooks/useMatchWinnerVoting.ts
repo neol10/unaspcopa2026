@@ -17,7 +17,9 @@ export interface MatchWinnerVotes {
 export const useMatchWinnerVoting = (matchId: string) => {
   const { user } = useAuthContext();
   const queryClient = useQueryClient();
-  const cacheKey = `match_winner_votes_cache_v1_${matchId || 'none'}_${user?.id || 'anon'}`;
+  const anonId = typeof window !== 'undefined' ? (localStorage.getItem('anon_device_id') || (() => { const id = crypto.randomUUID(); localStorage.setItem('anon_device_id', id); return id; })()) : 'anon';
+  const effectiveUserId = user?.id || anonId;
+  const cacheKey = `match_winner_votes_cache_v1_${matchId || 'none'}_${effectiveUserId}`;
 
   const loadCachedVotes = () => shouldUseClientCache() ? readFreshCache<{ votes: MatchWinnerVotes; userVote: WinnerVoteOption | null }>(cacheKey, 1000 * 60 * 2) : null;
 
@@ -42,7 +44,7 @@ export const useMatchWinnerVoting = (matchId: string) => {
 
       const votesRes = await fetchPublicData<{ data: { vote: WinnerVoteOption; user_id?: string | null }[]; userVote?: WinnerVoteOption | null }>('match_winner_votes', {
         matchId,
-        userId: user?.id || '',
+        userId: effectiveUserId,
       });
 
       const counts: MatchWinnerVotes = { team_a: 0, draw: 0, team_b: 0, total: 0 };
@@ -68,22 +70,24 @@ export const useMatchWinnerVoting = (matchId: string) => {
 
   const voteMutation = useMutation({
     mutationFn: async (vote: WinnerVoteOption) => {
-      if (!user) throw new Error('Faça login para votar!');
       if (!matchId) return;
 
-      // Inserindo diretamente no Supabase (sem serverless) para evitar cold starts.
-      // O RLS garante que auth.uid() = user_id na tabela match_winner_votes.
-      const { error } = await supabase.from('match_winner_votes').upsert(
-        { match_id: matchId, user_id: user.id, vote },
-        { onConflict: 'match_id,user_id' }
-      );
+      let error = null;
+      if (user) {
+        // Se logado, tenta direto pelo cliente
+        const res = await supabase.from('match_winner_votes').upsert(
+          { match_id: matchId, user_id: user.id, vote },
+          { onConflict: 'match_id,user_id' }
+        );
+        error = res.error;
+      }
 
-      if (error) {
-        // Fallback: tenta pela rota serverless se o cliente direto falhar
+      if (!user || error) {
+        // Fallback para serverless (ou anônimo, que obrigatoriamente usa serverless pra pular RLS)
         const response = await fetch('/api/public-data?resource=match_winner_votes', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ matchId, userId: user.id, vote }),
+          body: JSON.stringify({ matchId, userId: effectiveUserId, vote }),
         });
         if (!response.ok) {
           const body = await response.text().catch(() => '');
