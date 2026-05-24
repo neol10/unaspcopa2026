@@ -4,7 +4,6 @@ import { supabase } from '../lib/supabase';
 import { useDivisionContext } from '../contexts/DivisionContext';
 import { useTournamentConfig } from './useTournamentConfig';
 import { readFreshCache, shouldUseClientCache } from '../lib/clientCache';
-import { fetchPublicData } from '../lib/apiData';
 import { Player } from './usePlayers';
 import { trackFallback } from '../lib/telemetry';
 
@@ -101,7 +100,59 @@ export const useRankings = () => {
       try {
         const fetchStart = performance.now();
         const prefetchedPayload = queryClient.getQueryData<RankingsPayload>(['rankings-payload', division]);
-        const payload = prefetchedPayload || await fetchPublicData<RankingsPayload>('rankings', { division });
+        
+        let payload = prefetchedPayload;
+
+        if (!payload) {
+          const [playersRes, matchesRes] = await Promise.all([
+            supabase.from('players')
+              .select('id, name, number, position, photo_url, goals_count, assists, yellow_cards, red_cards, clean_sheets, team_id, teams(name, badge_url, group, leader, primary_color)')
+              .eq('division', division),
+            supabase.from('matches')
+              .select('id, match_date, round, night, status, match_mvp_player_id, match_mvp_description, team_a_id, team_b_id, team_a_score, team_b_score')
+              .eq('division', division)
+              .order('match_date', { ascending: true })
+          ]);
+
+          let votesData: { player_id: string; match_id: string }[] = [];
+          let eventsData: { match_id: string; player_id: string | null; assistant_id: string | null; event_type: string; minute: number; metadata: unknown }[] = [];
+
+          const matchIds = (matchesRes.data || []).map((m) => m.id).filter(Boolean) as string[];
+
+          if (matchIds.length > 0) {
+            const CHUNK = 200;
+            const fetchAllInBatches = async <Row,>(
+              queryFactory: (ids: string[]) => Promise<{ data: Row[] | null; error: unknown }>,
+            ): Promise<Row[]> => {
+              const rows: Row[] = [];
+              for (let i = 0; i < matchIds.length; i += CHUNK) {
+                const ids = matchIds.slice(i, i + CHUNK);
+                const { data, error } = await queryFactory(ids);
+                if (!error && Array.isArray(data)) rows.push(...data);
+              }
+              return rows;
+            };
+
+            const [votes, events] = await Promise.all([
+              fetchAllInBatches<{ player_id: string; match_id: string }>(async (ids) =>
+                supabase.from('match_mvp_votes').select('player_id, match_id').in('match_id', ids)
+              ),
+              fetchAllInBatches<{ match_id: string; player_id: string | null; assistant_id: string | null; event_type: string; minute: number; metadata: unknown }>(async (ids) =>
+                supabase.from('match_events').select('match_id, player_id, assistant_id, event_type, minute, metadata').in('match_id', ids).in('event_type', ['gol', 'assistencia'])
+              ),
+            ]);
+
+            votesData = votes;
+            eventsData = events;
+          }
+
+          payload = {
+            players: playersRes.data || [],
+            matches: matchesRes.data || [],
+            votes: votesData,
+            events: eventsData,
+          };
+        }
         console.log('[Rankings] Fetch took', (performance.now() - fetchStart).toFixed(0), 'ms');
         console.log('[Rankings] Payload sizes - players:', payload.players?.length, 'votes:', payload.votes?.length, 'events:', payload.events?.length, 'matches:', payload.matches?.length);
 
