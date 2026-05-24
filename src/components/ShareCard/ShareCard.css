@@ -17,14 +17,17 @@
   font-family: 'Inter', sans-serif;
 }
 
+.dynamic-bg-split {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
 .share-card-canvas::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: 
-    radial-gradient(circle at 10% 10%, rgba(251, 191, 36, 0.15) 0%, transparent 40%),
-    radial-gradient(circle at 90% 90%, rgba(0, 176, 255, 0.15) 0%, transparent 40%),
-    radial-gradient(circle at 50% 50%, rgba(255, 45, 45, 0.1) 0%, transparent 60%);
+  background: rgba(0, 0, 0, 0.45); /* Overlay p/ não deixar a cor super saturada */
   z-index: 1;
 }
 
@@ -118,14 +121,6 @@
   filter: drop-shadow(0 0 30px rgba(0,0,0,0.5));
 }
 
-.badge-frame .glow {
-  position: absolute;
-  inset: -20px;
-  background: radial-gradient(circle, var(--secondary) 0%, transparent 70%);
-  opacity: 0.1;
-  z-index: -1;
-}
-
 .team-name-social {
   font-size: 2.6rem;
   font-weight: 800;
@@ -159,7 +154,33 @@
 .vs-social {
   font-size: 3.5rem;
   font-weight: 200;
-  opacity: 0.3;
+  opacity: 0.5;
+}
+
+.pre-match-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.vs-big {
+  font-size: 8rem;
+  font-weight: 900;
+  color: #ffffff;
+  opacity: 0.8;
+  letter-spacing: 5px;
+}
+
+.pre-match-date {
+  font-size: 2.2rem;
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 15px 40px;
+  border-radius: 50px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  text-transform: uppercase;
+  letter-spacing: 2px;
 }
 
 .mvp-footer-card {

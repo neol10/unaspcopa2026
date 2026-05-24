@@ -32,8 +32,8 @@ export interface Match {
   timer_started_at?: string | null;
   timer_offset_seconds: number;
   is_timer_running: boolean;
-  teams_a?: { name: string; badge_url: string; group: string };
-  teams_b?: { name: string; badge_url: string; group: string };
+  teams_a?: { name: string; badge_url: string; group: string; primary_color?: string };
+  teams_b?: { name: string; badge_url: string; group: string; primary_color?: string };
 }
 
 export const useMatches = (limit?: number) => {
@@ -86,8 +86,8 @@ export const useMatches = (limit?: number) => {
           'timer_started_at',
           'timer_offset_seconds',
           'is_timer_running',
-          'teams_a:teams!team_a_id(name, badge_url, group)',
-          'teams_b:teams!team_b_id(name, badge_url, group)',
+          'teams_a:teams!team_a_id(name, badge_url, group, primary_color)',
+          'teams_b:teams!team_b_id(name, badge_url, group, primary_color)',
         ];
         return fields.join(',\n');
       };
