@@ -17,6 +17,7 @@ export const useShareCard = () => {
   const downloadCard = async (matchId: string) => {
     if (!cardRef.current) return;
     try {
+      await document.fonts.ready;
       const dataUrl = await toPng(cardRef.current, {
         quality: 1.0,
         pixelRatio: 2, // High resolution for Retina/Sharing

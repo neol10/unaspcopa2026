@@ -3706,7 +3706,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                     onClick={() => setMvpData({ player_id: p.player_id, description: p.description })}
                   >
                     <div className="mvp-pick-info">
-                      <span className="mvp-pick-name">{p.number}. {p.name}</span>
+                      <span className="mvp-pick-name">{p.name}</span>
                       <span className="mvp-pick-stats">{p.description}</span>
                     </div>
                     {mvpData.player_id === p.player_id && <Check size={16} />}
@@ -3736,7 +3736,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                     <optgroup label={match.teams_a?.name}>
                       {(playersA || []).map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.number}. {p.name}
+                          {p.name}
                         </option>
                       ))}
                     </optgroup>
@@ -3745,7 +3745,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                     <optgroup label={match.teams_b?.name}>
                       {(playersB || []).map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.number}. {p.name}
+                          {p.name}
                         </option>
                       ))}
                     </optgroup>
@@ -4110,14 +4110,14 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                   <label>SAI (OUT)</label>
                   <select value={playerOutId} onChange={e => { setPlayerOutId(e.target.value); setAssistantId(''); }}>
                     <option value="">Selecione...</option>
-                    {(playersA || []).filter(p => onFieldA.includes(p.id)).map(p => <option key={`out-a-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
+                    {(playersA || []).filter(p => onFieldA.includes(p.id)).map(p => <option key={`out-a-${p.id}`} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
                 <div className="form-group-mini">
                   <label>ENTRA (IN)</label>
                   <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
                     <option value="">Selecione...</option>
-                    {(playersA || []).filter(p => !onFieldA.includes(p.id)).map(p => <option key={`in-a-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
+                    {(playersA || []).filter(p => !onFieldA.includes(p.id)).map(p => <option key={`in-a-${p.id}`} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
                 <button 
@@ -4139,14 +4139,14 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                   <label>SAI (OUT)</label>
                   <select value={playerOutId} onChange={e => { setPlayerOutId(e.target.value); setAssistantId(''); }}>
                     <option value="">Selecione...</option>
-                    {(playersB || []).filter(p => onFieldB.includes(p.id)).map(p => <option key={`out-b-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
+                    {(playersB || []).filter(p => onFieldB.includes(p.id)).map(p => <option key={`out-b-${p.id}`} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
                 <div className="form-group-mini">
                   <label>ENTRA (IN)</label>
                   <select value={assistantId} onChange={e => setAssistantId(e.target.value)}>
                     <option value="">Selecione...</option>
-                    {(playersB || []).filter(p => !onFieldB.includes(p.id)).map(p => <option key={`in-b-${p.id}`} value={p.id}>{p.number}. {p.name}</option>)}
+                    {(playersB || []).filter(p => !onFieldB.includes(p.id)).map(p => <option key={`in-b-${p.id}`} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
                 <button 
@@ -8369,7 +8369,7 @@ const GlobalPlayerManagement = () => {
                 <div className="item-main">
                   <img src={p.photo_url || '/favicon.svg'} alt={p.name} className="player-mini-photo" />
                   <div className="item-info">
-                    <strong>{p.name} (#{p.number})</strong>
+                    <strong>{p.name}</strong>
                     <span>{p.team_name || p.teams?.name} • {p.position}</span>
                   </div>
                 </div>

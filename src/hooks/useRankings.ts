@@ -102,9 +102,6 @@ export const useRankings = () => {
         const fetchStart = performance.now();
         const prefetchedPayload = queryClient.getQueryData<RankingsPayload>(['rankings-payload', division]);
         const payload = prefetchedPayload || await fetchPublicData<RankingsPayload>('rankings', { division });
-        if (!prefetchedPayload) {
-          queryClient.setQueryData(['rankings-payload', division], payload);
-        }
         console.log('[Rankings] Fetch took', (performance.now() - fetchStart).toFixed(0), 'ms');
         console.log('[Rankings] Payload sizes - players:', payload.players?.length, 'votes:', payload.votes?.length, 'events:', payload.events?.length, 'matches:', payload.matches?.length);
 

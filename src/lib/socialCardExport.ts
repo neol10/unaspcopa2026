@@ -375,6 +375,7 @@ export const downloadSocialPlayerCard = async ({
   document.body.appendChild(mount);
 
   try {
+    await document.fonts.ready;
     await waitForImages(card);
     const dataUrl = await toPng(card, {
       quality: 1,

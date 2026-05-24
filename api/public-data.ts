@@ -23,13 +23,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+    // Cliente com timeout de 8s para evitar requests pendurados (cold start Supabase)
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+      global: {
+        fetch: (url, options) => {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 8000);
+          return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
+        },
+      },
+    });
     const resource = String(req.query.resource || '');
     const division = String(req.query.division || '').trim();
     const teamId = String(req.query.teamId || '').trim();
     const matchId = String(req.query.matchId || '').trim();
     const round = String(req.query.round || '').trim();
     const limit = Number(req.query.limit || 0) || 0;
+
+    // Cache CDN: Vercel serve resposta cacheada por 30s, stale por mais 2 min.
+    // Isso evita cold-starts contínuos no Supabase e acelera imensamente o Admin e os menus.
+    if (!['profile_role', 'tournament_config'].includes(resource)) {
+      res.setHeader('Cache-Control', 's-maxage=30, stale-while-revalidate=120');
+    }
 
     if (resource === 'profile_role') {
       const uid = String(req.query.uid || '').trim();
