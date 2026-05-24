@@ -63,18 +63,19 @@ const createStatTile = (label: string, value: string | number, primary: string) 
 
   const valueEl = document.createElement('strong');
   valueEl.textContent = String(value);
-  valueEl.style.fontSize = '34px';
+  valueEl.style.fontSize = '42px';
   valueEl.style.lineHeight = '1';
-  valueEl.style.color = primary;
+  valueEl.style.color = '#ffffff';
+  valueEl.style.textShadow = `0 0 15px ${primary}`;
   valueEl.style.fontWeight = '900';
 
   const labelEl = document.createElement('span');
   labelEl.textContent = label;
   labelEl.style.fontSize = '18px';
-  labelEl.style.color = 'rgba(255,255,255,0.82)';
-  labelEl.style.fontWeight = '700';
+  labelEl.style.color = primary;
+  labelEl.style.fontWeight = '800';
   labelEl.style.textTransform = 'uppercase';
-  labelEl.style.letterSpacing = '0.08em';
+  labelEl.style.letterSpacing = '0.12em';
 
   tile.append(valueEl, labelEl);
   return tile;
@@ -195,10 +196,20 @@ export const downloadSocialPlayerCard = async ({
   card.style.color = '#ffffff';
   card.style.fontFamily = "'Poppins', 'Segoe UI', sans-serif";
   card.style.background = teamAccentRgb
-    ? `radial-gradient(circle at 85% 15%, rgba(${teamAccentRgb}, 0.34), transparent 45%), linear-gradient(160deg, rgba(${teamAccentRgb}, 0.18) 0%, #121c2f 45%, #111827 100%)`
-    : `radial-gradient(circle at 85% 15%, ${colors.glow}, transparent 45%), linear-gradient(160deg, #0b1220 0%, #121c2f 45%, #111827 100%)`;
-  card.style.border = `2px solid ${colors.glow}`;
+    ? `radial-gradient(circle at 85% 15%, rgba(${teamAccentRgb}, 0.5), transparent 50%), radial-gradient(circle at 15% 85%, rgba(${teamAccentRgb}, 0.2), transparent 50%), linear-gradient(135deg, #0b1220 0%, #151e32 100%)`
+    : `radial-gradient(circle at 85% 15%, ${colors.glow}, transparent 50%), linear-gradient(135deg, #0b1220 0%, #151e32 100%)`;
+  card.style.border = `2px solid rgba(255,255,255,0.1)`;
+  card.style.boxShadow = `inset 0 0 100px rgba(0,0,0,0.8), 0 0 40px ${colors.glow}`;
   card.style.position = 'relative';
+
+  // Textura overlay
+  const overlay = document.createElement('div');
+  overlay.style.position = 'absolute';
+  overlay.style.inset = '0';
+  overlay.style.opacity = '0.03';
+  overlay.style.backgroundImage = 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'1\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")';
+  overlay.style.zIndex = '0';
+  card.appendChild(overlay);
 
   const topRow = document.createElement('div');
   topRow.style.display = 'flex';
@@ -220,10 +231,13 @@ export const downloadSocialPlayerCard = async ({
   const categoryEl = document.createElement('h1');
   categoryEl.textContent = category;
   categoryEl.style.margin = '0';
-  categoryEl.style.fontSize = '74px';
-  categoryEl.style.lineHeight = '0.95';
-  categoryEl.style.letterSpacing = '-0.02em';
+  categoryEl.style.fontSize = '84px';
+  categoryEl.style.lineHeight = '1';
+  categoryEl.style.letterSpacing = '-0.03em';
   categoryEl.style.fontWeight = '900';
+  categoryEl.style.background = `linear-gradient(to right, #ffffff, ${colors.secondary})`;
+  categoryEl.style.webkitBackgroundClip = 'text';
+  categoryEl.style.webkitTextFillColor = 'transparent';
 
   const subtitleEl = document.createElement('p');
   subtitleEl.textContent = subtitle || 'Card oficial para compartilhamento';
@@ -235,11 +249,12 @@ export const downloadSocialPlayerCard = async ({
   labelWrap.append(tourney, categoryEl, subtitleEl);
 
   const badgeWrap = document.createElement('div');
-  badgeWrap.style.width = '124px';
-  badgeWrap.style.height = '124px';
-  badgeWrap.style.borderRadius = '26px';
-  badgeWrap.style.border = '1px solid rgba(255,255,255,0.2)';
-  badgeWrap.style.background = 'rgba(255,255,255,0.06)';
+  badgeWrap.style.width = '140px';
+  badgeWrap.style.height = '140px';
+  badgeWrap.style.borderRadius = '50%';
+  badgeWrap.style.border = `2px solid ${colors.secondary}`;
+  badgeWrap.style.boxShadow = `0 0 30px ${colors.glow}`;
+  badgeWrap.style.background = 'rgba(0,0,0,0.4)';
   badgeWrap.style.display = 'flex';
   badgeWrap.style.alignItems = 'center';
   badgeWrap.style.justifyContent = 'center';
@@ -270,24 +285,36 @@ export const downloadSocialPlayerCard = async ({
   middle.style.alignItems = 'center';
 
   const avatarWrap = document.createElement('div');
-  avatarWrap.style.width = '310px';
-  avatarWrap.style.height = '310px';
-  avatarWrap.style.borderRadius = '32px';
+  avatarWrap.style.width = '350px';
+  avatarWrap.style.height = '350px';
+  avatarWrap.style.borderRadius = '24px';
   avatarWrap.style.overflow = 'hidden';
-  avatarWrap.style.border = `2px solid ${colors.glow}`;
-  avatarWrap.style.background = 'rgba(255,255,255,0.04)';
+  avatarWrap.style.border = `2px solid ${colors.secondary}`;
+  avatarWrap.style.background = `linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.01))`;
+  avatarWrap.style.boxShadow = `0 0 50px ${colors.glow}`;
   avatarWrap.style.display = 'flex';
   avatarWrap.style.alignItems = 'center';
   avatarWrap.style.justifyContent = 'center';
+  avatarWrap.style.position = 'relative';
+  
+  const innerGlow = document.createElement('div');
+  innerGlow.style.position = 'absolute';
+  innerGlow.style.inset = '0';
+  innerGlow.style.background = `radial-gradient(circle at center, transparent 30%, rgba(0,0,0,0.4) 100%)`;
+  innerGlow.style.zIndex = '1';
+  avatarWrap.appendChild(innerGlow);
 
   if (player.photoUrl) {
     const photo = document.createElement('img');
     photo.crossOrigin = 'anonymous';
     photo.src = player.photoUrl;
     photo.alt = player.name;
-    photo.width = 310;
-    photo.height = 310;
-    photo.style.objectFit = 'contain';
+    photo.width = 350;
+    photo.height = 350;
+    photo.style.objectFit = 'cover';
+    photo.style.position = 'relative';
+    photo.style.zIndex = '2';
+    photo.style.filter = 'drop-shadow(0px 10px 20px rgba(0,0,0,0.5))';
     avatarWrap.appendChild(photo);
   } else {
     const noPhoto = document.createElement('span');
@@ -306,16 +333,18 @@ export const downloadSocialPlayerCard = async ({
   const nameEl = document.createElement('h2');
   nameEl.textContent = player.name;
   nameEl.style.margin = '0';
-  nameEl.style.fontSize = '64px';
-  nameEl.style.lineHeight = '0.98';
+  nameEl.style.fontSize = '72px';
+  nameEl.style.lineHeight = '0.9';
   nameEl.style.letterSpacing = '-0.02em';
+  nameEl.style.textShadow = '0 10px 20px rgba(0,0,0,0.5)';
 
   const teamEl = document.createElement('p');
   teamEl.textContent = player.teamName || 'Equipe da Copa Unasp';
   teamEl.style.margin = '0';
-  teamEl.style.fontSize = '31px';
-  teamEl.style.fontWeight = '600';
+  teamEl.style.fontSize = '34px';
+  teamEl.style.fontWeight = '700';
   teamEl.style.color = colors.secondary;
+  teamEl.style.textShadow = `0 0 20px ${colors.glow}`;
 
   const positionChip = document.createElement('span');
   positionChip.textContent = player.position || 'Atleta';
@@ -367,10 +396,19 @@ export const downloadSocialPlayerCard = async ({
   const body = document.createElement('div');
   body.style.display = 'flex';
   body.style.flexDirection = 'column';
-  body.style.gap = '38px';
+  body.style.gap = '50px';
+  body.style.position = 'relative';
+  body.style.zIndex = '10';
   body.append(middle, statsWrap);
 
   card.append(topRow, body, footer);
+  
+  // Garantir que todos os elementos respeitam o z-index para ficar acima do overlay
+  topRow.style.position = 'relative';
+  topRow.style.zIndex = '10';
+  footer.style.position = 'relative';
+  footer.style.zIndex = '10';
+  
   mount.append(card);
   document.body.appendChild(mount);
 
