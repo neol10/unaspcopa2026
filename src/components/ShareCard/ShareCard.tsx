@@ -6,9 +6,6 @@ import logo from '../../assets/unasp_logo.png';
 import './ShareCard.css';
 import type { Match } from '../../hooks/useMatches';
 
-import { format, parseISO } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-
 interface ShareCardProps {
   match?: Match | null;
   mvpPlayer?: { name: string } | null;
@@ -85,7 +82,7 @@ const ShareCard: React.FC<ShareCardProps & { innerRef: React.RefObject<HTMLDivEl
                   <span className="vs-big">VS</span>
                   {match?.match_date && (
                     <div className="pre-match-date">
-                      {format(parseISO(match.match_date), "dd 'de' MMMM 'às' HH:mm", { locale: ptBR })}
+                      {new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' }).format(new Date(match.match_date)).replace(' de ', ' de ').replace(', ', ' às ')}
                     </div>
                   )}
                 </div>
