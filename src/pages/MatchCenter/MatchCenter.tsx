@@ -572,11 +572,15 @@ const MatchCenter: React.FC = () => {
                   <div className="side-header"><Award size={18} /> <h3>Craque da {config.group_unit === 'round' ? 'Rodada' : 'Noite'}</h3></div>
                   {roundMvpLoading ? <Skeleton height="100px" /> : (
                     <div className="mvp-ranking-list">
-                      {roundVotes.slice(0, 3).map((v, i) => (
-                        <div key={v.player_id} className="mvp-rank-item">
-                          #{i+1} {v.player_name || 'Desconhecido'}{v.team_name ? ` (${v.team_name})` : ''} — {v.vote_count} voto{v.vote_count === 1 ? '' : 's'}
-                        </div>
-                      ))}
+                      {roundVotes.length === 0 ? (
+                        <p className="text-sm text-dim p-4 text-center">Aguardando apuração...</p>
+                      ) : (
+                        roundVotes.slice(0, 3).map((v, i) => (
+                          <div key={v.player_id} className="mvp-rank-item">
+                            #{i+1} {v.player_name || 'Desconhecido'}{v.team_name ? ` (${v.team_name})` : ''} — {v.vote_count} voto{v.vote_count === 1 ? '' : 's'}
+                          </div>
+                        ))
+                      )}
                     </div>
                   )}
                 </div>
