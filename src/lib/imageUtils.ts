@@ -1,8 +1,8 @@
 export const MAX_IMAGE_INPUT_MB = 20;
 export const MAX_IMAGE_UPLOAD_MB = 8;
-export const COMPRESS_MIN_BYTES = 10 * 1024; // 10KB
-export const COMPRESS_MAX_DIM = 200;
-export const COMPRESS_QUALITY = 0.65;
+export const COMPRESS_MIN_BYTES = 20 * 1024; // 20KB
+export const COMPRESS_MAX_DIM = 400;
+export const COMPRESS_QUALITY = 0.75;
 
 /**
  * Validates a file before compression
