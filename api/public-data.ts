@@ -23,16 +23,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    // Cliente com timeout de 8s para evitar requests pendurados (cold start Supabase)
-    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-      global: {
-        fetch: (url, options) => {
-          const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), 8000);
-          return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
-        },
-      },
-    });
+    // Cliente Supabase com controle padrão do Vercel
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
     const resource = String(req.query.resource || '');
     const division = String(req.query.division || '').trim();
     const teamId = String(req.query.teamId || '').trim();
