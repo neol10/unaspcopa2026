@@ -61,7 +61,6 @@ const createSupabaseClient = () => createClient(supabaseUrl || fallbackSupabaseU
   }
 });
 
-const createStorageClient = () => createSupabaseClient();
 
 type SupabaseClientSingleton = ReturnType<typeof createSupabaseClient>;
 
