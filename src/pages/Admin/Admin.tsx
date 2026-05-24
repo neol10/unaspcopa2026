@@ -131,9 +131,9 @@ const uploadToStorage = async (file: File, bucket: string = 'images', folder: st
         ? String((err as { message: string }).message)
         : null;
 
-    const fallbackDataUrl = await fileToDataUrl(file);
+    const fallbackDataUrl = await fileToDataUrl(fileToUpload);
     if (fallbackDataUrl) {
-      toast.success('Upload externo indisponivel. Imagem aplicada localmente.');
+      toast.success('Upload externo indisponivel. Imagem aplicada localmente (Comprimida).');
       return fallbackDataUrl;
     }
 
