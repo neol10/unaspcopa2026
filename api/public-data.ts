@@ -330,10 +330,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Ambas as queries rodam em paralelo
       const [votesData, eventsData] = await Promise.all([
-        fetchAllInBatches<{ player_id: string; match_id: string }>((ids) =>
+        fetchAllInBatches<{ player_id: string; match_id: string }>(async (ids) =>
           supabase.from('match_mvp_votes').select('player_id, match_id').in('match_id', ids)
         ),
-        fetchAllInBatches<{ match_id: string; player_id: string | null; assistant_id: string | null; event_type: string; minute: number; metadata: unknown }>((ids) =>
+        fetchAllInBatches<{ match_id: string; player_id: string | null; assistant_id: string | null; event_type: string; minute: number; metadata: unknown }>(async (ids) =>
           supabase
             .from('match_events')
             .select('match_id, player_id, assistant_id, event_type, minute, metadata')
@@ -341,6 +341,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             .in('event_type', ['gol', 'assistencia'])
         ),
       ]);
+
 
       return json(res, 200, {
         players: rankingPlayers,
