@@ -159,7 +159,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return json(res, 200, { data: data || [] });
     }
 
-    if (resource === 'match_winner_votes') {
+    if (req.method === 'GET' && resource === 'match_winner_votes') {
       if (!matchId) return json(res, 400, { error: 'matchId required' });
       if (NO_SUPABASE) return json(res, 200, { data: [], userVote: null });
       const includeProfiles = String(req.query.includeProfiles || '').trim() === '1' || String(req.query.includeProfiles || '').trim().toLowerCase() === 'true';
