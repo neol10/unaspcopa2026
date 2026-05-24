@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
+import { supabase, supabasePublic } from '../lib/supabase';
 import { useDivisionContext } from '../contexts/DivisionContext';
 import { useTournamentConfig } from './useTournamentConfig';
 import { readFreshCache, shouldUseClientCache } from '../lib/clientCache';
@@ -104,12 +104,13 @@ export const useRankings = () => {
         let payload = prefetchedPayload;
 
         if (!payload) {
-          // Busca sequencial para não congestionar a instância Free Tier do Supabase
-          const playersRes = await supabase.from('players')
+          // Busca sequencial para não congestionar a instância Free Tier do Supabase,
+          // E usando supabasePublic para fugir de Auth Locks de 5 segundos de usuários logados intermitentes
+          const playersRes = await supabasePublic.from('players')
               .select('id, name, number, position, goals_count, assists, yellow_cards, red_cards, clean_sheets, team_id, teams(name, badge_url, group, leader, primary_color)')
               .eq('division', division);
               
-          const matchesRes = await supabase.from('matches')
+          const matchesRes = await supabasePublic.from('matches')
               .select('id, match_date, round, night, status, match_mvp_player_id, match_mvp_description, team_a_id, team_b_id, team_a_score, team_b_score')
               .eq('division', division)
               .order('match_date', { ascending: true });
@@ -135,11 +136,11 @@ export const useRankings = () => {
 
             // Batch fetch sequencial também para aliviar o banco
             const votes = await fetchAllInBatches<{ player_id: string; match_id: string }>(async (ids) =>
-                supabase.from('match_mvp_votes').select('player_id, match_id').in('match_id', ids)
+                supabasePublic.from('match_mvp_votes').select('player_id, match_id').in('match_id', ids)
             );
             
             const events = await fetchAllInBatches<{ match_id: string; player_id: string | null; assistant_id: string | null; event_type: string; minute: number; metadata: unknown }>(async (ids) =>
-                supabase.from('match_events').select('match_id, player_id, assistant_id, event_type, minute, metadata').in('match_id', ids).in('event_type', ['gol', 'assistencia'])
+                supabasePublic.from('match_events').select('match_id, player_id, assistant_id, event_type, minute, metadata').in('match_id', ids).in('event_type', ['gol', 'assistencia'])
             );
 
             votesData = votes;

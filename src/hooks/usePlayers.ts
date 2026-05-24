@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
+import { supabase, supabasePublic } from '../lib/supabase';
 import { useDivisionContext } from '../contexts/DivisionContext';
 import type { Division } from '../lib/division';
 import { readFreshCache, shouldUseClientCache } from '../lib/clientCache';
@@ -133,7 +133,7 @@ export const usePlayers = (teamId?: string) => {
   useEffect(() => {
     // Optionally subscribe to players changes
 
-    const channel = supabase
+    const channel = supabasePublic
       .channel(`public:players:${teamId || 'all'}`)
       .on('postgres_changes', { 
         event: '*', 

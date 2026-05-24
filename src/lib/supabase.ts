@@ -79,3 +79,47 @@ export const supabase: SupabaseClientSingleton =
 // (evita conflito de lock do GoTrue que ocorria com um segundo cliente separado)
 export const supabaseStorage: SupabaseClientSingleton = supabase;
 
+// Cliente público para queries pesadas (Rankings, Players) que não precisam de autenticação,
+// evitando que o sistema de Lock do GoTrue-JS trave o React Query por 5000ms no caso de orphaned locks
+const createSupabasePublicClient = () => createClient(supabaseUrl || fallbackSupabaseUrl, supabaseAnonKey || fallbackSupabaseAnonKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+    detectSessionInUrl: false,
+  },
+  global: {
+    fetch: (url, options) => {
+      const controller = new AbortController();
+      let parentAbortHandler: (() => void) | null = null;
+      if (options?.signal) {
+        if (options.signal.aborted) {
+          controller.abort(options.signal.reason);
+        } else {
+          parentAbortHandler = () => controller.abort(options.signal?.reason);
+          options.signal.addEventListener('abort', parentAbortHandler, { once: true });
+        }
+      }
+      const abortTimeoutId = setTimeout(() => {
+        controller.abort(new DOMException('Supabase request timeout', 'TimeoutError'));
+      }, 45000);
+      return fetch(url, { ...options, signal: controller.signal }).finally(() => {
+        clearTimeout(abortTimeoutId);
+        if (options?.signal && parentAbortHandler) {
+          options.signal.removeEventListener('abort', parentAbortHandler);
+        }
+      });
+    },
+  }
+});
+
+declare global {
+  interface Window {
+    __copaSupabasePublicClient?: SupabaseClientSingleton;
+  }
+}
+
+export const supabasePublic: SupabaseClientSingleton =
+  typeof window !== 'undefined'
+    ? (window.__copaSupabasePublicClient ?? (window.__copaSupabasePublicClient = createSupabasePublicClient()))
+    : createSupabasePublicClient();
+
