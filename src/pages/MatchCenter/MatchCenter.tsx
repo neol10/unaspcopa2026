@@ -405,8 +405,6 @@ const MatchCenter: React.FC = () => {
     return `${date} • ${time}`;
   };
 
-  if (matchesLoading && matches.length === 0) return <div className="match-center p-8"><Skeleton width="100%" height="400px" /></div>;
-
   const activeTeamsInRound = useMemo(() => {
     const ids = new Set<string>();
     selectorMatches.forEach(m => {
@@ -419,6 +417,8 @@ const MatchCenter: React.FC = () => {
   const playersInRound = useMemo(() => {
     return players.filter(p => activeTeamsInRound.has(p.team_id || ''));
   }, [players, activeTeamsInRound]);
+
+  if (matchesLoading && matches.length === 0) return <div className="match-center p-8"><Skeleton width="100%" height="400px" /></div>;
 
   return (
     <div className="match-center responsive-container animate-fade-in" ref={containerRef}>
