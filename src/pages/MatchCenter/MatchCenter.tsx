@@ -485,7 +485,6 @@ const MatchCenter: React.FC = () => {
             <span>Histórico de jogos</span>
             <ChevronDown size={16} className={`chevron-icon ${isHistoryOpen ? 'rotated' : ''}`} />
           </div>
-          <span className="history-subtitle">Últimos 20 finalizados ({finishedMatches.length})</span>
         </button>
         <AnimatePresence initial={false}>
           {isHistoryOpen && (
