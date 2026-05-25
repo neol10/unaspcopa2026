@@ -8,12 +8,12 @@ import type { Match } from '../../hooks/useMatches';
 
 const getRoundGradient = (roundNum: string) => {
   const gradients: Record<string, string> = {
-    '1': 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)', // Azul bem escuro
-    '2': 'linear-gradient(135deg, #052e16 0%, #064e3b 100%)', // Verde bem escuro
-    '3': 'linear-gradient(135deg, #450a0a 0%, #7f1d1d 100%)', // Vermelho bem escuro
-    '4': 'linear-gradient(135deg, #2e1065 0%, #4c1d95 100%)', // Roxo escuro
+    '1': 'linear-gradient(135deg, #052e16 0%, #064e3b 100%)', // Verde bem escuro
+    '2': 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)', // Azul bem escuro
+    '3': 'linear-gradient(135deg, #422006 0%, #78350f 100%)', // Bronze/Dourado escuro
+    '4': 'linear-gradient(135deg, #2e1065 0%, #4c1d95 100%)', // Roxo sombrio
     '5': 'linear-gradient(135deg, #4a044e 0%, #701a75 100%)', // Rosa/Fuchsia escuro
-    '6': 'linear-gradient(135deg, #422006 0%, #78350f 100%)', // Bronze/Laranja escuro
+    '6': 'linear-gradient(135deg, #450a0a 0%, #7f1d1d 100%)', // Vermelho escarlate
     '7': 'linear-gradient(135deg, #0f172a 0%, #0f766e 100%)', // Teal/Azul esverdeado
   };
   return gradients[roundNum] || gradients['1'];
