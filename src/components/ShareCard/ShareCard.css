@@ -91,6 +91,7 @@
   justify-content: space-between;
   align-items: center;
   width: 100%;
+  position: relative;
 }
 
 .team-block {
@@ -98,8 +99,8 @@
   flex-direction: column;
   align-items: center;
   gap: 40px;
-  width: 35%;
-  flex-shrink: 1;
+  flex: 1;
+  max-width: 50%;
 }
 
 .badge-frame {
@@ -137,8 +138,12 @@
   align-items: center;
   justify-content: center;
   gap: 30px;
-  flex-shrink: 0;
-  min-width: 300px;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: max-content;
+  z-index: 20;
 }
 
 .social-score {
