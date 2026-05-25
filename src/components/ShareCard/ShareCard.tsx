@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { useRef } from 'react';
 import { toPng } from 'html-to-image';
-import { Star } from 'lucide-react';
+import { Star, Download } from 'lucide-react';
 import logo from '../../assets/unasp_logo.png';
 import './ShareCard.css';
 import type { Match } from '../../hooks/useMatches';
@@ -9,6 +9,8 @@ import type { Match } from '../../hooks/useMatches';
 interface ShareCardProps {
   match?: Match | null;
   mvpPlayer?: { name: string } | null;
+  onDownloadCard?: (withMvp: boolean) => void;
+  isExporting?: boolean;
 }
 
 export const useShareCard = () => {
@@ -21,6 +23,8 @@ export const useShareCard = () => {
       const dataUrl = await toPng(cardRef.current, {
         quality: 1.0,
         pixelRatio: 2, // High resolution for Retina/Sharing
+        skipFonts: false,
+        backgroundColor: '#ffffff',
       });
       const link = document.createElement('a');
       link.download = `resultado-copa-unasp-${matchId}.png`;
@@ -35,7 +39,7 @@ export const useShareCard = () => {
   return { cardRef, downloadCard };
 };
 
-const ShareCard: React.FC<ShareCardProps & { innerRef: React.RefObject<HTMLDivElement | null> }> = ({ match, mvpPlayer, innerRef }) => {
+const ShareCard: React.FC<ShareCardProps & { innerRef: React.RefObject<HTMLDivElement | null> }> = ({ match, mvpPlayer, innerRef, onDownloadCard, isExporting }) => {
   const isScheduled = match?.status === 'agendado';
   const primaryA = match?.teams_a?.primary_color || '#1e293b';
   const primaryB = match?.teams_b?.primary_color || '#1e293b';
@@ -45,11 +49,9 @@ const ShareCard: React.FC<ShareCardProps & { innerRef: React.RefObject<HTMLDivEl
       <div 
         className="share-card-canvas" 
         ref={innerRef}
+        style={{ background: `linear-gradient(to right, ${primaryA} 50%, ${primaryB} 50%)` }}
       >
-        <div 
-          className="dynamic-bg-split" 
-          style={{ background: `linear-gradient(to right, ${primaryA} 50%, ${primaryB} 50%)` }}
-        ></div>
+        <div className="share-card-overlay-tint" style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 0 }}></div>
         <div className="overlay-pattern"></div>
         
         <header className="header-brand">
@@ -108,6 +110,7 @@ const ShareCard: React.FC<ShareCardProps & { innerRef: React.RefObject<HTMLDivEl
               </div>
             </div>
           )}
+
         </section>
 
         <footer className="footer-credits">

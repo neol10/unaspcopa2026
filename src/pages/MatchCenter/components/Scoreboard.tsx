@@ -26,9 +26,9 @@ interface ScoreboardProps {
   matchPeriod: string | null;
   isPaused: boolean;
   mvpName?: string | null;
-  isExporting: boolean;
-  onDownloadCard?: () => void;
-  onCopySummary: () => void;
+  isExporting?: boolean;
+  onDownloadCard?: (withMvp: boolean) => void;
+  onCopySummary?: () => void;
   /** Label configurável: "Noite" ou "Rodada" */
   groupUnitLabel?: string;
 }
@@ -145,21 +145,44 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
       )}
 
       <div className="scoreboard-actions" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-        {onDownloadCard && (
+        {onDownloadCard && !mvpName && (
           <button 
             className="btn-share-result" 
-            onClick={onDownloadCard}
+            onClick={() => onDownloadCard(false)} 
             disabled={isExporting}
           >
-            {isExporting ? <div className="spinner-mini"></div> : <Download size={18} />}
-            Baixar Card de Resultado
+            <Download size={16} />
+            {isExporting ? 'GERANDO...' : 'BAIXAR CARD DE RESULTADO'}
           </button>
         )}
+        {onDownloadCard && mvpName && (
+          <>
+            <button 
+              className="btn-share-result" 
+              onClick={() => onDownloadCard(true)} 
+              disabled={isExporting}
+            >
+              <Download size={16} />
+              {isExporting ? 'GERANDO...' : 'BAIXAR COM CRAQUE'}
+            </button>
+            <button 
+              className="btn-share-result" 
+              style={{ background: 'rgba(255,255,255,0.05)', color: '#aaa', border: '1px solid rgba(255,255,255,0.1)' }}
+              onClick={() => onDownloadCard(false)} 
+              disabled={isExporting}
+            >
+              <Download size={16} />
+              {isExporting ? 'GERANDO...' : 'BAIXAR SEM CRAQUE'}
+            </button>
+          </>
+        )}
 
-        <button className="btn-share-result" onClick={onCopySummary}>
-          <Copy size={18} />
-          Copiar Resumo
-        </button>
+        {onCopySummary && (
+          <button className="btn-share-result" onClick={onCopySummary}>
+            <Copy size={18} />
+            Copiar Resumo
+          </button>
+        )}
       </div>
     </section>
   );

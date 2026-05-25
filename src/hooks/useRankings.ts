@@ -168,20 +168,23 @@ export const useRankings = () => {
 
       const processStart = performance.now();
       const playersWithTeam: RankingPlayer[] = playersData.map((p) => {
+        const enriched = {
+          ...p,
+          team_name: p.teams?.name,
+          team_badge_url: p.teams?.badge_url,
+          team_primary_color: p.teams?.primary_color,
+          mvp_votes: 0,
+        } as RankingPlayer;
+
         const pos = String(p.position || '').trim().toLowerCase();
         const isGoalkeeper = pos === 'goleiro' || pos === 'gol' || pos === 'gk' || pos.includes('gole');
         
         if (isGoalkeeper) {
           if (!goalkeepersByTeamId[p.team_id]) goalkeepersByTeamId[p.team_id] = [];
-          goalkeepersByTeamId[p.team_id].push(p as RankingPlayer);
+          goalkeepersByTeamId[p.team_id].push(enriched);
         }
 
-        return {
-          ...p,
-          team_name: p.teams?.name,
-          team_badge_url: p.teams?.badge_url,
-          mvp_votes: 0,
-        } as RankingPlayer;
+        return enriched;
       });
 
       votesData.forEach((v) => {

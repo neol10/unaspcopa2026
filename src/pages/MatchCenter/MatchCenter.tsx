@@ -260,11 +260,18 @@ const MatchCenter: React.FC = () => {
     }
   };
 
-  const handleDownloadCard = async () => {
+  const [exportWithMvp, setExportWithMvp] = useState(true);
+
+  const handleDownloadCard = async (withMvp: boolean = true) => {
     if (!activeMatch) return;
+    setExportWithMvp(withMvp);
     setIsExporting(true);
-    await downloadCard(activeMatch.id);
-    setIsExporting(false);
+    // Esperar react esconder o MVP do card
+    setTimeout(async () => {
+      await downloadCard(activeMatch.id);
+      setIsExporting(false);
+      setExportWithMvp(true);
+    }, 150);
   };
 
   const handleCopySummary = async () => {
@@ -318,6 +325,39 @@ const MatchCenter: React.FC = () => {
     const slot = groupUnit === 'night' ? (activeMatch.night ?? null) : (activeMatch.round ?? null);
     return slot ? `${label} ${slot}` : `Sem ${label}`;
   }, [activeMatch, config.group_unit]);
+
+  const availableSlots = useMemo(() => {
+    const groupUnit = config.group_unit || 'night';
+    const groupMatches = baseMatches.filter((m) => (m.round || 0) < 1000);
+    return Array.from(
+      new Set(
+        groupMatches
+          .map((m) => (groupUnit === 'night' ? (m.night ?? null) : (m.round ?? null)))
+          .filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+      )
+    ).sort((a, b) => a - b);
+  }, [baseMatches, config.group_unit]);
+
+  const activeSlotValue = useMemo(() => {
+    const groupUnit = config.group_unit || 'night';
+    return groupUnit === 'night' ? (activeMatch?.night ?? null) : (activeMatch?.round ?? null);
+  }, [activeMatch, config.group_unit]);
+
+  const handleSelectSlot = (slot: number) => {
+    const groupUnit = config.group_unit || 'night';
+    const groupMatches = baseMatches.filter((m) => (m.round || 0) < 1000);
+    const inSlot = groupMatches
+      .filter((m) => (groupUnit === 'night' ? m.night : m.round) === slot)
+      .sort((a, b) => new Date(a.match_date).getTime() - new Date(b.match_date).getTime());
+    
+    // Tenta pegar o que estiver ao vivo, ou o próximo agendado, ou o primeiro
+    const nowMs = Date.now();
+    const liveOrNext = inSlot.find(m => deriveMatchStatus(m, nowMs) === 'ao_vivo') 
+                    || inSlot.find(m => deriveMatchStatus(m, nowMs) === 'agendado') 
+                    || inSlot[0];
+                    
+    if (liveOrNext) handleSelectMatch(liveOrNext.id);
+  };
 
   const finishedMatches = useMemo(() => {
     const nowMs = Date.now();
@@ -375,6 +415,47 @@ const MatchCenter: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', padding: '10px 0', marginBottom: '10px', scrollbarWidth: 'none' }}>
+        {availableSlots.map(slot => (
+          <button
+            key={slot}
+            onClick={() => handleSelectSlot(slot)}
+            style={{
+              padding: '6px 16px',
+              borderRadius: '20px',
+              border: activeSlotValue === slot ? 'none' : '1px solid rgba(255,255,255,0.1)',
+              background: activeSlotValue === slot ? 'var(--secondary)' : 'rgba(255,255,255,0.05)',
+              color: activeSlotValue === slot ? '#000' : '#fff',
+              fontWeight: activeSlotValue === slot ? 'bold' : 'normal',
+              whiteSpace: 'nowrap',
+              cursor: 'pointer'
+            }}
+          >
+            {(config.group_unit || 'night') === 'night' ? 'Noite' : 'Rodada'} {slot}
+          </button>
+        ))}
+        {baseMatches.some(m => (m.round || 0) >= 1000) && (
+          <button
+            onClick={() => {
+              const knockoutMatch = baseMatches.find(m => (m.round || 0) >= 1000);
+              if (knockoutMatch) handleSelectMatch(knockoutMatch.id);
+            }}
+            style={{
+              padding: '6px 16px',
+              borderRadius: '20px',
+              border: (activeMatch?.round || 0) >= 1000 ? 'none' : '1px solid rgba(255,255,255,0.1)',
+              background: (activeMatch?.round || 0) >= 1000 ? 'var(--secondary)' : 'rgba(255,255,255,0.05)',
+              color: (activeMatch?.round || 0) >= 1000 ? '#000' : '#fff',
+              fontWeight: (activeMatch?.round || 0) >= 1000 ? 'bold' : 'normal',
+              whiteSpace: 'nowrap',
+              cursor: 'pointer'
+            }}
+          >
+            Fases Finais
+          </button>
+        )}
+      </div>
 
       <MatchSelector 
         matches={selectorMatches} 
@@ -590,7 +671,13 @@ const MatchCenter: React.FC = () => {
         )}
       </div>
 
-      <ShareCard match={activeMatch} mvpPlayer={players.find(p => p.id === activeMatch?.match_mvp_player_id)} innerRef={cardRef} />
+      <div style={{ position: 'fixed', left: '-9999px', top: '-9999px' }}>
+        <ShareCard 
+          match={activeMatch} 
+          mvpPlayer={exportWithMvp && activeMatch?.match_mvp_player_id ? players.find((p) => p.id === activeMatch.match_mvp_player_id) : null} 
+          innerRef={cardRef} 
+        />
+      </div>
     </div>
   );
 };
