@@ -88,18 +88,18 @@
 
 .score-display-premium {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 60px;
   width: 100%;
-  position: relative;
 }
 
 .team-block {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 40px;
-  width: 380px;
+  position: relative;
+  width: 260px;
 }
 
 .badge-frame {
@@ -108,7 +108,6 @@
   background: rgba(0, 0, 0, 0.4);
   border: 2px solid rgba(255, 255, 255, 0.2);
   border-radius: 50%;
-  backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -127,7 +126,10 @@
   font-weight: 800;
   text-align: center;
   text-transform: uppercase;
-  max-width: 100%;
+  position: absolute;
+  top: 100%;
+  margin-top: 40px;
+  width: 400px;
   word-wrap: break-word;
   overflow-wrap: break-word;
   line-height: 1.2;
@@ -138,11 +140,7 @@
   align-items: center;
   justify-content: center;
   gap: 30px;
-  position: absolute;
-  left: 50%;
-  top: 130px; /* Alinha com o centro dos escudos (260px/2) */
-  transform: translate(-50%, -50%);
-  width: max-content;
+  margin-top: 50px; /* Desce um pouco para alinhar com os escudos */
   z-index: 20;
 }
 
@@ -179,8 +177,9 @@
   opacity: 0.9;
   letter-spacing: 10px;
   margin-right: -10px;
-  filter: drop-shadow(0 0 40px rgba(255,255,255,0.2));
   font-style: italic;
+  /* Substitui drop-shadow por text-shadow pra evitar bugs de html-to-image */
+  text-shadow: 0 0 40px rgba(255,255,255,0.2);
 }
 
 .pre-match-date {
