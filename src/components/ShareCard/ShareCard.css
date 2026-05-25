@@ -207,7 +207,7 @@
   font-weight: 800;
   color: var(--secondary);
   letter-spacing: 15px;
-  margin-bottom: -15px;
+  margin-bottom: 10px; /* Separando do texto abaixo */
   margin-right: -15px;
   text-transform: uppercase;
 }

@@ -6,6 +6,19 @@ import logo from '../../assets/unasp_logo.png';
 import './ShareCard.css';
 import type { Match } from '../../hooks/useMatches';
 
+const getRoundGradient = (roundNum: string) => {
+  const gradients: Record<string, string> = {
+    '1': 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)', // Azul bem escuro
+    '2': 'linear-gradient(135deg, #052e16 0%, #064e3b 100%)', // Verde bem escuro
+    '3': 'linear-gradient(135deg, #450a0a 0%, #7f1d1d 100%)', // Vermelho bem escuro
+    '4': 'linear-gradient(135deg, #2e1065 0%, #4c1d95 100%)', // Roxo escuro
+    '5': 'linear-gradient(135deg, #4a044e 0%, #701a75 100%)', // Rosa/Fuchsia escuro
+    '6': 'linear-gradient(135deg, #422006 0%, #78350f 100%)', // Bronze/Laranja escuro
+    '7': 'linear-gradient(135deg, #0f172a 0%, #0f766e 100%)', // Teal/Azul esverdeado
+  };
+  return gradients[roundNum] || gradients['1'];
+};
+
 interface ShareCardProps {
   match?: Match | null;
   mvpPlayer?: { name: string } | null;
@@ -49,9 +62,9 @@ const ShareCard: React.FC<ShareCardProps & { innerRef: React.RefObject<HTMLDivEl
       <div 
         className="share-card-canvas" 
         ref={innerRef}
-        style={{ background: `linear-gradient(135deg, ${primaryA} 0%, #0a0f1d 50%, ${primaryB} 100%)` }}
+        style={{ background: getRoundGradient(match?.round || '1') }}
       >
-        <div className="share-card-overlay-tint" style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 0 }}></div>
+        <div className="share-card-overlay-tint" style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.2)', zIndex: 0 }}></div>
         <div className="overlay-pattern"></div>
         
         <header className="header-brand">
