@@ -60,7 +60,15 @@ export const MvpVotingModal: React.FC<MvpVotingModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 9999 }}>
+    <div 
+      className="modal-overlay" 
+      onClick={onClose} 
+      style={{ 
+        position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', 
+        alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.8)',
+        padding: '20px'
+      }}
+    >
       <AnimatePresence>
         <motion.div 
           className="glass"

@@ -395,18 +395,10 @@ const MatchCenter: React.FC = () => {
     return `${date} • ${time}`;
   };
 
-  const activeTeamsInRound = useMemo(() => {
-    const ids = new Set<string>();
-    selectorMatches.forEach(m => {
-      if (m.team_a_id) ids.add(m.team_a_id);
-      if (m.team_b_id) ids.add(m.team_b_id);
-    });
-    return ids;
-  }, [selectorMatches]);
-
-  const playersInRound = useMemo(() => {
-    return players.filter(p => activeTeamsInRound.has(p.team_id || ''));
-  }, [players, activeTeamsInRound]);
+  const playersInMatch = useMemo(() => {
+    if (!activeMatch) return [];
+    return players.filter(p => p.team_id === activeMatch.team_a_id || p.team_id === activeMatch.team_b_id);
+  }, [players, activeMatch]);
 
   if (matchesLoading && matches.length === 0) return <div className="match-center p-8"><Skeleton width="100%" height="400px" /></div>;
 
@@ -713,7 +705,7 @@ const MatchCenter: React.FC = () => {
       <MvpVotingModal 
         isOpen={isMvpModalOpen} 
         onClose={() => setIsMvpModalOpen(false)}
-        players={playersInRound}
+        players={playersInMatch}
         onCastVote={castMvpVote}
         userVote={mvpUserVote}
         onShowAuthModal={() => setShowAuthModal(true)}
