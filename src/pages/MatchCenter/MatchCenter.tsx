@@ -8,6 +8,16 @@ import Skeleton from '../../components/Skeleton/Skeleton';
 import { useTournamentConfig } from '../../hooks/useTournamentConfig';
 import { useAuthContext } from '../../contexts/AuthContext';
 import AuthModal from '../../components/Auth/AuthModal';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { useMatches, type Match } from '../../hooks/useMatches';
+import { useMatchEvents, type MatchEvent } from '../../hooks/useMatchEvents';
+import { usePlayers } from '../../hooks/usePlayers';
+import { useMvpVoting } from '../../hooks/useMvpVoting';
+import Skeleton from '../../components/Skeleton/Skeleton';
+import { useTournamentConfig } from '../../hooks/useTournamentConfig';
+import { useAuthContext } from '../../contexts/AuthContext';
+import AuthModal from '../../components/Auth/AuthModal';
 import { useStandings } from '../../hooks/useStandings';
 import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
 import { supabase } from '../../lib/supabase';
@@ -15,6 +25,7 @@ import { TrendingUp, Award, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import ShareCard, { useShareCard } from '../../components/ShareCard/ShareCard';
+import { MvpVotingModal } from './components/MvpVotingModal';
 import { useMatchWinnerVoting } from '../../hooks/useMatchWinnerVoting';
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { emitGoalOverlay } from '../../lib/goalOverlay';
@@ -40,6 +51,7 @@ const MatchCenter: React.FC = () => {
   const { visibility } = useGroupCVisibility();
   const { config } = useTournamentConfig();
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isMvpModalOpen, setIsMvpModalOpen] = useState(false);
   
   const isTestGroup = (groupName?: string | null) => {
     const clean = (groupName || '').trim().toUpperCase().replace(/\s+/g, '');
@@ -218,7 +230,7 @@ const MatchCenter: React.FC = () => {
   }, [activeMatch, events]);
 
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const { voteCounts: roundVotes, loading: roundMvpLoading, refresh: refreshRoundMvp } = useMvpVoting(String(config.current_round));
+  const { voteCounts: roundVotes, loading: roundMvpLoading, refresh: refreshRoundMvp, vote: castMvpVote, userVote: mvpUserVote } = useMvpVoting(String(config.current_round));
   const { votes: winnerVotes, userVote: winnerUserVote, vote: castWinnerVote, error: winnerVotesError } = useMatchWinnerVoting(activeMatch?.id || '');
   const { cardRef, downloadCard } = useShareCard();
   const [isExporting, setIsExporting] = useState(false);
@@ -650,7 +662,18 @@ const MatchCenter: React.FC = () => {
 
               {config.current_phase === 'grupos' && (
                 <div className="round-mvp-widget glass">
-                  <div className="side-header"><Award size={18} /> <h3>Craque da {config.group_unit === 'round' ? 'Rodada' : 'Noite'}</h3></div>
+                  <div className="side-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Award size={18} /> <h3>Craque da {config.group_unit === 'round' ? 'Rodada' : 'Noite'}</h3>
+                    </div>
+                    <button 
+                      className="btn-secondary-glass" 
+                      style={{ padding: '6px 12px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
+                      onClick={() => setIsMvpModalOpen(true)}
+                    >
+                      VOTAR
+                    </button>
+                  </div>
                   {roundMvpLoading ? <Skeleton height="100px" /> : (
                     <div className="mvp-ranking-list">
                       {roundVotes.length === 0 ? (
@@ -678,6 +701,16 @@ const MatchCenter: React.FC = () => {
           innerRef={cardRef} 
         />
       </div>
+
+      <MvpVotingModal 
+        isOpen={isMvpModalOpen} 
+        onClose={() => setIsMvpModalOpen(false)}
+        players={players}
+        onCastVote={castMvpVote}
+        userVote={mvpUserVote}
+        onShowAuthModal={() => setShowAuthModal(true)}
+        user={user}
+      />
     </div>
   );
 };
