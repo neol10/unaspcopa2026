@@ -31,7 +31,7 @@ export interface Standing {
 export const useStandings = () => {
   const queryClient = useQueryClient();
   const { division } = useDivisionContext();
-  const CACHE_KEY = `standings_cache_v1_${division}`;
+  const CACHE_KEY = `standings_cache_v2_${division}`;
 
   const loadCachedStandings = () => {
     if (typeof window === 'undefined') return null;
