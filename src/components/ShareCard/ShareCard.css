@@ -133,14 +133,14 @@
   line-height: 1.2;
 }
 
-.score-numbers {
+.share-card-canvas .score-numbers {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 30px;
   position: absolute;
   left: 50%;
-  top: 50%;
+  top: 140px; /* Alinha com o centro dos escudos (280px/2) */
   transform: translate(-50%, -50%);
   width: max-content;
   z-index: 20;
@@ -175,6 +175,7 @@
   color: #ffffff;
   opacity: 0.8;
   letter-spacing: 5px;
+  margin-right: -5px; /* Compensa o letter-spacing p/ alinhar 100% no meio */
 }
 
 .pre-match-date {
