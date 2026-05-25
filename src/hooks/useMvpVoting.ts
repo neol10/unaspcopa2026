@@ -91,6 +91,8 @@ export const useMvpVoting = (round: string) => {
     mutationFn: async (playerId: string) => {
       let error = null;
       if (user) {
+        // Remove anterior (voto unico)
+        await supabase.from('round_mvp_votes').delete().match({ user_id: user.id, round });
         const res = await supabase.from('round_mvp_votes').insert({
           user_id: user.id,
           player_id: playerId,
@@ -100,6 +102,14 @@ export const useMvpVoting = (round: string) => {
       }
       
       if (!user || error) {
+        // A API public-data faz insert, o ideal é limpar antes (no banco o ideal seria UPSERT, mas como a PK é id, não upserta direto se não tiver id).
+        // Vamos chamar a exclusão primeiro
+        await fetch('/api/public-data?resource=round_mvp_votes', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ round, userId: effectiveUserId }),
+        }).catch(() => {});
+
         const response = await fetch('/api/public-data?resource=round_mvp_votes', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -111,6 +121,30 @@ export const useMvpVoting = (round: string) => {
         }
       }
       return playerId;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['roundMvpVotes', round] });
+    }
+  });
+
+  const removeVoteMutation = useMutation({
+    mutationFn: async () => {
+      let error = null;
+      if (user) {
+        const res = await supabase.from('round_mvp_votes').delete().match({ user_id: user.id, round });
+        error = res.error;
+      }
+      if (!user || error) {
+        const response = await fetch('/api/public-data?resource=round_mvp_votes', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ round, userId: effectiveUserId }),
+        });
+        if (!response.ok) {
+          throw new Error('Falha ao remover voto');
+        }
+      }
+      return null;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['roundMvpVotes', round] });
@@ -132,6 +166,7 @@ export const useMvpVoting = (round: string) => {
         : null
     ),
     vote: voteMutation.mutateAsync,
+    removeVote: removeVoteMutation.mutateAsync,
     refresh: query.refetch,
   };
 };

@@ -266,6 +266,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return json(res, 200, { ok: true });
     }
 
+    if (req.method === 'DELETE' && resource === 'round_mvp_votes') {
+      if (NO_SUPABASE) return json(res, 200, { ok: true });
+      const body = typeof req.body === 'string' ? (() => { try { return JSON.parse(req.body); } catch { return {}; } })() : (req.body || {});
+      const userId = String(body.userId || req.query.userId || '').trim();
+      const bodyRound = String(body.round || req.query.round || '').trim();
+      if (!userId || !bodyRound) return json(res, 400, { error: 'userId and round required' });
+
+      const { error } = await supabase.from('round_mvp_votes').delete().match({ user_id: userId, round: bodyRound });
+      if (error) throw error;
+      return json(res, 200, { ok: true });
+    }
+
     if (resource === 'polls') {
       if (NO_SUPABASE) return json(res, 200, { data: null });
       const { data, error } = await supabase
@@ -281,11 +293,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (resource === 'round_mvp_votes') {
       if (!round) return json(res, 400, { error: 'round required' });
+      const userId = String(req.query.userId || '').trim();
       if (NO_SUPABASE) return json(res, 200, { data: [] });
-      const { data, error } = await supabase
+      
+      let query = supabase
         .from('round_mvp_votes')
         .select('player_id, players(id, name, number, teams(name))')
         .eq('round', round);
+
+      if (userId) {
+        query = query.eq('user_id', userId);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return json(res, 200, { data: data || [] });
     }    if (resource === 'rankings') {

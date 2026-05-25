@@ -10,6 +10,7 @@ interface MvpVotingModalProps {
   onClose: () => void;
   players: Player[];
   onCastVote: (playerId: string) => Promise<void>;
+  onRemoveVote?: () => Promise<void>;
   userVote: string | null;
   onShowAuthModal?: () => void;
   user: any;
@@ -20,6 +21,7 @@ export const MvpVotingModal: React.FC<MvpVotingModalProps> = ({
   onClose,
   players,
   onCastVote,
+  onRemoveVote,
   userVote,
   onShowAuthModal,
   user
@@ -50,6 +52,18 @@ export const MvpVotingModal: React.FC<MvpVotingModalProps> = ({
       setTimeout(() => {
         onClose(); // Fechar após sucesso
       }, 1000);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRemoveVote = async () => {
+    if (!onRemoveVote) return;
+    setIsSubmitting(true);
+    try {
+      await onRemoveVote();
     } catch (err) {
       console.error(err);
     } finally {
@@ -97,9 +111,24 @@ export const MvpVotingModal: React.FC<MvpVotingModalProps> = ({
           </button>
 
           <h2 style={{ fontSize: '1.5rem', marginBottom: '8px' }}>Craque da Galera</h2>
-          <p style={{ color: 'var(--text-dim)', marginBottom: '20px', fontSize: '0.9rem' }}>
-            {userVote ? 'Você já registrou seu voto.' : 'Pesquise o nome do atleta e deixe seu voto.'}
-          </p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', margin: 0 }}>
+              {userVote ? 'Você já registrou seu voto.' : 'Pesquise o nome do atleta e deixe seu voto.'}
+            </p>
+            {userVote && onRemoveVote && (
+              <button 
+                onClick={handleRemoveVote} 
+                disabled={isSubmitting}
+                style={{ 
+                  background: 'none', border: '1px solid #ef4444', color: '#ef4444', 
+                  padding: '4px 8px', borderRadius: '8px', fontSize: '0.8rem', cursor: isSubmitting ? 'default' : 'pointer',
+                  opacity: isSubmitting ? 0.5 : 1
+                }}
+              >
+                Remover Voto
+              </button>
+            )}
+          </div>
 
           <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255, 255, 255, 0.05)', padding: '12px 16px', borderRadius: '12px', marginBottom: '20px' }}>
             <Search size={18} color="var(--text-dim)" style={{ marginRight: '10px' }} />

@@ -751,6 +751,7 @@ const MatchCenter: React.FC = () => {
         onClose={() => setIsMvpModalOpen(false)}
         players={playersInRound}
         onCastVote={castMvpVote}
+        onRemoveVote={removeMvpVote}
         userVote={mvpUserVote}
         onShowAuthModal={() => setShowAuthModal(true)}
         user={user}
