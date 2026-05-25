@@ -96,7 +96,7 @@ export const MvpVotingModal: React.FC<MvpVotingModalProps> = ({
             <X size={24} />
           </button>
 
-          <h2 style={{ fontSize: '1.5rem', marginBottom: '8px' }}>Votar no Craque</h2>
+          <h2 style={{ fontSize: '1.5rem', marginBottom: '8px' }}>Craque da Galera</h2>
           <p style={{ color: 'var(--text-dim)', marginBottom: '20px', fontSize: '0.9rem' }}>
             {userVote ? 'Você já registrou seu voto.' : 'Pesquise o nome do atleta e deixe seu voto.'}
           </p>

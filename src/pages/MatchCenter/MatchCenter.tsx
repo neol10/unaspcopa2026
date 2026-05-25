@@ -658,7 +658,7 @@ const MatchCenter: React.FC = () => {
                 <div className="round-mvp-widget glass">
                   <div className="side-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: '16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Award size={18} /> <h3>Craque da {config.group_unit === 'round' ? 'Rodada' : 'Noite'}</h3>
+                      <Award size={18} /> <h3>Craque da Galera</h3>
                     </div>
                     <button 
                       onClick={() => setIsMvpModalOpen(true)}
