@@ -104,11 +104,12 @@
 }
 
 .badge-frame {
-  width: 280px;
-  height: 280px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  width: 260px;
+  height: 260px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid rgba(255, 255, 255, 0.2);
   border-radius: 50%;
+  backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -170,24 +171,56 @@
 }
 
 .vs-big {
-  font-size: 8rem;
-  font-weight: 900;
-  color: #ffffff;
-  opacity: 0.8;
-  letter-spacing: 5px;
-  margin-right: -5px; /* Compensa o letter-spacing p/ alinhar 100% no meio */
-  line-height: 1;
+  font-size: 10rem;
+  font-weight: 950;
+  font-family: 'Inter', sans-serif;
+  background: linear-gradient(180deg, #ffffff 0%, rgba(255,255,255,0.2) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  opacity: 0.9;
+  letter-spacing: 10px;
+  margin-right: -10px;
+  filter: drop-shadow(0 0 40px rgba(255,255,255,0.2));
+  font-style: italic;
 }
 
 .pre-match-date {
   font-size: 2.2rem;
-  font-weight: 600;
-  background: rgba(0, 0, 0, 0.5);
-  padding: 15px 40px;
-  border-radius: 50px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  font-weight: 700;
+  color: var(--secondary);
+  background: rgba(0, 0, 0, 0.6);
+  padding: 20px 50px;
+  border-radius: 100px;
+  border: 2px solid rgba(var(--secondary-rgb), 0.3);
   text-transform: uppercase;
-  letter-spacing: 2px;
+  letter-spacing: 4px;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+}
+
+.matchday-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.matchday-label .label-top {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: var(--secondary);
+  letter-spacing: 15px;
+  margin-bottom: -15px;
+  margin-right: -15px;
+  text-transform: uppercase;
+}
+
+.matchday-label .label-bottom {
+  font-size: 11rem;
+  font-weight: 950;
+  margin: 0;
+  background: linear-gradient(180deg, #ffffff 0%, rgba(255,255,255,0.6) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .mvp-footer-card {

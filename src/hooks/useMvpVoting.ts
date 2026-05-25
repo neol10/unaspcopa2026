@@ -123,6 +123,7 @@ export const useMvpVoting = (round: string) => {
       return playerId;
     },
     onSuccess: () => {
+      localStorage.removeItem(`round_mvp_cache_v1_${round || 'none'}_${effectiveUserId}`);
       queryClient.invalidateQueries({ queryKey: ['roundMvpVotes', round] });
     }
   });
@@ -147,6 +148,7 @@ export const useMvpVoting = (round: string) => {
       return null;
     },
     onSuccess: () => {
+      localStorage.removeItem(`round_mvp_cache_v1_${round || 'none'}_${effectiveUserId}`);
       queryClient.invalidateQueries({ queryKey: ['roundMvpVotes', round] });
     }
   });

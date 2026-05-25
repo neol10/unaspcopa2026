@@ -15,7 +15,7 @@ const SUPABASE_KEY = readEnv('SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_ROLE
 const json = (res: VercelResponse, status: number, body: unknown) => res.status(status).json(body);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'GET' && req.method !== 'POST') return json(res, 405, { error: 'Method Not Allowed' });
+  if (req.method !== 'GET' && req.method !== 'POST' && req.method !== 'DELETE') return json(res, 405, { error: 'Method Not Allowed' });
   const NO_SUPABASE = !SUPABASE_URL || !SUPABASE_KEY;
   if (NO_SUPABASE) {
     console.warn('public-data: SUPABASE config missing, returning safe fallback responses. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel env to enable live data.');

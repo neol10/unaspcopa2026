@@ -64,6 +64,9 @@ export const MvpVotingModal: React.FC<MvpVotingModalProps> = ({
     setIsSubmitting(true);
     try {
       await onRemoveVote();
+      setTimeout(() => {
+        onClose();
+      }, 500);
     } catch (err) {
       console.error(err);
     } finally {

@@ -49,9 +49,9 @@ const ShareCard: React.FC<ShareCardProps & { innerRef: React.RefObject<HTMLDivEl
       <div 
         className="share-card-canvas" 
         ref={innerRef}
-        style={{ background: `linear-gradient(to right, ${primaryA} 50%, ${primaryB} 50%)` }}
+        style={{ background: `linear-gradient(135deg, ${primaryA} 0%, #0a0f1d 50%, ${primaryB} 100%)` }}
       >
-        <div className="share-card-overlay-tint" style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 0 }}></div>
+        <div className="share-card-overlay-tint" style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 0 }}></div>
         <div className="overlay-pattern"></div>
         
         <header className="header-brand">
@@ -60,7 +60,14 @@ const ShareCard: React.FC<ShareCardProps & { innerRef: React.RefObject<HTMLDivEl
         </header>
 
         <section className="card-title-main">
-          <h1>{isScheduled ? 'PRÓXIMO JOGO' : 'RESULTADO'}</h1>
+          {isScheduled ? (
+            <div className="matchday-label">
+              <span className="label-top">MATCHDAY</span>
+              <h1 className="label-bottom">PRÓXIMO JOGO</h1>
+            </div>
+          ) : (
+            <h1>RESULTADO</h1>
+          )}
         </section>
 
         <section className="card-main-content">
@@ -95,7 +102,7 @@ const ShareCard: React.FC<ShareCardProps & { innerRef: React.RefObject<HTMLDivEl
           </div>
 
           {isScheduled && match?.match_date && (
-            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '120px' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '160px' }}>
               <div className="pre-match-date">
                 {new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' }).format(new Date(match.match_date)).replace(' de ', ' de ').replace(', ', ' às ').toUpperCase()}
               </div>
