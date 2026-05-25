@@ -220,7 +220,7 @@ const MatchCenter: React.FC = () => {
   }, [activeMatch, events]);
 
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const { voteCounts: roundVotes, loading: roundMvpLoading, refresh: refreshRoundMvp, vote: castMvpVote, userVote: mvpUserVote } = useMvpVoting(String(config.current_round));
+  const { voteCounts: roundVotes, loading: roundMvpLoading, refresh: refreshRoundMvp, vote: castMvpVote, removeVote: removeMvpVote, userVote: mvpUserVote } = useMvpVoting(String(config.current_round));
   const { votes: winnerVotes, userVote: winnerUserVote, vote: castWinnerVote, error: winnerVotesError } = useMatchWinnerVoting(activeMatch?.id || '');
   const { cardRef, downloadCard } = useShareCard();
   const [isExporting, setIsExporting] = useState(false);
