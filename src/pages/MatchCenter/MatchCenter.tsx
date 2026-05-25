@@ -11,7 +11,7 @@ import AuthModal from '../../components/Auth/AuthModal';
 import { useStandings } from '../../hooks/useStandings';
 import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
 import { supabase } from '../../lib/supabase';
-import { TrendingUp, Award, ChevronDown, Star } from 'lucide-react';
+import { TrendingUp, Award, ChevronDown, Star, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import ShareCard, { useShareCard } from '../../components/ShareCard/ShareCard';
@@ -678,11 +678,48 @@ const MatchCenter: React.FC = () => {
                       {roundVotes.length === 0 ? (
                         <p className="text-sm text-dim p-4 text-center">Aguardando apuração...</p>
                       ) : (
-                        roundVotes.slice(0, 3).map((v, i) => (
-                          <div key={v.player_id} className="mvp-rank-item">
-                            #{i+1} {v.player_name || 'Desconhecido'}{v.team_name ? ` (${v.team_name})` : ''} — {v.vote_count} voto{v.vote_count === 1 ? '' : 's'}
-                          </div>
-                        ))
+                        roundVotes.slice(0, 3).map((v, i) => {
+                          const playerInfo = players.find(p => p.id === v.player_id);
+                          return (
+                            <div key={v.player_id} className="mvp-rank-item" style={{
+                              display: 'flex', alignItems: 'center', gap: '12px', padding: '10px',
+                              background: 'rgba(255,255,255,0.03)', borderRadius: '12px', marginBottom: '8px',
+                              border: '1px solid rgba(255, 255, 255, 0.05)'
+                            }}>
+                              <div style={{ position: 'relative' }}>
+                                <div style={{
+                                  width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(255,255,255,0.1)',
+                                  overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                }}>
+                                  {playerInfo?.photo_url ? (
+                                    <img src={playerInfo.photo_url} alt={v.player_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                  ) : (
+                                    <User size={20} color="var(--text-dim)" />
+                                  )}
+                                </div>
+                                <div style={{
+                                  position: 'absolute', bottom: -6, right: -6, 
+                                  background: i === 0 ? 'var(--secondary)' : 'var(--bg-lighter)',
+                                  color: i === 0 ? '#000' : '#fff', width: '20px', height: '20px', borderRadius: '50%',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 'bold',
+                                  boxShadow: '0 2px 4px rgba(0,0,0,0.5)'
+                                }}>
+                                  {i+1}
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                                <span style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>{v.player_name || 'Desconhecido'}</span>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  {v.team_name || 'Sem time'}
+                                </span>
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'rgba(255,255,255,0.05)', padding: '6px 10px', borderRadius: '8px' }}>
+                                <span style={{ fontWeight: 'bold', color: 'var(--secondary)', fontSize: '1rem' }}>{v.vote_count}</span>
+                                <span style={{ fontSize: '0.6rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>{v.vote_count === 1 ? 'voto' : 'votos'}</span>
+                              </div>
+                            </div>
+                          );
+                        })
                       )}
                     </div>
                   )}
