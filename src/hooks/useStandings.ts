@@ -90,6 +90,8 @@ export const useStandings = () => {
       });
 
       matches.forEach(match => {
+        if (match.status !== 'finalizado') return;
+
         const teamA = statsMap[match.team_a_id];
         const teamB = statsMap[match.team_b_id];
 
