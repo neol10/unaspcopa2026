@@ -176,6 +176,7 @@
   opacity: 0.8;
   letter-spacing: 5px;
   margin-right: -5px; /* Compensa o letter-spacing p/ alinhar 100% no meio */
+  line-height: 1;
 }
 
 .pre-match-date {
