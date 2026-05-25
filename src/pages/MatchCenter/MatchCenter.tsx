@@ -407,6 +407,19 @@ const MatchCenter: React.FC = () => {
 
   if (matchesLoading && matches.length === 0) return <div className="match-center p-8"><Skeleton width="100%" height="400px" /></div>;
 
+  const activeTeamsInRound = useMemo(() => {
+    const ids = new Set<string>();
+    selectorMatches.forEach(m => {
+      if (m.team_a_id) ids.add(m.team_a_id);
+      if (m.team_b_id) ids.add(m.team_b_id);
+    });
+    return ids;
+  }, [selectorMatches]);
+
+  const playersInRound = useMemo(() => {
+    return players.filter(p => activeTeamsInRound.has(p.team_id || ''));
+  }, [players, activeTeamsInRound]);
+
   return (
     <div className="match-center responsive-container animate-fade-in" ref={containerRef}>
       {showAuthModal && <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />}
@@ -662,16 +675,21 @@ const MatchCenter: React.FC = () => {
 
               {config.current_phase === 'grupos' && (
                 <div className="round-mvp-widget glass">
-                  <div className="side-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                  <div className="side-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: '16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <Award size={18} /> <h3>Craque da {config.group_unit === 'round' ? 'Rodada' : 'Noite'}</h3>
                     </div>
                     <button 
-                      className="btn-secondary-glass" 
-                      style={{ padding: '6px 12px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
                       onClick={() => setIsMvpModalOpen(true)}
+                      style={{ 
+                        display: 'flex', alignItems: 'center', gap: '6px',
+                        background: 'var(--secondary)', color: '#000', 
+                        border: 'none', padding: '6px 14px', borderRadius: '16px', 
+                        fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer',
+                        boxShadow: '0 0 10px rgba(251, 191, 36, 0.4)'
+                      }}
                     >
-                      VOTAR
+                      <Star size={14} fill="black" /> VOTAR
                     </button>
                   </div>
                   {roundMvpLoading ? <Skeleton height="100px" /> : (
@@ -705,7 +723,7 @@ const MatchCenter: React.FC = () => {
       <MvpVotingModal 
         isOpen={isMvpModalOpen} 
         onClose={() => setIsMvpModalOpen(false)}
-        players={players}
+        players={playersInRound}
         onCastVote={castMvpVote}
         userVote={mvpUserVote}
         onShowAuthModal={() => setShowAuthModal(true)}

@@ -82,11 +82,6 @@ const ShareCard: React.FC<ShareCardProps & { innerRef: React.RefObject<HTMLDivEl
               ) : (
                 <div className="pre-match-center">
                   <span className="vs-big">VS</span>
-                  {match?.match_date && (
-                    <div className="pre-match-date">
-                      {new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' }).format(new Date(match.match_date)).replace(' de ', ' de ').replace(', ', ' às ')}
-                    </div>
-                  )}
                 </div>
               )}
             </div>
@@ -98,6 +93,14 @@ const ShareCard: React.FC<ShareCardProps & { innerRef: React.RefObject<HTMLDivEl
               <span className="team-name-social">{match?.teams_b?.name || 'Equipe B'}</span>
             </div>
           </div>
+
+          {isScheduled && match?.match_date && (
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '120px' }}>
+              <div className="pre-match-date">
+                {new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' }).format(new Date(match.match_date)).replace(' de ', ' de ').replace(', ', ' às ').toUpperCase()}
+              </div>
+            </div>
+          )}
 
           {!isScheduled && mvpPlayer && (
             <div className="mvp-footer-card">
