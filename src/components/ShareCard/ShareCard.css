@@ -99,8 +99,7 @@
   flex-direction: column;
   align-items: center;
   gap: 40px;
-  flex: 1;
-  max-width: 50%;
+  width: 380px;
 }
 
 .badge-frame {
@@ -141,7 +140,7 @@
   gap: 30px;
   position: absolute;
   left: 50%;
-  top: 140px; /* Alinha com o centro dos escudos (280px/2) */
+  top: 130px; /* Alinha com o centro dos escudos (260px/2) */
   transform: translate(-50%, -50%);
   width: max-content;
   z-index: 20;
