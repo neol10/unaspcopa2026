@@ -11,6 +11,14 @@ interface SocialCardPlayer {
   teamPrimaryColor?: string | null;
 }
 
+interface SocialCardTeam {
+  name: string;
+  group?: string;
+  leader?: string;
+  badgeUrl?: string;
+  primaryColor?: string | null;
+}
+
 interface SocialCardStat {
   label: string;
   value: string | number;
@@ -23,6 +31,13 @@ interface DownloadSocialCardOptions {
   player: SocialCardPlayer;
   stats: SocialCardStat[];
   theme?: SocialCardTheme;
+}
+
+interface DownloadSocialTeamCardOptions {
+  fileName: string;
+  category: string;
+  subtitle?: string;
+  team: SocialCardTeam;
 }
 
 const THEME_COLORS: Record<SocialCardTheme, { primary: string; secondary: string; glow: string }> = {
@@ -409,6 +424,270 @@ export const downloadSocialPlayerCard = async ({
   footer.style.position = 'relative';
   footer.style.zIndex = '10';
   
+  mount.append(card);
+  document.body.appendChild(mount);
+
+  try {
+    await document.fonts.ready;
+    await waitForImages(card);
+    const dataUrl = await toPng(card, {
+      quality: 1,
+      pixelRatio: 2,
+      cacheBust: true,
+      backgroundColor: '#0b1220',
+    });
+
+    const link = document.createElement('a');
+    link.download = fileName.endsWith('.png') ? fileName : `${fileName}.png`;
+    link.href = dataUrl;
+    link.click();
+  } finally {
+    mount.remove();
+  }
+};
+
+export const downloadSocialTeamCard = async ({
+  fileName,
+  category,
+  subtitle,
+  team,
+}: DownloadSocialTeamCardOptions) => {
+  const baseTheme: SocialCardTheme = 'blue';
+  let colors = THEME_COLORS[baseTheme];
+  let teamAccentRgb: string | null = null;
+
+  if (team.primaryColor && /^#[0-9A-F]{3,6}$/i.test(team.primaryColor)) {
+    const rgbStr = hexToRgbStr(team.primaryColor);
+    teamAccentRgb = rgbStr;
+    colors = {
+      primary: `rgb(${rgbStr})`,
+      secondary: `rgb(${rgbStr})`,
+      glow: `rgba(${rgbStr}, 0.25)`,
+    };
+  } else if (team.badgeUrl) {
+    const rgbStr = await getDominantColor(team.badgeUrl);
+    teamAccentRgb = rgbStr;
+    colors = {
+      primary: `rgb(${rgbStr})`,
+      secondary: `rgb(${rgbStr})`,
+      glow: `rgba(${rgbStr}, 0.25)`,
+    };
+  }
+
+  const mount = document.createElement('div');
+  mount.style.position = 'fixed';
+  mount.style.left = '-99999px';
+  mount.style.top = '0';
+  mount.style.zIndex = '-1';
+  mount.style.pointerEvents = 'none';
+
+  const card = document.createElement('div');
+  card.style.width = '1080px';
+  card.style.height = '1350px';
+  card.style.display = 'flex';
+  card.style.flexDirection = 'column';
+  card.style.justifyContent = 'space-between';
+  card.style.padding = '56px';
+  card.style.boxSizing = 'border-box';
+  card.style.borderRadius = '36px';
+  card.style.overflow = 'hidden';
+  card.style.color = '#ffffff';
+  card.style.fontFamily = "'Poppins', 'Segoe UI', sans-serif";
+  card.style.background = teamAccentRgb
+    ? `radial-gradient(circle at 85% 15%, rgba(${teamAccentRgb}, 0.5), transparent 50%), radial-gradient(circle at 15% 85%, rgba(${teamAccentRgb}, 0.2), transparent 50%), linear-gradient(135deg, #0b1220 0%, #151e32 100%)`
+    : `radial-gradient(circle at 85% 15%, ${colors.glow}, transparent 50%), linear-gradient(135deg, #0b1220 0%, #151e32 100%)`;
+  card.style.border = '2px solid rgba(255,255,255,0.1)';
+  card.style.boxShadow = `inset 0 0 100px rgba(0,0,0,0.8), 0 0 40px ${colors.glow}`;
+  card.style.position = 'relative';
+
+  const overlay = document.createElement('div');
+  overlay.style.position = 'absolute';
+  overlay.style.inset = '0';
+  overlay.style.opacity = '0.03';
+  overlay.style.backgroundImage = 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'1\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")';
+  overlay.style.zIndex = '0';
+  card.appendChild(overlay);
+
+  const topRow = document.createElement('div');
+  topRow.style.display = 'flex';
+  topRow.style.justifyContent = 'space-between';
+  topRow.style.alignItems = 'flex-start';
+  topRow.style.position = 'relative';
+  topRow.style.zIndex = '10';
+
+  const labelWrap = document.createElement('div');
+  labelWrap.style.display = 'flex';
+  labelWrap.style.flexDirection = 'column';
+  labelWrap.style.gap = '12px';
+
+  const tourney = document.createElement('span');
+  tourney.textContent = 'COPA UNASP 2026';
+  tourney.style.fontSize = '28px';
+  tourney.style.letterSpacing = '0.12em';
+  tourney.style.fontWeight = '800';
+  tourney.style.color = 'rgba(255,255,255,0.7)';
+
+  const categoryEl = document.createElement('h1');
+  categoryEl.textContent = category;
+  categoryEl.style.margin = '0';
+  categoryEl.style.fontSize = '84px';
+  categoryEl.style.lineHeight = '1';
+  categoryEl.style.letterSpacing = '-0.03em';
+  categoryEl.style.fontWeight = '900';
+  categoryEl.style.background = `linear-gradient(to right, #ffffff, ${colors.secondary})`;
+  categoryEl.style.webkitBackgroundClip = 'text';
+  categoryEl.style.webkitTextFillColor = 'transparent';
+
+  const subtitleEl = document.createElement('p');
+  subtitleEl.textContent = subtitle || 'Card oficial da seleção';
+  subtitleEl.style.margin = '0';
+  subtitleEl.style.fontSize = '24px';
+  subtitleEl.style.color = 'rgba(255,255,255,0.78)';
+  subtitleEl.style.fontWeight = '500';
+
+  labelWrap.append(tourney, categoryEl, subtitleEl);
+
+  const badgeWrap = document.createElement('div');
+  badgeWrap.style.width = '140px';
+  badgeWrap.style.height = '140px';
+  badgeWrap.style.borderRadius = '50%';
+  badgeWrap.style.border = `2px solid ${colors.secondary}`;
+  badgeWrap.style.boxShadow = `0 0 30px ${colors.glow}`;
+  badgeWrap.style.background = 'rgba(0,0,0,0.4)';
+  badgeWrap.style.display = 'flex';
+  badgeWrap.style.alignItems = 'center';
+  badgeWrap.style.justifyContent = 'center';
+
+  if (team.badgeUrl) {
+    const badgeImg = document.createElement('img');
+    badgeImg.crossOrigin = 'anonymous';
+    badgeImg.src = team.badgeUrl;
+    badgeImg.alt = team.name;
+    badgeImg.width = 90;
+    badgeImg.height = 90;
+    badgeImg.style.objectFit = 'contain';
+    badgeWrap.appendChild(badgeImg);
+  } else {
+    const fallback = document.createElement('span');
+    fallback.textContent = team.name.charAt(0).toUpperCase();
+    fallback.style.fontSize = '44px';
+    fallback.style.fontWeight = '900';
+    fallback.style.color = 'rgba(255,255,255,0.75)';
+    badgeWrap.appendChild(fallback);
+  }
+
+  topRow.append(labelWrap, badgeWrap);
+
+  const middle = document.createElement('div');
+  middle.style.display = 'flex';
+  middle.style.flexDirection = 'column';
+  middle.style.gap = '28px';
+  middle.style.flex = '1';
+  middle.style.justifyContent = 'center';
+
+  const heroCard = document.createElement('div');
+  heroCard.style.padding = '38px';
+  heroCard.style.borderRadius = '32px';
+  heroCard.style.background = 'rgba(255,255,255,0.06)';
+  heroCard.style.border = '1px solid rgba(255,255,255,0.14)';
+  heroCard.style.boxShadow = `0 0 50px ${colors.glow}`;
+  heroCard.style.display = 'flex';
+  heroCard.style.alignItems = 'center';
+  heroCard.style.gap = '30px';
+
+  const emblem = document.createElement('div');
+  emblem.style.width = '240px';
+  emblem.style.height = '240px';
+  emblem.style.borderRadius = '50%';
+  emblem.style.border = `2px solid ${colors.secondary}`;
+  emblem.style.background = 'rgba(0,0,0,0.28)';
+  emblem.style.display = 'flex';
+  emblem.style.alignItems = 'center';
+  emblem.style.justifyContent = 'center';
+  emblem.style.flexShrink = '0';
+
+  if (team.badgeUrl) {
+    const emblemImg = document.createElement('img');
+    emblemImg.crossOrigin = 'anonymous';
+    emblemImg.src = team.badgeUrl;
+    emblemImg.alt = team.name;
+    emblemImg.width = 180;
+    emblemImg.height = 180;
+    emblemImg.style.objectFit = 'contain';
+    emblemImg.style.filter = 'drop-shadow(0 10px 20px rgba(0,0,0,0.35))';
+    emblem.appendChild(emblemImg);
+  } else {
+    const emblemText = document.createElement('span');
+    emblemText.textContent = team.name.charAt(0).toUpperCase();
+    emblemText.style.fontSize = '84px';
+    emblemText.style.fontWeight = '900';
+    emblemText.style.color = 'rgba(255,255,255,0.7)';
+    emblem.appendChild(emblemText);
+  }
+
+  const teamInfo = document.createElement('div');
+  teamInfo.style.display = 'flex';
+  teamInfo.style.flexDirection = 'column';
+  teamInfo.style.gap = '16px';
+
+  const teamName = document.createElement('h2');
+  teamName.textContent = team.name;
+  teamName.style.margin = '0';
+  teamName.style.fontSize = '68px';
+  teamName.style.lineHeight = '0.96';
+  teamName.style.letterSpacing = '-0.03em';
+  teamName.style.textShadow = '0 10px 20px rgba(0,0,0,0.5)';
+
+  const teamGroup = document.createElement('p');
+  teamGroup.textContent = team.group || 'Seleção da Copa Unasp';
+  teamGroup.style.margin = '0';
+  teamGroup.style.fontSize = '30px';
+  teamGroup.style.fontWeight = '700';
+  teamGroup.style.color = colors.secondary;
+  teamGroup.style.textShadow = `0 0 20px ${colors.glow}`;
+
+  const teamLeader = document.createElement('span');
+  teamLeader.textContent = team.leader ? `Capitão: ${team.leader}` : 'Capitão a definir';
+  teamLeader.style.display = 'inline-flex';
+  teamLeader.style.width = 'fit-content';
+  teamLeader.style.padding = '10px 16px';
+  teamLeader.style.borderRadius = '999px';
+  teamLeader.style.fontSize = '18px';
+  teamLeader.style.fontWeight = '800';
+  teamLeader.style.textTransform = 'uppercase';
+  teamLeader.style.letterSpacing = '0.08em';
+  teamLeader.style.background = 'rgba(255,255,255,0.09)';
+  teamLeader.style.border = '1px solid rgba(255,255,255,0.16)';
+
+  teamInfo.append(teamName, teamGroup, teamLeader);
+  heroCard.append(emblem, teamInfo);
+
+  const footer = document.createElement('div');
+  footer.style.display = 'flex';
+  footer.style.justifyContent = 'space-between';
+  footer.style.alignItems = 'center';
+  footer.style.paddingTop = '20px';
+  footer.style.borderTop = '1px solid rgba(255,255,255,0.16)';
+  footer.style.position = 'relative';
+  footer.style.zIndex = '10';
+
+  const footerLeft = document.createElement('span');
+  footerLeft.textContent = 'unaspcopa2026.vercel.app';
+  footerLeft.style.fontSize = '22px';
+  footerLeft.style.color = 'rgba(255,255,255,0.75)';
+  footerLeft.style.fontWeight = '600';
+
+  const footerRight = document.createElement('span');
+  footerRight.textContent = '@copaunasp';
+  footerRight.style.fontSize = '22px';
+  footerRight.style.color = colors.secondary;
+  footerRight.style.fontWeight = '700';
+
+  footer.append(footerLeft, footerRight);
+
+  middle.append(heroCard);
+  card.append(topRow, middle, footer);
+
   mount.append(card);
   document.body.appendChild(mount);
 

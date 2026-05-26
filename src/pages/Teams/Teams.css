@@ -227,6 +227,12 @@
   margin-top: 2rem;
 }
 
+.team-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
 .btn-explore {
   width: 100%;
   padding: 1rem;
@@ -243,6 +249,34 @@
   background: var(--secondary);
   color: black;
   border-color: var(--secondary);
+}
+
+.btn-download-team-card {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 176, 255, 0.12);
+  color: var(--text-main);
+  font-weight: 800;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  transition: var(--transition-fast);
+}
+
+.btn-download-team-card:hover:not(:disabled) {
+  background: rgba(0, 176, 255, 0.22);
+  border-color: rgba(0, 176, 255, 0.35);
+}
+
+.btn-download-team-card:disabled {
+  opacity: 0.7;
+  cursor: wait;
 }
 
 .teams-loading-state {
@@ -271,6 +305,10 @@
 
   .team-card-v2 {
     padding: 1.4rem;
+  }
+
+  .team-card-actions {
+    gap: 0.6rem;
   }
 }
 

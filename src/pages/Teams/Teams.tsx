@@ -1,11 +1,13 @@
 import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Teams.css';
-import { Shield, Search } from 'lucide-react';
+import { Download, Shield, Search } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useTeams } from '../../hooks/useTeams';
 import Skeleton from '../../components/Skeleton/Skeleton';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
+import { downloadSocialTeamCard } from '../../lib/socialCardExport';
 
 const Teams: React.FC = () => {
   const navigate = useNavigate();
@@ -16,6 +18,7 @@ const Teams: React.FC = () => {
   const [brokenBadgeMap, setBrokenBadgeMap] = useState<Record<string, true>>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('all');
+  const [downloadingTeamId, setDownloadingTeamId] = useState<string | null>(null);
   const isAdmin = role === 'admin';
   const deferredSearchTerm = useDeferredValue(searchTerm);
 
@@ -31,6 +34,37 @@ const Teams: React.FC = () => {
       return encodeURI(trimmed);
     } catch {
       return trimmed;
+    }
+  };
+
+  const handleDownloadTeamCard = async (team: { id: string; name: string; group?: string; leader?: string; badge_url?: string; primary_color?: string | null }) => {
+    const safeName = team.name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+
+    setDownloadingTeamId(team.id);
+    try {
+      await downloadSocialTeamCard({
+        fileName: `card-selecao-${safeName || team.id}`,
+        category: 'Seleção em Destaque',
+        subtitle: 'Escudo, liderança e identidade oficial',
+        team: {
+          name: team.name,
+          group: team.group,
+          leader: team.leader,
+          badgeUrl: team.badge_url,
+          primaryColor: team.primary_color,
+        },
+      });
+      toast.success(`Card de ${team.name} baixado!`);
+    } catch (error) {
+      console.error('Erro ao baixar card da seleção:', error);
+      toast.error('Nao foi possivel baixar o card desta seleção.');
+    } finally {
+      setDownloadingTeamId(null);
     }
   };
 
@@ -237,9 +271,24 @@ const Teams: React.FC = () => {
             </div>
 
             <div className="card-footer">
-              <button className="btn-explore" type="button">
-                Ver Elenco Completo
-              </button>
+              <div className="team-card-actions">
+                <button className="btn-explore" type="button">
+                  Ver Elenco Completo
+                </button>
+                <button
+                  className="btn-download-team-card"
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void handleDownloadTeamCard(team);
+                  }}
+                  disabled={downloadingTeamId === team.id}
+                  aria-label={`Baixar card da seleção ${team.name}`}
+                >
+                  <Download size={14} />
+                  <span>{downloadingTeamId === team.id ? 'Gerando...' : 'Baixar card'}</span>
+                </button>
+              </div>
             </div>
           </div>
         ))}
