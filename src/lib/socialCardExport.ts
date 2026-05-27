@@ -318,11 +318,8 @@ export const downloadSocialPlayerCard = async ({
     badgeImg.style.objectFit = 'contain';
     badgeWrap.appendChild(badgeImg);
   } else {
-    const fallback = document.createElement('span');
-    fallback.textContent = 'TIME';
-    fallback.style.fontSize = '20px';
-    fallback.style.fontWeight = '800';
-    fallback.style.color = 'rgba(255,255,255,0.7)';
+    const fallback = document.createElement('div');
+    fallback.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: rgba(255,255,255,0.5)"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`;
     badgeWrap.appendChild(fallback);
   }
 
