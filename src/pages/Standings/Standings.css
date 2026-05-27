@@ -11,6 +11,14 @@
   gap: 1.5rem;
 }
 
+.group-title-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
 .standings-criteria-card {
   border-radius: 16px;
   padding: 0.85rem 1rem;
@@ -73,6 +81,35 @@
   letter-spacing: 2px;
   padding-left: 1rem;
   border-left: 4px solid var(--secondary);
+}
+
+.btn-download-group-card {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.9rem 1.05rem;
+  border-radius: 999px;
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.18), rgba(255, 255, 255, 0.05));
+  color: var(--text-main);
+  font-weight: 900;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+  transition: transform 0.22s ease, border-color 0.22s ease, background 0.22s ease, opacity 0.22s ease;
+}
+
+.btn-download-group-card:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(251, 191, 36, 0.42);
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.24), rgba(255, 255, 255, 0.07));
+}
+
+.btn-download-group-card:disabled {
+  opacity: 0.7;
+  cursor: wait;
 }
 
 .standings-header {
@@ -409,6 +446,7 @@
 
 @media (max-width: 640px) {
   .standings-container { gap: 1.5rem; }
+  .group-title-bar { align-items: flex-start; }
   .group-title { font-size: 1.1rem; letter-spacing: 0.8px; }
   .header-info h1 { font-size: 2.1rem; }
   .header-actions { width: 100%; }

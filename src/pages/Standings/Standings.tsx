@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import './Standings.css';
-import { Shield, LayoutGrid, List, Trophy } from 'lucide-react';
-import { useStandings } from '../../hooks/useStandings';
+import { Download, Shield, LayoutGrid, List, Trophy } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { useStandings, type Standing } from '../../hooks/useStandings';
 import { useMatches } from '../../hooks/useMatches';
 import { useTournamentConfig } from '../../hooks/useTournamentConfig';
 import { useAuthContext } from '../../contexts/AuthContext';
@@ -10,6 +11,7 @@ import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
 import { KNOCKOUT_ROUND_LABELS } from '../../lib/tournamentRules';
 import { deriveMatchStatus } from '../../lib/matchStatus';
+import { downloadSocialGroupStandingCard } from '../../lib/socialCardExport';
 
 const Standings: React.FC = () => {
   const { standings, loading, error, refresh, paused } = useStandings();
@@ -20,6 +22,7 @@ const Standings: React.FC = () => {
   const [showByGroup, setShowByGroup] = useState(true);
   const [selectedGroup, setSelectedGroup] = useState('all');
   const [selectedKnockoutRound, setSelectedKnockoutRound] = useState<number | null>(null);
+  const [downloadingGroupCard, setDownloadingGroupCard] = useState<string | null>(null);
   const [stuck, setStuck] = useState(false);
   const [nowTs, setNowTs] = useState(() => Date.now());
   const isAdmin = role === 'admin';
@@ -360,6 +363,44 @@ const Standings: React.FC = () => {
     return '';
   };
 
+  const handleDownloadGroupCard = async (groupName: string, groupTeams: Standing[]) => {
+    const safeGroup = groupName
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+
+    setDownloadingGroupCard(groupName);
+    try {
+      await downloadSocialGroupStandingCard({
+        fileName: `classificacao-grupo-${safeGroup || 'geral'}`,
+        groupName,
+        subtitle: 'Classificação oficial da fase de grupos',
+        rows: groupTeams.map((team, index) => ({
+          rank: index + 1,
+          teamName: team.team_name,
+          badgeUrl: team.badge_url,
+          points: team.points,
+          played: team.played,
+          wins: team.wins,
+          draws: team.draws,
+          losses: team.losses,
+          goalsFor: team.goals_for,
+          goalsAgainst: team.goals_against,
+          goalsDiff: team.goals_diff,
+          percentage: team.percentage,
+        })),
+      });
+      toast.success(`Card do grupo ${groupName} baixado!`);
+    } catch (error) {
+      console.error('Erro ao baixar card da classificacao:', error);
+      toast.error('Nao foi possivel baixar o card desta classificacao.');
+    } finally {
+      setDownloadingGroupCard(null);
+    }
+  };
+
   return (
     <div className="standings-container animate-fade-in" ref={containerRef}>
       {/* Pull To Refresh Indicator */}
@@ -439,10 +480,22 @@ const Standings: React.FC = () => {
       {showByGroup ? (
         visibleGroups.map(([groupName, groupTeams]) => (
           <div key={groupName} className="group-section">
-            <h3 className="group-title">
-              <Shield size={20} color="var(--secondary)" />
-              {groupName}
-            </h3>
+            <div className="group-title-bar">
+              <h3 className="group-title">
+                <Shield size={20} color="var(--secondary)" />
+                {groupName}
+              </h3>
+              <button
+                type="button"
+                className="btn-download-group-card"
+                onClick={() => void handleDownloadGroupCard(groupName, groupTeams)}
+                disabled={downloadingGroupCard === groupName}
+                aria-label={`Baixar card da classificação do grupo ${groupName}`}
+              >
+                <Download size={14} />
+                <span>{downloadingGroupCard === groupName ? 'Gerando...' : 'Baixar card'}</span>
+              </button>
+            </div>
             <div className="table-container glass">
               <table className="standings-table-new">
                 <thead>
