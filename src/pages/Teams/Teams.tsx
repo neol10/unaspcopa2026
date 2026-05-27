@@ -230,6 +230,7 @@ const Teams: React.FC = () => {
           <div
             key={team.id}
             className="team-card-v2 glass"
+            style={{ '--team-color': team.primary_color || 'var(--secondary)' } as React.CSSProperties}
             onClick={() => navigate(`/equipes/${team.id}`)}
             role="button"
             tabIndex={0}

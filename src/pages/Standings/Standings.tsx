@@ -11,7 +11,7 @@ import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
 import { KNOCKOUT_ROUND_LABELS } from '../../lib/tournamentRules';
 import { deriveMatchStatus } from '../../lib/matchStatus';
-import { downloadSocialGroupStandingCard } from '../../lib/socialCardExport';
+import { downloadSocialGroupStandingCard, downloadSocialStandingsCard } from '../../lib/socialCardExport';
 
 const Standings: React.FC = () => {
   const { standings, loading, error, refresh, paused } = useStandings();
@@ -334,6 +334,12 @@ const Standings: React.FC = () => {
     ? Object.entries(groupedStandings).filter(([groupName]) => selectedGroup === 'all' || groupName === selectedGroup)
     : [];
 
+  const selectedDownloadGroups = useMemo(() => {
+    if (!showByGroup) return [];
+    if (selectedGroup === 'all') return visibleGroups;
+    return visibleGroups.filter(([groupName]) => groupName === selectedGroup);
+  }, [selectedGroup, showByGroup, visibleGroups]);
+
   const getGroupRankColorClass = (index: number, groupSize: number) => {
     if (groupSize === 4) {
       if (index <= 1) return 'rank-green';
@@ -363,36 +369,60 @@ const Standings: React.FC = () => {
     return '';
   };
 
-  const handleDownloadGroupCard = async (groupName: string, groupTeams: Standing[]) => {
-    const safeGroup = groupName
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)/g, '');
+  const handleDownloadVisibleGroups = async () => {
+    if (!showByGroup || selectedDownloadGroups.length === 0) return;
 
-    setDownloadingGroupCard(groupName);
+    const scopeLabel = selectedGroup === 'all' ? 'todos-os-grupos' : `grupo-${selectedGroup}`;
+
+    setDownloadingGroupCard(scopeLabel);
     try {
-      await downloadSocialGroupStandingCard({
-        fileName: `classificacao-grupo-${safeGroup || 'geral'}`,
-        groupName,
-        subtitle: 'Classificação oficial da fase de grupos',
-        rows: groupTeams.map((team, index) => ({
-          rank: index + 1,
-          teamName: team.team_name,
-          badgeUrl: team.badge_url,
-          points: team.points,
-          played: team.played,
-          wins: team.wins,
-          draws: team.draws,
-          losses: team.losses,
-          goalsFor: team.goals_for,
-          goalsAgainst: team.goals_against,
-          goalsDiff: team.goals_diff,
-          percentage: team.percentage,
-        })),
-      });
-      toast.success(`Card do grupo ${groupName} baixado!`);
+      if (selectedDownloadGroups.length === 1) {
+        const [groupName, groupTeams] = selectedDownloadGroups[0];
+        await downloadSocialGroupStandingCard({
+          fileName: `classificacao-grupo-${groupName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+          groupName,
+          subtitle: 'Classificação oficial da fase de grupos',
+          rows: groupTeams.map((team, index) => ({
+            rank: index + 1,
+            teamName: team.team_name,
+            badgeUrl: team.badge_url,
+            points: team.points,
+            played: team.played,
+            wins: team.wins,
+            draws: team.draws,
+            losses: team.losses,
+            goalsFor: team.goals_for,
+            goalsAgainst: team.goals_against,
+            goalsDiff: team.goals_diff,
+            percentage: team.percentage,
+          })),
+        });
+      } else {
+        await downloadSocialStandingsCard({
+          fileName: 'classificacao-dos-grupos',
+          title: 'Classificação dos grupos',
+          subtitle: 'Classificação oficial da fase de grupos',
+          groups: selectedDownloadGroups.map(([groupName, groupTeams]) => ({
+            groupName,
+            rows: groupTeams.map((team, index) => ({
+              rank: index + 1,
+              teamName: team.team_name,
+              badgeUrl: team.badge_url,
+              points: team.points,
+              played: team.played,
+              wins: team.wins,
+              draws: team.draws,
+              losses: team.losses,
+              goalsFor: team.goals_for,
+              goalsAgainst: team.goals_against,
+              goalsDiff: team.goals_diff,
+              percentage: team.percentage,
+            })),
+          })),
+        });
+      }
+
+      toast.success(selectedGroup === 'all' ? 'Cards dos grupos baixados!' : `Card do grupo ${selectedGroup} baixado!`);
     } catch (error) {
       console.error('Erro ao baixar card da classificacao:', error);
       toast.error('Nao foi possivel baixar o card desta classificacao.');
@@ -457,45 +487,51 @@ const Standings: React.FC = () => {
 
       {isGroupPhase && showByGroup && groupNames.length > 1 && (
         <div className="group-filter-row">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.55rem', alignItems: 'center' }}>
+            <button
+              type="button"
+              className={`group-filter-chip ${selectedGroup === 'all' ? 'active' : ''}`}
+              onClick={() => setSelectedGroup('all')}
+            >
+              Todos os grupos
+            </button>
+            {groupNames.map((groupName) => (
+              <button
+                key={groupName}
+                type="button"
+                className={`group-filter-chip ${selectedGroup === groupName ? 'active' : ''}`}
+                onClick={() => setSelectedGroup(groupName)}
+              >
+                {groupName}
+              </button>
+            ))}
+          </div>
           <button
             type="button"
-            className={`group-filter-chip ${selectedGroup === 'all' ? 'active' : ''}`}
-            onClick={() => setSelectedGroup('all')}
+            className="btn-download-group-card btn-download-visible-groups"
+            onClick={() => void handleDownloadVisibleGroups()}
+            disabled={downloadingGroupCard !== null}
+            aria-label={selectedGroup === 'all' ? 'Baixar card de todos os grupos' : `Baixar card do grupo ${selectedGroup}`}
           >
-            Todos os grupos
+            <Download size={14} />
+            <span>
+              {downloadingGroupCard !== null
+                ? 'Gerando...'
+                : selectedGroup === 'all'
+                  ? 'Baixar os 2 grupos'
+                  : `Baixar grupo ${selectedGroup}`}
+            </span>
           </button>
-          {groupNames.map((groupName) => (
-            <button
-              key={groupName}
-              type="button"
-              className={`group-filter-chip ${selectedGroup === groupName ? 'active' : ''}`}
-              onClick={() => setSelectedGroup(groupName)}
-            >
-              {groupName}
-            </button>
-          ))}
         </div>
       )}
 
       {showByGroup ? (
         visibleGroups.map(([groupName, groupTeams]) => (
           <div key={groupName} className="group-section">
-            <div className="group-title-bar">
-              <h3 className="group-title">
-                <Shield size={20} color="var(--secondary)" />
-                {groupName}
-              </h3>
-              <button
-                type="button"
-                className="btn-download-group-card"
-                onClick={() => void handleDownloadGroupCard(groupName, groupTeams)}
-                disabled={downloadingGroupCard === groupName}
-                aria-label={`Baixar card da classificação do grupo ${groupName}`}
-              >
-                <Download size={14} />
-                <span>{downloadingGroupCard === groupName ? 'Gerando...' : 'Baixar card'}</span>
-              </button>
-            </div>
+            <h3 className="group-title">
+              <Shield size={20} color="var(--secondary)" />
+              {groupName}
+            </h3>
             <div className="table-container glass">
               <table className="standings-table-new">
                 <thead>

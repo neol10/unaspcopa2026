@@ -11,14 +11,6 @@
   gap: 1.5rem;
 }
 
-.group-title-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
 .standings-criteria-card {
   border-radius: 16px;
   padding: 0.85rem 1rem;
@@ -110,6 +102,10 @@
 .btn-download-group-card:disabled {
   opacity: 0.7;
   cursor: wait;
+}
+
+.btn-download-visible-groups {
+  min-width: 190px;
 }
 
 .standings-header {
@@ -446,7 +442,7 @@
 
 @media (max-width: 640px) {
   .standings-container { gap: 1.5rem; }
-  .group-title-bar { align-items: flex-start; }
+  .group-filter-row { align-items: stretch; }
   .group-title { font-size: 1.1rem; letter-spacing: 0.8px; }
   .header-info h1 { font-size: 2.1rem; }
   .header-actions { width: 100%; }
@@ -454,6 +450,7 @@
   .view-toggle button { padding: 0.6rem 0.7rem; font-size: 0.75rem; min-height: 44px; flex: 1; justify-content: center; }
   .status-pill { min-height: 40px; }
   .group-filter-chip { padding: 0.55rem 0.95rem; min-height: 40px; }
+  .btn-download-visible-groups { width: 100%; }
   .table-container { padding: 0.5rem 0.35rem; }
   .standings-table-new { min-width: 600px; } /* Reduzido de 860px para mobile */
   .team-cell { gap: 0.55rem; }
