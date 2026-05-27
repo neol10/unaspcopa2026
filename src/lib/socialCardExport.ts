@@ -62,6 +62,18 @@ interface DownloadSocialGroupStandingCardOptions {
   rows: SocialCardStandingRow[];
 }
 
+interface SocialCardStandingGroup {
+  groupName: string;
+  rows: SocialCardStandingRow[];
+}
+
+interface DownloadSocialStandingsCardOptions {
+  fileName: string;
+  title?: string;
+  subtitle?: string;
+  groups: SocialCardStandingGroup[];
+}
+
 const THEME_COLORS: Record<SocialCardTheme, { primary: string; secondary: string; glow: string }> = {
   gold: { primary: '#f59e0b', secondary: '#facc15', glow: 'rgba(245, 158, 11, 0.25)' },
   blue: { primary: '#0ea5e9', secondary: '#22d3ee', glow: 'rgba(14, 165, 233, 0.25)' },
@@ -680,8 +692,38 @@ export const downloadSocialTeamCard = async ({
   teamLeader.style.letterSpacing = '0.08em';
   teamLeader.style.background = 'rgba(255,255,255,0.09)';
   teamLeader.style.border = '1px solid rgba(255,255,255,0.16)';
+  // organize leader and group into chips for clearer hierarchy
+  const chips = document.createElement('div');
+  chips.style.display = 'flex';
+  chips.style.gap = '10px';
 
-  teamInfo.append(teamName, teamGroup, teamLeader);
+  const groupChip = document.createElement('span');
+  groupChip.textContent = team.group ? `Grupo ${team.group}` : 'Grupo —';
+  groupChip.style.display = 'inline-flex';
+  groupChip.style.alignItems = 'center';
+  groupChip.style.padding = '8px 12px';
+  groupChip.style.borderRadius = '999px';
+  groupChip.style.fontSize = '16px';
+  groupChip.style.fontWeight = '800';
+  groupChip.style.color = colors.secondary;
+  groupChip.style.background = 'rgba(255,255,255,0.04)';
+  groupChip.style.border = `1px solid rgba(255,255,255,0.08)`;
+
+  const leaderChip = document.createElement('span');
+  leaderChip.textContent = team.leader ? `Capitão: ${team.leader}` : 'Capitão a definir';
+  leaderChip.style.display = 'inline-flex';
+  leaderChip.style.alignItems = 'center';
+  leaderChip.style.padding = '8px 12px';
+  leaderChip.style.borderRadius = '999px';
+  leaderChip.style.fontSize = '14px';
+  leaderChip.style.fontWeight = '700';
+  leaderChip.style.color = 'rgba(255,255,255,0.9)';
+  leaderChip.style.background = 'rgba(255,255,255,0.03)';
+  leaderChip.style.border = '1px solid rgba(255,255,255,0.06)';
+
+  chips.append(groupChip, leaderChip);
+
+  teamInfo.append(teamName, teamGroup, chips);
   heroCard.append(emblem, teamInfo);
 
   const footer = document.createElement('div');
@@ -875,101 +917,106 @@ export const downloadSocialGroupStandingCard = async ({
 
   topRows.forEach((row, index) => {
     const tile = document.createElement('div');
-    tile.style.padding = '18px 18px 16px';
-    tile.style.borderRadius = '24px';
+    tile.style.padding = '14px';
+    tile.style.borderRadius = '20px';
     tile.style.background = index === 0
-      ? 'linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0.07))'
-      : 'rgba(255,255,255,0.06)';
-    tile.style.border = `1px solid ${index === 0 ? colors.secondary : 'rgba(255,255,255,0.12)'}`;
-    tile.style.boxShadow = index === 0 ? `0 0 32px ${colors.glow}` : 'none';
+      ? 'linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0.06))'
+      : 'rgba(255,255,255,0.04)';
+    tile.style.border = `1px solid ${index === 0 ? colors.secondary : 'rgba(255,255,255,0.10)'}`;
+    tile.style.boxShadow = index === 0 ? `0 6px 26px ${colors.glow}` : 'none';
     tile.style.display = 'flex';
-    tile.style.flexDirection = 'column';
+    tile.style.flexDirection = 'row';
+    tile.style.alignItems = 'center';
     tile.style.gap = '12px';
 
-    const tileTop = document.createElement('div');
-    tileTop.style.display = 'flex';
-    tileTop.style.alignItems = 'center';
-    tileTop.style.gap = '14px';
-
     const rankCircle = document.createElement('div');
-    rankCircle.style.width = '52px';
-    rankCircle.style.height = '52px';
+    rankCircle.style.width = '48px';
+    rankCircle.style.height = '48px';
     rankCircle.style.borderRadius = '50%';
     rankCircle.style.display = 'flex';
     rankCircle.style.alignItems = 'center';
     rankCircle.style.justifyContent = 'center';
-    rankCircle.style.fontSize = '22px';
+    rankCircle.style.fontSize = '20px';
     rankCircle.style.fontWeight = '900';
     rankCircle.style.color = '#0b1220';
-    rankCircle.style.background = index === 0 ? colors.secondary : 'rgba(255,255,255,0.9)';
+    rankCircle.style.background = index === 0 ? colors.secondary : 'rgba(255,255,255,0.92)';
     rankCircle.textContent = String(row.rank);
+
+    const badge = document.createElement('div');
+    badge.style.width = '48px';
+    badge.style.height = '48px';
+    badge.style.borderRadius = '8px';
+    badge.style.overflow = 'hidden';
+    badge.style.flexShrink = '0';
+    badge.style.display = 'flex';
+    badge.style.alignItems = 'center';
+    badge.style.justifyContent = 'center';
+    badge.style.background = 'rgba(0,0,0,0.12)';
+    if (row.badgeUrl) {
+      const bimg = document.createElement('img');
+      bimg.crossOrigin = 'anonymous';
+      bimg.src = row.badgeUrl;
+      bimg.alt = row.teamName;
+      bimg.width = 44;
+      bimg.height = 44;
+      bimg.style.objectFit = 'contain';
+      badge.appendChild(bimg);
+    } else {
+      const bb = document.createElement('span');
+      bb.textContent = row.teamName.charAt(0).toUpperCase();
+      bb.style.fontWeight = '900';
+      bb.style.color = 'rgba(255,255,255,0.85)';
+      badge.appendChild(bb);
+    }
 
     const nameBox = document.createElement('div');
     nameBox.style.display = 'flex';
     nameBox.style.flexDirection = 'column';
-    nameBox.style.gap = '4px';
+    nameBox.style.gap = '2px';
     nameBox.style.minWidth = '0';
 
     const teamLine = document.createElement('strong');
     teamLine.textContent = row.teamName;
-    teamLine.style.fontSize = '22px';
+    teamLine.style.fontSize = '18px';
     teamLine.style.lineHeight = '1.05';
     teamLine.style.overflow = 'hidden';
     teamLine.style.textOverflow = 'ellipsis';
     teamLine.style.whiteSpace = 'nowrap';
 
     const subLine = document.createElement('span');
-    subLine.textContent = `P ${row.points} • SG ${row.goalsDiff > 0 ? `+${row.goalsDiff}` : row.goalsDiff}`;
-    subLine.style.fontSize = '13px';
-    subLine.style.letterSpacing = '0.12em';
-    subLine.style.textTransform = 'uppercase';
+    subLine.textContent = `J ${row.played} • W ${row.wins} • D ${row.draws} • L ${row.losses}`;
+    subLine.style.fontSize = '12px';
+    subLine.style.letterSpacing = '0.06em';
     subLine.style.color = 'rgba(255,255,255,0.72)';
 
     nameBox.append(teamLine, subLine);
-    tileTop.append(rankCircle, nameBox);
 
-    const metrics = document.createElement('div');
-    metrics.style.display = 'grid';
-    metrics.style.gridTemplateColumns = 'repeat(6, 1fr)';
-    metrics.style.gap = '10px';
+    const spacer = document.createElement('div');
+    spacer.style.flex = '1';
 
-    const metricsData = [
-      ['J', row.played],
-      ['V', row.wins],
-      ['E', row.draws],
-      ['D', row.losses],
-      ['GP', row.goalsFor],
-      ['GC', row.goalsAgainst],
-    ];
+    const pointsWrap = document.createElement('div');
+    pointsWrap.style.display = 'flex';
+    pointsWrap.style.flexDirection = 'column';
+    pointsWrap.style.alignItems = 'flex-end';
+    pointsWrap.style.gap = '4px';
+    pointsWrap.style.minWidth = '96px';
 
-    metricsData.forEach(([label, value]) => {
-      const chip = document.createElement('div');
-      chip.style.padding = '10px 8px';
-      chip.style.borderRadius = '14px';
-      chip.style.background = 'rgba(255,255,255,0.08)';
-      chip.style.border = '1px solid rgba(255,255,255,0.12)';
-      chip.style.textAlign = 'center';
+    const ptsVal = document.createElement('strong');
+    ptsVal.textContent = String(row.points);
+    ptsVal.style.fontSize = '28px';
+    ptsVal.style.fontWeight = '900';
+    ptsVal.style.color = '#ffffff';
+    ptsVal.style.textShadow = `0 0 14px ${colors.glow}`;
 
-      const chipLabel = document.createElement('span');
-      chipLabel.textContent = String(label);
-      chipLabel.style.display = 'block';
-      chipLabel.style.fontSize = '11px';
-      chipLabel.style.fontWeight = '900';
-      chipLabel.style.letterSpacing = '0.14em';
-      chipLabel.style.color = 'rgba(255,255,255,0.65)';
+    const gd = document.createElement('span');
+    gd.textContent = `${row.goalsDiff > 0 ? '+' + row.goalsDiff : row.goalsDiff}`;
+    gd.style.fontSize = '14px';
+    gd.style.fontWeight = '800';
+    gd.style.color = row.goalsDiff > 0 ? '#00e676' : row.goalsDiff < 0 ? '#ff5252' : 'rgba(255,255,255,0.8)';
 
-      const chipValue = document.createElement('strong');
-      chipValue.textContent = String(value);
-      chipValue.style.display = 'block';
-      chipValue.style.fontSize = '19px';
-      chipValue.style.lineHeight = '1.1';
-      chipValue.style.marginTop = '3px';
+    pointsWrap.append(ptsVal, gd);
 
-      chip.append(chipLabel, chipValue);
-      metrics.appendChild(chip);
-    });
-
-    tile.append(tileTop, metrics);
+    tile.append(rankCircle, badge, nameBox, spacer, pointsWrap);
     highlightBand.appendChild(tile);
   });
 
@@ -1012,6 +1059,337 @@ export const downloadSocialGroupStandingCard = async ({
   });
 
   body.append(highlightBand, detailGrid);
+
+  const footer = document.createElement('div');
+  footer.style.display = 'flex';
+  footer.style.justifyContent = 'space-between';
+  footer.style.alignItems = 'center';
+  footer.style.paddingTop = '20px';
+  footer.style.borderTop = '1px solid rgba(255,255,255,0.16)';
+  footer.style.position = 'relative';
+  footer.style.zIndex = '10';
+
+  const footerLeft = document.createElement('span');
+  footerLeft.textContent = 'unaspcopa2026.vercel.app';
+  footerLeft.style.fontSize = '22px';
+  footerLeft.style.color = 'rgba(255,255,255,0.75)';
+  footerLeft.style.fontWeight = '600';
+
+  const footerRight = document.createElement('span');
+  footerRight.textContent = '@copaunasp';
+  footerRight.style.fontSize = '22px';
+  footerRight.style.color = colors.secondary;
+  footerRight.style.fontWeight = '700';
+
+  footer.append(footerLeft, footerRight);
+
+  card.append(header, body, footer);
+  mount.append(card);
+  document.body.appendChild(mount);
+
+  try {
+    await document.fonts.ready;
+    await waitForImages(card);
+    const dataUrl = await toPng(card, {
+      quality: 1,
+      pixelRatio: 2,
+      cacheBust: true,
+      backgroundColor: '#08111d',
+    });
+
+    const link = document.createElement('a');
+    link.download = fileName.endsWith('.png') ? fileName : `${fileName}.png`;
+    link.href = dataUrl;
+    link.click();
+  } finally {
+    mount.remove();
+  }
+};
+
+export const downloadSocialStandingsCard = async ({
+  fileName,
+  title,
+  subtitle,
+  groups,
+}: DownloadSocialStandingsCardOptions) => {
+  const validGroups = groups.filter((group) => group.rows.length > 0);
+  if (validGroups.length === 0) return;
+
+  const accentSource = validGroups[0].rows[0]?.badgeUrl;
+  let colors = THEME_COLORS.gold;
+  let teamAccentRgb: string | null = null;
+
+  if (accentSource) {
+    const rgbStr = await getDominantColor(accentSource);
+    teamAccentRgb = rgbStr;
+    colors = {
+      primary: `rgb(${rgbStr})`,
+      secondary: `rgb(${rgbStr})`,
+      glow: `rgba(${rgbStr}, 0.25)`,
+    };
+  }
+
+  const mount = document.createElement('div');
+  mount.style.position = 'fixed';
+  mount.style.left = '-99999px';
+  mount.style.top = '0';
+  mount.style.zIndex = '-1';
+  mount.style.pointerEvents = 'none';
+
+  const card = document.createElement('div');
+  card.style.width = '1080px';
+  card.style.height = validGroups.length > 1 ? '1740px' : '1440px';
+  card.style.display = 'flex';
+  card.style.flexDirection = 'column';
+  card.style.justifyContent = 'space-between';
+  card.style.padding = '56px';
+  card.style.boxSizing = 'border-box';
+  card.style.borderRadius = '36px';
+  card.style.overflow = 'hidden';
+  card.style.color = '#ffffff';
+  card.style.fontFamily = "'Poppins', 'Segoe UI', sans-serif";
+  card.style.background = teamAccentRgb
+    ? `radial-gradient(circle at 85% 15%, rgba(${teamAccentRgb}, 0.5), transparent 50%), radial-gradient(circle at 15% 85%, rgba(${teamAccentRgb}, 0.2), transparent 50%), linear-gradient(135deg, #08111d 0%, #131c31 100%)`
+    : `radial-gradient(circle at 85% 15%, ${colors.glow}, transparent 50%), linear-gradient(135deg, #08111d 0%, #131c31 100%)`;
+  card.style.border = '2px solid rgba(255,255,255,0.1)';
+  card.style.boxShadow = `inset 0 0 100px rgba(0,0,0,0.78), 0 0 42px ${colors.glow}`;
+  card.style.position = 'relative';
+
+  const overlay = document.createElement('div');
+  overlay.style.position = 'absolute';
+  overlay.style.inset = '0';
+  overlay.style.opacity = '0.03';
+  overlay.style.backgroundImage = 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'1\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")';
+  overlay.style.zIndex = '0';
+  card.appendChild(overlay);
+
+  const header = document.createElement('div');
+  header.style.display = 'flex';
+  header.style.justifyContent = 'space-between';
+  header.style.alignItems = 'flex-start';
+  header.style.gap = '24px';
+  header.style.position = 'relative';
+  header.style.zIndex = '10';
+
+  const headerText = document.createElement('div');
+  headerText.style.display = 'flex';
+  headerText.style.flexDirection = 'column';
+  headerText.style.gap = '12px';
+
+  const eyebrow = document.createElement('span');
+  eyebrow.textContent = 'COPA UNASP 2026';
+  eyebrow.style.fontSize = '28px';
+  eyebrow.style.letterSpacing = '0.12em';
+  eyebrow.style.fontWeight = '800';
+  eyebrow.style.color = 'rgba(255,255,255,0.72)';
+
+  const titleEl = document.createElement('h1');
+  titleEl.textContent = title || (validGroups.length > 1 ? 'Classificação dos grupos' : `Grupo ${validGroups[0].groupName}`);
+  titleEl.style.margin = '0';
+  titleEl.style.fontSize = '74px';
+  titleEl.style.lineHeight = '0.95';
+  titleEl.style.letterSpacing = '-0.04em';
+  titleEl.style.fontWeight = '900';
+  titleEl.style.background = `linear-gradient(to right, #ffffff, ${colors.secondary})`;
+  titleEl.style.webkitBackgroundClip = 'text';
+  titleEl.style.webkitTextFillColor = 'transparent';
+
+  const subtitleEl = document.createElement('p');
+  subtitleEl.textContent = subtitle || 'Classificação oficial da fase de grupos';
+  subtitleEl.style.margin = '0';
+  subtitleEl.style.fontSize = '24px';
+  subtitleEl.style.color = 'rgba(255,255,255,0.78)';
+  subtitleEl.style.fontWeight = '500';
+
+  headerText.append(eyebrow, titleEl, subtitleEl);
+
+  const badgeWrap = document.createElement('div');
+  badgeWrap.style.width = '138px';
+  badgeWrap.style.height = '138px';
+  badgeWrap.style.borderRadius = '32px';
+  badgeWrap.style.border = `2px solid ${colors.secondary}`;
+  badgeWrap.style.boxShadow = `0 0 30px ${colors.glow}`;
+  badgeWrap.style.background = 'rgba(0,0,0,0.34)';
+  badgeWrap.style.display = 'flex';
+  badgeWrap.style.alignItems = 'center';
+  badgeWrap.style.justifyContent = 'center';
+  badgeWrap.style.flexShrink = '0';
+
+  if (accentSource) {
+    const badgeImg = document.createElement('img');
+    badgeImg.crossOrigin = 'anonymous';
+    badgeImg.src = accentSource;
+    badgeImg.alt = 'Classificação';
+    badgeImg.width = 92;
+    badgeImg.height = 92;
+    badgeImg.style.objectFit = 'contain';
+    badgeWrap.appendChild(badgeImg);
+  } else {
+    const fallback = document.createElement('span');
+    fallback.textContent = 'GR';
+    fallback.style.fontSize = '36px';
+    fallback.style.fontWeight = '900';
+    fallback.style.letterSpacing = '0.08em';
+    fallback.style.color = 'rgba(255,255,255,0.78)';
+    badgeWrap.appendChild(fallback);
+  }
+
+  header.append(headerText, badgeWrap);
+
+  const body = document.createElement('div');
+  body.style.display = 'grid';
+  body.style.gridTemplateColumns = validGroups.length > 1 ? '1fr 1fr' : '1fr';
+  body.style.gap = '18px';
+  body.style.position = 'relative';
+  body.style.zIndex = '10';
+  body.style.flex = '1';
+
+  const makeCompactRow = (row: SocialCardStandingRow, index: number) => {
+    const rowCard = document.createElement('div');
+    rowCard.style.display = 'grid';
+    rowCard.style.gridTemplateColumns = '58px 1fr 86px';
+    rowCard.style.alignItems = 'center';
+    rowCard.style.gap = '14px';
+    rowCard.style.padding = '14px 16px';
+    rowCard.style.borderRadius = '20px';
+    rowCard.style.background = index === 0
+      ? 'linear-gradient(135deg, rgba(255,255,255,0.16), rgba(255,255,255,0.07))'
+      : 'rgba(255,255,255,0.06)';
+    rowCard.style.border = `1px solid ${index === 0 ? colors.secondary : 'rgba(255,255,255,0.1)'}`;
+    rowCard.style.boxShadow = index === 0 ? `0 0 26px ${colors.glow}` : 'none';
+
+    const rankCircle = document.createElement('div');
+    rankCircle.style.width = '46px';
+    rankCircle.style.height = '46px';
+    rankCircle.style.borderRadius = '50%';
+    rankCircle.style.display = 'flex';
+    rankCircle.style.alignItems = 'center';
+    rankCircle.style.justifyContent = 'center';
+    rankCircle.style.fontSize = '18px';
+    rankCircle.style.fontWeight = '900';
+    rankCircle.style.color = '#0b1220';
+    rankCircle.style.background = index === 0 ? colors.secondary : 'rgba(255,255,255,0.92)';
+    rankCircle.textContent = String(row.rank);
+
+    const teamBox = document.createElement('div');
+    teamBox.style.display = 'flex';
+    teamBox.style.flexDirection = 'column';
+    teamBox.style.gap = '4px';
+    teamBox.style.minWidth = '0';
+
+    const teamLine = document.createElement('strong');
+    teamLine.textContent = row.teamName;
+    teamLine.style.fontSize = '22px';
+    teamLine.style.lineHeight = '1.05';
+    teamLine.style.overflow = 'hidden';
+    teamLine.style.textOverflow = 'ellipsis';
+    teamLine.style.whiteSpace = 'nowrap';
+
+    const statsLine = document.createElement('span');
+    statsLine.textContent = `J ${row.played} • V ${row.wins} • E ${row.draws} • D ${row.losses} • SG ${row.goalsDiff > 0 ? `+${row.goalsDiff}` : row.goalsDiff}`;
+    statsLine.style.fontSize = '12px';
+    statsLine.style.letterSpacing = '0.08em';
+    statsLine.style.textTransform = 'uppercase';
+    statsLine.style.color = 'rgba(255,255,255,0.72)';
+
+    teamBox.append(teamLine, statsLine);
+
+    const pointsBox = document.createElement('div');
+    pointsBox.style.display = 'flex';
+    pointsBox.style.flexDirection = 'column';
+    pointsBox.style.alignItems = 'center';
+    pointsBox.style.justifyContent = 'center';
+    pointsBox.style.gap = '2px';
+    pointsBox.style.padding = '10px 8px';
+    pointsBox.style.borderRadius = '16px';
+    pointsBox.style.background = 'rgba(0,0,0,0.22)';
+    pointsBox.style.border = '1px solid rgba(255,255,255,0.12)';
+
+    const pointsValue = document.createElement('strong');
+    pointsValue.textContent = String(row.points);
+    pointsValue.style.fontSize = '26px';
+    pointsValue.style.lineHeight = '1';
+    pointsValue.style.color = '#ffffff';
+    pointsValue.style.textShadow = `0 0 16px ${colors.glow}`;
+
+    const pointsLabel = document.createElement('span');
+    pointsLabel.textContent = 'PTS';
+    pointsLabel.style.fontSize = '11px';
+    pointsLabel.style.fontWeight = '900';
+    pointsLabel.style.letterSpacing = '0.16em';
+    pointsLabel.style.color = 'rgba(255,255,255,0.7)';
+
+    pointsBox.append(pointsValue, pointsLabel);
+
+    rowCard.append(rankCircle, teamBox, pointsBox);
+    return rowCard;
+  };
+
+  validGroups.forEach((group) => {
+    const section = document.createElement('div');
+    section.style.padding = '22px';
+    section.style.borderRadius = '28px';
+    section.style.background = 'rgba(255,255,255,0.05)';
+    section.style.border = '1px solid rgba(255,255,255,0.12)';
+    section.style.display = 'flex';
+    section.style.flexDirection = 'column';
+    section.style.gap = '14px';
+
+    const sectionHeader = document.createElement('div');
+    sectionHeader.style.display = 'flex';
+    sectionHeader.style.justifyContent = 'space-between';
+    sectionHeader.style.alignItems = 'center';
+    sectionHeader.style.gap = '12px';
+
+    const sectionTitle = document.createElement('div');
+    sectionTitle.style.display = 'flex';
+    sectionTitle.style.alignItems = 'center';
+    sectionTitle.style.gap = '10px';
+
+    const sectionBadge = document.createElement('span');
+    sectionBadge.textContent = group.groupName;
+    sectionBadge.style.display = 'inline-flex';
+    sectionBadge.style.alignItems = 'center';
+    sectionBadge.style.justifyContent = 'center';
+    sectionBadge.style.minWidth = '54px';
+    sectionBadge.style.padding = '8px 14px';
+    sectionBadge.style.borderRadius = '999px';
+    sectionBadge.style.background = 'rgba(255,255,255,0.1)';
+    sectionBadge.style.border = `1px solid ${colors.secondary}`;
+    sectionBadge.style.color = colors.secondary;
+    sectionBadge.style.fontWeight = '900';
+    sectionBadge.style.fontSize = '18px';
+
+    const sectionLabel = document.createElement('strong');
+    sectionLabel.textContent = `Grupo ${group.groupName}`;
+    sectionLabel.style.fontSize = '28px';
+    sectionLabel.style.fontWeight = '900';
+    sectionLabel.style.letterSpacing = '-0.02em';
+
+    sectionTitle.append(sectionBadge, sectionLabel);
+
+    const sectionMeta = document.createElement('span');
+    sectionMeta.textContent = `${group.rows.length} equipes`;
+    sectionMeta.style.fontSize = '12px';
+    sectionMeta.style.fontWeight = '800';
+    sectionMeta.style.letterSpacing = '0.14em';
+    sectionMeta.style.textTransform = 'uppercase';
+    sectionMeta.style.color = 'rgba(255,255,255,0.68)';
+
+    sectionHeader.append(sectionTitle, sectionMeta);
+
+    const rowsWrap = document.createElement('div');
+    rowsWrap.style.display = 'flex';
+    rowsWrap.style.flexDirection = 'column';
+    rowsWrap.style.gap = '10px';
+
+    group.rows.forEach((row, index) => {
+      rowsWrap.appendChild(makeCompactRow(row, index));
+    });
+
+    section.append(sectionHeader, rowsWrap);
+    body.appendChild(section);
+  });
 
   const footer = document.createElement('div');
   footer.style.display = 'flex';
