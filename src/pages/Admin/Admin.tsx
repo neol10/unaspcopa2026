@@ -21,8 +21,8 @@ import { useConfirm } from '../../hooks/useConfirm';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useDivisionContext } from '../../contexts/DivisionContext';
 import { isMissingColumnError as isMissingDivisionColumnError, markDivisionColumnMissing, markNightColumnMissing } from '../../lib/supabaseOptionalColumns';
-import { clearPhotoCropFromUrl, parsePhotoCropFromUrl, setPhotoCropOnUrl } from '../../lib/photoCrop';
 import { deriveMatchStatus } from '../../lib/matchStatus';
+import { rebuildStatsClientSide } from '../../lib/rebuildStats';
 import {
   buildLocationFromCourt,
   COURT_OPTIONS,
@@ -3353,39 +3353,14 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
       // Prefer server-side endpoint that performs insert + updates atomically to avoid client-side race conditions and delays.
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-
-        const resp = await fetch('/api/add-match-event', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            match_id: match.id,
-            event_type: eventData.event_type,
-            minute: eventData.minute,
-            player_id: eventData.player_id,
-            assistant_id: eventData.assistant_id || null,
-            commentary: eventData.commentary || null,
-            metadata: eventData.metadata || null,
-            team,
-            goal_type: (eventData.metadata as any)?.goal_type || finalGoalType,
-          })
-        });
-
-        if (!resp.ok) {
-          // fallback to client-side supabase flow if server endpoint fails
-          throw new Error(`Server endpoint failed: ${resp.status}`);
-        }
-
-        const json = await resp.json();
-        if (json?.match) updateOptimisticMatch(json.match);
-      } catch (err) {
-        // Fallback: perform the older client-side behavior
+        // Usa o cliente Supabase de forma rápida e simultânea para evitar demoras
+        const tasks: Promise<any>[] = [];
+        
+        // 1. Insere o evento no match_events
         const { error } = await supabase.from('match_events').insert([eventData]);
         if (error) throw error;
 
+        // 2. Prepara atualização de placar
         if (eventType === 'gol') {
           let newScore = {};
           if (finalGoalType === 'contra') {
@@ -3394,33 +3369,49 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
             newScore = team === 'a' ? { team_a_score: (match.team_a_score || 0) + 1 } : { team_b_score: (match.team_b_score || 0) + 1 };
           }
           updateOptimisticMatch(newScore);
-          await supabase.from('matches').update(newScore).eq('id', match.id);
+          tasks.push(supabase.from('matches').update(newScore).eq('id', match.id));
         }
 
+        // 3. Prepara atualização de estatísticas de jogadores
         if (eventType === 'gol' && finalGoalType !== 'contra') {
           if (isRegisteredPlayer) {
-            const { data: p } = await supabase.from('players').select('goals_count').eq('id', playerId).single();
-            await supabase.from('players').update({ goals_count: (p?.goals_count || 0) + 1 }).eq('id', playerId);
+            tasks.push(
+              supabase.from('players').select('goals_count').eq('id', playerId).single()
+                .then(({ data: p }) => supabase.from('players').update({ goals_count: (p?.goals_count || 0) + 1 }).eq('id', playerId))
+            );
           }
-
           if (finalAssistantId) {
-            const { data: ast } = await supabase.from('players').select('assists').eq('id', finalAssistantId).single();
-            await supabase.from('players').update({ assists: (ast?.assists || 0) + 1 }).eq('id', finalAssistantId);
+            tasks.push(
+              supabase.from('players').select('assists').eq('id', finalAssistantId).single()
+                .then(({ data: ast }) => supabase.from('players').update({ assists: (ast?.assists || 0) + 1 }).eq('id', finalAssistantId))
+            );
           }
         } else if (eventType === 'amarelo') {
           if (isRegisteredPlayer) {
-            const { data: p } = await supabase.from('players').select('yellow_cards').eq('id', playerId).single();
-            await supabase.from('players').update({ yellow_cards: (p?.yellow_cards || 0) + 1 }).eq('id', playerId);
+            tasks.push(
+              supabase.from('players').select('yellow_cards').eq('id', playerId).single()
+                .then(({ data: p }) => supabase.from('players').update({ yellow_cards: (p?.yellow_cards || 0) + 1 }).eq('id', playerId))
+            );
           }
         } else if (eventType === 'vermelho') {
           if (isRegisteredPlayer) {
-            const { data: p } = await supabase.from('players').select('red_cards').eq('id', playerId).single();
-            await supabase.from('players').update({ red_cards: (p?.red_cards || 0) + 1 }).eq('id', playerId);
+            tasks.push(
+              supabase.from('players').select('red_cards').eq('id', playerId).single()
+                .then(({ data: p }) => supabase.from('players').update({ red_cards: (p?.red_cards || 0) + 1 }).eq('id', playerId))
+            );
             // Expulso sai de campo automaticamente
             if (team === 'a') setOnFieldA(prev => prev.filter(id => id !== playerId));
             else setOnFieldB(prev => prev.filter(id => id !== playerId));
           }
         }
+
+        // Executa todas as atualizações de placares e stats em paralelo (super rapido!)
+        if (tasks.length > 0) {
+          await Promise.all(tasks);
+        }
+      } catch (err: unknown) {
+        toast.error('Erro ao registrar evento. Verifique a conexao e tente novamente.');
+        console.error('add-event error', err);
       }
 
       setAssistantId('');
@@ -4468,15 +4459,16 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
             onClick={async () => {
               if (!confirm('Recontar estatisticas e placares? Isso pode levar alguns segundos.')) return;
               try {
-                const resp = await fetch('/api/rebuild-player-stats', { method: 'POST' });
-                if (!resp.ok) throw new Error('Falha ao recontar');
-                toast.success('Estatisticas recalculadas. Atualizando...');
+                toast.loading('Recontando... aguarde!', { id: 'rebuild' });
+                await rebuildStatsClientSide();
+                toast.success('Estatisticas recalculadas. Atualizando...', { id: 'rebuild' });
                 queryClient.invalidateQueries({ queryKey: ['players'] });
                 queryClient.invalidateQueries({ queryKey: ['rankings'] });
                 queryClient.invalidateQueries({ queryKey: ['matches'] });
                 refreshEvents();
               } catch (err) {
-                toast.error('Erro ao recontar estatisticas');
+                console.error(err);
+                toast.error('Erro ao recontar estatisticas', { id: 'rebuild' });
               }
             }}
             title="Recontar estatisticas"
