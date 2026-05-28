@@ -2681,6 +2681,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   const [editEventMinute, setEditEventMinute] = useState<number>(0);
   const [editEventAssistId, setEditEventAssistId] = useState<string>('');
   const [editEventPlayerId, setEditEventPlayerId] = useState<string>('');
+  const [editEventTeamSide, setEditEventTeamSide] = useState<'a' | 'b'>('a');
   const [isSwapped, setIsSwapped] = useState(false);
   const [isSubmittingEvent, setIsSubmittingEvent] = useState(false);
 
@@ -3641,6 +3642,19 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
     return stats;
   }, [events, match.team_a_score, match.team_b_score, playersA, playersB]);
 
+  const resolveEventTeamSide = useCallback((event: MatchEvent): 'a' | 'b' => {
+    const metadataSide = event.metadata && typeof event.metadata === 'object'
+      ? (event.metadata as { team_side?: unknown }).team_side
+      : null;
+
+    if (metadataSide === 'a' || metadataSide === 'b') return metadataSide;
+    if (event.team_id === match.team_a_id) return 'a';
+    if (event.team_id === match.team_b_id) return 'b';
+    if (event.player_id && playersA.some((p) => p.id === event.player_id)) return 'a';
+    if (event.player_id && playersB.some((p) => p.id === event.player_id)) return 'b';
+    return 'a';
+  }, [match.team_a_id, match.team_b_id, playersA, playersB]);
+
   const liveStatus = useMemo(() => {
     if (match.status === 'finalizado') return { label: 'Finalizado', tone: 'final' };
     if (isActive) return { label: 'Em jogo', tone: 'live' };
@@ -4494,10 +4508,33 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                         autoFocus
                       />
                       {event.event_type === 'gol' && (() => {
-                        const isTeamA = event.metadata?.team_side === 'a' || playersA?.some(p => p.id === event.player_id);
-                        const teamPlayers = isTeamA ? playersA : playersB;
+                        const teamPlayers = editEventTeamSide === 'a' ? playersA : playersB;
                         return (
                           <>
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                              <button
+                                type="button"
+                                className={`edit-team-toggle ${editEventTeamSide === 'a' ? 'active' : ''}`}
+                                onClick={() => {
+                                  setEditEventTeamSide('a');
+                                  setEditEventPlayerId('');
+                                  setEditEventAssistId('');
+                                }}
+                              >
+                                {match.teams_a?.name || 'Equipe A'}
+                              </button>
+                              <button
+                                type="button"
+                                className={`edit-team-toggle ${editEventTeamSide === 'b' ? 'active' : ''}`}
+                                onClick={() => {
+                                  setEditEventTeamSide('b');
+                                  setEditEventPlayerId('');
+                                  setEditEventAssistId('');
+                                }}
+                              >
+                                {match.teams_b?.name || 'Equipe B'}
+                              </button>
+                            </div>
                             <select
                               className="edit-assist-select"
                               value={editEventPlayerId}
@@ -4550,6 +4587,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                           if (event.event_type === 'gol') {
                             updates.player_id = editEventPlayerId || null;
                             updates.assistant_id = editEventAssistId || null;
+                            updates.metadata = { ...(event.metadata || {}), team_side: editEventTeamSide };
                             
                             // Adjust stats if player changed
                             if (event.player_id !== editEventPlayerId) {
@@ -4574,6 +4612,8 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                                 await supabase.from('players').update({ assists: (a?.assists || 0) + 1 }).eq('id', editEventAssistId);
                               }
                             }
+                          } else if (event.metadata && typeof event.metadata === 'object') {
+                            updates.metadata = { ...(event.metadata as Record<string, unknown>), team_side: editEventTeamSide };
                           }
                           
                           await supabase.from('match_events').update(updates).eq('id', event.id);
@@ -4597,6 +4637,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                         setEditEventMinute(event.minute);
                         setEditEventPlayerId(event.player_id || '');
                         setEditEventAssistId(event.assistant_id || '');
+                        setEditEventTeamSide(resolveEventTeamSide(event));
                       }}>{event.minute}'</strong>
                       <span className={`event-type-tag ${event.event_type}`}>
                         {event.event_type.toUpperCase()}
