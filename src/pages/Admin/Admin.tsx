@@ -4529,20 +4529,6 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                                   setEditEventAssistId('');
                                 }}
                               >
-                                {match.teams_a?.name || 'Equipe A'}
-                              </button>
-                              <button
-                                type="button"
-                                className={`edit-team-toggle ${editEventTeamSide === 'b' ? 'active' : ''}`}
-                                onClick={() => {
-                                  setEditEventTeamSide('b');
-                                  setEditEventPlayerId('');
-                                  setEditEventAssistId('');
-                                }}
-                              >
-                                {match.teams_b?.name || 'Equipe B'}
-                              </button>
-                            </div>
                             <select
                               className="edit-assist-select"
                               value={editEventPlayerId}
@@ -4558,33 +4544,39 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                                 outline: 'none'
                               }}
                             >
-                              <option value="" style={{ background: '#1e293b' }}>Autor do Gol</option>
-                              {teamPlayers?.map(p => (
+                              <option value="" style={{ background: '#1e293b' }}>
+                                {event.event_type === 'substituicao' ? 'Saiu...' : 'Jogador...'}
+                              </option>
+                              {allPlayersList?.map(p => (
                                 <option key={p.id} value={p.id} style={{ background: '#1e293b' }}>{p.name}</option>
                               ))}
                             </select>
-                            <select
-                              className="edit-assist-select"
-                              value={editEventAssistId}
-                              onChange={(e) => setEditEventAssistId(e.target.value)}
-                              style={{
-                                padding: '4px',
-                                background: '#1e293b',
-                                border: '1px solid rgba(255,255,255,0.1)',
-                                color: '#fff',
-                                borderRadius: '4px',
-                                fontSize: '12px',
-                                maxWidth: '120px',
-                                outline: 'none'
-                              }}
-                            >
-                              <option value="" style={{ background: '#1e293b' }}>Sem ast.</option>
-                              {teamPlayers
-                                ?.filter(p => p.id !== editEventPlayerId)
-                                .map(p => (
-                                  <option key={p.id} value={p.id} style={{ background: '#1e293b' }}>{p.name}</option>
-                                ))}
-                            </select>
+                            {(event.event_type === 'gol' || event.event_type === 'substituicao') && (
+                              <select
+                                className="edit-assist-select"
+                                value={editEventAssistId}
+                                onChange={(e) => setEditEventAssistId(e.target.value)}
+                                style={{
+                                  padding: '4px',
+                                  background: '#1e293b',
+                                  border: '1px solid rgba(255,255,255,0.1)',
+                                  color: '#fff',
+                                  borderRadius: '4px',
+                                  fontSize: '12px',
+                                  maxWidth: '120px',
+                                  outline: 'none'
+                                }}
+                              >
+                                <option value="" style={{ background: '#1e293b' }}>
+                                  {event.event_type === 'substituicao' ? 'Entrou...' : 'Sem ast.'}
+                                </option>
+                                {allPlayersList
+                                  ?.filter(p => p.id !== editEventPlayerId)
+                                  .map(p => (
+                                    <option key={p.id} value={p.id} style={{ background: '#1e293b' }}>{p.name}</option>
+                                  ))}
+                              </select>
+                            )}
                           </>
                         );
                       })()}
@@ -4592,25 +4584,32 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                         try {
                           const updates: any = { minute: editEventMinute };
                           
-                          if (event.event_type === 'gol') {
+                          if (['gol', 'amarelo', 'vermelho', 'substituicao'].includes(event.event_type)) {
                             updates.player_id = editEventPlayerId || null;
-                            updates.assistant_id = editEventAssistId || null;
-                            updates.metadata = { ...(event.metadata || {}), team_side: editEventTeamSide };
+                            if (event.event_type === 'gol' || event.event_type === 'substituicao') {
+                              updates.assistant_id = editEventAssistId || null;
+                            }
                             
                             // Adjust stats if player changed
                             if (event.player_id !== editEventPlayerId) {
-                              if (event.player_id) {
-                                const { data: p } = await supabase.from('players').select('goals_count').eq('id', event.player_id).single();
-                                await supabase.from('players').update({ goals_count: Math.max(0, (p?.goals_count || 0) - 1) }).eq('id', event.player_id);
-                              }
-                              if (editEventPlayerId) {
-                                const { data: p } = await supabase.from('players').select('goals_count').eq('id', editEventPlayerId).single();
-                                await supabase.from('players').update({ goals_count: (p?.goals_count || 0) + 1 }).eq('id', editEventPlayerId);
+                              const statCol = event.event_type === 'gol' ? 'goals_count' : event.event_type === 'amarelo' ? 'yellow_cards' : event.event_type === 'vermelho' ? 'red_cards' : null;
+                              
+                              if (statCol) {
+                                if (event.player_id) {
+                                  const { data: p } = await supabase.from('players').select(statCol).eq('id', event.player_id).single();
+                                  const currentVal = (p as any)?.[statCol] || 0;
+                                  await supabase.from('players').update({ [statCol]: Math.max(0, currentVal - 1) }).eq('id', event.player_id);
+                                }
+                                if (editEventPlayerId) {
+                                  const { data: p } = await supabase.from('players').select(statCol).eq('id', editEventPlayerId).single();
+                                  const currentVal = (p as any)?.[statCol] || 0;
+                                  await supabase.from('players').update({ [statCol]: currentVal + 1 }).eq('id', editEventPlayerId);
+                                }
                               }
                             }
                             
                             // Adjust stats if assist changed
-                            if (event.assistant_id !== editEventAssistId) {
+                            if (event.event_type === 'gol' && event.assistant_id !== editEventAssistId) {
                               if (event.assistant_id) {
                                 const { data: a } = await supabase.from('players').select('assists').eq('id', event.assistant_id).single();
                                 await supabase.from('players').update({ assists: Math.max(0, (a?.assists || 0) - 1) }).eq('id', event.assistant_id);
