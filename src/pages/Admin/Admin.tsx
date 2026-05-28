@@ -3594,54 +3594,6 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
     }
   };
 
-  const finalStats = useMemo(() => {
-    const stats = {
-      a: {
-        goals: match.team_a_score || 0,
-        assists: 0,
-        yellows: 0,
-        reds: 0,
-        ownGoals: 0
-      },
-      b: {
-        goals: match.team_b_score || 0,
-        assists: 0,
-        yellows: 0,
-        reds: 0,
-        ownGoals: 0
-      }
-    };
-
-    const teamByPlayer = new Map<string, 'a' | 'b'>();
-    (playersA || []).forEach(player => teamByPlayer.set(player.id, 'a'));
-    (playersB || []).forEach(player => teamByPlayer.set(player.id, 'b'));
-
-    (events || []).forEach(event => {
-      if (event.event_type === 'gol') {
-        if (event.commentary?.includes('[CONTRA]') && event.player_id) {
-          const team = teamByPlayer.get(event.player_id);
-          if (team) stats[team].ownGoals += 1;
-        }
-        if (event.assistant_id) {
-          const team = teamByPlayer.get(event.assistant_id);
-          if (team) stats[team].assists += 1;
-        }
-      }
-
-      if (event.event_type === 'amarelo' && event.player_id) {
-        const team = teamByPlayer.get(event.player_id);
-        if (team) stats[team].yellows += 1;
-      }
-
-      if (event.event_type === 'vermelho' && event.player_id) {
-        const team = teamByPlayer.get(event.player_id);
-        if (team) stats[team].reds += 1;
-      }
-    });
-
-    return stats;
-  }, [events, match.team_a_score, match.team_b_score, playersA, playersB]);
-
   const resolveEventTeamSide = useCallback((event: MatchEvent): 'a' | 'b' => {
     const metadataSide = event.metadata && typeof event.metadata === 'object'
       ? (event.metadata as { team_side?: unknown }).team_side
@@ -3654,6 +3606,62 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
     if (event.player_id && playersB.some((p) => p.id === event.player_id)) return 'b';
     return 'a';
   }, [match.team_a_id, match.team_b_id, playersA, playersB]);
+
+  const finalStats = useMemo(() => {
+    const stats = {
+      a: {
+        goals: 0,
+        assists: 0,
+        yellows: 0,
+        reds: 0,
+        ownGoals: 0
+      },
+      b: {
+        goals: 0,
+        assists: 0,
+        yellows: 0,
+        reds: 0,
+        ownGoals: 0
+      }
+    };
+
+    (events || []).forEach(event => {
+      const side = resolveEventTeamSide(event);
+      const opponentSide = side === 'a' ? 'b' : 'a';
+
+      if (event.event_type === 'gol') {
+        const isOwnGoal = event.metadata?.goal_type === 'contra' || event.commentary?.includes('[CONTRA]');
+
+        if (isOwnGoal) {
+          stats[side].ownGoals += 1;
+          stats[opponentSide].goals += 1;
+        } else {
+          stats[side].goals += 1;
+        }
+
+        if (event.assistant_id) {
+          const assistantSide = (playersA.some((p) => p.id === event.assistant_id) || event.team_id === match.team_a_id || event.metadata?.team_side === 'a')
+            ? 'a'
+            : (playersB.some((p) => p.id === event.assistant_id) || event.team_id === match.team_b_id || event.metadata?.team_side === 'b')
+              ? 'b'
+              : side;
+          if (!isOwnGoal && event.metadata?.goal_type !== 'penalti') {
+            stats[assistantSide].assists += 1;
+          }
+        }
+      }
+
+      if (event.event_type === 'amarelo' && event.player_id) {
+        stats[side].yellows += 1;
+      }
+
+      if (event.event_type === 'vermelho' && event.player_id) {
+        stats[side].reds += 1;
+      }
+    });
+
+    return stats;
+  }, [events, match.team_a_id, match.team_b_id, playersA, playersB, resolveEventTeamSide]);
 
   const liveStatus = useMemo(() => {
     if (match.status === 'finalizado') return { label: 'Finalizado', tone: 'final' };
