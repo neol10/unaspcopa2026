@@ -2680,6 +2680,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [editEventMinute, setEditEventMinute] = useState<number>(0);
   const [editEventAssistId, setEditEventAssistId] = useState<string>('');
+  const [editEventPlayerId, setEditEventPlayerId] = useState<string>('');
   const [isSwapped, setIsSwapped] = useState(false);
   const [isSubmittingEvent, setIsSubmittingEvent] = useState(false);
 
@@ -4492,36 +4493,89 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                         className="edit-min-input"
                         autoFocus
                       />
-                      {event.event_type === 'gol' && (
-                        <select
-                          className="edit-assist-select"
-                          value={editEventAssistId}
-                          onChange={(e) => setEditEventAssistId(e.target.value)}
-                          style={{
-                            padding: '4px',
-                            background: '#1e293b',
-                            border: '1px solid rgba(255,255,255,0.1)',
-                            color: '#fff',
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            maxWidth: '120px',
-                            outline: 'none'
-                          }}
-                        >
-                          <option value="" style={{ background: '#1e293b' }}>Sem ast.</option>
-                          {(event.team_id === match.team_a_id ? playersA : playersB)
-                            ?.filter(p => p.id !== event.player_id)
-                            .map(p => (
-                              <option key={p.id} value={p.id} style={{ background: '#1e293b' }}>{p.name}</option>
-                            ))}
-                        </select>
-                      )}
+                      {event.event_type === 'gol' && (() => {
+                        const isTeamA = event.metadata?.team_side === 'a' || playersA?.some(p => p.id === event.player_id);
+                        const teamPlayers = isTeamA ? playersA : playersB;
+                        return (
+                          <>
+                            <select
+                              className="edit-assist-select"
+                              value={editEventPlayerId}
+                              onChange={(e) => setEditEventPlayerId(e.target.value)}
+                              style={{
+                                padding: '4px',
+                                background: '#1e293b',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                color: '#fff',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                maxWidth: '120px',
+                                outline: 'none'
+                              }}
+                            >
+                              <option value="" style={{ background: '#1e293b' }}>Autor do Gol</option>
+                              {teamPlayers?.map(p => (
+                                <option key={p.id} value={p.id} style={{ background: '#1e293b' }}>{p.name}</option>
+                              ))}
+                            </select>
+                            <select
+                              className="edit-assist-select"
+                              value={editEventAssistId}
+                              onChange={(e) => setEditEventAssistId(e.target.value)}
+                              style={{
+                                padding: '4px',
+                                background: '#1e293b',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                color: '#fff',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                maxWidth: '120px',
+                                outline: 'none'
+                              }}
+                            >
+                              <option value="" style={{ background: '#1e293b' }}>Sem ast.</option>
+                              {teamPlayers
+                                ?.filter(p => p.id !== editEventPlayerId)
+                                .map(p => (
+                                  <option key={p.id} value={p.id} style={{ background: '#1e293b' }}>{p.name}</option>
+                                ))}
+                            </select>
+                          </>
+                        );
+                      })()}
                       <button className="btn-save-edit" onClick={async () => {
                         try {
                           const updates: any = { minute: editEventMinute };
+                          
                           if (event.event_type === 'gol') {
+                            updates.player_id = editEventPlayerId || null;
                             updates.assistant_id = editEventAssistId || null;
+                            
+                            // Adjust stats if player changed
+                            if (event.player_id !== editEventPlayerId) {
+                              if (event.player_id) {
+                                const { data: p } = await supabase.from('players').select('goals_count').eq('id', event.player_id).single();
+                                await supabase.from('players').update({ goals_count: Math.max(0, (p?.goals_count || 0) - 1) }).eq('id', event.player_id);
+                              }
+                              if (editEventPlayerId) {
+                                const { data: p } = await supabase.from('players').select('goals_count').eq('id', editEventPlayerId).single();
+                                await supabase.from('players').update({ goals_count: (p?.goals_count || 0) + 1 }).eq('id', editEventPlayerId);
+                              }
+                            }
+                            
+                            // Adjust stats if assist changed
+                            if (event.assistant_id !== editEventAssistId) {
+                              if (event.assistant_id) {
+                                const { data: a } = await supabase.from('players').select('assists').eq('id', event.assistant_id).single();
+                                await supabase.from('players').update({ assists: Math.max(0, (a?.assists || 0) - 1) }).eq('id', event.assistant_id);
+                              }
+                              if (editEventAssistId) {
+                                const { data: a } = await supabase.from('players').select('assists').eq('id', editEventAssistId).single();
+                                await supabase.from('players').update({ assists: (a?.assists || 0) + 1 }).eq('id', editEventAssistId);
+                              }
+                            }
                           }
+                          
                           await supabase.from('match_events').update(updates).eq('id', event.id);
                           setEditingEventId(null);
                           refreshEvents();
@@ -4541,6 +4595,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                       <strong className="clickable-min" onClick={() => {
                         setEditingEventId(event.id);
                         setEditEventMinute(event.minute);
+                        setEditEventPlayerId(event.player_id || '');
                         setEditEventAssistId(event.assistant_id || '');
                       }}>{event.minute}'</strong>
                       <span className={`event-type-tag ${event.event_type}`}>
