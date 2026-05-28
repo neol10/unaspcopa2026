@@ -413,7 +413,7 @@ export const downloadSocialPlayerCard = async ({
   statsWrap.style.gap = '14px';
   statsWrap.style.marginTop = '12px';
 
-  const limitedStats = stats.slice(0, 3);
+  const limitedStats = stats.slice(0, 4);
   limitedStats.forEach((stat) => {
     statsWrap.appendChild(createStatTile(stat.label, stat.value, colors.secondary));
   });

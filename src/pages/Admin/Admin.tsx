@@ -23,6 +23,7 @@ import { useDivisionContext } from '../../contexts/DivisionContext';
 import { isMissingColumnError as isMissingDivisionColumnError, markDivisionColumnMissing, markNightColumnMissing } from '../../lib/supabaseOptionalColumns';
 import { deriveMatchStatus } from '../../lib/matchStatus';
 import { rebuildStatsClientSide } from '../../lib/rebuildStats';
+import { clearPhotoCropFromUrl } from '../../lib/photoCrop';
 import {
   buildLocationFromCourt,
   COURT_OPTIONS,
