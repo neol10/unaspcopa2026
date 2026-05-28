@@ -134,7 +134,7 @@ export const fetchPublicData = async <T,>(resource: string, params?: Record<stri
       if (!matchId) throw new Error('matchId required');
       const { data, error } = await supabase
         .from('match_events')
-        .select('id, match_id, player_id, assistant_id, user_id, author_name, event_type, minute, commentary, metadata, created_at, players:player_id(name, photo_url), assistant_player:assistant_id(name, photo_url)')
+        .select('id, match_id, team_id, player_id, assistant_id, user_id, author_name, event_type, minute, commentary, metadata, created_at, players:player_id(name, photo_url), assistant_player:assistant_id(name, photo_url)')
         .eq('match_id', matchId)
         .order('minute', { ascending: false })
         .order('created_at', { ascending: false });

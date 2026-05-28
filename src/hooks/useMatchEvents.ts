@@ -11,6 +11,7 @@ export interface MatchEvent {
   author_name?: string | null;
   event_type: 'gol' | 'amarelo' | 'vermelho' | 'falta' | 'substituicao' | 'comentario' | 'momento';
   minute: number;
+  team_id?: string | null;
   assistant_id?: string | null;
   commentary?: string;
   metadata?: { goal_type?: string | null } | null;
