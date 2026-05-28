@@ -2679,6 +2679,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   const endMatchMvpResolveRef = useRef<null | ((choice: EndMatchMvpChoice) => void)>(null);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [editEventMinute, setEditEventMinute] = useState<number>(0);
+  const [editEventAssistId, setEditEventAssistId] = useState<string>('');
   const [isSwapped, setIsSwapped] = useState(false);
   const [isSubmittingEvent, setIsSubmittingEvent] = useState(false);
 
@@ -4483,7 +4484,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
               <div className={`undo-item animate-slide-up ${editingEventId === event.id ? 'editing' : ''}`}>
                 <div className="undo-info">
                   {editingEventId === event.id ? (
-                    <div className="edit-event-inline">
+                    <div className="edit-event-inline" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                       <input 
                         type="number" 
                         value={editEventMinute} 
@@ -4491,14 +4492,45 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                         className="edit-min-input"
                         autoFocus
                       />
+                      {event.event_type === 'gol' && (
+                        <select
+                          className="edit-assist-select"
+                          value={editEventAssistId}
+                          onChange={(e) => setEditEventAssistId(e.target.value)}
+                          style={{
+                            padding: '4px',
+                            background: 'rgba(255,255,255,0.05)',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            color: '#fff',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            maxWidth: '120px'
+                          }}
+                        >
+                          <option value="">Sem ast.</option>
+                          {(event.team_id === match.team_a_id ? playersA : playersB)
+                            ?.filter(p => p.id !== event.player_id)
+                            .map(p => (
+                              <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                        </select>
+                      )}
                       <button className="btn-save-edit" onClick={async () => {
                         try {
-                          await supabase.from('match_events').update({ minute: editEventMinute }).eq('id', event.id);
+                          const updates: any = { minute: editEventMinute };
+                          if (event.event_type === 'gol') {
+                            updates.assistant_id = editEventAssistId || null;
+                          }
+                          await supabase.from('match_events').update(updates).eq('id', event.id);
                           setEditingEventId(null);
                           refreshEvents();
-                          toast.success('Tempo atualizado!');
+                          rebuildStatsClientSide().then(() => {
+                            queryClient.invalidateQueries({ queryKey: ['players'] });
+                            queryClient.invalidateQueries({ queryKey: ['rankings'] });
+                          });
+                          toast.success('Lance atualizado!');
                         } catch (err: unknown) {
-                          toast.error(getErrorMessage(err, 'Erro ao atualizar tempo'));
+                          toast.error(getErrorMessage(err, 'Erro ao atualizar lance'));
                         }
                       }}><Save size={12} /></button>
                       <button className="btn-cancel-edit" onClick={() => setEditingEventId(null)}>✕</button>
@@ -4508,11 +4540,19 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                       <strong className="clickable-min" onClick={() => {
                         setEditingEventId(event.id);
                         setEditEventMinute(event.minute);
+                        setEditEventAssistId(event.assistant_id || '');
                       }}>{event.minute}'</strong>
                       <span className={`event-type-tag ${event.event_type}`}>
                         {event.event_type.toUpperCase()}
                       </span>
-                      <span className="p-name">{event.players?.name}</span>
+                      <span className="p-name">
+                        {event.players?.name}
+                        {event.event_type === 'gol' && event.assistant_id && (
+                          <span style={{ opacity: 0.6, fontSize: '11px', marginLeft: '6px' }}>
+                            (Ast: {event.assistant_player?.name || '?'})
+                          </span>
+                        )}
+                      </span>
                       {event.commentary && <span className="ev-comment">{event.commentary}</span>}
                     </>
                   )}
