@@ -163,7 +163,7 @@ const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({ player, onClose
                 </div>
                 <div className="stat-content">
                   <strong>{player.position === 'Goleiro' ? (player.clean_sheets || 0) : (player.goals_count + player.assists)}</strong>
-                  <span>{player.position === 'Goleiro' ? 'Clean Sheets' : 'Participações'}</span>
+                  <span>{player.position === 'Goleiro' ? 'Jogos Zerados' : 'Participações'}</span>
                 </div>
               </div>
 

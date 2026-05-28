@@ -675,7 +675,7 @@ const Rankings: React.FC = () => {
                             [
                               { label: 'Posicao', value: `${i + 1}o` },
                               { label: 'Gols Sofridos', value: p.goals_conceded || 0 },
-                              { label: 'Clean Sheets', value: p.clean_sheets || 0 },
+                            { label: 'Jogos Zerados', value: p.clean_sheets || 0 },
                             ],
                           );
                         }}

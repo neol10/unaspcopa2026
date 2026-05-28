@@ -4499,19 +4499,20 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                           onChange={(e) => setEditEventAssistId(e.target.value)}
                           style={{
                             padding: '4px',
-                            background: 'rgba(255,255,255,0.05)',
+                            background: '#1e293b',
                             border: '1px solid rgba(255,255,255,0.1)',
                             color: '#fff',
                             borderRadius: '4px',
                             fontSize: '12px',
-                            maxWidth: '120px'
+                            maxWidth: '120px',
+                            outline: 'none'
                           }}
                         >
-                          <option value="">Sem ast.</option>
+                          <option value="" style={{ background: '#1e293b' }}>Sem ast.</option>
                           {(event.team_id === match.team_a_id ? playersA : playersB)
                             ?.filter(p => p.id !== event.player_id)
                             .map(p => (
-                              <option key={p.id} value={p.id}>{p.name}</option>
+                              <option key={p.id} value={p.id} style={{ background: '#1e293b' }}>{p.name}</option>
                             ))}
                         </select>
                       )}
@@ -5343,7 +5344,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
                 <input type="number" value={formData.red_cards} onChange={e => setFormData({...formData, red_cards: e.target.value})} />
              </div>
              <div className="stat-input">
-                <label><Shield size={14} /> Clean Sheets</label>
+                <label><Shield size={14} /> Jogos Zerados</label>
                 <input type="number" value={formData.clean_sheets} onChange={e => setFormData({...formData, clean_sheets: e.target.value})} />
              </div>
              <div className="stat-input">
@@ -5547,7 +5548,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
                   <input type="number" value={editFormData.red_cards} onChange={e => setEditFormData({ ...editFormData, red_cards: e.target.value })} />
                 </div>
                 <div className="stat-input">
-                  <label><Shield size={14} /> Clean Sheets</label>
+                  <label><Shield size={14} /> Jogos Zerados</label>
                   <input type="number" value={editFormData.clean_sheets} onChange={e => setEditFormData({ ...editFormData, clean_sheets: e.target.value })} />
                 </div>
                 <div className="stat-input">
