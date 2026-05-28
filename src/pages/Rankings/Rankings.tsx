@@ -332,11 +332,10 @@ const Rankings: React.FC = () => {
                     ) : (
                       <User size={32} />
                     )}
-                    <div className="winner-badge">1</div>
                   </div>
                   <div className="winner-details">
                     <h4>{winner.name}</h4>
-                    <span className="winner-team">{winner.team_name}</span>
+                    <span className="winner-team">{winner.team_name}{winner.position ? ` • ${winner.position.toUpperCase()}` : ''}</span>
                     <p className="winner-reason">Craque do jogo — {unitLabel} {selectedRound}.</p>
                     {authRole === 'admin' && (
                       <button

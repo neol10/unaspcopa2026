@@ -420,11 +420,11 @@ const Players: React.FC = () => {
                   
                   <div className="p-info">
                      <h3>{player.name}</h3>
-                     {isGlobalView && (
-                       <div className="p-team-name">
-                         {displayTeamName}
-                       </div>
-                     )}
+                     <div className="p-team-name">
+                       {isGlobalView ? displayTeamName : ''}
+                       {isGlobalView && player.position ? ' • ' : ''}
+                       {player.position ? player.position.toUpperCase() : ''}
+                     </div>
                   </div>
                   
                   <div className="p-stats-v2">
