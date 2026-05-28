@@ -486,6 +486,10 @@ export const useRankings = () => {
         queryClient.invalidateQueries({ queryKey: ['rankings', division] });
         queryClient.invalidateQueries({ queryKey: ['rankings-payload', division] });
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['rankings', division] });
+        queryClient.invalidateQueries({ queryKey: ['rankings-payload', division] });
+      })
       .subscribe();
 
     return () => {
