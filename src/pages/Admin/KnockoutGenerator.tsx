@@ -254,7 +254,9 @@ const KnockoutGenerator: React.FC<{ enableAutoAdvance?: boolean }> = ({ enableAu
   };
 
   const handleCreate = async () => {
-    if (!preview || preview.length === 0) return;
+    if (!preview || preview.length === 0) {
+      return setMessage('Por favor, clique em "Gerar Visualização" primeiro para confirmar os jogos.');
+    }
     setCreating(true); setMessage(null);
     try {
       // Save matches directly into the matches table
@@ -351,7 +353,7 @@ const KnockoutGenerator: React.FC<{ enableAutoAdvance?: boolean }> = ({ enableAu
           </>
         )}
         <button className="btn-add" onClick={handlePreview} disabled={loading}>Gerar Visualização</button>
-        <button className="btn-save" onClick={handleCreate} disabled={!preview || preview.length===0 || creating}>{creating ? 'Criando...' : 'Criar partidas'}</button>
+        <button className="btn-save" onClick={handleCreate} disabled={creating}>{creating ? 'Criando...' : 'Criar partidas'}</button>
         <button className="btn" onClick={saveBracketToLocal}>Salvar Chave</button>
         <button className="btn" onClick={loadBracketFromLocal}>Carregar Chave</button>
       </div>
