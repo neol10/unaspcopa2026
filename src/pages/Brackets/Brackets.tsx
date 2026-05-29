@@ -8,14 +8,9 @@ import { KNOCKOUT_ROUND_LABELS } from '../../lib/tournamentRules';
 import { deriveMatchStatus } from '../../lib/matchStatus';
 import { splitLocationCourt } from '../../lib/court';
 import { Trophy, ChevronRight, ChevronLeft, Target, Timer, ZoomIn, ZoomOut } from 'lucide-react';
-import { MatchBox } from './components/MatchBox';
 import './Brackets.css';
 
-interface BracketsProps {
-  embedded?: boolean;
-}
-
-const Brackets: React.FC<BracketsProps> = ({ embedded = false }) => {
+const Brackets: React.FC = () => {
   const { matches, loading, error, refresh } = useMatches();
   const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -61,7 +56,7 @@ const Brackets: React.FC<BracketsProps> = ({ embedded = false }) => {
 
   const { config } = useTournamentConfig();
   const [hasScrolled, setHasScrolled] = useState(false);
-  const [viewMode, setViewMode] = useState<'list' | 'teia'>(embedded ? 'teia' : 'list');
+  const [viewMode, setViewMode] = useState<'list' | 'teia'>('list');
   const [selectedKnockoutRound, setSelectedKnockoutRound] = useState<string>('');
 
   const applyTeiaTransform = useCallback(() => {
@@ -1055,19 +1050,15 @@ const Brackets: React.FC<BracketsProps> = ({ embedded = false }) => {
 
   if (loading && matches.length === 0) {
     return (
-      <div className={`brackets-page animate-fade-in ${embedded ? 'embedded-mode' : ''}`}>
-        {!embedded && (
-          <>
-            <div className="brackets-showlights" aria-hidden="true"></div>
-            <header className="brackets-header">
-              <div className="header-icon-box">
-                 <Trophy size={32} color="var(--secondary)" />
-              </div>
-              <h1 className="text-gradient uppercase">Tabela do Torneio</h1>
-              <p className="text-muted">Acompanhe o caminho rumo ao título</p>
-            </header>
-          </>
-        )}
+      <div className="brackets-page animate-fade-in">
+        <div className="brackets-showlights" aria-hidden="true"></div>
+        <header className="brackets-header">
+          <div className="header-icon-box">
+             <Trophy size={32} color="var(--secondary)" />
+          </div>
+          <h1 className="text-gradient uppercase">Tabela do Torneio</h1>
+          <p className="text-muted">Acompanhe o caminho rumo ao título</p>
+        </header>
         <div className="brackets-scroll-container">
           <div className="brackets-scroll-content">
             {[1, 2, 3].map(i => <RoundSkeleton key={i} />)}
@@ -1089,42 +1080,36 @@ const Brackets: React.FC<BracketsProps> = ({ embedded = false }) => {
   }
 
   return (
-    <div className={`brackets-page animate-fade-in ${embedded ? 'embedded-mode' : ''}`}>
-      {!embedded && (
-        <>
-          <div className="brackets-showlights" aria-hidden="true"></div>
-          <header className="brackets-header">
-            <div className="header-icon-box">
-              <Trophy size={32} color="var(--secondary)" />
-            </div>
-            <h1 className="text-gradient uppercase">Tabela do Torneio</h1>
-            <p className="text-muted">Acompanhe o caminho rumo ao título</p>
-          </header>
-        </>
-      )}
-
-      {!embedded && (
-        <div className="view-mode-selector glass">
-          <button 
-            className={`view-btn ${viewMode === 'teia' ? 'active' : ''}`}
-            onClick={() => {
-              if (!hasKnockout) return;
-              viewModeTouchedRef.current = true;
-              setViewMode('teia');
-            }}
-            disabled={!hasKnockout}
-            title={!hasKnockout ? 'O chaveamento abre automaticamente quando houver mata-mata no Admin' : undefined}
-          >
-            <Trophy size={16} /> Chaveamento (Teia)
-          </button>
-          <button 
-            className={`view-btn ${viewMode === 'list' ? 'active' : ''}`}
-            onClick={() => { viewModeTouchedRef.current = true; setViewMode('list'); }}
-          >
-            <Timer size={16} /> Lista de Rodadas
-          </button>
+    <div className="brackets-page animate-fade-in">
+      <div className="brackets-showlights" aria-hidden="true"></div>
+      <header className="brackets-header">
+        <div className="header-icon-box">
+          <Trophy size={32} color="var(--secondary)" />
         </div>
-      )}
+        <h1 className="text-gradient uppercase">Tabela do Torneio</h1>
+        <p className="text-muted">Acompanhe o caminho rumo ao título</p>
+      </header>
+
+      <div className="view-mode-selector glass">
+        <button 
+          className={`view-btn ${viewMode === 'teia' ? 'active' : ''}`}
+          onClick={() => {
+            if (!hasKnockout) return;
+            viewModeTouchedRef.current = true;
+            setViewMode('teia');
+          }}
+          disabled={!hasKnockout}
+          title={!hasKnockout ? 'O chaveamento abre automaticamente quando houver mata-mata no Admin' : undefined}
+        >
+          <Trophy size={16} /> Chaveamento (Teia)
+        </button>
+        <button 
+          className={`view-btn ${viewMode === 'list' ? 'active' : ''}`}
+          onClick={() => { viewModeTouchedRef.current = true; setViewMode('list'); }}
+        >
+          <Timer size={16} /> Lista de Rodadas
+        </button>
+      </div>
       {/* Admin controls for tournament are available in Admin > Torneio to avoid scattering tournament management across pages. */}
       {!hasKnockout && (
         <div className="no-knockout-hint glass" role="status" aria-live="polite">
@@ -1132,30 +1117,28 @@ const Brackets: React.FC<BracketsProps> = ({ embedded = false }) => {
         </div>
       )}
 
-      {!embedded && (
-        <section className="brackets-summary-bar glass">
-          <div className="summary-item">
-            <span>Ao vivo</span>
-            <strong>{scheduleSummary.liveCount}</strong>
-          </div>
-          <div className="summary-item">
-            <span>Jogos hoje</span>
-            <strong>{scheduleSummary.todayCount}</strong>
-          </div>
-          <div className="summary-item">
-            <span>Próximos</span>
-            <strong>{scheduleSummary.upcomingCount}</strong>
-          </div>
-          <div className="summary-item summary-next">
-            <span>Próximo jogo</span>
-            <strong>
-              {scheduleSummary.nextMatch
-                ? `${new Date(scheduleSummary.nextMatch.match_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ${new Date(scheduleSummary.nextMatch.match_date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
-                : 'A definir'}
-            </strong>
-          </div>
-        </section>
-      )}
+      <section className="brackets-summary-bar glass">
+        <div className="summary-item">
+          <span>Ao vivo</span>
+          <strong>{scheduleSummary.liveCount}</strong>
+        </div>
+        <div className="summary-item">
+          <span>Jogos hoje</span>
+          <strong>{scheduleSummary.todayCount}</strong>
+        </div>
+        <div className="summary-item">
+          <span>Próximos</span>
+          <strong>{scheduleSummary.upcomingCount}</strong>
+        </div>
+        <div className="summary-item summary-next">
+          <span>Próximo jogo</span>
+          <strong>
+            {scheduleSummary.nextMatch
+              ? `${new Date(scheduleSummary.nextMatch.match_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ${new Date(scheduleSummary.nextMatch.match_date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+              : 'A definir'}
+          </strong>
+        </div>
+      </section>
 
       {viewMode === 'teia' && (
         <div className="view-zoom">
@@ -1202,49 +1185,47 @@ const Brackets: React.FC<BracketsProps> = ({ embedded = false }) => {
         </div>
       )}
 
-      {!embedded && (
-        <div className="match-filters">
-          <button
-            className={`filter-chip ${activeFilter === 'all' ? 'active' : ''}`}
-            onClick={() => setActiveFilter('all')}
-            type="button"
-            aria-pressed={activeFilter === 'all'}
-          >
-            Todos
+      <div className="match-filters">
+        <button
+          className={`filter-chip ${activeFilter === 'all' ? 'active' : ''}`}
+          onClick={() => setActiveFilter('all')}
+          type="button"
+          aria-pressed={activeFilter === 'all'}
+        >
+          Todos
+        </button>
+        <button
+          className={`filter-chip ${activeFilter === 'live' ? 'active' : ''}`}
+          onClick={() => setActiveFilter('live')}
+          type="button"
+          aria-pressed={activeFilter === 'live'}
+        >
+          Ao vivo
+        </button>
+        <button
+          className={`filter-chip ${activeFilter === 'today' ? 'active' : ''}`}
+          onClick={() => setActiveFilter('today')}
+          type="button"
+          aria-pressed={activeFilter === 'today'}
+        >
+          Hoje
+        </button>
+        <button
+          className={`filter-chip ${activeFilter === 'favorite' ? 'active' : ''}`}
+          onClick={() => favoriteTeamId && setActiveFilter('favorite')}
+          disabled={!favoriteTeamId}
+          title={favoriteTeamId ? 'Filtrar pelo time favorito' : 'Defina um time favorito em Preferências de Alertas'}
+          type="button"
+          aria-pressed={activeFilter === 'favorite'}
+        >
+          Meu time
+        </button>
+        {activeFilter !== 'all' && (
+          <button className="filter-chip filter-reset" onClick={() => setActiveFilter('all')} type="button">
+            Limpar
           </button>
-          <button
-            className={`filter-chip ${activeFilter === 'live' ? 'active' : ''}`}
-            onClick={() => setActiveFilter('live')}
-            type="button"
-            aria-pressed={activeFilter === 'live'}
-          >
-            Ao vivo
-          </button>
-          <button
-            className={`filter-chip ${activeFilter === 'today' ? 'active' : ''}`}
-            onClick={() => setActiveFilter('today')}
-            type="button"
-            aria-pressed={activeFilter === 'today'}
-          >
-            Hoje
-          </button>
-          <button
-            className={`filter-chip ${activeFilter === 'favorite' ? 'active' : ''}`}
-            onClick={() => favoriteTeamId && setActiveFilter('favorite')}
-            disabled={!favoriteTeamId}
-            title={favoriteTeamId ? 'Filtrar pelo time favorito' : 'Defina um time favorito em Preferências de Alertas'}
-            type="button"
-            aria-pressed={activeFilter === 'favorite'}
-          >
-            Meu time
-          </button>
-          {activeFilter !== 'all' && (
-            <button className="filter-chip filter-reset" onClick={() => setActiveFilter('all')} type="button">
-              Limpar
-            </button>
-          )}
-        </div>
-      )}
+        )}
+      </div>
 
       {viewMode === 'list' && groupRounds.length > 0 && !shouldUsePhaseSelector && (
         <div className="phase-jump-nav glass" aria-label="Navegação por noites/rodadas">
@@ -1348,7 +1329,7 @@ const Brackets: React.FC<BracketsProps> = ({ embedded = false }) => {
               </section>
 
               <div className="knockout-columns">
-                {visibleTeiaColumns.map((column, colIndex) => {
+                {visibleTeiaColumns.map((column) => {
                   const columnMatches = column.matches || [];
                   const detailMatch =
                     columnMatches.find((m) => deriveMatchStatus(m, nowTs) === 'ao_vivo') ||
@@ -1359,7 +1340,7 @@ const Brackets: React.FC<BracketsProps> = ({ embedded = false }) => {
                   const canOpenDetails = Boolean(detailMatch);
 
                   return (
-                    <div key={column.roundName} className={`knockout-column bracket-col-depth-${colIndex} phase-${column.roundName.toLowerCase().replace(/\s+/g, '-')}`}>
+                    <div key={column.roundName} className={`knockout-column phase-${column.roundName.toLowerCase().replace(/\s+/g, '-')}`}>
                       <h3 className="round-title">
                         <span className="round-dot"></span>
                         <span className="round-chip">{formatRoundName(column.roundName)}</span>

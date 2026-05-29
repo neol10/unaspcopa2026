@@ -9,13 +9,6 @@
   isolation: isolate;
 }
 
-.brackets-page.embedded-mode {
-  min-height: auto;
-  padding-top: 0;
-  padding-bottom: 0;
-  margin-top: -1rem;
-}
-
 .brackets-showlights {
   position: absolute;
   inset: -20% -10%;
@@ -590,8 +583,8 @@
 
 /* Match Cards */
 .match-box {
-  background: linear-gradient(160deg, rgba(16, 20, 28, 0.85) 0%, rgba(8, 10, 14, 0.95) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(8, 10, 14, 0.68);
+  border: 1px solid rgba(251, 191, 36, 0.18);
   border-radius: 16px;
   padding: 1.25rem;
   transition:
@@ -600,12 +593,11 @@
     border-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1);
   position: relative;
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
   will-change: transform;
   transform: translateZ(0);
-  overflow: hidden;
 }
 
 .match-box::before {
@@ -613,8 +605,8 @@
   position: absolute;
   inset: 0;
   border-radius: 16px;
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.12) 0%, transparent 40%, rgba(255, 255, 255, 0.02) 100%);
-  opacity: 0.8;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, transparent 55%);
+  opacity: 0.35;
   pointer-events: none;
 }
 
@@ -672,21 +664,18 @@
   gap: 0.5rem;
   font-size: 0.7rem;
   text-transform: uppercase;
-  letter-spacing: 0.6px;
-  color: var(--text-muted);
-  margin-bottom: 0.8rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  padding-bottom: 0.6rem;
+  letter-spacing: 0.4px;
+  color: var(--text-dim);
+  margin-bottom: 0.6rem;
 }
 
 .match-round-chip {
-  background: rgba(251, 191, 36, 0.15);
-  border: 1px solid rgba(251, 191, 36, 0.3);
-  color: #fcd34d !important;
-  padding: 2px 8px;
-  border-radius: 6px;
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  color: var(--secondary) !important;
+  padding: 1px 6px;
+  border-radius: 4px;
   font-weight: 900;
-  box-shadow: 0 0 10px rgba(251, 191, 36, 0.1);
 }
 
 
@@ -801,68 +790,16 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.7rem 0;
-  font-weight: 800;
-  position: relative;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+  padding: 0.6rem 0;
+  font-weight: 700;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
 }
 
 .match-team:last-child {
   border-bottom: none;
 }
 
-.team-info {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-  flex: 1;
-}
-
-.team-badge-mini {
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
-  transition: transform 0.2s ease;
-}
-
-.match-box:hover .team-badge-mini {
-  transform: scale(1.08);
-}
-
-.team-name {
-  font-size: 1.05rem;
-  letter-spacing: -0.2px;
-  color: #f8fafc;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 140px;
-}
-
-.match-team.winner .team-name {
-  color: var(--secondary);
-  text-shadow: 0 0 12px rgba(251, 191, 36, 0.3);
-}
-
-.team-score {
-  font-size: 1.15rem;
-  font-weight: 900;
-  color: #fff;
-  min-width: 34px;
-  height: 34px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.match-team.winner .team-score {
-  color: var(--bg-main);
-  background: linear-gradient(135deg, #fcd34d, #fbbf24);
-  border-color: #f59e0b;
-  box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.6);
-}.match-team.winner {
+.match-team.winner {
   background: linear-gradient(90deg, rgba(251, 191, 36, 0.10), rgba(251, 191, 36, 0.04), transparent);
   border-radius: 12px;
   padding-left: 0.5rem;
@@ -997,95 +934,67 @@
   align-items: center;
 }
 
-/* Connectors Logic - Modern Bracket Tree */
+/* Connectors Logic */
 .bracket-connectors {
   position: absolute;
-  right: -3rem;
-  width: 3rem;
-  top: 50%;
-  z-index: -1;
-  border-right: 2px solid rgba(251, 191, 36, 0.35);
-  box-shadow: 2px 0 12px rgba(251, 191, 36, 0.15);
-  transition: all 0.3s ease;
+  right: -3rem; /* Same as gap? No, gap is 0 in .knockout-columns */
 }
 
-.bracket-match:hover .bracket-connectors {
-  border-right-color: rgba(251, 191, 36, 0.8);
-  box-shadow: 2px 0 16px rgba(251, 191, 36, 0.4);
-}
-
+/* Let's refine the columns to have gaps and use pseudo-elements for connectors */
 .knockout-columns {
-  gap: 6rem; /* fixed gap between columns */
+  gap: 4rem;
 }
 
 .knockout-column {
   flex-shrink: 0;
-  position: relative;
 }
 
-/* Col Depth 0 (E.g. Oitavas) */
-.bracket-col-depth-0 .knockout-matches { min-height: 600px; gap: 2rem; justify-content: center; }
-.bracket-col-depth-0 .bracket-match:nth-child(odd) .bracket-connectors {
-  height: calc(50% + 1rem + 85px); /* Half gap + half card height */
-  border-top: 2px solid rgba(251, 191, 36, 0.35);
-  border-top-right-radius: 12px;
+.knockout-item::after {
+  content: '';
+  position: absolute;
+  right: -4rem;
+  width: 2rem;
+  height: 1px;
+  background: var(--border-light);
+  top: 50%;
+  z-index: -1;
 }
-.bracket-col-depth-0 .bracket-match:nth-child(even) .bracket-connectors {
-  height: calc(50% + 1rem + 85px);
-  top: auto;
-  bottom: 50%;
-  border-bottom: 2px solid rgba(251, 191, 36, 0.35);
-  border-bottom-right-radius: 12px;
-}
-.bracket-col-depth-0 .bracket-match:nth-child(odd):hover .bracket-connectors { border-top-color: rgba(251, 191, 36, 0.8); }
-.bracket-col-depth-0 .bracket-match:nth-child(even):hover .bracket-connectors { border-bottom-color: rgba(251, 191, 36, 0.8); }
 
-/* Col Depth 1 (E.g. Quartas) */
-.bracket-col-depth-1 .knockout-matches { min-height: 600px; gap: calc(4rem + 170px); justify-content: center; }
-.bracket-col-depth-1 .bracket-match:nth-child(odd) .bracket-connectors {
-  height: calc(50% + 2rem + 170px);
-  border-top: 2px solid rgba(251, 191, 36, 0.35);
-  border-top-right-radius: 12px;
-}
-.bracket-col-depth-1 .bracket-match:nth-child(even) .bracket-connectors {
-  height: calc(50% + 2rem + 170px);
-  top: auto;
-  bottom: 50%;
-  border-bottom: 2px solid rgba(251, 191, 36, 0.35);
-  border-bottom-right-radius: 12px;
-}
-.bracket-col-depth-1 .bracket-match:nth-child(odd):hover .bracket-connectors { border-top-color: rgba(251, 191, 36, 0.8); }
-.bracket-col-depth-1 .bracket-match:nth-child(even):hover .bracket-connectors { border-bottom-color: rgba(251, 191, 36, 0.8); }
-
-/* Col Depth 2 (E.g. Semi) */
-.bracket-col-depth-2 .knockout-matches { min-height: 600px; gap: calc(8rem + 340px); justify-content: center; }
-.bracket-col-depth-2 .bracket-match:nth-child(odd) .bracket-connectors {
-  height: calc(50% + 4rem + 340px);
-  border-top: 2px solid rgba(251, 191, 36, 0.35);
-  border-top-right-radius: 12px;
-}
-.bracket-col-depth-2 .bracket-match:nth-child(even) .bracket-connectors {
-  height: calc(50% + 4rem + 340px);
-  top: auto;
-  bottom: 50%;
-  border-bottom: 2px solid rgba(251, 191, 36, 0.35);
-  border-bottom-right-radius: 12px;
-}
-.bracket-col-depth-2 .bracket-match:nth-child(odd):hover .bracket-connectors { border-top-color: rgba(251, 191, 36, 0.8); }
-.bracket-col-depth-2 .bracket-match:nth-child(even):hover .bracket-connectors { border-bottom-color: rgba(251, 191, 36, 0.8); }
-
-/* Col Depth 3 (E.g. Final) */
-.bracket-col-depth-3 .knockout-matches { min-height: 600px; justify-content: center; gap: 0; }
-.bracket-col-depth-3 .bracket-connectors {
-  display: none;
-}
-.bracket-col-depth-4 .bracket-connectors {
+/* No line after the last column (Final) */
+.knockout-columns .knockout-column:last-child .knockout-item::after {
   display: none;
 }
 
-/* Remove connector from the last column in any view dynamically */
-.knockout-column:last-child .bracket-connectors {
-  display: none;
+/* Vertical Spacing Scaling for Stages */
+.phase-quartas .knockout-matches { min-height: 600px; gap: 4rem; }
+.phase-semifinal .knockout-matches, .phase-semi .knockout-matches { min-height: 600px; gap: 12rem; }
+.phase-final .knockout-matches { min-height: 600px; }
+
+/* Connecting lines for pairs */
+.phase-quartas .knockout-item:nth-child(odd)::after {
+  height: calc(50% + 2rem);
+  border-right: 1px solid var(--border-light);
+  top: 50%;
+}
+.phase-quartas .knockout-item:nth-child(even)::after {
+  height: calc(50% + 2rem);
+  border-right: 1px solid var(--border-light);
+  top: auto;
+  bottom: 50%;
+}
+
+.phase-semifinal .knockout-item:nth-child(odd)::after, 
+.phase-semi .knockout-item:nth-child(odd)::after {
+  height: calc(50% + 6rem);
+  border-right: 1px solid var(--border-light);
+  top: 50%;
+}
+.phase-semifinal .knockout-item:nth-child(even)::after,
+.phase-semi .knockout-item:nth-child(even)::after {
+  height: calc(50% + 6rem);
+  border-right: 1px solid var(--border-light);
+  top: auto;
+  bottom: 50%;
 }
 
 /* Group Stage Section */
