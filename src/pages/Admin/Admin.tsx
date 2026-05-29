@@ -3013,13 +3013,18 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
     // Escolha do craque do jogo (otimizado)
     let chosenMvp: { player_id: string | null; description: string } | null = null;
-    if (!match.match_mvp_player_id) {
+    let initialMvp: { player_id: string; description: string };
+    
+    if (match.match_mvp_player_id) {
+      initialMvp = { player_id: match.match_mvp_player_id, description: match.match_mvp_description || '' };
+    } else {
       const { best } = suggestMvpFromEvents();
-      const initial = best ? { player_id: best.player_id, description: best.description } : { player_id: '', description: '' };
-      const choice = await promptEndMatchMvp(initial);
-      if (choice.action === 'cancel') return;
-      chosenMvp = { player_id: choice.player_id, description: choice.description };
+      initialMvp = best ? { player_id: best.player_id, description: best.description } : { player_id: '', description: '' };
     }
+    
+    const choice = await promptEndMatchMvp(initialMvp);
+    if (choice.action === 'cancel') return;
+    chosenMvp = { player_id: choice.player_id, description: choice.description };
 
     try {
       const start = match.timer_started_at ? new Date(match.timer_started_at).getTime() : Date.now();
