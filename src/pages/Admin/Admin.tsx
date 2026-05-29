@@ -3170,6 +3170,17 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
   const lineupAnchorRef = useRef<HTMLDivElement | null>(null);
   const [lineupNudge, setLineupNudge] = useState(false);
 
+  const [startingGkTeamA, setStartingGkTeamA] = useState<string>('');
+  const [startingGkTeamB, setStartingGkTeamB] = useState<string>('');
+
+  const gksA = useMemo(() => (playersA || []).filter(p => p.position === 'Goleiro'), [playersA]);
+  const gksB = useMemo(() => (playersB || []).filter(p => p.position === 'Goleiro'), [playersB]);
+
+  useEffect(() => {
+    if (gksA.length === 1 && !startingGkTeamA) setStartingGkTeamA(gksA[0].id);
+    if (gksB.length === 1 && !startingGkTeamB) setStartingGkTeamB(gksB[0].id);
+  }, [gksA, gksB, startingGkTeamA, startingGkTeamB]);
+
   const scrollToLineup = useCallback(() => {
     lineupAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setLineupNudge(true);
@@ -3182,8 +3193,45 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       scrollToLineup();
       return;
     }
+    
+    if (gksA.length > 0 && !startingGkTeamA) {
+      toast.error(`Selecione o Goleiro Titular da equipe ${match.teams_a?.name || 'A'}`);
+      return;
+    }
+    if (gksB.length > 0 && !startingGkTeamB) {
+      toast.error(`Selecione o Goleiro Titular da equipe ${match.teams_b?.name || 'B'}`);
+      return;
+    }
+
+    if (startingGkTeamA) {
+      const gk = gksA.find(g => g.id === startingGkTeamA);
+      if (gk) {
+        await supabase.from('match_events').insert({
+          match_id: matchId,
+          event_type: 'comentario',
+          minute: 1,
+          author_name: 'Jogo',
+          commentary: `🧤 Goleiro Titular (${match.teams_a?.name || 'Equipe A'}): ${gk.name}`,
+          player_id: gk.id
+        });
+      }
+    }
+    if (startingGkTeamB) {
+      const gk = gksB.find(g => g.id === startingGkTeamB);
+      if (gk) {
+        await supabase.from('match_events').insert({
+          match_id: matchId,
+          event_type: 'comentario',
+          minute: 1,
+          author_name: 'Jogo',
+          commentary: `🧤 Goleiro Titular (${match.teams_b?.name || 'Equipe B'}): ${gk.name}`,
+          player_id: gk.id
+        });
+      }
+    }
+
     await handleStartTimer();
-  }, [handleStartTimer, scrollToLineup, startBlockReason, requireLineupToStart]);
+  }, [handleStartTimer, scrollToLineup, startBlockReason, requireLineupToStart, gksA, gksB, startingGkTeamA, startingGkTeamB, match.teams_a?.name, match.teams_b?.name, matchId]);
 
   const handlePauseTimerRef = useRef(handlePauseTimer);
   const handleRetomarRef = useRef(handleRetomar);
@@ -3984,6 +4032,38 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                   <button type="button" className="lineup-required-action" onClick={scrollToLineup}>
                     Escolher titulares
                   </button>
+                </div>
+              )}
+
+              {!hasStarted && (gksA.length > 1 || gksB.length > 1) && (
+                <div className="gk-selection-panel" style={{ marginTop: '12px' }}>
+                  <span style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '8px', display: 'block', textAlign: 'center' }}>
+                    Selecione o Goleiro Titular antes de iniciar:
+                  </span>
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    {gksA.length > 1 && (
+                      <select 
+                        className="edit-assist-select" 
+                        style={{ padding: '6px', background: '#1e293b', color: '#fff', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', fontSize: '12px', maxWidth: '140px' }}
+                        value={startingGkTeamA} 
+                        onChange={e => setStartingGkTeamA(e.target.value)}
+                      >
+                        <option value="">Goleiro {match.teams_a?.name || 'A'}...</option>
+                        {gksA.map(gk => <option key={gk.id} value={gk.id}>{gk.name}</option>)}
+                      </select>
+                    )}
+                    {gksB.length > 1 && (
+                      <select 
+                        className="edit-assist-select" 
+                        style={{ padding: '6px', background: '#1e293b', color: '#fff', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', fontSize: '12px', maxWidth: '140px' }}
+                        value={startingGkTeamB} 
+                        onChange={e => setStartingGkTeamB(e.target.value)}
+                      >
+                        <option value="">Goleiro {match.teams_b?.name || 'B'}...</option>
+                        {gksB.map(gk => <option key={gk.id} value={gk.id}>{gk.name}</option>)}
+                      </select>
+                    )}
+                  </div>
                 </div>
               )}
 
