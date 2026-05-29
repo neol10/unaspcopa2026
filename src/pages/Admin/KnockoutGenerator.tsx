@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useStandings } from '../../hooks/useStandings';
 import { supabase } from '../../lib/supabase';
 
@@ -15,8 +16,10 @@ const groupBy = (arr: any[], key: string) => arr.reduce((acc: Record<string, any
 }, {});
 
 const KnockoutGenerator: React.FC<{ enableAutoAdvance?: boolean }> = ({ enableAutoAdvance = false }) => {
+  const queryClient = useQueryClient();
   const { standings, loading } = useStandings();
-  const [pairingMode, setPairingMode] = useState<'classic' | 'overall' | 'cross_all' | 'cross_drop_last' | 'intra_group' | 'grouped_normal'>('classic');
+  const [pairingMode, setPairingMode] = useState<'classic' | 'overall' | 'cross_all' | 'cross_drop_last' | 'intra_group' | 'grouped_normal'>('intra_group');
+  const [targetRound, setTargetRound] = useState<number>(1000);
   const [advancePerGroup, setAdvancePerGroup] = useState<number>(2);
   const [preview, setPreview] = useState<any[] | null>(null);
   const [creating, setCreating] = useState(false);
@@ -220,16 +223,24 @@ const KnockoutGenerator: React.FC<{ enableAutoAdvance?: boolean }> = ({ enableAu
 
   const onDragOver = (e: React.DragEvent) => e.preventDefault();
 
-  const saveBracketToServer = async () => {
+  const saveMatchesToDatabase = async () => {
     if (!preview || preview.length === 0) return setMessage('Nada para salvar');
     try {
-      const payload = { name: `Bracket ${new Date().toLocaleString()}`, matches: preview.map((m) => ({ team_a_id: m.teamA?.team_id || null, team_b_id: m.teamB?.team_id || null, match_date: (m as any).match_date || null, round: 1000 })) };
-      const resp = await fetch('/api/save-bracket', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data?.error || 'Erro ao salvar chave no servidor');
-      setMessage(`Chave salva no servidor (id: ${data.bracket_id})`);
+      const rows = preview.map((m) => ({
+        team_a_id: m.teamA?.team_id || null,
+        team_b_id: m.teamB?.team_id || null,
+        match_date: (m as any).match_date || new Date().toISOString(),
+        round: targetRound,
+        status: 'agendado'
+      }));
+
+      const { error } = await supabase.from('matches').insert(rows);
+      if (error) throw error;
+      
+      setMessage(`Sucesso! Foram criadas ${rows.length} partidas no Mata-Mata.`);
+      queryClient.invalidateQueries({ queryKey: ['matches'] });
     } catch (err: any) {
-      setMessage(String(err?.message || err));
+      setMessage(`Erro ao salvar: ${String(err?.message || err)}`);
     }
   };
 
@@ -246,8 +257,8 @@ const KnockoutGenerator: React.FC<{ enableAutoAdvance?: boolean }> = ({ enableAu
     if (!preview || preview.length === 0) return;
     setCreating(true); setMessage(null);
     try {
-      // Automatically save bracket to server (uses /api/save-bracket to create bracket+matches+parents)
-      await saveBracketToServer();
+      // Save matches directly into the matches table
+      await saveMatchesToDatabase();
     } catch (err: any) {
       setMessage(String(err?.message || err));
     } finally {
@@ -305,12 +316,21 @@ const KnockoutGenerator: React.FC<{ enableAutoAdvance?: boolean }> = ({ enableAu
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
         <label style={{ fontSize: 12, fontWeight: 'bold' }}>Modo de Geração:</label>
         <select value={pairingMode} onChange={(e) => setPairingMode(e.target.value as any)} style={{ padding: '6px', borderRadius: '4px', background: 'var(--bg-card)', color: '#fff', border: '1px solid var(--border)' }}>
+          <option value="intra_group">Intra-Grupo (1º x Último, 2º x Penúltimo do grupo)</option>
+          <option value="cross_drop_last">Cruzar sem o Último (Passa todos menos pior, cruza os grupos)</option>
           <option value="classic">Clássico (N primeiros de cada grupo)</option>
-          <option value="intra_group">Todos passam (1º x último, 2º x 3º no grupo)</option>
           <option value="grouped_normal">Todos passam (chave normal mantendo grupos)</option>
           <option value="cross_all">Cruzar Todos (1º Grupo A x Último B)</option>
-          <option value="cross_drop_last">Cruzar sem o Último (1º Grupo A x Pior B)</option>
           <option value="overall">Ranking Geral (1º Geral x Último Geral)</option>
+        </select>
+        
+        <label style={{ fontSize: 12, fontWeight: 'bold', marginLeft: 8 }}>Gerar para qual Fase?</label>
+        <select value={targetRound} onChange={(e) => setTargetRound(Number(e.target.value))} style={{ padding: '6px', borderRadius: '4px', background: 'var(--bg-card)', color: '#fff', border: '1px solid var(--border)' }}>
+          <option value={1000}>Oitavas de Final</option>
+          <option value={1001}>Quartas de Final</option>
+          <option value={1002}>Semifinal</option>
+          <option value={1003}>Final</option>
+          <option value={1004}>3º Lugar</option>
         </select>
 
         {pairingMode === 'classic' && (
