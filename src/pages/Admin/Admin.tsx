@@ -6826,68 +6826,72 @@ const TournamentManagement = () => {
             </span>
           </div>
 
-          {/* Total de Noites */}
-          <div className="form-group">
-            <label>Total de {groupUnitLabelPlural} (Fase de Grupos)</label>
-            <input
-              type="number"
-              min={1} max={20}
-              value={form.total_rounds}
-              onChange={e => {
-                const parsed = parseInt(e.target.value);
-                if (!Number.isFinite(parsed)) return;
-                const nextTotal = Math.max(1, Math.min(20, parsed));
-                setForm((prev) => ({
-                  ...prev,
-                  total_rounds: nextTotal,
-                  current_round: Math.min(prev.current_round || 1, nextTotal),
-                }));
-                setIsDirty(true);
-              }}
-            />
-            <span className="form-hint">Ex: 5 {groupUnitLabelPlural.toLowerCase()} → depois vai ao Mata-Mata</span>
-          </div>
+          {(manualPhaseOverride ? form.current_phase : autoPhase) === 'grupos' && (
+            <>
+              {/* Total de Noites */}
+              <div className="form-group">
+                <label>Total de {groupUnitLabelPlural} (Fase de Grupos)</label>
+                <input
+                  type="number"
+                  min={1} max={20}
+                  value={form.total_rounds}
+                  onChange={e => {
+                    const parsed = parseInt(e.target.value);
+                    if (!Number.isFinite(parsed)) return;
+                    const nextTotal = Math.max(1, Math.min(20, parsed));
+                    setForm((prev) => ({
+                      ...prev,
+                      total_rounds: nextTotal,
+                      current_round: Math.min(prev.current_round || 1, nextTotal),
+                    }));
+                    setIsDirty(true);
+                  }}
+                />
+                <span className="form-hint">Ex: 5 {groupUnitLabelPlural.toLowerCase()} → depois vai ao Mata-Mata</span>
+              </div>
 
-          {/* Unidade (Grupos): Noite x Rodada */}
-          <div className="form-group">
-            <label>Unidade (Fase de Grupos)</label>
-            <select
-              value={groupUnit}
-              onChange={(e) => {
-                setForm((prev) => ({ ...prev, group_unit: e.target.value as TournamentConfig['group_unit'] }));
-                setIsDirty(true);
-              }}
-            >
-              <option value="night">Noite</option>
-              <option value="round">Rodada</option>
-            </select>
-            <span className="form-hint">Muda textos e a regra de agrupamento na fase de grupos.</span>
-          </div>
+              {/* Unidade (Grupos): Noite x Rodada */}
+              <div className="form-group">
+                <label>Unidade (Fase de Grupos)</label>
+                <select
+                  value={groupUnit}
+                  onChange={(e) => {
+                    setForm((prev) => ({ ...prev, group_unit: e.target.value as TournamentConfig['group_unit'] }));
+                    setIsDirty(true);
+                  }}
+                >
+                  <option value="night">Noite</option>
+                  <option value="round">Rodada</option>
+                </select>
+                <span className="form-hint">Muda textos e a regra de agrupamento na fase de grupos.</span>
+              </div>
 
-          {/* Partidas por Noite */}
-          <div className="form-group">
-            <label>Partidas por {groupUnitLabel}</label>
-            <input
-              type="number"
-              min={1} max={20}
-              value={form.matches_per_round}
-              readOnly={!manualPhaseOverride}
-              aria-readonly={manualPhaseOverride ? 'false' : 'true'}
-              onChange={(e) => {
-                if (!manualPhaseOverride) return;
-                const parsed = parseInt(e.target.value);
-                if (!Number.isFinite(parsed)) return;
-                const nextValue = Math.max(1, Math.min(20, parsed));
-                setForm({ ...form, matches_per_round: nextValue });
-                setIsDirty(true);
-              }}
-            />
-            <span className="form-hint">
-              {manualPhaseOverride
-                ? 'Defina manualmente se precisar (emergencia).'
-                : 'Atualizado automaticamente com base nas partidas da fase de grupos'}
-            </span>
-          </div>
+              {/* Partidas por Noite */}
+              <div className="form-group">
+                <label>Partidas por {groupUnitLabel}</label>
+                <input
+                  type="number"
+                  min={1} max={20}
+                  value={form.matches_per_round}
+                  readOnly={!manualPhaseOverride}
+                  aria-readonly={manualPhaseOverride ? 'false' : 'true'}
+                  onChange={(e) => {
+                    if (!manualPhaseOverride) return;
+                    const parsed = parseInt(e.target.value);
+                    if (!Number.isFinite(parsed)) return;
+                    const nextValue = Math.max(1, Math.min(20, parsed));
+                    setForm({ ...form, matches_per_round: nextValue });
+                    setIsDirty(true);
+                  }}
+                />
+                <span className="form-hint">
+                  {manualPhaseOverride
+                    ? 'Defina manualmente se precisar (emergencia).'
+                    : 'Atualizado automaticamente com base nas partidas da fase de grupos'}
+                </span>
+              </div>
+            </>
+          )}
 
           {/* Noite/Rodada Atual */}
           {(manualPhaseOverride ? form.current_phase : autoPhase) === 'grupos' && (
