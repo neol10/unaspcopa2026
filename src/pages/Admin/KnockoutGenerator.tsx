@@ -16,9 +16,8 @@ const groupBy = (arr: any[], key: string) => arr.reduce((acc: Record<string, any
 
 const KnockoutGenerator: React.FC<{ enableAutoAdvance?: boolean }> = ({ enableAutoAdvance = false }) => {
   const { standings, loading } = useStandings();
+  const [pairingMode, setPairingMode] = useState<'classic' | 'overall' | 'cross_all' | 'cross_drop_last'>('classic');
   const [advancePerGroup, setAdvancePerGroup] = useState<number>(2);
-  const [includeThirdPlace, setIncludeThirdPlace] = useState<boolean>(false);
-  const [tournamentMode, setTournamentMode] = useState<boolean>(false);
   const [preview, setPreview] = useState<any[] | null>(null);
   const [creating, setCreating] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -36,15 +35,56 @@ const KnockoutGenerator: React.FC<{ enableAutoAdvance?: boolean }> = ({ enableAu
     }) }));
   }, [standings]);
 
-  const generateSeeds = () : SeedItem[] => {
-    // Tournament mode: advance all teams from standings in overall order, then pair 1xN, 2xN-1, ...
-    if (tournamentMode) {
-      // Use overall standings ordering so the top-ranked team faces the bottom-ranked team.
+  const generateBracket = () => {
+    if (pairingMode === 'overall') {
       const allTeams: SeedItem[] = (standings || []).map((s: any) => ({ team_id: s.team_id, team_name: s.team_name, group: s.group || 'Geral', seedLabel: `${s.team_name}` }));
-      return allTeams;
+      const M = allTeams.length;
+      const pairCount = Math.floor(M / 2);
+      const pairs: any[] = [];
+      for (let i = 0; i < pairCount; i++) {
+        const a = allTeams[i];
+        const b = allTeams[M - 1 - i];
+        pairs.push({ teamA: a, teamB: b, round: 1, idx: i + 1 });
+      }
+      if (M % 2 === 1) {
+        pairs.push({ teamA: allTeams[pairCount], teamB: undefined, round: 1, idx: pairCount + 1 });
+      }
+      return pairs;
     }
 
-    // Produce arrays per finishing position: pos1 = [1A,1B,1C...], pos2 = [2A,2B,2C...]
+    if (pairingMode === 'cross_all' || pairingMode === 'cross_drop_last') {
+      const pairs: any[] = [];
+      let pairIdx = 1;
+      
+      for (let gIdx = 0; gIdx < groups.length; gIdx += 2) {
+        const g1 = groups[gIdx];
+        const g2 = groups[gIdx + 1];
+        
+        let teams1 = g1.teams;
+        let teams2 = g2 ? g2.teams : [...g1.teams].reverse(); // fallback if odd number of groups
+
+        if (pairingMode === 'cross_drop_last') {
+          if (teams1.length > 1) teams1 = teams1.slice(0, -1);
+          if (teams2.length > 1) teams2 = teams2.slice(0, -1);
+        }
+
+        const maxLen = Math.max(teams1.length, teams2.length);
+        for (let i = 0; i < maxLen; i++) {
+          const a = teams1[i];
+          const b = teams2[teams2.length - 1 - i];
+          
+          pairs.push({
+            teamA: a ? { team_id: a.team_id, team_name: a.team_name, group: g1.name, seedLabel: `${i + 1}${g1.name}` } : undefined,
+            teamB: b ? { team_id: b.team_id, team_name: b.team_name, group: g2 ? g2.name : g1.name, seedLabel: `${teams2.length - i}${g2 ? g2.name : g1.name}` } : undefined,
+            round: 1,
+            idx: pairIdx++
+          });
+        }
+      }
+      return pairs;
+    }
+
+    // Classic Mode
     const positions: SeedItem[][] = [];
     for (let pos = 1; pos <= advancePerGroup; pos++) {
       const list: SeedItem[] = [];
@@ -54,48 +94,23 @@ const KnockoutGenerator: React.FC<{ enableAutoAdvance?: boolean }> = ({ enableAu
       }
       positions.push(list);
     }
-    // Flatten by positions: [1A,1B,...,2A,2B,...]
-    return positions.flat();
-  };
-
-  const buildBracketClassic = (seeds: SeedItem[]) => {
-    // Classic mapping for advancePerGroup = 2: pair 1st placed against 2nd placed in reverse order
-    const pairs: Array<{ teamA?: SeedItem; teamB?: SeedItem; round: number; idx: number }> = [];
-    // Tournament mode: mirror pairing 1xN, 2xN-1, ...
-    if (tournamentMode) {
-      const M = seeds.length;
-      const pairCount = Math.floor(M / 2);
-      for (let i = 0; i < pairCount; i++) {
-        const a = seeds[i];
-        const b = seeds[M - 1 - i];
-        pairs.push({ teamA: a, teamB: b, round: 1, idx: i + 1 });
-      }
-      // If odd number of teams, leave middle team as a bye (advances automatically)
-      if (M % 2 === 1) {
-        const mid = seeds[pairCount];
-        pairs.push({ teamA: mid, teamB: undefined, round: 1, idx: pairCount + 1 });
-      }
-      return pairs;
-    }
+    const seeds = positions.flat();
+    
+    const pairs: any[] = [];
     if (advancePerGroup === 2) {
       const firsts = seeds.filter(s => s.seedLabel.startsWith('1'));
       const seconds = seeds.filter(s => s.seedLabel.startsWith('2'));
       const N = Math.min(firsts.length, seconds.length);
       for (let i = 0; i < N; i++) {
-        const a = firsts[i];
-        const b = seconds[N - 1 - i];
-        pairs.push({ teamA: a, teamB: b, round: 1, idx: i + 1 });
+        pairs.push({ teamA: firsts[i], teamB: seconds[N - 1 - i], round: 1, idx: i + 1 });
       }
       return pairs;
     }
 
-    // Fallback: simple mirror pairing
     const M = seeds.length;
-    const pairCount = Math.floor(M/2);
+    const pairCount = Math.floor(M / 2);
     for (let i = 0; i < pairCount; i++) {
-      const a = seeds[i];
-      const b = seeds[M - 1 - i];
-      pairs.push({ teamA: a, teamB: b, round: 1, idx: i + 1 });
+      pairs.push({ teamA: seeds[i], teamB: seeds[M - 1 - i], round: 1, idx: i + 1 });
     }
     return pairs;
   };
@@ -105,8 +120,7 @@ const KnockoutGenerator: React.FC<{ enableAutoAdvance?: boolean }> = ({ enableAu
   const [intervalMinutes, setIntervalMinutes] = useState<number>(60);
 
   const handlePreview = () => {
-    const seeds = generateSeeds();
-    const bracket = buildBracketClassic(seeds);
+    const bracket = generateBracket();
     // If autoDates and startDate provided, assign match_date sequentially
     if (autoDates && startDate) {
       const start = new Date(startDate);
@@ -240,15 +254,22 @@ const KnockoutGenerator: React.FC<{ enableAutoAdvance?: boolean }> = ({ enableAu
     <div className="knockout-generator glass" style={{ marginTop: 16, padding: 12 }}>
       <h6>Gerar Mata-mata</h6>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
-        <label style={{ fontSize: 12 }}>Avançam por grupo:</label>
-        <input type="number" min={1} max={8} value={advancePerGroup} onChange={e => setAdvancePerGroup(Math.max(1, Math.min(8, Number(e.target.value || 1))))} style={{ width: 72 }} />
-        <label style={{ fontSize: 12, marginLeft: 8 }}>
-          <input type="checkbox" checked={tournamentMode} onChange={e => setTournamentMode(e.target.checked)} /> Modo torneio (todas passam)
-        </label>
-        <label style={{ fontSize: 12 }}>
-          <input type="checkbox" checked={includeThirdPlace} onChange={e => setIncludeThirdPlace(e.target.checked)} /> Incluir 3º lugar
-        </label>
-        <label style={{ fontSize: 12 }}>
+        <label style={{ fontSize: 12, fontWeight: 'bold' }}>Modo de Geração:</label>
+        <select value={pairingMode} onChange={(e) => setPairingMode(e.target.value as any)} style={{ padding: '6px', borderRadius: '4px', background: 'var(--bg-card)', color: '#fff', border: '1px solid var(--border)' }}>
+          <option value="classic">Clássico (N primeiros de cada grupo)</option>
+          <option value="cross_all">Cruzar Todos (1º Grupo A x Último B)</option>
+          <option value="cross_drop_last">Cruzar sem o Último (1º Grupo A x Pior B)</option>
+          <option value="overall">Ranking Geral (1º Geral x Último Geral)</option>
+        </select>
+
+        {pairingMode === 'classic' && (
+          <>
+            <label style={{ fontSize: 12, marginLeft: 8 }}>Avançam por grupo:</label>
+            <input type="number" min={1} max={8} value={advancePerGroup} onChange={e => setAdvancePerGroup(Math.max(1, Math.min(8, Number(e.target.value || 1))))} style={{ width: 72 }} />
+          </>
+        )}
+        
+        <label style={{ fontSize: 12, marginLeft: 16 }}>
           <input type="checkbox" checked={autoDates} onChange={e => setAutoDates(e.target.checked)} /> Atribuir datas automaticamente
         </label>
         {autoDates && (
