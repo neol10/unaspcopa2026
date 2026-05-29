@@ -4670,7 +4670,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
           </button>
         </div>
         <div className="undo-list">
-          {(events || []).slice(0, 8).map(event => (
+          {(events || []).map(event => (
             <div key={event.id} className="undo-item-container">
               <div className={`undo-item animate-slide-up ${editingEventId === event.id ? 'editing' : ''}`}>
                 <div className="undo-info">
