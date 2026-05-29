@@ -2999,6 +2999,32 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
     }
   }, [events, matchId, timerOffsetSeconds, updateOptimisticMatch]);
 
+  const handleEditMvp = async () => {
+    let initialMvp: { player_id: string; description: string };
+    if (match.match_mvp_player_id) {
+      initialMvp = { player_id: match.match_mvp_player_id, description: match.match_mvp_description || '' };
+    } else {
+      const { best } = suggestMvpFromEvents();
+      initialMvp = best ? { player_id: best.player_id, description: best.description } : { player_id: '', description: '' };
+    }
+    
+    const choice = await promptEndMatchMvp(initialMvp);
+    if (choice.action === 'cancel' || !choice.player_id) return;
+    
+    try {
+      const updates = {
+        match_mvp_player_id: choice.player_id,
+        match_mvp_description: choice.description
+      };
+      const { error } = await supabase.from('matches').update(updates).eq('id', match.id);
+      updateOptimisticMatch(updates as Partial<Match>);
+      if (error) throw error;
+      toast.success('Craque do Jogo atualizado!');
+    } catch (err) {
+      toast.error('Erro ao atualizar craque do jogo');
+    }
+  };
+
   const handleEndMatch = async () => {
     if (!(await confirmAction({
       title: 'Finalizar Partida',
@@ -4111,9 +4137,15 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                     </button>
                   )}
 
-                  <button className="timer-btn end" onClick={handleEndMatch} disabled={match.status === 'finalizado'}>
-                    <Flag size={16} /> FIM DE JOGO
-                  </button>
+                  {match.status === 'finalizado' ? (
+                    <button className="timer-btn" style={{ background: 'rgba(251, 191, 36, 0.2)', color: '#fbbf24', borderColor: 'rgba(251, 191, 36, 0.3)' }} onClick={handleEditMvp}>
+                      <Star size={16} /> EDITAR CRAQUE DO JOGO
+                    </button>
+                  ) : (
+                    <button className="timer-btn end" onClick={handleEndMatch}>
+                      <Flag size={16} /> FIM DE JOGO
+                    </button>
+                  )}
               </div>
 
               {!hasStarted && startBlockReason && (
