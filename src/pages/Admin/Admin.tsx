@@ -24,6 +24,7 @@ import { isMissingColumnError as isMissingDivisionColumnError, markDivisionColum
 import { deriveMatchStatus } from '../../lib/matchStatus';
 import { rebuildStatsClientSide } from '../../lib/rebuildStats';
 import { clearPhotoCropFromUrl, parsePhotoCropFromUrl, setPhotoCropOnUrl } from '../../lib/photoCrop';
+import KnockoutGenerator from './KnockoutGenerator';
 import {
   buildLocationFromCourt,
   COURT_OPTIONS,
@@ -6606,6 +6607,14 @@ const TournamentManagement = () => {
   }, []);
 
   React.useEffect(() => {
+    if (loading) return;
+    if (manualPhaseOverride) return;
+    if (config.current_phase !== autoPhase) {
+      setManualPhaseOverride(true);
+    }
+  }, [loading, manualPhaseOverride, config.current_phase, autoPhase]);
+
+  React.useEffect(() => {
     try {
       localStorage.setItem('copa_unasp_admin_manual_phase_override', manualPhaseOverride ? '1' : '0');
     } catch {
@@ -7003,6 +7012,8 @@ const TournamentManagement = () => {
           {saved ? <><CheckCircle size={18} /> Salvo!</> : <><Save size={18} /> Salvar Configuração</>}
         </button>
       </div>
+
+      <KnockoutGenerator />
     </div>
   );
 };
