@@ -313,66 +313,96 @@ const KnockoutGenerator: React.FC<{ enableAutoAdvance?: boolean }> = ({ enableAu
   }, [enableAutoAdvance]);
 
   return (
-    <div className="knockout-generator glass" style={{ marginTop: 16, padding: 12 }}>
-      <h6>Gerar Mata-mata</h6>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
-        <label style={{ fontSize: 12, fontWeight: 'bold' }}>Modo de Geração:</label>
-        <select value={pairingMode} onChange={(e) => setPairingMode(e.target.value as any)} style={{ padding: '6px', borderRadius: '4px', background: 'var(--bg-card)', color: '#fff', border: '1px solid var(--border)' }}>
-          <option value="intra_group">Intra-Grupo (1º x Último, 2º x Penúltimo do grupo)</option>
-          <option value="cross_drop_last">Cruzar sem o Último (Passa todos menos pior, cruza os grupos)</option>
-          <option value="classic">Clássico (N primeiros de cada grupo)</option>
-          <option value="grouped_normal">Todos passam (chave normal mantendo grupos)</option>
-          <option value="cross_all">Cruzar Todos (1º Grupo A x Último B)</option>
-          <option value="overall">Ranking Geral (1º Geral x Último Geral)</option>
-        </select>
+    <div className="knockout-generator admin-form glass" style={{ marginTop: '2rem', padding: '1.5rem', borderRadius: '16px' }}>
+      <h6 style={{ fontSize: '1.25rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
+        <span style={{ color: 'var(--secondary)' }}>🏆</span> Gerador Automático de Mata-mata
+      </h6>
+      
+      <div className="form-grid-full" style={{ gap: '1rem', marginBottom: '1.5rem' }}>
+        <div className="form-group">
+          <label>Modo de Geração</label>
+          <select value={pairingMode} onChange={(e) => setPairingMode(e.target.value as any)} className="admin-input">
+            <option value="intra_group">Intra-Grupo (1º x Último, 2º x Penúltimo do grupo)</option>
+            <option value="cross_drop_last">Cruzar sem o Último (Passa todos menos pior, cruza os grupos)</option>
+            <option value="classic">Clássico (N primeiros de cada grupo)</option>
+            <option value="grouped_normal">Todos passam (chave normal mantendo grupos)</option>
+            <option value="cross_all">Cruzar Todos (1º Grupo A x Último B)</option>
+            <option value="overall">Ranking Geral (1º Geral x Último Geral)</option>
+          </select>
+        </div>
         
-        <label style={{ fontSize: 12, fontWeight: 'bold', marginLeft: 8 }}>Gerar para qual Fase?</label>
-        <select value={targetRound} onChange={(e) => setTargetRound(Number(e.target.value))} style={{ padding: '6px', borderRadius: '4px', background: 'var(--bg-card)', color: '#fff', border: '1px solid var(--border)' }}>
-          <option value={1000}>Oitavas de Final</option>
-          <option value={1001}>Quartas de Final</option>
-          <option value={1002}>Semifinal</option>
-          <option value={1003}>Final</option>
-          <option value={1004}>3º Lugar</option>
-        </select>
+        <div className="form-group">
+          <label>Gerar para qual Fase?</label>
+          <select value={targetRound} onChange={(e) => setTargetRound(Number(e.target.value))} className="admin-input">
+            <option value={1000}>Oitavas de Final</option>
+            <option value={1001}>Quartas de Final</option>
+            <option value={1002}>Semifinal</option>
+            <option value={1003}>Final</option>
+            <option value={1004}>3º Lugar</option>
+          </select>
+        </div>
 
         {pairingMode === 'classic' && (
-          <>
-            <label style={{ fontSize: 12, marginLeft: 8 }}>Avançam por grupo:</label>
-            <input type="number" min={1} max={8} value={advancePerGroup} onChange={e => setAdvancePerGroup(Math.max(1, Math.min(8, Number(e.target.value || 1))))} style={{ width: 72 }} />
-          </>
+          <div className="form-group">
+            <label>Avançam por grupo</label>
+            <input type="number" min={1} max={8} value={advancePerGroup} onChange={e => setAdvancePerGroup(Math.max(1, Math.min(8, Number(e.target.value || 1))))} className="admin-input" />
+          </div>
         )}
-        
-        <label style={{ fontSize: 12, marginLeft: 16 }}>
-          <input type="checkbox" checked={autoDates} onChange={e => setAutoDates(e.target.checked)} /> Atribuir datas automaticamente
+      </div>
+
+      <div className="form-group" style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: autoDates ? '1rem' : '0' }}>
+          <input type="checkbox" checked={autoDates} onChange={e => setAutoDates(e.target.checked)} /> 
+          Atribuir datas e horários automaticamente
         </label>
         {autoDates && (
-          <>
-            <input type="datetime-local" value={startDate} onChange={e => setStartDate(e.target.value)} />
-            <label style={{ fontSize: 12 }}>Intervalo (min)</label>
-            <input type="number" min={1} value={intervalMinutes} onChange={e => setIntervalMinutes(Math.max(1, Number(e.target.value || 60)))} style={{ width: 80 }} />
-          </>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>Data de Início (1º Jogo)</label>
+              <input type="datetime-local" value={startDate} onChange={e => setStartDate(e.target.value)} className="admin-input" />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>Intervalo entre jogos (minutos)</label>
+              <input type="number" min={1} value={intervalMinutes} onChange={e => setIntervalMinutes(Math.max(1, Number(e.target.value || 60)))} className="admin-input" />
+            </div>
+          </div>
         )}
-        <button className="btn-add" onClick={handlePreview} disabled={loading}>Gerar Visualização</button>
-        <button className="btn-save" onClick={handleCreate} disabled={creating}>{creating ? 'Criando...' : 'Criar partidas'}</button>
-        <button className="btn" onClick={saveBracketToLocal}>Salvar Chave</button>
-        <button className="btn" onClick={loadBracketFromLocal}>Carregar Chave</button>
+      </div>
+
+      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
+        <button className="btn-secondary" onClick={handlePreview} disabled={loading} style={{ flex: 1, minWidth: '200px', padding: '0.75rem' }}>
+          Gerar Pré-visualização
+        </button>
+        <button className="btn-save" onClick={handleCreate} disabled={creating} style={{ flex: 1, minWidth: '200px', padding: '0.75rem' }}>
+          {creating ? 'Criando Partidas...' : 'Salvar Partidas no App'}
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem', justifyContent: 'center' }}>
+        <button className="btn-cancel" onClick={saveBracketToLocal} style={{ fontSize: '0.75rem', padding: '0.4rem 0.8rem' }}>Salvar Preset na Memória</button>
+        <button className="btn-cancel" onClick={loadBracketFromLocal} style={{ fontSize: '0.75rem', padding: '0.4rem 0.8rem' }}>Carregar Preset</button>
       </div>
 
       {preview && (
-        <div className="knockout-preview">
+        <div className="knockout-preview" style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <h4 style={{ marginBottom: '1rem', color: 'var(--text-dim)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Pré-visualização dos Confrontos</h4>
           {preview.map((m, i) => (
-            <div key={i} draggable onDragStart={(e) => onDragStart(e, i)} onDrop={(e) => onDrop(e, i)} onDragOver={onDragOver} style={{ padding: 8, borderBottom: '1px solid rgba(255,255,255,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'grab' }}>
-              <div>
-                <strong style={{ cursor: 'pointer' }} onClick={() => handleSwap(i)}>{m.teamA?.team_name || 'TBD'}</strong>
-                <span style={{ margin: '0 8px' }}> vs </span>
-                <strong style={{ cursor: 'pointer' }} onClick={() => handleSwap(i)}>{m.teamB?.team_name || 'TBD'}</strong>
-                <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>seed: {m.teamA?.seedLabel || '-'} x {m.teamB?.seedLabel || '-'}</div>
-                {(m as any).match_date && <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>data: {(new Date((m as any).match_date)).toLocaleString()}</div>}
-              <div>
-                <button className="btn-cancel" onClick={() => handleSwap(i)} style={{ marginLeft: 8 }}>Trocar lados</button>
-                <button className="btn-add" onClick={() => handleAdvanceWinner(m.teamA?.team_id)} disabled={!m.teamA?.team_id}>Avançar {m.teamA?.team_name}</button>
-                <button className="btn-add" onClick={() => handleAdvanceWinner(m.teamB?.team_id)} disabled={!m.teamB?.team_id}>Avançar {m.teamB?.team_name}</button>
-              </div>
+            <div key={i} className="glass" draggable onDragStart={(e) => onDragStart(e, i)} onDrop={(e) => onDrop(e, i)} onDragOver={onDragOver} style={{ padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: '0.5rem', cursor: 'grab' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                    <strong style={{ fontSize: '1.1rem', color: 'var(--text-main)', cursor: 'pointer', padding: '2px 6px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px' }} onClick={() => handleSwap(i)}>{m.teamA?.team_name || 'TBD'}</strong>
+                    <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>vs</span>
+                    <strong style={{ fontSize: '1.1rem', color: 'var(--text-main)', cursor: 'pointer', padding: '2px 6px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px' }} onClick={() => handleSwap(i)}>{m.teamB?.team_name || 'TBD'}</strong>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Sementes: {m.teamA?.seedLabel || '-'} x {m.teamB?.seedLabel || '-'}</div>
+                  {(m as any).match_date && <div style={{ fontSize: '0.75rem', color: 'var(--secondary)', marginTop: '0.25rem' }}>Data: {(new Date((m as any).match_date)).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</div>}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', alignItems: 'flex-end' }}>
+                  <button className="btn-cancel" onClick={() => handleSwap(i)} style={{ fontSize: '0.7rem', padding: '0.3rem 0.6rem' }}>⇄ Trocar Lados</button>
+                  <button className="btn-secondary" onClick={() => handleAdvanceWinner(m.teamA?.team_id)} disabled={!m.teamA?.team_id} style={{ fontSize: '0.7rem', padding: '0.3rem 0.6rem' }}>Avançar {m.teamA?.team_name?.split(' ')[0]}</button>
+                  <button className="btn-secondary" onClick={() => handleAdvanceWinner(m.teamB?.team_id)} disabled={!m.teamB?.team_id} style={{ fontSize: '0.7rem', padding: '0.3rem 0.6rem' }}>Avançar {m.teamB?.team_name?.split(' ')[0]}</button>
+                </div>
               </div>
             </div>
           ))}

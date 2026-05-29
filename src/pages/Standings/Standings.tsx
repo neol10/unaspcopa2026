@@ -12,6 +12,7 @@ import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
 import { KNOCKOUT_ROUND_LABELS } from '../../lib/tournamentRules';
 import { deriveMatchStatus } from '../../lib/matchStatus';
 import { downloadSocialGroupStandingCard, downloadSocialStandingsCard } from '../../lib/socialCardExport';
+import '../Brackets/Brackets.css'; // reaproveitar o visual dos cards do chaveamento
 
 const Standings: React.FC = () => {
   const { standings, loading, error, refresh, paused } = useStandings();
@@ -78,17 +79,8 @@ const Standings: React.FC = () => {
   });
 
   const knockoutRoundCodes = useMemo(() => {
-    if (isGroupPhase) return [];
-
-    const codes = new Set<number>();
-    for (const m of matches) {
-      if (typeof m.round === 'number' && m.round >= 1000 && m.round <= 1004) {
-        codes.add(m.round);
-      }
-    }
-
-    return Array.from(codes).sort((a, b) => a - b);
-  }, [isGroupPhase, matches]);
+    return [1000, 1001, 1002, 1004, 1003];
+  }, []);
 
   const phaseToRoundCode = (phase: string) => {
     if (phase === 'oitavas') return 1000;
@@ -454,74 +446,122 @@ const Standings: React.FC = () => {
             <Trophy size={20} color="var(--secondary)" />
             {selectedLabel}
           </h3>
-          <div className="table-container glass">
-            <table className="standings-table-new" style={{ minWidth: 860 }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: 'left' }}>Jogo</th>
-                  <th>Placar</th>
-                  <th className="hide-mobile">Data</th>
-                  <th className="hide-mobile">Local</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {phaseMatches.map((m) => {
-                  const effective = deriveMatchStatus(m, nowTs);
-                  const teamA = m.teams_a?.name || 'A definir';
-                  const teamB = m.teams_b?.name || 'A definir';
-                  const score = effective === 'agendado' ? '-' : `${m.team_a_score} x ${m.team_b_score}`;
-                  const dateLabel = new Date(m.match_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-                  const timeLabel = new Date(m.match_date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-                  const statusLabel = effective === 'ao_vivo' ? 'AO VIVO' : effective === 'finalizado' ? 'FIM' : 'PREVISTO';
+          <div className="bracket-round" style={{ maxWidth: '100%', minWidth: '100%', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', padding: '1rem 0' }}>
+            {phaseMatches.map((match) => {
+              const effectiveStatus = deriveMatchStatus(match, nowTs);
+              const isTeamAWinner = effectiveStatus === 'finalizado' && (match.team_a_score ?? 0) > (match.team_b_score ?? 0);
+              const isTeamBWinner = effectiveStatus === 'finalizado' && (match.team_b_score ?? 0) > (match.team_a_score ?? 0);
+              const matchDateObj = new Date(match.match_date);
+              
+              let liveMinutes: number | null = null;
+              if (effectiveStatus === 'ao_vivo' && match.status === 'ao_vivo' && match.current_period_start) {
+                const diffMs = nowTs - new Date(match.current_period_start).getTime();
+                liveMinutes = Math.floor(diffMs / 60000);
+              }
 
-                  return (
-                    <tr key={m.id} className="row-animate">
-                      <td style={{ textAlign: 'left' }}>
-                        <div className="team-cell" style={{ gap: '0.9rem' }}>
-                          <div className="team-shield" style={{ width: 36, height: 36 }}>
-                            {m.teams_a?.badge_url ? (
-                              <img
-                                src={m.teams_a.badge_url}
-                                alt=""
-                                width="22"
-                                height="22"
-                                loading="lazy"
-                                decoding="async"
-                                style={{ objectFit: 'contain', padding: '2px' }}
-                              />
-                            ) : (
-                              <Shield size={18} color="var(--text-dim)" />
-                            )}
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            <strong style={{ color: 'var(--text-main)' }}>{teamA} x {teamB}</strong>
-                            <span style={{ color: 'var(--text-dim)', fontSize: '0.82rem', fontWeight: 700 }}>
-                              {m.location || 'Local a definir'}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="pts-cell" style={{ fontSize: '1rem' }}>{score}</td>
-                      <td className="hide-mobile">{dateLabel} • {timeLabel}</td>
-                      <td className="hide-mobile">{m.location || '—'}</td>
-                      <td>
-                        <span className="rank-num" style={{ opacity: 1 }}>{statusLabel}</span>
-                      </td>
-                    </tr>
-                  );
-                })}
+              let countdown = '';
+              if (effectiveStatus === 'agendado') {
+                const diff = matchDateObj.getTime() - nowTs;
+                if (diff > 0 && diff < 24 * 60 * 60 * 1000) {
+                  const hrs = Math.floor(diff / (1000 * 60 * 60));
+                  const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                  countdown = `Em ${hrs}h ${mins}m`;
+                } else if (diff <= 0) {
+                  countdown = 'Atrasado';
+                }
+              }
 
-                {phaseMatches.length === 0 && (
-                  <tr>
-                    <td colSpan={5} style={{ padding: '1.25rem 1rem', color: 'var(--text-dim)', fontWeight: 700 }}>
-                      Nenhum jogo cadastrado para esta fase.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-            <p className="table-swipe-hint">Arraste para os lados para ver todas as colunas.</p>
+              const outcomeLabel = matchDateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' às ' + matchDateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+              return (
+                <div key={match.id} className="bracket-match">
+                  <div className="match-box glass">
+                    <div className="match-preview" style={{ justifyContent: 'space-between' }}>
+                      <span className="match-round-chip">{KNOCKOUT_ROUND_LABELS[match.round as number] || 'Mata-mata'}</span>
+                      <span className="match-meta">{effectiveStatus === 'agendado' && countdown ? countdown : effectiveStatus === 'ao_vivo' && liveMinutes !== null ? `${liveMinutes}' em andamento` : outcomeLabel}</span>
+                    </div>
+
+                    <div className="match-mini-timeline">
+                      {effectiveStatus === 'ao_vivo' && (
+                        <>
+                          <span className="timeline-chip live">AO VIVO</span>
+                          <span className="timeline-chip">Min {liveMinutes ?? 0}</span>
+                        </>
+                      )}
+                      {effectiveStatus === 'agendado' && countdown && (
+                        <>
+                          <span className="timeline-chip soon">EM BREVE</span>
+                          <span className="timeline-chip subtle">{countdown}</span>
+                        </>
+                      )}
+                      {effectiveStatus === 'finalizado' && (
+                        <>
+                          <span className="timeline-chip final">ENCERRADO</span>
+                          <span className="timeline-chip subtle">Placar final</span>
+                          {!isTeamAWinner && !isTeamBWinner && (
+                            <span className="timeline-chip draw">EMPATE</span>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    
+                    <div className={`match-team ${isTeamAWinner ? 'winner' : ''}`}>
+                      <div className="team-info">
+                        {match.teams_a?.badge_url ? (
+                          <img 
+                            src={match.teams_a.badge_url} 
+                            alt="" 
+                            className="team-badge-mini" 
+                            width="28" 
+                            height="28" 
+                            loading="lazy" 
+                            decoding="async"
+                          />
+                        ) : <Shield size={28} color="var(--text-dim)" className="team-badge-mini" />}
+                        <span className="team-name">{match.teams_a?.name || 'A definir'}</span>
+                        {isTeamAWinner && (
+                          <span className="winner-pill" title="Vencedor">
+                            <Trophy size={12} />
+                            Venceu
+                          </span>
+                        )}
+                      </div>
+                      <div className="team-score">{effectiveStatus !== 'agendado' ? match.team_a_score : '-'}</div>
+                    </div>
+                    
+                    <div className={`match-team ${isTeamBWinner ? 'winner' : ''}`}>
+                      <div className="team-info">
+                        {match.teams_b?.badge_url ? (
+                          <img 
+                            src={match.teams_b.badge_url} 
+                            alt="" 
+                            className="team-badge-mini" 
+                            width="28" 
+                            height="28" 
+                            loading="lazy" 
+                            decoding="async"
+                          />
+                        ) : <Shield size={28} color="var(--text-dim)" className="team-badge-mini" />}
+                        <span className="team-name">{match.teams_b?.name || 'A definir'}</span>
+                        {isTeamBWinner && (
+                          <span className="winner-pill" title="Vencedor">
+                            <Trophy size={12} />
+                            Venceu
+                          </span>
+                        )}
+                      </div>
+                      <div className="team-score">{effectiveStatus !== 'agendado' ? match.team_b_score : '-'}</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {phaseMatches.length === 0 && (
+              <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--text-dim)', fontWeight: 700, gridColumn: '1 / -1' }}>
+                Nenhum jogo cadastrado para esta fase.
+              </div>
+            )}
           </div>
         </div>
       ) : showByGroup ? (
