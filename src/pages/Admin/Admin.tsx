@@ -6503,7 +6503,14 @@ const TournamentManagement = () => {
     const groupUnitLabelPlural = groupUnit === 'night' ? 'Noites' : 'Rodadas';
   const [saved, setSaved] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
-  const [manualPhaseOverride, setManualPhaseOverride] = useState(false);
+  const [manualPhaseOverride, setManualPhaseOverride] = useState(() => {
+    try {
+      const raw = localStorage.getItem('copa_unasp_admin_manual_phase_override');
+      return raw === '1';
+    } catch {
+      return false;
+    }
+  });
   const [groupCVisibility, setGroupCVisibility] = useState<GroupCVisibilityConfig>(DEFAULT_GROUP_C_VISIBILITY);
 
   const groupMatches = React.useMemo(() => {
@@ -6597,14 +6604,6 @@ const TournamentManagement = () => {
     isDirty,
   ]);
 
-  React.useEffect(() => {
-    try {
-      const raw = localStorage.getItem('copa_unasp_admin_manual_phase_override');
-      setManualPhaseOverride(raw === '1');
-    } catch {
-      setManualPhaseOverride(false);
-    }
-  }, []);
 
   React.useEffect(() => {
     if (loading) return;
