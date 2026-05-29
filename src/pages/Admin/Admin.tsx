@@ -3470,6 +3470,8 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       setPlayerOutId('');
       setCommentaryText('');
       refreshEvents();
+      queryClient.invalidateQueries({ queryKey: ['players'] });
+      queryClient.invalidateQueries({ queryKey: ['rankings'] });
       
       if (eventType === 'gol') {
         const player = [...playersA, ...playersB].find(p => p.id === playerId);
@@ -3597,6 +3599,8 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
 
       await supabase.from('match_events').delete().eq('id', event.id);
       refreshEvents();
+      queryClient.invalidateQueries({ queryKey: ['players'] });
+      queryClient.invalidateQueries({ queryKey: ['rankings'] });
       toast.success('Evento removido e revertido.');
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, 'Erro ao remover evento'));
