@@ -2316,6 +2316,45 @@ const MatchManagement = () => {
                   <button className="btn-view-votes" title="Ver quem votou" onClick={() => setViewingVotesMatch(match)}>
                     <Vote size={14} /> Votos
                   </button>
+                  {match.id === 'e4b7e6d5-59d4-48e0-9209-460bf787cd23' && (
+                    <button className="btn-save" style={{ background: '#FF0055', fontSize: 10, padding: 4 }} onClick={async () => {
+                      try {
+                        const matchId = match.id;
+                        const rick = '017cb776-3e4f-405a-9962-dd2bbd6cc6e8';
+                        const lucasAlmeida = '87fe2a86-33a2-4050-802b-c7c08e13e955';
+                        const neoLucca = '06b23407-765b-4774-a53a-74b0f50d1450';
+                        const danielAndrade = '11d316dc-1398-413f-a9a5-d6bf951039e5';
+                        const allan = '11cb84c4-2430-4653-99a3-388af211b24d';
+                        const patrick = '42ed0aaf-0263-4a4a-92fd-270829230fec';
+                        const pauluk = 'b2d99e31-2719-4f70-a4df-cf46414cbfbb';
+                        const diego = '812bf223-cac8-478d-b95e-55754c04ea2b';
+
+                        const evs = [
+                          { match_id: matchId, player_id: rick, event_type: 'gol', minute: 1 },
+                          { match_id: matchId, player_id: lucasAlmeida, assistant_id: rick, event_type: 'gol', minute: 2 },
+                          { match_id: matchId, player_id: neoLucca, assistant_id: pauluk, event_type: 'gol', minute: 3 },
+                          { match_id: matchId, player_id: neoLucca, assistant_id: diego, event_type: 'gol', minute: 4 },
+                          { match_id: matchId, player_id: danielAndrade, assistant_id: neoLucca, event_type: 'gol', minute: 5 },
+                          { match_id: matchId, player_id: allan, assistant_id: neoLucca, event_type: 'gol', minute: 6 },
+                          { match_id: matchId, player_id: allan, assistant_id: danielAndrade, event_type: 'gol', minute: 7 },
+                          { match_id: matchId, player_id: allan, assistant_id: danielAndrade, event_type: 'gol', minute: 8 },
+                          { match_id: matchId, player_id: patrick, assistant_id: danielAndrade, event_type: 'gol', minute: 9 },
+                          { match_id: matchId, player_id: patrick, assistant_id: danielAndrade, event_type: 'gol', minute: 10 },
+                          { match_id: matchId, player_id: diego, event_type: 'amarelo', minute: 11 }
+                        ];
+
+                        await supabase.from('match_events').delete().eq('match_id', matchId);
+                        const { error } = await supabase.from('match_events').insert(evs);
+                        if (error) throw error;
+                        
+                        alert('LANCES CORRIGIDOS COM SUCESSO! \nAgora feche esta mensagem e vá lá em baixo e clique no botão RECONTAR ESTATÍSTICAS para recalcular tudo. E não esqueça de marcar o MVP.');
+                      } catch (err: any) {
+                        alert('Erro: ' + err.message);
+                      }
+                    }}>
+                      Corrigir ARG x HOL
+                    </button>
+                  )}
                   {match.status === 'agendado' && (
                     <>
                       <button className="btn-icon edit" title="Editar Partida" onClick={() => {
