@@ -22,7 +22,7 @@ export type PendingSuspensionStatus = {
 };
 
 // Rules (Copa Unasp 2026):
-// - Every 2 yellow cards => 1 match suspension
+// - Every 3 yellow cards => 1 match suspension
 // - Every 1 red card => 1 match suspension
 // This helper only computes the number of suspensions earned from total cards.
 // Consuming code decides how to apply “serving” those suspensions.
@@ -30,7 +30,7 @@ export const getSuspensionFromCards = (counts: CardCounts): SuspensionStatus => 
   const yellows = Math.max(0, Number(counts.yellow_cards || 0));
   const reds = Math.max(0, Number(counts.red_cards || 0));
 
-  const yellowSuspensions = Math.floor(yellows / 2);
+  const yellowSuspensions = Math.floor(yellows / 3);
   const redSuspensions = reds;
   const suspendedGames = yellowSuspensions + redSuspensions;
 

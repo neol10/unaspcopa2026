@@ -3204,13 +3204,13 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       return `${teamName}: cadastre 1 goleiro (posição = Goleiro) para iniciar.`;
     }
 
-    // Regra de suspensao: 2 amarelos ou 1 vermelho => nao pode jogar o proximo jogo.
+    // Regra de suspensao: 3 amarelos ou 1 vermelho => nao pode jogar o proximo jogo.
     // Antes de iniciar o jogo, bloqueamos qualquer suspenso na escalação.
     const suspendedSelected = list
       .filter((p) => ids.includes(p.id))
       .find((p) => isSuspendedForNextMatch(p));
     if (suspendedSelected) {
-      return `${teamName}: ${suspendedSelected.name} está suspenso (2 amarelos ou 1 vermelho).`;
+      return `${teamName}: ${suspendedSelected.name} está suspenso (3 amarelos ou 1 vermelho).`;
     }
 
     if (ids.length !== 5) {
@@ -3364,7 +3364,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
       }
 
       if (isPreGame && isSuspendedForNextMatch(player)) {
-        return { ok: false, reason: `${targetName}: ${player.name} está suspenso (2 amarelos ou 1 vermelho).` };
+        return { ok: false, reason: `${targetName}: ${player.name} está suspenso (3 amarelos ou 1 vermelho).` };
       }
 
       if (prev.length >= 5) {

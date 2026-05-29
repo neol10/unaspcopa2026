@@ -25,7 +25,7 @@ export const KnockoutTeiaExport: React.FC<KnockoutTeiaExportProps> = ({ id, matc
 
   return (
     <div id={id} className="teia-export-container">
-      <h2 className="teia-export-title">CHAVEAMENTO</h2>
+      <h2 className="teia-export-title">CHAVEAMENTO QUARTAS</h2>
       <div className="teia-export-wrapper">
         <div className="teia-columns">
           {teiaColumns.map((column, colIndex) => {
