@@ -32,7 +32,7 @@ export const KnockoutTeiaExport: React.FC<KnockoutTeiaExportProps> = ({ id, matc
             // Se não tiver jogos nesta fase, vamos criar placeholders para manter a árvore!
             let renderMatches = column.matches;
             if (renderMatches.length === 0) {
-              const count = column.roundCode === 10 ? 4 : column.roundCode === 11 ? 2 : column.roundCode === 12 ? 1 : 0;
+              const count = column.roundCode === 1001 ? 4 : column.roundCode === 1002 ? 2 : column.roundCode === 1003 ? 1 : 0;
               renderMatches = Array.from({ length: count }).map((_, i) => ({
                 id: `placeholder-${column.roundCode}-${i}`,
                 round: column.roundCode,
