@@ -8,16 +8,16 @@ import './KnockoutTeiaExport.css';
 interface KnockoutTeiaExportProps {
   id?: string;
   matches: Match[];
-  knockoutRounds: string[];
+  knockoutRounds: number[];
 }
 
 export const KnockoutTeiaExport: React.FC<KnockoutTeiaExportProps> = ({ id, matches, knockoutRounds }) => {
   const teiaColumns = useMemo(() => {
-    return knockoutRounds.map((roundName) => {
-      const roundMatches = matches.filter((m) => m.round_name === roundName);
+    return knockoutRounds.map((roundCode) => {
+      const roundMatches = matches.filter((m) => m.round === roundCode);
       // Sort so they pair up correctly visually (if needed, assumes order from DB is good)
       roundMatches.sort((a, b) => new Date(a.match_date).getTime() - new Date(b.match_date).getTime());
-      return { roundName, matches: roundMatches };
+      return { roundCode, matches: roundMatches };
     });
   }, [matches, knockoutRounds]);
 
@@ -34,7 +34,7 @@ export const KnockoutTeiaExport: React.FC<KnockoutTeiaExportProps> = ({ id, matc
             if (column.matches.length === 0) return null;
 
             return (
-              <div key={column.roundName} className={`teia-column col-depth-${colIndex}`}>
+              <div key={column.roundCode} className={`teia-column col-depth-${colIndex}`}>
                 {column.matches.map((match) => {
                   const effectiveStatus = deriveMatchStatus(match, nowTs);
                   const isTeamAWinner = effectiveStatus === 'finalizado' && (match.team_a_score ?? 0) > (match.team_b_score ?? 0);
@@ -47,7 +47,7 @@ export const KnockoutTeiaExport: React.FC<KnockoutTeiaExportProps> = ({ id, matc
                     <div key={match.id} className="teia-match">
                       <div className="teia-match-box">
                         <div className="match-preview">
-                          <span className="match-round-chip">{KNOCKOUT_ROUND_LABELS[match.round as number] || column.roundName}</span>
+                          <span className="match-round-chip">{KNOCKOUT_ROUND_LABELS[match.round as number] || `Fase ${column.roundCode}`}</span>
                           <span>{outcomeLabel}</span>
                         </div>
 
