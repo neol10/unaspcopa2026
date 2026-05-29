@@ -155,6 +155,36 @@ const Standings: React.FC = () => {
     );
   }
 
+  // Agrupar equipes por grupo
+  const isTestGroup = (groupName?: string | null) => {
+    const clean = (groupName || '').trim().toUpperCase().replace(/\s+/g, '');
+    return clean === 'C' || clean === 'GRUPOC';
+  };
+
+  const visibleStandings = isAdmin
+    ? standings
+    : visibility.standings
+    ? standings
+    : standings.filter((team) => !isTestGroup(team.group));
+
+  const groupedStandings = visibleStandings.reduce((acc: Record<string, typeof standings>, team) => {
+    const groupName = team.group || 'Geral';
+    if (!acc[groupName]) acc[groupName] = [];
+    acc[groupName].push(team);
+    return acc;
+  }, {});
+
+  const groupNames = Object.keys(groupedStandings);
+  const visibleGroups = showByGroup
+    ? Object.entries(groupedStandings).filter(([groupName]) => selectedGroup === 'all' || groupName === selectedGroup)
+    : [];
+
+  const selectedDownloadGroups = useMemo(() => {
+    if (!showByGroup) return [];
+    if (selectedGroup === 'all') return visibleGroups;
+    return visibleGroups.filter(([groupName]) => groupName === selectedGroup);
+  }, [selectedGroup, showByGroup, visibleGroups]);
+
   if (!isGroupPhase) {
     if ((stuck || (!navigator.onLine && effectiveLoading)) && matches.length === 0) {
       return (
@@ -312,36 +342,6 @@ const Standings: React.FC = () => {
       </div>
     );
   }
-
-  // Agrupar equipes por grupo
-  const isTestGroup = (groupName?: string | null) => {
-    const clean = (groupName || '').trim().toUpperCase().replace(/\s+/g, '');
-    return clean === 'C' || clean === 'GRUPOC';
-  };
-
-  const visibleStandings = isAdmin
-    ? standings
-    : visibility.standings
-    ? standings
-    : standings.filter((team) => !isTestGroup(team.group));
-
-  const groupedStandings = visibleStandings.reduce((acc: Record<string, typeof standings>, team) => {
-    const groupName = team.group || 'Geral';
-    if (!acc[groupName]) acc[groupName] = [];
-    acc[groupName].push(team);
-    return acc;
-  }, {});
-
-  const groupNames = Object.keys(groupedStandings);
-  const visibleGroups = showByGroup
-    ? Object.entries(groupedStandings).filter(([groupName]) => selectedGroup === 'all' || groupName === selectedGroup)
-    : [];
-
-  const selectedDownloadGroups = useMemo(() => {
-    if (!showByGroup) return [];
-    if (selectedGroup === 'all') return visibleGroups;
-    return visibleGroups.filter(([groupName]) => groupName === selectedGroup);
-  }, [selectedGroup, showByGroup, visibleGroups]);
 
   const getGroupRankColorClass = (index: number, groupSize: number) => {
     if (groupSize === 4) {
