@@ -34,8 +34,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Cache CDN: Vercel serve resposta cacheada por 30s, stale por mais 2 min.
     // Isso evita cold-starts contínuos no Supabase e acelera imensamente o Admin e os menus.
-    if (!['profile_role', 'tournament_config'].includes(resource)) {
-      res.setHeader('Cache-Control', 's-maxage=30, stale-while-revalidate=120');
+    if (!['profile_role', 'tournament_config', 'match_events', 'matches'].includes(resource)) {
+      res.setHeader('Cache-Control', 's-maxage=10, stale-while-revalidate=30');
     }
 
     if (resource === 'profile_role') {

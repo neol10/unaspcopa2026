@@ -4507,7 +4507,7 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
               <div className={`undo-item animate-slide-up ${editingEventId === event.id ? 'editing' : ''}`}>
                 <div className="undo-info">
                   {editingEventId === event.id ? (
-                    <div className="edit-event-inline" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <div className="edit-event-inline" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                       <input 
                         type="number" 
                         value={editEventMinute} 
@@ -4515,20 +4515,10 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
                         className="edit-min-input"
                         autoFocus
                       />
-                      {event.event_type === 'gol' && (() => {
-                        const teamPlayers = editEventTeamSide === 'a' ? playersA : playersB;
+                      {['gol', 'amarelo', 'vermelho', 'substituicao'].includes(event.event_type) && (() => {
+                        const allPlayersList = [...(playersA || []), ...(playersB || [])];
                         return (
                           <>
-                            <div style={{ display: 'flex', gap: '4px' }}>
-                              <button
-                                type="button"
-                                className={`edit-team-toggle ${editEventTeamSide === 'a' ? 'active' : ''}`}
-                                onClick={() => {
-                                  setEditEventTeamSide('a');
-                                  setEditEventPlayerId('');
-                                  setEditEventAssistId('');
-                                }}
-                              >
                             <select
                               className="edit-assist-select"
                               value={editEventPlayerId}
