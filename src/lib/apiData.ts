@@ -57,7 +57,7 @@ export const fetchPublicData = async <T,>(resource: string, params?: Record<stri
     }
 
     if (resource === 'players') {
-      const baseFields = 'id, division, team_id, name, number, position, goals_count, yellow_cards, red_cards, suspensions_served, assists, clean_sheets, bio';
+      const baseFields = 'id, division, team_id, name, number, position, goals_count, yellow_cards, red_cards, suspensions_served, assists, clean_sheets, goals_conceded, bio';
 
       let joinedQuery = supabase
         .from('players')
@@ -207,7 +207,7 @@ export const fetchPublicData = async <T,>(resource: string, params?: Record<stri
       const [playersRes, matchesRes] = await Promise.all([
         supabase
           .from('players')
-          .select('id, name, number, position, goals_count, assists, yellow_cards, red_cards, clean_sheets, team_id, teams(name, badge_url, group, leader, primary_color)')
+          .select('id, name, number, position, goals_count, assists, yellow_cards, red_cards, clean_sheets, goals_conceded, team_id, teams(name, badge_url, group, leader, primary_color)')
           .eq('division', division),
         matchesBaseQuery,
       ]);
@@ -220,7 +220,7 @@ export const fetchPublicData = async <T,>(resource: string, params?: Record<stri
         try { void trackFallback('rankings_players_join_fallback', { division, error: String((playersRes.error as any)?.message || playersRes.error) }); } catch {}
         const fallbackPlayers = await supabase
           .from('players')
-          .select('id, name, number, position, goals_count, assists, yellow_cards, red_cards, clean_sheets, team_id')
+          .select('id, name, number, position, goals_count, assists, yellow_cards, red_cards, clean_sheets, goals_conceded, team_id')
           .eq('division', division);
         if (fallbackPlayers.error) throw fallbackPlayers.error;
         rankingPlayers = (fallbackPlayers.data || []).map((p) => ({ ...p, teams: null }));
