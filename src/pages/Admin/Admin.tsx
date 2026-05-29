@@ -6790,7 +6790,13 @@ const TournamentManagement = () => {
               <select
                 value={form.current_phase}
                 onChange={e => {
-                  setForm({ ...form, current_phase: e.target.value as TournamentConfig['current_phase'] });
+                  const nextPhase = e.target.value as TournamentConfig['current_phase'];
+                  setManualPhaseOverride(true);
+                  setForm((prev) => ({
+                    ...prev,
+                    current_phase: nextPhase,
+                    current_round: nextPhase === 'grupos' ? prev.current_round : prev.current_round,
+                  }));
                   setIsDirty(true);
                 }}
               >
@@ -6975,7 +6981,7 @@ const TournamentManagement = () => {
             <span className="t-summary-label">Fase</span>
             <span className="t-summary-value">{phaseLabel[manualPhaseOverride ? form.current_phase : autoPhase]}</span>
           </div>
-          {autoPhase === 'grupos' && (
+          {((manualPhaseOverride ? form.current_phase : autoPhase) === 'grupos') && (
             <>
               <div className="t-summary-item">
                 <span className="t-summary-label">Noite</span>
