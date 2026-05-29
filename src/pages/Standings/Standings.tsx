@@ -474,17 +474,15 @@ const Standings: React.FC = () => {
                 <List size={18} />
                 <span>Geral</span>
               </button>
-              {knockoutRoundCodes.length > 0 && (
-                <button
-                  className="active"
-                  onClick={() => setShowKnockoutPanel(true)}
-                  title="Ver mata-mata"
-                  type="button"
-                >
-                  <Trophy size={18} />
-                  <span>Mata-mata</span>
-                </button>
-              )}
+              <button
+                className="active"
+                onClick={() => setShowKnockoutPanel(true)}
+                title="Ver mata-mata"
+                type="button"
+              >
+                <Trophy size={18} />
+                <span>Mata-mata</span>
+              </button>
             </div>
           ) : (
             <button
