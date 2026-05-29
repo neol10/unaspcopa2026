@@ -1,20 +1,25 @@
 .teia-export-container {
-  background: var(--bg-main, #0f172a);
-  padding: 4rem;
+  background: radial-gradient(circle at top, #1e293b 0%, #020617 100%);
+  background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSIjMDIwNjE3Ij48L3JlY3Q+CjxwYXRoIGQ9Ik0wIDBMOCA4Wk04IDBMMCA4WiIgc3Ryb2tlPSIjMjRBMUYwIiBzdHJva2Utb3BhY2l0eT0iMC4wNSIgc3Ryb2tlLXdpZHRoPSIxIj48L3BhdGg+Cjwvc3ZnPg==');
+  padding: 6rem;
   width: max-content;
-  min-width: 1200px;
+  min-width: 1400px;
   position: relative;
   font-family: inherit;
+  border: 4px solid #1e293b;
 }
 
 .teia-export-title {
-  font-size: 2.5rem;
+  font-size: 4rem;
   font-weight: 900;
   text-align: center;
-  margin-bottom: 4rem;
-  color: var(--text-main, #fff);
+  margin-bottom: 5rem;
+  background: linear-gradient(to right, #fcd34d, #f59e0b, #fcd34d);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
   text-transform: uppercase;
-  letter-spacing: 2px;
+  letter-spacing: 8px;
+  text-shadow: 0 4px 30px rgba(245, 158, 11, 0.4);
 }
 
 .teia-export-wrapper {
@@ -26,7 +31,7 @@
 
 .teia-columns {
   display: flex;
-  gap: 6rem;
+  gap: 8rem;
   align-items: stretch;
 }
 
@@ -36,24 +41,25 @@
   gap: 2rem;
   position: relative;
   justify-content: space-around;
-  min-height: 800px;
+  min-height: 900px;
 }
 
 /* Connectors */
 .teia-match {
   position: relative;
-  width: 320px;
+  width: 360px;
 }
 
 .teia-match::after {
   content: '';
   position: absolute;
-  right: -3rem;
-  width: 3rem;
-  height: 2px;
-  background: rgba(251, 191, 36, 0.5); /* Dourado suave */
+  right: -4rem;
+  width: 4rem;
+  height: 3px;
+  background: linear-gradient(90deg, rgba(251, 191, 36, 0.8), rgba(251, 191, 36, 0.2));
   top: 50%;
   z-index: 1;
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.4);
 }
 
 /* Se for a última coluna, remove a linha após ela */
@@ -65,58 +71,64 @@
 .teia-match:nth-child(odd)::before {
   content: '';
   position: absolute;
-  right: -3rem;
+  right: -4rem;
   top: 50%;
-  height: calc(50% + 1rem); /* Metade do gap entre eles (gap é flexível, então usaremos height 100% de flex) */
-  border-right: 2px solid rgba(251, 191, 36, 0.5);
+  height: calc(50% + 1rem);
+  border-right: 3px solid rgba(251, 191, 36, 0.5);
+  box-shadow: 2px 0 10px rgba(251, 191, 36, 0.2);
 }
 
 .teia-match:nth-child(even)::before {
   content: '';
   position: absolute;
-  right: -3rem;
+  right: -4rem;
   bottom: 50%;
   height: calc(50% + 1rem);
-  border-right: 2px solid rgba(251, 191, 36, 0.5);
+  border-right: 3px solid rgba(251, 191, 36, 0.5);
+  box-shadow: 2px 0 10px rgba(251, 191, 36, 0.2);
 }
 
 /* Match Card Custom for Export */
 .teia-match-box {
-  background: rgba(8, 10, 14, 0.85);
-  border: 1px solid rgba(251, 191, 36, 0.25);
-  border-radius: 16px;
-  padding: 1.25rem;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-left: 4px solid #f59e0b;
+  border-radius: 12px;
+  padding: 1.5rem;
   position: relative;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
 }
 
 .teia-match-box .match-preview {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   text-transform: uppercase;
   color: #94a3b8;
-  margin-bottom: 0.8rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  padding-bottom: 0.6rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.1);
+  padding-bottom: 0.8rem;
+  letter-spacing: 1px;
 }
 
 .teia-match-box .match-round-chip {
-  background: rgba(251, 191, 36, 0.15);
-  border: 1px solid rgba(251, 191, 36, 0.3);
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.4);
   color: #fcd34d;
-  padding: 2px 8px;
-  border-radius: 6px;
-  font-weight: 900;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-weight: 800;
+  text-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
 }
 
 .teia-match-team {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.8rem 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  padding: 1rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .teia-match-team:last-child {
@@ -124,41 +136,49 @@
 }
 
 .teia-match-team.winner {
-  background: linear-gradient(90deg, rgba(251, 191, 36, 0.15), transparent);
-  border-radius: 12px;
-  padding-left: 0.5rem;
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.1), transparent);
+  border-radius: 8px;
+  padding-left: 0.8rem;
+  margin-left: -0.8rem;
 }
 
 .teia-team-info {
   display: flex;
   align-items: center;
-  gap: 0.8rem;
+  gap: 1rem;
+}
+
+.teia-team-info img {
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
 }
 
 .teia-team-name {
-  font-size: 1.1rem;
+  font-size: 1.3rem;
   font-weight: 800;
-  color: #fff;
+  color: #e2e8f0;
 }
 
 .teia-match-team.winner .teia-team-name {
   color: #fcd34d;
+  text-shadow: 0 0 15px rgba(245, 158, 11, 0.3);
 }
 
 .teia-team-score {
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   font-weight: 900;
-  color: #fff;
-  min-width: 36px;
-  height: 36px;
+  color: #94a3b8;
+  min-width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.3);
   border-radius: 8px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
 }
 
 .teia-match-team.winner .teia-team-score {
-  color: #000;
-  background: linear-gradient(135deg, #fcd34d, #fbbf24);
+  color: #0f172a;
+  background: linear-gradient(135deg, #fcd34d, #f59e0b);
+  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
 }

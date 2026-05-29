@@ -754,7 +754,7 @@ const Standings: React.FC = () => {
       )}
       
       <div style={{ position: 'absolute', top: 0, left: '-9999px', zIndex: -100, opacity: 0, pointerEvents: 'none' }}>
-        <KnockoutTeiaExport id="teia-export-node" matches={matches} knockoutRounds={knockoutRoundCodes} />
+        <KnockoutTeiaExport id="teia-export-node" matches={matches} knockoutRounds={[10, 11, 12]} />
       </div>
 
     </div>

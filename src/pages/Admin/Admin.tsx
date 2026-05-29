@@ -5339,11 +5339,11 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
   const [uploading, setUploading] = useState(false);
   const [formData, setFormData] = useState({ 
     name: '', number: '', position: 'Ala', photo_url: '', bio: '',
-    goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0', suspensions_served: '0'
+    goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0', goals_conceded: '0', suspensions_served: '0'
   });
   const [editFormData, setEditFormData] = useState({
     name: '', number: '', position: 'Ala', photo_url: '', bio: '',
-    goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0', suspensions_served: '0'
+    goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0', goals_conceded: '0', suspensions_served: '0'
   });
 
   useEffect(() => {
@@ -5401,7 +5401,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
       }
       setFormData({ 
         name: '', number: '', position: 'Ala', photo_url: '', bio: '',
-        goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0', suspensions_served: '0'
+        goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0', goals_conceded: '0', suspensions_served: '0'
       });
       setIsAdding(false);
       void queryClient.invalidateQueries({ queryKey: ['players', division, teamId] });
@@ -5463,6 +5463,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
           yellow_cards: parseInt(editFormData.yellow_cards) || 0,
           red_cards: parseInt(editFormData.red_cards) || 0,
           clean_sheets: parseInt(editFormData.clean_sheets) || 0,
+          goals_conceded: parseInt((editFormData as any).goals_conceded) || 0,
           suspensions_served: Math.max(0, parseInt(editFormData.suspensions_served) || 0),
         }).eq('id', playerId),
         30000,
@@ -5645,6 +5646,14 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
              <div className="stat-input">
                 <label><Shield size={14} /> Jogos Zerados</label>
                 <input type="number" value={formData.clean_sheets} onChange={e => setFormData({...formData, clean_sheets: e.target.value})} />
+                </div>
+                {formData.position === 'Goleiro' && (
+                  <div className="admin-form-group">
+                    <label>Gols Sofridos (Apenas Goleiro)</label>
+                    <input type="number" value={(formData as any).goals_conceded} onChange={e => setFormData({...formData, goals_conceded: e.target.value})} />
+                  </div>
+                )}
+                <div style={{display:'none'}}>
              </div>
              <div className="stat-input">
                <label>Susp. cumpridas</label>
@@ -5695,6 +5704,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
                       yellow_cards: String(p.yellow_cards),
                       red_cards: String(p.red_cards),
                       clean_sheets: String(p.clean_sheets || 0),
+                      goals_conceded: String((p as any).goals_conceded || 0),
                       suspensions_served: String(p.suspensions_served || 0)
                     });
                   }} title="Editar atleta">
@@ -5849,6 +5859,14 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
                 <div className="stat-input">
                   <label><Shield size={14} /> Jogos Zerados</label>
                   <input type="number" value={editFormData.clean_sheets} onChange={e => setEditFormData({ ...editFormData, clean_sheets: e.target.value })} />
+                  </div>
+                  {editFormData.position === 'Goleiro' && (
+                    <div className="admin-form-group">
+                      <label>Gols Sofridos (Apenas Goleiro)</label>
+                      <input type="number" value={(editFormData as any).goals_conceded} onChange={e => setEditFormData({...editFormData, goals_conceded: e.target.value})} />
+                    </div>
+                  )}
+                  <div style={{display:'none'}}>
                 </div>
                 <div className="stat-input">
                   <label>Susp. cumpridas</label>
@@ -7707,12 +7725,12 @@ const GlobalPlayerManagement = () => {
   
   const [formData, setFormData] = useState({ 
     name: '', number: '', position: 'Ala', team_id: '', photo_url: '', bio: '',
-    goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0'
+    goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0', goals_conceded: '0'
   });
 
   const [editFormData, setEditFormData] = useState({
     name: '', number: '', position: 'Ala', team_id: '', photo_url: '', bio: '',
-    goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0'
+    goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0', goals_conceded: '0'
   });
 
   const normalizeKey = useCallback((value: string) => {
@@ -7905,7 +7923,7 @@ const GlobalPlayerManagement = () => {
           supabase
             .from('players')
             .insert(payloadRows)
-            .select('id, team_id, name, number, position, photo_url, bio, goals_count, assists, yellow_cards, red_cards, clean_sheets, teams(name)'),
+            .select('id, team_id, name, number, position, photo_url, bio, goals_count, assists, yellow_cards, red_cards, clean_sheets, goals_conceded, teams(name)'),
           45000,
           'Tempo limite ao importar atletas'
         );
@@ -8226,6 +8244,7 @@ const GlobalPlayerManagement = () => {
         yellow_cards: parseInt(formData.yellow_cards) || 0,
         red_cards: parseInt(formData.red_cards) || 0,
         clean_sheets: parseInt(formData.clean_sheets) || 0,
+        goals_conceded: parseInt((formData as any).goals_conceded) || 0,
       } as Record<string, unknown>;
 
       const doInsert = async (payloadToInsert: Record<string, unknown>) => {
@@ -8233,7 +8252,7 @@ const GlobalPlayerManagement = () => {
           supabase
             .from('players')
             .insert([payloadToInsert])
-            .select('id, team_id, name, number, position, photo_url, bio, goals_count, assists, yellow_cards, red_cards, clean_sheets, teams(name)')
+            .select('id, team_id, name, number, position, photo_url, bio, goals_count, assists, yellow_cards, red_cards, clean_sheets, goals_conceded, teams(name)')
             .single(),
           30000,
           'Tempo limite ao cadastrar atleta'
@@ -8273,7 +8292,7 @@ const GlobalPlayerManagement = () => {
 
       setFormData({ 
         name: '', number: '', position: 'Ala', team_id: '', photo_url: '', bio: '',
-        goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0'
+        goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0', goals_conceded: '0'
       });
       setIsAdding(false);
       void queryClient.invalidateQueries({ queryKey: ['players', division] });
@@ -8313,6 +8332,7 @@ const GlobalPlayerManagement = () => {
       yellow_cards: String(p.yellow_cards || 0),
       red_cards: String(p.red_cards || 0),
       clean_sheets: String(p.clean_sheets || 0),
+                      goals_conceded: String((p as any).goals_conceded || 0),
     });
   };
 
@@ -8358,9 +8378,10 @@ const GlobalPlayerManagement = () => {
             yellow_cards: parseInt(editFormData.yellow_cards) || 0,
             red_cards: parseInt(editFormData.red_cards) || 0,
             clean_sheets: parseInt(editFormData.clean_sheets) || 0,
+          goals_conceded: parseInt((editFormData as any).goals_conceded) || 0,
           })
           .eq('id', editingGlobalPlayerId)
-          .select('id, team_id, name, number, position, photo_url, bio, goals_count, assists, yellow_cards, red_cards, clean_sheets, teams(name)')
+          .select('id, team_id, name, number, position, photo_url, bio, goals_count, assists, yellow_cards, red_cards, clean_sheets, goals_conceded, teams(name)')
           .single(),
         30000,
         'Tempo limite ao atualizar atleta'
@@ -8911,6 +8932,14 @@ const GlobalPlayerManagement = () => {
                 <div className="stat-input">
                   <label><Shield size={14} /> CS</label>
                   <input type="number" value={editFormData.clean_sheets} onChange={e => setEditFormData({ ...editFormData, clean_sheets: e.target.value })} />
+                  </div>
+                  {editFormData.position === 'Goleiro' && (
+                    <div className="admin-form-group">
+                      <label>Gols Sofridos (Apenas Goleiro)</label>
+                      <input type="number" value={(editFormData as any).goals_conceded} onChange={e => setEditFormData({...editFormData, goals_conceded: e.target.value})} />
+                    </div>
+                  )}
+                  <div style={{display:'none'}}>
                 </div>
               </div>
 

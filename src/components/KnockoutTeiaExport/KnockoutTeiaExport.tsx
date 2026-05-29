@@ -29,19 +29,36 @@ export const KnockoutTeiaExport: React.FC<KnockoutTeiaExportProps> = ({ id, matc
       <div className="teia-export-wrapper">
         <div className="teia-columns">
           {teiaColumns.map((column, colIndex) => {
-            // Se não tiver jogos nesta fase ainda e não for a primeira fase, pode estar vazio, mas vamos renderizar as caixas de placeholders se quisermos.
-            // Para simplificar, renderizamos os jogos que existem. Se não existirem, não desenha a coluna.
-            if (column.matches.length === 0) return null;
+            // Se não tiver jogos nesta fase, vamos criar placeholders para manter a árvore!
+            let renderMatches = column.matches;
+            if (renderMatches.length === 0) {
+              const count = column.roundCode === 10 ? 4 : column.roundCode === 11 ? 2 : column.roundCode === 12 ? 1 : 0;
+              renderMatches = Array.from({ length: count }).map((_, i) => ({
+                id: `placeholder-${column.roundCode}-${i}`,
+                round: column.roundCode,
+                match_date: new Date().toISOString(),
+                team_a_id: '',
+                team_b_id: '',
+                status: 'agendado',
+                team_a_score: null,
+                team_b_score: null,
+                teams_a: { name: 'A definir' },
+                teams_b: { name: 'A definir' }
+              })) as Match[];
+            }
+            if (renderMatches.length === 0) return null;
 
             return (
               <div key={column.roundCode} className={`teia-column col-depth-${colIndex}`}>
-                {column.matches.map((match) => {
+                {renderMatches.map((match) => {
                   const effectiveStatus = deriveMatchStatus(match, nowTs);
                   const isTeamAWinner = effectiveStatus === 'finalizado' && (match.team_a_score ?? 0) > (match.team_b_score ?? 0);
                   const isTeamBWinner = effectiveStatus === 'finalizado' && (match.team_b_score ?? 0) > (match.team_a_score ?? 0);
 
                   const matchDateObj = new Date(match.match_date);
-                  const outcomeLabel = matchDateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' às ' + matchDateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                  // Se for placeholder, esconde a data ou mostra "A definir"
+                  const isPlaceholder = match.id.toString().startsWith('placeholder-');
+                  const outcomeLabel = isPlaceholder ? 'A definir' : (matchDateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' às ' + matchDateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
 
                   return (
                     <div key={match.id} className="teia-match">
