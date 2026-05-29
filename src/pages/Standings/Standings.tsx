@@ -185,160 +185,41 @@ const Standings: React.FC = () => {
     return visibleGroups.filter(([groupName]) => groupName === selectedGroup);
   }, [selectedGroup, showByGroup, visibleGroups]);
 
-  if (!isGroupPhase) {
-    if ((stuck || (!navigator.onLine && effectiveLoading)) && matches.length === 0) {
-      return (
-        <div className="error-state glass" style={{ margin: '2rem auto', maxWidth: 720 }}>
-          <p style={{ marginBottom: '0.75rem' }}>
-            {!navigator.onLine
-              ? 'Sem conexão no momento. As fases vão carregar assim que a internet voltar.'
-              : 'Demorou muito para carregar as fases.'}
-          </p>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => refreshMatches()}>
-              Tentar novamente
-            </button>
-            <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => window.location.reload()}>
-              Recarregar página
-            </button>
-          </div>
-        </div>
-      );
-    }
+  const selectedCode = selectedKnockoutRound ?? knockoutRoundCodes[0] ?? null;
+  const selectedLabel = selectedCode ? (KNOCKOUT_ROUND_LABELS[selectedCode] || `Fase ${selectedCode}`) : 'Mata-mata';
+  const phaseMatches = selectedCode
+    ? matches
+        .filter((m) => m.round === selectedCode)
+        .sort((a, b) => new Date(a.match_date).getTime() - new Date(b.match_date).getTime())
+    : [];
 
-    if (matchesError && matches.length === 0) {
-      return (
-        <div className="error-state glass" style={{ margin: '2rem auto', maxWidth: 720 }}>
-          <p style={{ marginBottom: '0.75rem' }}>Erro ao carregar fases: {matchesError}</p>
+  if (showKnockoutPanel && (stuck || (!navigator.onLine && effectiveLoading)) && matches.length === 0) {
+    return (
+      <div className="error-state glass" style={{ margin: '2rem auto', maxWidth: 720 }}>
+        <p style={{ marginBottom: '0.75rem' }}>
+          {!navigator.onLine
+            ? 'Sem conexão no momento. As fases vão carregar assim que a internet voltar.'
+            : 'Demorou muito para carregar as fases.'}
+        </p>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => refreshMatches()}>
             Tentar novamente
           </button>
+          <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => window.location.reload()}>
+            Recarregar página
+          </button>
         </div>
-      );
-    }
+      </div>
+    );
+  }
 
-    const selectedCode = selectedKnockoutRound ?? knockoutRoundCodes[0] ?? null;
-    const selectedLabel = selectedCode ? (KNOCKOUT_ROUND_LABELS[selectedCode] || `Fase ${selectedCode}`) : 'Mata-mata';
-    const phaseMatches = selectedCode
-      ? matches
-          .filter((m) => m.round === selectedCode)
-          .sort((a, b) => new Date(a.match_date).getTime() - new Date(b.match_date).getTime())
-      : [];
-
+  if (showKnockoutPanel && matchesError && matches.length === 0) {
     return (
-      <div className="standings-container animate-fade-in" ref={containerRef}>
-        <header className="standings-header">
-          <div className="header-info">
-            <h1 className="text-gradient">Classificação</h1>
-            <p>Agora por fases do mata-mata</p>
-          </div>
-          <div className="header-actions">
-            <div className="status-pill glass">
-              <Trophy size={16} />
-              {selectedLabel}
-            </div>
-            <div className="status-pill glass">
-              <div className="live-dot"></div>
-              Tempo Real
-            </div>
-          </div>
-        </header>
-
-        {knockoutRoundCodes.length > 0 && (
-          <div className="group-filter-row" aria-label="Seletor de fases">
-            {knockoutRoundCodes.map((code) => {
-              const label = KNOCKOUT_ROUND_LABELS[code] || `Fase ${code}`;
-              const isActive = selectedKnockoutRound === code || (selectedKnockoutRound === null && code === selectedCode);
-              return (
-                <button
-                  key={code}
-                  type="button"
-                  className={`group-filter-chip ${isActive ? 'active' : ''}`}
-                  onClick={() => setSelectedKnockoutRound(code)}
-                  aria-pressed={isActive}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        <div className="group-section">
-          <h3 className="group-title">
-            <Trophy size={20} color="var(--secondary)" />
-            {selectedLabel}
-          </h3>
-          <div className="table-container glass">
-            <table className="standings-table-new" style={{ minWidth: 860 }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: 'left' }}>Jogo</th>
-                  <th>Placar</th>
-                  <th className="hide-mobile">Data</th>
-                  <th className="hide-mobile">Local</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {phaseMatches.map((m) => {
-                  const effective = deriveMatchStatus(m, nowTs);
-                  const teamA = m.teams_a?.name || 'A definir';
-                  const teamB = m.teams_b?.name || 'A definir';
-                  const score = effective === 'agendado' ? '-' : `${m.team_a_score} x ${m.team_b_score}`;
-                  const dateLabel = new Date(m.match_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-                  const timeLabel = new Date(m.match_date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-                  const statusLabel = effective === 'ao_vivo' ? 'AO VIVO' : effective === 'finalizado' ? 'FIM' : 'PREVISTO';
-
-                  return (
-                    <tr key={m.id} className="row-animate">
-                      <td style={{ textAlign: 'left' }}>
-                        <div className="team-cell" style={{ gap: '0.9rem' }}>
-                          <div className="team-shield" style={{ width: 36, height: 36 }}>
-                            {m.teams_a?.badge_url ? (
-                              <img
-                                src={m.teams_a.badge_url}
-                                alt=""
-                                width="22"
-                                height="22"
-                                loading="lazy"
-                                decoding="async"
-                                style={{ objectFit: 'contain', padding: '2px' }}
-                              />
-                            ) : (
-                              <Shield size={18} color="var(--text-dim)" />
-                            )}
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            <strong style={{ color: 'var(--text-main)' }}>{teamA} x {teamB}</strong>
-                            <span style={{ color: 'var(--text-dim)', fontSize: '0.82rem', fontWeight: 700 }}>
-                              {m.location || 'Local a definir'}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="pts-cell" style={{ fontSize: '1rem' }}>{score}</td>
-                      <td className="hide-mobile">{dateLabel} • {timeLabel}</td>
-                      <td className="hide-mobile">{m.location || '—'}</td>
-                      <td>
-                        <span className="rank-num" style={{ opacity: 1 }}>{statusLabel}</span>
-                      </td>
-                    </tr>
-                  );
-                })}
-
-                {phaseMatches.length === 0 && (
-                  <tr>
-                    <td colSpan={5} style={{ padding: '1.25rem 1rem', color: 'var(--text-dim)', fontWeight: 700 }}>
-                      Nenhum jogo cadastrado para esta fase.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-            <p className="table-swipe-hint">Arraste para os lados para ver todas as colunas.</p>
-          </div>
-        </div>
+      <div className="error-state glass" style={{ margin: '2rem auto', maxWidth: 720 }}>
+        <p style={{ marginBottom: '0.75rem' }}>Erro ao carregar fases: {matchesError}</p>
+        <button className="glass" style={{ padding: '10px 14px', cursor: 'pointer' }} onClick={() => refreshMatches()}>
+          Tentar novamente
+        </button>
       </div>
     );
   }
@@ -494,12 +375,38 @@ const Standings: React.FC = () => {
               <span>Voltar aos grupos</span>
             </button>
           )}
+          {showKnockoutPanel && (
+            <div className="status-pill glass">
+              <Trophy size={16} />
+              {selectedLabel}
+            </div>
+          )}
           <div className="status-pill glass">
             <div className="live-dot"></div>
             Tempo Real
           </div>
         </div>
       </header>
+
+      {showKnockoutPanel && knockoutRoundCodes.length > 0 && (
+        <div className="group-filter-row" aria-label="Seletor de fases">
+          {knockoutRoundCodes.map((code) => {
+            const label = KNOCKOUT_ROUND_LABELS[code] || `Fase ${code}`;
+            const isActive = selectedKnockoutRound === code || (selectedKnockoutRound === null && code === selectedCode);
+            return (
+              <button
+                key={code}
+                type="button"
+                className={`group-filter-chip ${isActive ? 'active' : ''}`}
+                onClick={() => setSelectedKnockoutRound(code)}
+                aria-pressed={isActive}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {!showKnockoutPanel && isGroupPhase && showByGroup && groupNames.length > 1 && (
         <div className="group-filter-row">
@@ -541,7 +448,83 @@ const Standings: React.FC = () => {
         </div>
       )}
 
-      {!showKnockoutPanel && showByGroup ? (
+      {showKnockoutPanel ? (
+        <div className="group-section">
+          <h3 className="group-title">
+            <Trophy size={20} color="var(--secondary)" />
+            {selectedLabel}
+          </h3>
+          <div className="table-container glass">
+            <table className="standings-table-new" style={{ minWidth: 860 }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left' }}>Jogo</th>
+                  <th>Placar</th>
+                  <th className="hide-mobile">Data</th>
+                  <th className="hide-mobile">Local</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {phaseMatches.map((m) => {
+                  const effective = deriveMatchStatus(m, nowTs);
+                  const teamA = m.teams_a?.name || 'A definir';
+                  const teamB = m.teams_b?.name || 'A definir';
+                  const score = effective === 'agendado' ? '-' : `${m.team_a_score} x ${m.team_b_score}`;
+                  const dateLabel = new Date(m.match_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                  const timeLabel = new Date(m.match_date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                  const statusLabel = effective === 'ao_vivo' ? 'AO VIVO' : effective === 'finalizado' ? 'FIM' : 'PREVISTO';
+
+                  return (
+                    <tr key={m.id} className="row-animate">
+                      <td style={{ textAlign: 'left' }}>
+                        <div className="team-cell" style={{ gap: '0.9rem' }}>
+                          <div className="team-shield" style={{ width: 36, height: 36 }}>
+                            {m.teams_a?.badge_url ? (
+                              <img
+                                src={m.teams_a.badge_url}
+                                alt=""
+                                width="22"
+                                height="22"
+                                loading="lazy"
+                                decoding="async"
+                                style={{ objectFit: 'contain', padding: '2px' }}
+                              />
+                            ) : (
+                              <Shield size={18} color="var(--text-dim)" />
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <strong style={{ color: 'var(--text-main)' }}>{teamA} x {teamB}</strong>
+                            <span style={{ color: 'var(--text-dim)', fontSize: '0.82rem', fontWeight: 700 }}>
+                              {m.location || 'Local a definir'}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="pts-cell" style={{ fontSize: '1rem' }}>{score}</td>
+                      <td className="hide-mobile">{dateLabel} • {timeLabel}</td>
+                      <td className="hide-mobile">{m.location || '—'}</td>
+                      <td>
+                        <span className="rank-num" style={{ opacity: 1 }}>{statusLabel}</span>
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {phaseMatches.length === 0 && (
+                  <tr>
+                    <td colSpan={5} style={{ padding: '1.25rem 1rem', color: 'var(--text-dim)', fontWeight: 700 }}>
+                      Nenhum jogo cadastrado para esta fase.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+            <p className="table-swipe-hint">Arraste para os lados para ver todas as colunas.</p>
+          </div>
+        </div>
+      ) : showByGroup ? (
         visibleGroups.map(([groupName, groupTeams]) => (
           <div key={groupName} className="group-section">
             <h3 className="group-title">
