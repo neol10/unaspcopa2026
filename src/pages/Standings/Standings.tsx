@@ -10,6 +10,7 @@ import Skeleton, { SkeletonStandingsRow } from '../../components/Skeleton/Skelet
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
 import { KNOCKOUT_ROUND_LABELS } from '../../lib/tournamentRules';
+import { deriveMatchStatus } from '../../lib/matchStatus';
 import { downloadSocialGroupStandingCard, downloadSocialStandingsCard, downloadKnockoutTeiaCard } from '../../lib/socialCardExport';
 import { KnockoutTeiaExport } from '../../components/KnockoutTeiaExport/KnockoutTeiaExport';
 import '../Brackets/Brackets.css'; // reaproveitar o visual dos cards do chaveamento
