@@ -1,6 +1,12 @@
 .teia-export-container {
   background: radial-gradient(circle at top, #1e293b 0%, #020617 100%);
-  background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSIjMDIwNjE3Ij48L3JlY3Q+CjxwYXRoIGQ9Ik0wIDBMOCA4Wk04IDBMMCA4WiIgc3Ryb2tlPSIjMjRBMUYwIiBzdHJva2Utb3BhY2l0eT0iMC4wNSIgc3Ryb2tlLXdpZHRoPSIxIj48L3BhdGg+Cjwvc3ZnPg==');
+  background-image: 
+    radial-gradient(circle at 15% 20%, rgba(251, 191, 36, 0.15) 0%, transparent 10%),
+    radial-gradient(circle at 85% 30%, rgba(251, 191, 36, 0.15) 0%, transparent 15%),
+    radial-gradient(circle at 50% 80%, rgba(251, 191, 36, 0.1) 0%, transparent 20%),
+    radial-gradient(circle at 20% 70%, rgba(245, 158, 11, 0.2) 0%, transparent 8%),
+    radial-gradient(circle at 75% 85%, rgba(245, 158, 11, 0.1) 0%, transparent 12%),
+    url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSIjMDIwNjE3Ij48L3JlY3Q+CjxwYXRoIGQ9Ik0wIDBMOCA4Wk04IDBMMCA4WiIgc3Ryb2tlPSIjMjRBMUYwIiBzdHJva2Utb3BhY2l0eT0iMC4wNSIgc3Ryb2tlLXdpZHRoPSIxIj48L3BhdGg+Cjwvc3ZnPg==');
   padding: 6rem;
   width: max-content;
   min-width: 1400px;

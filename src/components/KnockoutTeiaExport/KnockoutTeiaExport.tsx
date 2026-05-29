@@ -14,7 +14,7 @@ interface KnockoutTeiaExportProps {
 export const KnockoutTeiaExport: React.FC<KnockoutTeiaExportProps> = ({ id, matches, knockoutRounds }) => {
   const teiaColumns = useMemo(() => {
     return knockoutRounds.map((roundCode) => {
-      const roundMatches = matches.filter((m) => m.round === roundCode);
+      const roundMatches = matches.filter((m) => Number(m.round) === Number(roundCode));
       // Sort so they pair up correctly visually (if needed, assumes order from DB is good)
       roundMatches.sort((a, b) => new Date(a.match_date).getTime() - new Date(b.match_date).getTime());
       return { roundCode, matches: roundMatches };
