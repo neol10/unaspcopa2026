@@ -1433,3 +1433,23 @@ export const downloadSocialStandingsCard = async ({
     mount.remove();
   }
 };
+
+export const downloadKnockoutTeiaCard = async (nodeId: string, fileName: string) => {
+  const node = document.getElementById(nodeId);
+  if (!node) return;
+  try {
+    const { toPng } = await import('html-to-image');
+    const dataUrl = await toPng(node, {
+      quality: 1,
+      pixelRatio: 2,
+      cacheBust: true,
+      backgroundColor: '#0f172a'
+    });
+    const link = document.createElement('a');
+    link.download = fileName.endsWith('.png') ? fileName : `${fileName}.png`;
+    link.href = dataUrl;
+    link.click();
+  } catch (err) {
+    console.error('Error generating Teia', err);
+  }
+};

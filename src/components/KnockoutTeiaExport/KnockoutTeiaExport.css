@@ -1,0 +1,164 @@
+.teia-export-container {
+  background: var(--bg-main, #0f172a);
+  padding: 4rem;
+  width: max-content;
+  min-width: 1200px;
+  position: relative;
+  font-family: inherit;
+}
+
+.teia-export-title {
+  font-size: 2.5rem;
+  font-weight: 900;
+  text-align: center;
+  margin-bottom: 4rem;
+  color: var(--text-main, #fff);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.teia-export-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+.teia-columns {
+  display: flex;
+  gap: 6rem;
+  align-items: stretch;
+}
+
+.teia-column {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  position: relative;
+  justify-content: space-around;
+  min-height: 800px;
+}
+
+/* Connectors */
+.teia-match {
+  position: relative;
+  width: 320px;
+}
+
+.teia-match::after {
+  content: '';
+  position: absolute;
+  right: -3rem;
+  width: 3rem;
+  height: 2px;
+  background: rgba(251, 191, 36, 0.5); /* Dourado suave */
+  top: 50%;
+  z-index: 1;
+}
+
+/* Se for a última coluna, remove a linha após ela */
+.teia-column:last-child .teia-match::after {
+  display: none;
+}
+
+/* O conector vertical para juntar pares */
+.teia-match:nth-child(odd)::before {
+  content: '';
+  position: absolute;
+  right: -3rem;
+  top: 50%;
+  height: calc(50% + 1rem); /* Metade do gap entre eles (gap é flexível, então usaremos height 100% de flex) */
+  border-right: 2px solid rgba(251, 191, 36, 0.5);
+}
+
+.teia-match:nth-child(even)::before {
+  content: '';
+  position: absolute;
+  right: -3rem;
+  bottom: 50%;
+  height: calc(50% + 1rem);
+  border-right: 2px solid rgba(251, 191, 36, 0.5);
+}
+
+/* Match Card Custom for Export */
+.teia-match-box {
+  background: rgba(8, 10, 14, 0.85);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  border-radius: 16px;
+  padding: 1.25rem;
+  position: relative;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+}
+
+.teia-match-box .match-preview {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin-bottom: 0.8rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 0.6rem;
+}
+
+.teia-match-box .match-round-chip {
+  background: rgba(251, 191, 36, 0.15);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  color: #fcd34d;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-weight: 900;
+}
+
+.teia-match-team {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.teia-match-team:last-child {
+  border-bottom: none;
+}
+
+.teia-match-team.winner {
+  background: linear-gradient(90deg, rgba(251, 191, 36, 0.15), transparent);
+  border-radius: 12px;
+  padding-left: 0.5rem;
+}
+
+.teia-team-info {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.teia-team-name {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+.teia-match-team.winner .teia-team-name {
+  color: #fcd34d;
+}
+
+.teia-team-score {
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: #fff;
+  min-width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+}
+
+.teia-match-team.winner .teia-team-score {
+  color: #000;
+  background: linear-gradient(135deg, #fcd34d, #fbbf24);
+}

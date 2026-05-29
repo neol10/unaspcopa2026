@@ -10,8 +10,8 @@ import Skeleton, { SkeletonStandingsRow } from '../../components/Skeleton/Skelet
 import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import { useGroupCVisibility } from '../../hooks/useGroupCVisibility';
 import { KNOCKOUT_ROUND_LABELS } from '../../lib/tournamentRules';
-import { deriveMatchStatus } from '../../lib/matchStatus';
-import { downloadSocialGroupStandingCard, downloadSocialStandingsCard } from '../../lib/socialCardExport';
+import { downloadSocialGroupStandingCard, downloadSocialStandingsCard, downloadKnockoutTeiaCard } from '../../lib/socialCardExport';
+import { KnockoutTeiaExport } from '../../components/KnockoutTeiaExport/KnockoutTeiaExport';
 import '../Brackets/Brackets.css'; // reaproveitar o visual dos cards do chaveamento
 
 const Standings: React.FC = () => {
@@ -299,11 +299,24 @@ const Standings: React.FC = () => {
       }
 
       toast.success(selectedGroup === 'all' ? 'Cards dos grupos baixados!' : `Card do grupo ${selectedGroup} baixado!`);
-    } catch (error) {
-      console.error('Erro ao baixar card da classificacao:', error);
-      toast.error('Nao foi possivel baixar o card desta classificacao.');
+    } catch (err) {
+      console.error(err);
     } finally {
       setDownloadingGroupCard(null);
+    }
+  };
+
+  const [downloadingTeia, setDownloadingTeia] = useState(false);
+  const handleDownloadTeia = async () => {
+    if (knockoutRoundCodes.length === 0) return;
+    setDownloadingTeia(true);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await downloadKnockoutTeiaCard('teia-export-node', 'chaveamento-copa-unasp');
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setDownloadingTeia(false);
     }
   };
 
@@ -397,6 +410,18 @@ const Standings: React.FC = () => {
               </button>
             );
           })}
+          
+          <button
+            type="button"
+            className="btn-download-group-card"
+            style={{ marginLeft: 'auto' }}
+            onClick={() => void handleDownloadTeia()}
+            disabled={downloadingTeia}
+            aria-label="Baixar Chaveamento (Teia)"
+          >
+            <Download size={14} />
+            <span>{downloadingTeia ? 'Gerando...' : 'Baixar Chaveamento'}</span>
+          </button>
         </div>
       )}
 
@@ -446,7 +471,7 @@ const Standings: React.FC = () => {
             <Trophy size={20} color="var(--secondary)" />
             {selectedLabel}
           </h3>
-          <div className="bracket-round" style={{ maxWidth: '100%', minWidth: '100%', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', padding: '1rem 0' }}>
+          <div className="bracket-round" style={{ maxWidth: '100%', minWidth: '100%', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem', padding: '1rem 0' }}>
             {phaseMatches.map((match) => {
               const effectiveStatus = deriveMatchStatus(match, nowTs);
               const isTeamAWinner = effectiveStatus === 'finalizado' && (match.team_a_score ?? 0) > (match.team_b_score ?? 0);
@@ -726,6 +751,10 @@ const Standings: React.FC = () => {
           </div>
         </div>
       )}
+      
+      <div style={{ position: 'absolute', top: 0, left: '-9999px', zIndex: -100, opacity: 0, pointerEvents: 'none' }}>
+        <KnockoutTeiaExport id="teia-export-node" matches={matches} knockoutRounds={knockoutRoundCodes} />
+      </div>
 
     </div>
   );
