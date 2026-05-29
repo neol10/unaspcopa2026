@@ -20,6 +20,7 @@ const Standings: React.FC = () => {
   const { role } = useAuthContext();
   const { visibility } = useGroupCVisibility();
   const [showByGroup, setShowByGroup] = useState(true);
+  const [showKnockoutPanel, setShowKnockoutPanel] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState('all');
   const [selectedKnockoutRound, setSelectedKnockoutRound] = useState<number | null>(null);
   const [downloadingGroupCard, setDownloadingGroupCard] = useState<string | null>(null);
@@ -33,7 +34,7 @@ const Standings: React.FC = () => {
     return () => window.clearInterval(id);
   }, []);
 
-  const effectiveLoading = isGroupPhase ? loading : matchesLoading;
+  const effectiveLoading = showKnockoutPanel ? matchesLoading : loading;
   useEffect(() => {
     let cancelled = false;
 
@@ -60,13 +61,15 @@ const Standings: React.FC = () => {
 
   useEffect(() => {
     if (!isGroupPhase) {
-      queueMicrotask(() => setShowByGroup(false));
+      queueMicrotask(() => setShowKnockoutPanel(true));
     }
   }, [isGroupPhase]);
 
   const { containerRef, isPulling, pullDistance, isRefreshing } = usePullToRefresh({
     onRefresh: async () => {
-      if (isGroupPhase) {
+      if (showKnockoutPanel) {
+        await refreshMatches();
+      } else if (isGroupPhase) {
         await refresh();
       } else {
         await refreshMatches();
@@ -96,13 +99,13 @@ const Standings: React.FC = () => {
   };
 
   useEffect(() => {
-    if (isGroupPhase) return;
+    if (!showKnockoutPanel && isGroupPhase) return;
     const preferred = phaseToRoundCode(config.current_phase);
     const next = (preferred && knockoutRoundCodes.includes(preferred))
       ? preferred
       : (knockoutRoundCodes[0] ?? null);
     queueMicrotask(() => setSelectedKnockoutRound((prev) => (prev === null || !knockoutRoundCodes.includes(prev) ? next : prev)));
-  }, [isGroupPhase, config.current_phase, knockoutRoundCodes]);
+  }, [isGroupPhase, showKnockoutPanel, config.current_phase, knockoutRoundCodes]);
 
   if (isGroupPhase && (paused || stuck) && standings.length === 0) {
     return (
@@ -450,10 +453,10 @@ const Standings: React.FC = () => {
       <header className="standings-header">
         <div className="header-info">
           <h1 className="text-gradient">Classificação</h1>
-          <p>Acompanhe a corrida pelo título da Copa Unasp 2026</p>
+          <p>{showKnockoutPanel ? 'Agora por fases do mata-mata' : 'Acompanhe a corrida pelo título da Copa Unasp 2026'}</p>
         </div>
         <div className="header-actions">
-          {isGroupPhase ? (
+          {!showKnockoutPanel ? (
             <div className="view-toggle glass">
               <button 
                 className={showByGroup ? 'active' : ''} 
@@ -471,12 +474,27 @@ const Standings: React.FC = () => {
                 <List size={18} />
                 <span>Geral</span>
               </button>
+              {knockoutRoundCodes.length > 0 && (
+                <button
+                  className="active"
+                  onClick={() => setShowKnockoutPanel(true)}
+                  title="Ver mata-mata"
+                  type="button"
+                >
+                  <Trophy size={18} />
+                  <span>Mata-mata</span>
+                </button>
+              )}
             </div>
           ) : (
-            <div className="status-pill glass">
-              <Trophy size={16} />
-              Mata-mata
-            </div>
+            <button
+              type="button"
+              className="btn-download-group-card"
+              onClick={() => setShowKnockoutPanel(false)}
+            >
+              <LayoutGrid size={16} />
+              <span>Voltar aos grupos</span>
+            </button>
           )}
           <div className="status-pill glass">
             <div className="live-dot"></div>
@@ -485,7 +503,7 @@ const Standings: React.FC = () => {
         </div>
       </header>
 
-      {isGroupPhase && showByGroup && groupNames.length > 1 && (
+      {!showKnockoutPanel && isGroupPhase && showByGroup && groupNames.length > 1 && (
         <div className="group-filter-row">
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.55rem', alignItems: 'center' }}>
             <button
@@ -525,7 +543,7 @@ const Standings: React.FC = () => {
         </div>
       )}
 
-      {showByGroup ? (
+      {!showKnockoutPanel && showByGroup ? (
         visibleGroups.map(([groupName, groupTeams]) => (
           <div key={groupName} className="group-section">
             <h3 className="group-title">
