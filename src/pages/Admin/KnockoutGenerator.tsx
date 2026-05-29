@@ -16,7 +16,7 @@ const groupBy = (arr: any[], key: string) => arr.reduce((acc: Record<string, any
 
 const KnockoutGenerator: React.FC<{ enableAutoAdvance?: boolean }> = ({ enableAutoAdvance = false }) => {
   const { standings, loading } = useStandings();
-  const [pairingMode, setPairingMode] = useState<'classic' | 'overall' | 'cross_all' | 'cross_drop_last'>('classic');
+  const [pairingMode, setPairingMode] = useState<'classic' | 'overall' | 'cross_all' | 'cross_drop_last' | 'intra_group' | 'grouped_normal'>('classic');
   const [advancePerGroup, setAdvancePerGroup] = useState<number>(2);
   const [preview, setPreview] = useState<any[] | null>(null);
   const [creating, setCreating] = useState(false);
@@ -48,6 +48,55 @@ const KnockoutGenerator: React.FC<{ enableAutoAdvance?: boolean }> = ({ enableAu
       }
       if (M % 2 === 1) {
         pairs.push({ teamA: allTeams[pairCount], teamB: undefined, round: 1, idx: pairCount + 1 });
+      }
+      return pairs;
+    }
+
+    if (pairingMode === 'intra_group') {
+      const pairs: any[] = [];
+      let pairIdx = 1;
+      for (const g of groups) {
+        const teams = g.teams;
+        const maxPair = Math.floor(teams.length / 2);
+        for (let i = 0; i < maxPair; i++) {
+          const a = teams[i];
+          const b = teams[teams.length - 1 - i];
+          pairs.push({
+            teamA: a ? { team_id: a.team_id, team_name: a.team_name, group: g.name, seedLabel: `${i + 1}${g.name}` } : undefined,
+            teamB: b ? { team_id: b.team_id, team_name: b.team_name, group: g.name, seedLabel: `${teams.length - i}${g.name}` } : undefined,
+            round: 1,
+            idx: pairIdx++
+          });
+        }
+        if (teams.length % 2 === 1) {
+          const mid = teams[Math.floor(teams.length / 2)];
+          pairs.push({
+            teamA: mid ? { team_id: mid.team_id, team_name: mid.team_name, group: g.name, seedLabel: `${Math.floor(teams.length / 2) + 1}${g.name}` } : undefined,
+            teamB: undefined,
+            round: 1,
+            idx: pairIdx++
+          });
+        }
+      }
+      return pairs;
+    }
+
+    if (pairingMode === 'grouped_normal') {
+      const seeds: SeedItem[] = [];
+      for (const g of groups) {
+        g.teams.forEach((team, idx) => {
+          seeds.push({ team_id: team.team_id, team_name: team.team_name, group: g.name, seedLabel: `${idx + 1}${g.name}` });
+        });
+      }
+
+      const pairs: any[] = [];
+      const M = seeds.length;
+      const pairCount = Math.floor(M / 2);
+      for (let i = 0; i < pairCount; i++) {
+        pairs.push({ teamA: seeds[i], teamB: seeds[M - 1 - i], round: 1, idx: i + 1 });
+      }
+      if (M % 2 === 1) {
+        pairs.push({ teamA: seeds[pairCount], teamB: undefined, round: 1, idx: pairCount + 1 });
       }
       return pairs;
     }
@@ -257,6 +306,8 @@ const KnockoutGenerator: React.FC<{ enableAutoAdvance?: boolean }> = ({ enableAu
         <label style={{ fontSize: 12, fontWeight: 'bold' }}>Modo de Geração:</label>
         <select value={pairingMode} onChange={(e) => setPairingMode(e.target.value as any)} style={{ padding: '6px', borderRadius: '4px', background: 'var(--bg-card)', color: '#fff', border: '1px solid var(--border)' }}>
           <option value="classic">Clássico (N primeiros de cada grupo)</option>
+          <option value="intra_group">Todos passam (1º x último, 2º x 3º no grupo)</option>
+          <option value="grouped_normal">Todos passam (chave normal mantendo grupos)</option>
           <option value="cross_all">Cruzar Todos (1º Grupo A x Último B)</option>
           <option value="cross_drop_last">Cruzar sem o Último (1º Grupo A x Pior B)</option>
           <option value="overall">Ranking Geral (1º Geral x Último Geral)</option>
