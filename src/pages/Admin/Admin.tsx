@@ -8106,8 +8106,7 @@ const GlobalPlayerManagement = () => {
       const teamsProcessed = new Set();
 
       for (const gk of gks) {
-        if (!gk.team_id || teamsProcessed.has(gk.team_id)) continue;
-        teamsProcessed.add(gk.team_id);
+        if (!gk.team_id) continue;
         const goals = teamGoalsAgainst[gk.team_id] || 0;
         
         promises.push(
