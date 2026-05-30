@@ -1601,6 +1601,9 @@ const MatchManagement = () => {
   const [isSubmittingMatch, setIsSubmittingMatch] = useState(false);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [viewingVotesMatch, setViewingVotesMatch] = useState<Match | null>(null);
+  const [startingMatch, setStartingMatch] = useState<Match | null>(null);
+  const [startingGkA, setStartingGkA] = useState<string>('');
+  const [startingGkB, setStartingGkB] = useState<string>('');
 
   type MatchFormData = {
     team_a_id: string;
@@ -1806,6 +1809,57 @@ const MatchManagement = () => {
     } finally {
       setIsSubmittingMatch(false);
     }
+  };
+
+  const handleStartMatchClick = (match: Match) => {
+    const playersA = Array.isArray(allPlayers) ? allPlayers.filter(p => p.team_id === match.team_a_id) : [];
+    const playersB = Array.isArray(allPlayers) ? allPlayers.filter(p => p.team_id === match.team_b_id) : [];
+    
+    const getGks = (players: any[]) => players.filter(p => {
+      const pos = String(p.position || '').trim().toLowerCase();
+      return pos === 'goleiro' || pos === 'gol' || pos === 'gk' || pos.includes('gole');
+    });
+
+    const gksA = getGks(playersA);
+    const gksB = getGks(playersB);
+
+    if (gksA.length > 1 || gksB.length > 1) {
+      setStartingGkA(gksA.length === 1 ? gksA[0].id : '');
+      setStartingGkB(gksB.length === 1 ? gksB[0].id : '');
+      setStartingMatch(match);
+    } else {
+      const tasks: Promise<any>[] = [];
+      if (gksA.length === 1) {
+        tasks.push(supabase.from('match_events').insert([{ match_id: match.id, event_type: 'goleiro_titular', player_id: gksA[0].id, minute: 0, metadata: { team_side: 'a' } }]));
+      }
+      if (gksB.length === 1) {
+        tasks.push(supabase.from('match_events').insert([{ match_id: match.id, event_type: 'goleiro_titular', player_id: gksB[0].id, minute: 0, metadata: { team_side: 'b' } }]));
+      }
+      Promise.all(tasks).catch(() => {}).finally(() => {
+        updateStatus(match.id, 'ao_vivo', match);
+      });
+    }
+  };
+
+  const confirmStartMatch = async () => {
+    if (!startingMatch) return;
+    const tasks: Promise<any>[] = [];
+    if (startingGkA) {
+      tasks.push(supabase.from('match_events').insert([{ match_id: startingMatch.id, event_type: 'goleiro_titular', player_id: startingGkA, minute: 0, metadata: { team_side: 'a' } }]));
+    }
+    if (startingGkB) {
+      tasks.push(supabase.from('match_events').insert([{ match_id: startingMatch.id, event_type: 'goleiro_titular', player_id: startingGkB, minute: 0, metadata: { team_side: 'b' } }]));
+    }
+    
+    const promise = Promise.all(tasks).catch(() => {}).finally(() => {
+      updateStatus(startingMatch.id, 'ao_vivo', startingMatch);
+      setStartingMatch(null);
+    });
+    toast.promise(promise, {
+      loading: 'Iniciando partida...',
+      success: 'Partida iniciada!',
+      error: 'Erro ao iniciar partida'
+    });
   };
 
   const updateStatus = async (id: string, status: Match['status'], match?: Match) => {
@@ -2375,7 +2429,7 @@ const MatchManagement = () => {
                            night: match.round >= 1000 || groupUnit === 'round' ? '' : String((match as Match).night || '')
                          });
                       }}><Settings2 size={18} /></button>
-                      <button className="btn-icon play" title="Começar Jogo" onClick={() => { vibrate(60); updateStatus(match.id, 'ao_vivo', match); }}><Play size={18} /></button>
+                      <button className="btn-icon play" title="Começar Jogo" onClick={() => { vibrate(60); handleStartMatchClick(match); }}><Play size={18} /></button>
                     </>
                   )}
                   {match.status === 'ao_vivo' && (
@@ -5486,7 +5540,6 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
           yellow_cards: parseInt(editFormData.yellow_cards) || 0,
           red_cards: parseInt(editFormData.red_cards) || 0,
           clean_sheets: parseInt(editFormData.clean_sheets) || 0,
-          goals_conceded: parseInt((editFormData as any).goals_conceded) || 0,
           suspensions_served: Math.max(0, parseInt(editFormData.suspensions_served) || 0),
         }).eq('id', playerId),
         30000,
