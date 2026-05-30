@@ -5508,6 +5508,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
     }
   };
 
+
   const handleEditPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -5527,12 +5528,13 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
     setIsUpdatingPlayer(true);
     const loadingToast = toast.loading('Atualizando...');
     try {
+      const isGkPos5 = ['goleiro','gol','gk','goalkeeper'].includes(String(editFormData.position || '').trim().toLowerCase()) || String(editFormData.position || '').trim().toLowerCase().includes('gole');
       const { error } = await withTimeout(
         supabase.from('players').update({
           position: editFormData.position,
           photo_url: editFormData.photo_url,
           bio: editFormData.bio,
-          goals_conceded: parseInt((editFormData as any).goals_conceded) || 0,
+          ...(isGkPos5 ? { goals_conceded: parseInt((editFormData as any).goals_conceded) || 0 } : {}),
           name: normalizePlayerName(editFormData.name),
           number: parseInt(editFormData.number) || 0,
           goals_count: parseInt(editFormData.goals_count) || 0,
@@ -5936,7 +5938,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
                   <label><Shield size={14} /> Jogos Zerados</label>
                   <input type="number" value={editFormData.clean_sheets} onChange={e => setEditFormData({ ...editFormData, clean_sheets: e.target.value })} />
                   </div>
-                  {editFormData.position === 'Goleiro' && (
+                  {(['goleiro','gol','gk','goalkeeper'].includes(String(editFormData.position || '').trim().toLowerCase()) || String(editFormData.position || '').trim().toLowerCase().includes('gole')) && (
                     <div className="admin-form-group">
                       <label>Gols Sofridos (Apenas Goleiro)</label>
                       <input type="number" value={(editFormData as any).goals_conceded} onChange={e => setEditFormData({...editFormData, goals_conceded: e.target.value})} />
@@ -8474,57 +8476,36 @@ const GlobalPlayerManagement = () => {
       yellow_cards: String(p.yellow_cards || 0),
       red_cards: String(p.red_cards || 0),
       clean_sheets: String(p.clean_sheets || 0),
-                      goals_conceded: String((p as any).goals_conceded || 0),
+      goals_conceded: String((p as any).goals_conceded || 0),
     });
+    setEditingGlobalPlayerId(p.id);
   };
 
-  const handleEditPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    const url = await uploadToStorage(file, 'images', 'player-photos');
-    if (url) {
-      setEditFormData(prev => ({ ...prev, photo_url: url }));
-      toast.success('Foto carregada!');
-    }
-    setUploading(false);
-  };
-
-  const handleUpdatePlayer = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingGlobalPlayerId) return;
-    if (!editFormData.team_id) return toast.error('Selecione uma equipe!');
-    if (isUpdatingGlobalPlayer) return;
-    if (uploading) {
-      toast.error('Aguarde o upload terminar antes de salvar.');
-      return;
-    }
-
+  const handleUpdateGlobalPlayer = async () => {
+    if (!editingGlobalPlayerId || isUpdatingGlobalPlayer) return;
     setIsUpdatingGlobalPlayer(true);
-    const loadingToast = toast.loading('Atualizando atleta...');
+    const loadingToast = toast.loading('Salvando...');
+    const previousTeamId = (allPlayers || []).find(p => p.id === editingGlobalPlayerId)?.team_id;
     try {
-      const previousTeamId = allPlayers.find((player) => player.id === editingGlobalPlayerId)?.team_id;
-
+      const isGkPos8 = ['goleiro','gol','gk','goalkeeper'].includes(String(editFormData.position || '').trim().toLowerCase()) || String(editFormData.position || '').trim().toLowerCase().includes('gole');
       const { data, error } = await withTimeout(
-        supabase
-          .from('players')
-          .update({
-            name: normalizePlayerName(editFormData.name),
-            number: parseInt(editFormData.number) || 0,
-            position: editFormData.position,
-            team_id: editFormData.team_id,
-            photo_url: editFormData.photo_url,
-            bio: editFormData.bio,
-            goals_count: parseInt(editFormData.goals_count) || 0,
-            assists: parseInt(editFormData.assists) || 0,
-            yellow_cards: parseInt(editFormData.yellow_cards) || 0,
-            red_cards: parseInt(editFormData.red_cards) || 0,
-            clean_sheets: parseInt(editFormData.clean_sheets) || 0,
-          goals_conceded: parseInt((editFormData as any).goals_conceded) || 0,
-          })
-          .eq('id', editingGlobalPlayerId)
-          .select('id, team_id, name, number, position, photo_url, bio, goals_count, assists, yellow_cards, red_cards, clean_sheets, goals_conceded, teams(name)')
-          .single(),
+        supabase.from('players').update({
+          name: normalizePlayerName(editFormData.name),
+          number: parseInt(editFormData.number) || 0,
+          position: editFormData.position,
+          team_id: editFormData.team_id,
+          photo_url: editFormData.photo_url,
+          bio: editFormData.bio,
+          goals_count: parseInt(editFormData.goals_count) || 0,
+          assists: parseInt(editFormData.assists) || 0,
+          yellow_cards: parseInt(editFormData.yellow_cards) || 0,
+          red_cards: parseInt(editFormData.red_cards) || 0,
+          clean_sheets: parseInt(editFormData.clean_sheets) || 0,
+          ...(isGkPos8 ? { goals_conceded: parseInt((editFormData as any).goals_conceded) || 0 } : {}),
+        })
+        .eq('id', editingGlobalPlayerId)
+        .select('id, team_id, name, number, position, photo_url, bio, goals_count, assists, yellow_cards, red_cards, clean_sheets, goals_conceded, teams(name)')
+        .single(),
         30000,
         'Tempo limite ao atualizar atleta'
       );
@@ -9076,7 +9057,7 @@ const GlobalPlayerManagement = () => {
                   <label><Shield size={14} /> CS</label>
                   <input type="number" value={editFormData.clean_sheets} onChange={e => setEditFormData({ ...editFormData, clean_sheets: e.target.value })} />
                   </div>
-                  {editFormData.position === 'Goleiro' && (
+                  {(['goleiro','gol','gk','goalkeeper'].includes(String(editFormData.position || '').trim().toLowerCase()) || String(editFormData.position || '').trim().toLowerCase().includes('gole')) && (
                     <div className="admin-form-group">
                       <label>Gols Sofridos (Apenas Goleiro)</label>
                       <input type="number" value={(editFormData as any).goals_conceded} onChange={e => setEditFormData({...editFormData, goals_conceded: e.target.value})} />
