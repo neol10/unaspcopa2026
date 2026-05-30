@@ -3496,18 +3496,38 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         }
 
         // 3. Prepara atualização de estatísticas de jogadores
-        if (eventType === 'gol' && finalGoalType !== 'contra') {
-          if (isRegisteredPlayer) {
-            tasks.push(
-              supabase.from('players').select('goals_count').eq('id', playerId).single()
-                .then(({ data: p }) => supabase.from('players').update({ goals_count: (p?.goals_count || 0) + 1 }).eq('id', playerId))
-            );
+        if (eventType === 'gol') {
+          // Atualiza artilheiro e assistente (se nao for contra)
+          if (finalGoalType !== 'contra') {
+            if (isRegisteredPlayer) {
+              tasks.push(
+                supabase.from('players').select('goals_count').eq('id', playerId).single()
+                  .then(({ data: p }) => supabase.from('players').update({ goals_count: (p?.goals_count || 0) + 1 }).eq('id', playerId))
+              );
+            }
+            if (finalAssistantId) {
+              tasks.push(
+                supabase.from('players').select('assists').eq('id', finalAssistantId).single()
+                  .then(({ data: ast }) => supabase.from('players').update({ assists: (ast?.assists || 0) + 1 }).eq('id', finalAssistantId))
+              );
+            }
           }
-          if (finalAssistantId) {
-            tasks.push(
-              supabase.from('players').select('assists').eq('id', finalAssistantId).single()
-                .then(({ data: ast }) => supabase.from('players').update({ assists: (ast?.assists || 0) + 1 }).eq('id', finalAssistantId))
-            );
+
+          // Atualiza Gols Sofridos (goals_conceded) do goleiro da equipe que levou o gol
+          const concededTeamSide = (finalGoalType === 'contra') 
+            ? (team === 'a' ? 'a' : 'b') 
+            : (team === 'a' ? 'b' : 'a');
+          const concededPlayers = concededTeamSide === 'a' ? playersA : playersB;
+          const candidateGks = concededPlayers.filter(p => {
+             const pos = String(p.position || '').trim().toLowerCase();
+             return pos === 'goleiro' || pos === 'gol' || pos === 'gk' || pos.includes('gole');
+          });
+          if (candidateGks.length > 0) {
+             const bestGk = candidateGks[0];
+             tasks.push(
+               supabase.from('players').select('goals_conceded').eq('id', bestGk.id).single()
+                 .then(({ data: gk }) => supabase.from('players').update({ goals_conceded: (gk?.goals_conceded || 0) + 1 }).eq('id', bestGk.id))
+             );
           }
         } else if (eventType === 'amarelo') {
           if (isRegisteredPlayer) {

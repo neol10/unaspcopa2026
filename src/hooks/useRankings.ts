@@ -296,7 +296,7 @@ export const useRankings = () => {
       const goalkeepers = Object.values(goalkeepersByTeamId).flat()
         .map((p) => ({
           ...p,
-          goals_conceded: goalsConcededByGk[p.id] ?? (teamGoalsAgainst[p.team_id] || 0),
+          goals_conceded: p.goals_conceded || 0,
           _eventsCount: playerEventCounts[p.id] || 0,
         }))
         .filter((p) => (teamMatchesPlayed[p.team_id] || 0) > 0)
