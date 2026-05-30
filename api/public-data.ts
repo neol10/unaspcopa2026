@@ -70,7 +70,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (resource === 'players') {
       if (NO_SUPABASE) return json(res, 200, { data: [] });
-      const baseFields = 'id, division, team_id, name, number, position, photo_url, goals_count, yellow_cards, red_cards, suspensions_served, assists, clean_sheets, bio';
+      const baseFields = 'id, division, team_id, name, number, position, photo_url, goals_count, yellow_cards, red_cards, suspensions_served, assists, clean_sheets, goals_conceded, bio';
 
       let joinedQuery = supabase
         .from('players')
@@ -317,7 +317,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const [playersRes, matchesRes] = await Promise.all([
         supabase
           .from('players')
-          .select('id, name, number, position, photo_url, goals_count, assists, yellow_cards, red_cards, clean_sheets, team_id, teams(name, badge_url, group, leader, primary_color)')
+          .select('id, name, number, position, photo_url, goals_count, assists, yellow_cards, red_cards, clean_sheets, goals_conceded, team_id, teams(name, badge_url, group, leader, primary_color)')
           .eq('division', division),
         supabase
           .from('matches')
@@ -333,7 +333,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         } catch (_e) { /* ignore */ }
         const fallbackPlayers = await supabase
           .from('players')
-          .select('id, name, number, position, photo_url, goals_count, assists, yellow_cards, red_cards, clean_sheets, team_id')
+          .select('id, name, number, position, photo_url, goals_count, assists, yellow_cards, red_cards, clean_sheets, goals_conceded, team_id')
           .eq('division', division);
         if (fallbackPlayers.error) throw fallbackPlayers.error;
         rankingPlayers = (fallbackPlayers.data || []).map((p) => ({ ...p, teams: null }));

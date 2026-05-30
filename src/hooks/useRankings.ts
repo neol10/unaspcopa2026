@@ -421,7 +421,7 @@ export const useRankings = () => {
             goals_and_assists: goals + assists
           };
         })
-        .filter((p) => p.goals_and_assists > 0)
+        .filter((p) => (p.goals_count || 0) > 0 && p.assists > 0)
         .sort((a, b) => {
           if (b.goals_and_assists !== a.goals_and_assists) return b.goals_and_assists - a.goals_and_assists;
           if (b.goals_count !== a.goals_count) return b.goals_count - a.goals_count;
