@@ -5454,201 +5454,6 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
     }
   };
 
-                            value={editTeamData.leader}
-                            onChange={e => setEditTeamData({ ...editTeamData, leader: e.target.value })}
-                          />
-                          <input
-                            placeholder="URL do escudo"
-                            value={editTeamData.badge_url}
-                            onChange={e => setEditTeamData({ ...editTeamData, badge_url: e.target.value })}
-                          />
-                          <input 
-                            placeholder="Grupo"
-                            value={editGroupValue}
-                            onChange={e => setEditGroupValue(e.target.value)}
-                          />
-                          {supportsTeamPrimaryColor && (
-                            <div className="form-group-mini">
-                              <label style={{ fontSize: '0.75rem', opacity: 0.8 }}>Cor do Time</label>
-                              <div style={{ display: 'flex', gap: '4px' }}>
-                                <input 
-                                  type="color" 
-                                  value={editTeamData.primary_color}
-                                  onChange={e => setEditTeamData({ ...editTeamData, primary_color: e.target.value })}
-                                  style={{ width: '30px', height: '30px', cursor: 'pointer' }}
-                                />
-                                <input 
-                                  type="text"
-                                  style={{ fontSize: '0.8rem', width: '80px' }}
-                                  value={editTeamData.primary_color}
-                                  onChange={e => setEditTeamData({ ...editTeamData, primary_color: e.target.value })}
-                                />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                        <div className="form-actions-mini">
-                          <button type="button" className="btn-save-mini" onClick={() => {
-                            handleUpdateTeam(team.id, { 
-                              name: editTeamData.name || team.name, 
-                              leader: editTeamData.leader || team.leader,
-                              badge_url: editTeamData.badge_url || team.badge_url,
-                              group: editGroupValue,
-                              ...(supportsTeamPrimaryColor ? { primary_color: editTeamData.primary_color || null } : {})
-                            });
-                            setEditingGroupId(null);
-                          }}><Save size={14} /> Salvar</button>
-                          <button type="button" className="btn-cancel-mini" onClick={() => setEditingGroupId(null)}>✕</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <strong>{team.name}</strong>
-                        <div className="item-meta-admin">
-                          <span className="group-badge-admin">{team.group || 'Sem Grupo'}</span>
-                          <span className="leader-info">• Líder: {team.leader}</span>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-                <div className="item-actions">
-                  {!editingGroupId && (
-                    <button className="btn-icon edit" onClick={(e) => { 
-                      e.stopPropagation(); 
-                      setEditingGroupId(team.id); 
-                      setEditGroupValue(team.group || '');
-                      setEditTeamData({ 
-                        name: team.name, 
-                        leader: team.leader, 
-                        badge_url: team.badge_url || '', 
-                        group: team.group || '',
-                        primary_color: team.primary_color || '#E4002B'
-                      });
-                    }}><Settings2 size={18} /></button>
-                  )}
-                  <button className="btn-icon delete" onClick={(e) => { e.stopPropagation(); handleDelete(team.id); }}><Trash2 size={18} /></button>
-                </div>
-              </div>
-              {expandedTeamId === team.id && (
-                <div className="team-players-admin glass">
-                  <PlayerManagement teamId={team.id} />
-                </div>
-              )}
-            </React.Fragment>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
-  const { players, loading } = usePlayers(teamId);
-  const queryClient = useQueryClient();
-  const { division } = useDivisionContext();
-  const [isAdding, setIsAdding] = useState(false);
-  const [isSubmittingPlayer, setIsSubmittingPlayer] = useState(false);
-  const [isUpdatingPlayer, setIsUpdatingPlayer] = useState(false);
-  const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [formData, setFormData] = useState({ 
-    name: '', number: '', position: 'Ala', photo_url: '', bio: '',
-    goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0', goals_conceded: '0', suspensions_served: '0'
-  });
-  const [editFormData, setEditFormData] = useState({
-    name: '', number: '', position: 'Ala', photo_url: '', bio: '',
-    goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0', goals_conceded: '0', suspensions_served: '0'
-  });
-
-  useEffect(() => {
-    if (!editingPlayerId) return undefined;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [editingPlayerId]);
-
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    const url = await uploadToStorage(file, 'images', 'player-photos');
-    if (url) setFormData(prev => ({ ...prev, photo_url: url }));
-    setUploading(false);
-  };
-
-  const handleAddPlayer = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isSubmittingPlayer) return;
-    setIsSubmittingPlayer(true);
-    const loadingToast = toast.loading('Adicionando atleta...');
-    try {
-      const payload = {
-        ...formData,
-        name: normalizePlayerName(formData.name),
-        team_id: teamId,
-        division,
-        number: parseInt(formData.number) || 0,
-        suspensions_served: Math.max(0, parseInt(formData.suspensions_served) || 0),
-      } as Record<string, unknown>;
-
-      const doInsert = async (payloadToInsert: Record<string, unknown>) => {
-        return await withTimeout(
-          supabase.from('players').insert([payloadToInsert]),
-          30000,
-          'Tempo limite ao adicionar atleta'
-        );
-      };
-
-      const res = await doInsert(payload);
-      if (res.error) {
-        if (isMissingDivisionColumnError(res.error as PostgrestErrorLike, 'division')) {
-          markDivisionColumnMissing();
-          const payloadNoDivision = { ...payload } as Record<string, unknown>;
-          delete (payloadNoDivision as { division?: unknown }).division;
-          const retry = await doInsert(payloadNoDivision);
-          if (retry.error) throw retry.error;
-        } else {
-          throw res.error;
-        }
-      }
-      setFormData({ 
-        name: '', number: '', position: 'Ala', photo_url: '', bio: '',
-        goals_count: '0', assists: '0', yellow_cards: '0', red_cards: '0', clean_sheets: '0', goals_conceded: '0', suspensions_served: '0'
-      });
-      setIsAdding(false);
-      void queryClient.invalidateQueries({ queryKey: ['players', division, teamId] });
-      void queryClient.invalidateQueries({ queryKey: ['players', division, 'all'] });
-      void queryClient.invalidateQueries({ queryKey: ['rankings', division] });
-      toast.success('Atleta adicionado!', { id: loadingToast });
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err, 'Erro ao adicionar atleta'), { id: loadingToast });
-    } finally {
-      setIsSubmittingPlayer(false);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Excluir atleta?')) return;
-    const loadingToast = toast.loading('Excluindo...');
-    try {
-      const { error } = await withTimeout(
-        supabase.from('players').delete().eq('id', id),
-        30000,
-        'Tempo limite ao excluir atleta'
-      );
-      if (error) throw error;
-      void queryClient.invalidateQueries({ queryKey: ['players', division, teamId] });
-      void queryClient.invalidateQueries({ queryKey: ['players', division, 'all'] });
-      void queryClient.invalidateQueries({ queryKey: ['rankings', division] });
-      toast.success('Atleta excluído!', { id: loadingToast });
-    } catch (err: unknown) {
-      toast.error(getErrorMessage(err, 'Erro ao excluir atleta'), { id: loadingToast });
-    }
-  };
-
   const handleEditPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -5670,16 +5475,19 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
     try {
       const { error } = await withTimeout(
         supabase.from('players').update({
-          name: normalizePlayerName(editFormData.name),
-          number: parseInt(editFormData.number) || 0,
           position: editFormData.position,
           photo_url: editFormData.photo_url,
           bio: editFormData.bio,
+          goals_conceded: parseInt((editFormData as any).goals_conceded) || 0,
+          name: normalizePlayerName(editFormData.name),
+          number: parseInt(editFormData.number) || 0,
           goals_count: parseInt(editFormData.goals_count) || 0,
           assists: parseInt(editFormData.assists) || 0,
           yellow_cards: parseInt(editFormData.yellow_cards) || 0,
           red_cards: parseInt(editFormData.red_cards) || 0,
           clean_sheets: parseInt(editFormData.clean_sheets) || 0,
+          goals_conceded: parseInt((editFormData as any).goals_conceded) || 0,
+          suspensions_served: Math.max(0, parseInt(editFormData.suspensions_served) || 0),
         }).eq('id', playerId),
         30000,
         'Tempo limite ao atualizar atleta'
@@ -8255,6 +8063,73 @@ const GlobalPlayerManagement = () => {
     }
   };
 
+  const [syncingGkGoals, setSyncingGkGoals] = useState(false);
+
+  const handleSyncGoalkeeperGoals = async () => {
+    if (syncingGkGoals) return;
+    if (loading) {
+      toast.error('Aguarde terminar de carregar os dados.');
+      return;
+    }
+
+    const ok = await confirmAction({
+      title: 'Sincronizar Gols Sofridos',
+      description: 'Isso vai recalcular os gols sofridos de TODOS os goleiros baseando-se nas partidas ja jogadas. Deseja continuar?',
+      variant: 'warning',
+    });
+    if (!ok) return;
+
+    setSyncingGkGoals(true);
+    const loadingToast = toast.loading('Calculando gols sofridos...');
+
+    try {
+      const { data: matches, error: matchErr } = await supabase.from('matches').select('team_a_id, team_b_id, team_a_score, team_b_score, status').eq('division', division);
+      if (matchErr) throw matchErr;
+
+      const teamGoalsAgainst = {};
+      matches?.forEach(m => {
+        const scoreA = m.team_a_score || 0;
+        const scoreB = m.team_b_score || 0;
+        if (m.status !== 'finalizado' && m.status !== 'ao_vivo' && scoreA === 0 && scoreB === 0) return;
+        teamGoalsAgainst[m.team_a_id] = (teamGoalsAgainst[m.team_a_id] || 0) + scoreB;
+        teamGoalsAgainst[m.team_b_id] = (teamGoalsAgainst[m.team_b_id] || 0) + scoreA;
+      });
+
+      const list = Array.isArray(allPlayers) ? allPlayers : [];
+      const gks = list.filter(p => {
+        const pos = String(p.position || '').trim().toLowerCase();
+        return pos === 'goleiro' || pos === 'gol' || pos === 'gk' || pos.includes('gole');
+      });
+
+      let fixed = 0;
+      const promises = [];
+      const teamsProcessed = new Set();
+
+      for (const gk of gks) {
+        if (!gk.team_id || teamsProcessed.has(gk.team_id)) continue;
+        teamsProcessed.add(gk.team_id);
+        const goals = teamGoalsAgainst[gk.team_id] || 0;
+        
+        promises.push(
+          supabase.from('players').update({ goals_conceded: goals }).eq('id', gk.id)
+            .then(({ error }) => { if (error) throw error; fixed++; })
+        );
+      }
+
+      await Promise.all(promises);
+
+      void queryClient.invalidateQueries({ queryKey: ['players', division] });
+      void queryClient.invalidateQueries({ queryKey: ['rankings', division] });
+      void refreshPlayers();
+      toast.success('Sincronizados ' + fixed + ' goleiros!', { id: loadingToast });
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Erro ao sincronizar goleiros'), { id: loadingToast });
+    } finally {
+      setSyncingGkGoals(false);
+    }
+  };
+
+
   const handleFixNamesUppercase = async () => {
     if (fixingNamesUppercase) return;
     if (loading) {
@@ -8706,6 +8581,7 @@ const GlobalPlayerManagement = () => {
             >
               {fixingNamesUppercase ? 'Corrigindo nomes...' : 'Corrigir nomes (MAIÚSCULO)'}
             </button>
+            <button className="btn-add" type="button" disabled={syncingGkGoals || loading} onClick={() => void handleSyncGoalkeeperGoals()}>{syncingGkGoals ? "Sincronizando..." : "Sincronizar Gols Sofridos"}</button>
             <button className="btn-add" type="button" onClick={() => {
               setIsBulkAdding((v) => {
                 const next = !v;
