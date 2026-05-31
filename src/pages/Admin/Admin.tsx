@@ -8930,7 +8930,7 @@ const GlobalPlayerManagement = () => {
               </button>
             </div>
 
-            <form className="admin-form glass global-player-edit-form" onSubmit={handleUpdatePlayer}>
+            <form className="admin-form glass global-player-edit-form" onSubmit={(e) => { e.preventDefault(); void handleUpdateGlobalPlayer(); }}>
               <div className="form-grid">
                 <div className="form-group">
                   <label>Nome do Atleta</label>
