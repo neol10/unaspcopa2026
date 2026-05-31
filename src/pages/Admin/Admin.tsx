@@ -161,6 +161,15 @@ const getPostgresCode = (err: unknown): string | null => {
   return null;
 };
 
+
+const getDeletePlayerErrorMessage = (err: unknown): string => {
+  const code = getPostgresCode(err);
+  if (code === '23503') {
+    return 'Não foi possível excluir: O atleta possui histórico na competição (ex: eventos de partida).';
+  }
+  return getErrorMessage(err, 'Erro ao excluir atleta');
+};
+
 const getDeleteMatchErrorMessage = (err: unknown): string => {
   const code = getPostgresCode(err);
   const details = typeof (err as { details?: unknown })?.details === 'string'
@@ -5523,7 +5532,7 @@ const PlayerManagement: React.FC<{ teamId: string }> = ({ teamId }) => {
       void queryClient.invalidateQueries({ queryKey: ['rankings', division] });
       toast.success('Atleta excluído!', { id: loadingToast });
     } catch (err: unknown) {
-      toast.error(getErrorMessage(err, 'Erro ao excluir atleta'), { id: loadingToast });
+      console.error("Erro ao excluir atleta:", err); toast.error(getDeletePlayerErrorMessage(err), { id: loadingToast });
     }
   };
 
