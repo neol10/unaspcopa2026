@@ -11,6 +11,9 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(true);
   const fetchingProfile = useRef(false);
   const resolvedOnce = useRef(false);
+  const lastKnownRole = useRef<'admin' | 'user' | null>(null);
+  const lastKnownUser = useRef<User | null>(null);
+  const signedOutGrace = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const normalizeEmail = (value: string) => value.trim().toLowerCase();
 
@@ -93,10 +96,20 @@ export const useAuth = () => {
     // sem precisar chamar getSession() separadamente (que causava lock contention).
     const applySession = async (session: Session | null) => {
       resolvedOnce.current = true;
+      // Cancela qualquer grace timer pendente de SIGNED_OUT
+      if (signedOutGrace.current) {
+        clearTimeout(signedOutGrace.current);
+        signedOutGrace.current = null;
+      }
       if (session?.user) {
         setUser(session.user);
+        lastKnownUser.current = session.user;
         const cached = getCachedRole(session.user.id);
-        if (cached) setRole(prev => prev || cached);
+        if (cached) setRole(prev => {
+          const next = prev || cached;
+          lastKnownRole.current = next;
+          return next;
+        });
         // Libera a UI rapidamente e atualiza role em background.
         setLoading(false);
         void fetchProfile(session.user.id);
@@ -104,6 +117,8 @@ export const useAuth = () => {
       } else {
         setUser(null);
         setRole(null);
+        lastKnownUser.current = null;
+        lastKnownRole.current = null;
       }
       setLoading(false);
     };
@@ -112,15 +127,27 @@ export const useAuth = () => {
       if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
         await applySession(session);
       } else if (event === 'SIGNED_OUT') {
-        resolvedOnce.current = true;
-        setUser(null);
-        setRole(null);
-        setLoading(false);
+        // No celular, SIGNED_OUT pode ser disparado por timeout de rede temporário.
+        // Damos um grace period de 4s: se uma nova sessão chegar nesse tempo, ignoramos o logout.
+        signedOutGrace.current = setTimeout(() => {
+          signedOutGrace.current = null;
+          resolvedOnce.current = true;
+          setUser(null);
+          setRole(null);
+          lastKnownRole.current = null;
+          lastKnownUser.current = null;
+          setLoading(false);
+        }, 4000);
       } else if (event === 'TOKEN_REFRESHED') {
         if (session?.user) {
           setUser(session.user);
+          lastKnownUser.current = session.user;
           const cached = getCachedRole(session.user.id);
-          if (cached) setRole(prev => prev || cached);
+          if (cached) setRole(prev => {
+            const next = prev || cached;
+            lastKnownRole.current = next;
+            return next;
+          });
         }
       }
     });
@@ -137,6 +164,7 @@ export const useAuth = () => {
     return () => {
       subscription.unsubscribe();
       clearTimeout(timeout);
+      if (signedOutGrace.current) clearTimeout(signedOutGrace.current);
     };
   }, []);
 

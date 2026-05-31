@@ -436,6 +436,22 @@ const Admin: React.FC = () => {
   
   if (authLoading) return <div className="admin-loading-state glass"><div className="spinner"></div><p>Verificando credenciais...</p></div>;
 
+  // Lê o role cacheado do localStorage como fallback para quedas de rede momentâneas no celular.
+  const getCachedRoleLocal = (): 'admin' | 'user' | null => {
+    if (typeof window === 'undefined') return null;
+    try {
+      // O cache é salvo com a chave copa_unasp_role_<uid>
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i) || '';
+        if (key.startsWith('copa_unasp_role_')) {
+          const val = localStorage.getItem(key);
+          if (val === 'admin' || val === 'user') return val;
+        }
+      }
+    } catch { /* ignore */ }
+    return null;
+  };
+
   // Evita piscar "Acesso Restrito" enquanto o role ainda está sendo resolvido.
   if (user && role === null) {
     return (
@@ -446,7 +462,10 @@ const Admin: React.FC = () => {
     );
   }
 
-  const isAdmin = role === 'admin';
+  // Fallback: se user sumiu por queda de rede no celular, mas temos role cacheado como admin,
+  // mantemos o painel ativo por até 4s (tempo do grace period do useAuth).
+  const effectiveRole = role ?? (!user ? getCachedRoleLocal() : null);
+  const isAdmin = effectiveRole === 'admin';
 
   return (
     <div className="admin-container animate-fade-in">
