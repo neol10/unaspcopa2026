@@ -108,7 +108,7 @@ export const useRankings = () => {
           // Busca paralela para acelerar
           const [playersRes, matchesRes] = await Promise.all([
             supabasePublic.from('players')
-              .select('id, name, number, position, photo_url, goals_count, assists, yellow_cards, red_cards, clean_sheets, goals_conceded, team_id, teams(name, badge_url, group, leader, primary_color)')
+              .select('id, name, number, position, photo_url, goals_count, assists, yellow_cards, red_cards, clean_sheets, goals_conceded, suspensions_served, team_id, teams(name, badge_url, group, leader, primary_color)')
               .eq('division', division),
             supabasePublic.from('matches')
               .select('id, match_date, round, night, status, match_mvp_player_id, match_mvp_description, team_a_id, team_b_id, team_a_score, team_b_score')

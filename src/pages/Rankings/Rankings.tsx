@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import './Rankings.css';
 import { useRankings, RankingPlayer } from '../../hooks/useRankings';
 import { Trophy, Activity, ShieldAlert, Zap, User, Download, Search } from 'lucide-react';
+import { getPendingSuspension } from '../../lib/discipline';
 import toast from 'react-hot-toast';
 import PlayerProfileModal from '../Players/PlayerProfileModal';
 import Skeleton, { SkeletonRankingRow } from '../../components/Skeleton/Skeleton';
@@ -809,6 +810,15 @@ const Rankings: React.FC = () => {
                         </div>
                       </div>
                     </div>
+                    
+                    {(() => {
+                      const susp = getPendingSuspension(p);
+                      return susp.isSuspended ? (
+                        <div className="rank-suspension-badge" title={`${susp.pendingGames} jogo(s) de suspensão`}>
+                          SUSPENSO
+                        </div>
+                      ) : null;
+                    })()}
                     <div className="rank-cards">
                       <span className="p-card-new yellow">{p.yellow_cards || 0}</span>
                       <span className="p-card-new red">{p.red_cards || 0}</span>

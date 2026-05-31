@@ -1190,3 +1190,17 @@
     border-radius: 9px;
   }
 }
+
+
+.rank-suspension-badge {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  font-size: 0.6rem;
+  font-weight: 800;
+  padding: 3px 6px;
+  border-radius: 4px;
+  margin-right: 8px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
