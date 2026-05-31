@@ -80,7 +80,7 @@ const Rankings: React.FC = () => {
       setStuck(false);
       return;
     }
-    const id = setTimeout(() => setStuck(true), 15000);
+    const id = setTimeout(() => setStuck(true), 25000);
     return () => clearTimeout(id);
   }, [loading]);
 

@@ -103,17 +103,18 @@ export const useRankings = () => {
         
         let payload = prefetchedPayload;
 
+        
         if (!payload) {
-          // Busca sequencial para não congestionar a instância Free Tier do Supabase,
-          // E usando supabasePublic para fugir de Auth Locks de 5 segundos de usuários logados intermitentes
-          const playersRes = await supabasePublic.from('players')
+          // Busca paralela para acelerar
+          const [playersRes, matchesRes] = await Promise.all([
+            supabasePublic.from('players')
               .select('id, name, number, position, photo_url, goals_count, assists, yellow_cards, red_cards, clean_sheets, goals_conceded, team_id, teams(name, badge_url, group, leader, primary_color)')
-              .eq('division', division);
-              
-          const matchesRes = await supabasePublic.from('matches')
+              .eq('division', division),
+            supabasePublic.from('matches')
               .select('id, match_date, round, night, status, match_mvp_player_id, match_mvp_description, team_a_id, team_b_id, team_a_score, team_b_score')
               .eq('division', division)
-              .order('match_date', { ascending: true });
+              .order('match_date', { ascending: true })
+          ]);
 
           let votesData: { player_id: string; match_id: string }[] = [];
           let eventsData: { match_id: string; player_id: string | null; assistant_id: string | null; event_type: string; minute: number; metadata: unknown }[] = [];
@@ -121,27 +122,31 @@ export const useRankings = () => {
           const matchIds = (matchesRes.data || []).map((m) => m.id).filter(Boolean) as string[];
 
           if (matchIds.length > 0) {
-            const CHUNK = 100;
-            const fetchAllInBatches = async <Row,>(
-              queryFactory: (ids: string[]) => Promise<{ data: Row[] | null; error: unknown }>,
+            const CHUNK = 150; // Maior chunk
+            const fetchAllInBatchesConcurrent = async <Row,>(
+              queryFactory: (ids: string[]) => Promise<{ data: Row[] | null; error: unknown }>
             ): Promise<Row[]> => {
-              const rows: Row[] = [];
+              const promises = [];
               for (let i = 0; i < matchIds.length; i += CHUNK) {
                 const ids = matchIds.slice(i, i + CHUNK);
-                const { data, error } = await queryFactory(ids);
-                if (!error && Array.isArray(data)) rows.push(...data);
+                promises.push(queryFactory(ids));
               }
+              const results = await Promise.all(promises);
+              const rows: Row[] = [];
+              results.forEach(({ data, error }) => {
+                if (!error && Array.isArray(data)) rows.push(...data);
+              });
               return rows;
             };
 
-            // Batch fetch sequencial também para aliviar o banco
-            const votes = await fetchAllInBatches<{ player_id: string; match_id: string }>(async (ids) =>
+            const [votes, events] = await Promise.all([
+              fetchAllInBatchesConcurrent<{ player_id: string; match_id: string }>((ids) =>
                 supabasePublic.from('match_mvp_votes').select('player_id, match_id').in('match_id', ids)
-            );
-            
-            const events = await fetchAllInBatches<{ match_id: string; player_id: string | null; assistant_id: string | null; event_type: string; minute: number; metadata: unknown }>(async (ids) =>
+              ),
+              fetchAllInBatchesConcurrent<{ match_id: string; player_id: string | null; assistant_id: string | null; event_type: string; minute: number; metadata: unknown }>((ids) =>
                 supabasePublic.from('match_events').select('match_id, player_id, assistant_id, event_type, minute, metadata').in('match_id', ids).in('event_type', ['gol', 'assistencia'])
-            );
+              )
+            ]);
 
             votesData = votes;
             eventsData = events;
