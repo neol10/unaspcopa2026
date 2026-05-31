@@ -8386,6 +8386,15 @@ const GlobalPlayerManagement = () => {
     setUploading(false);
   };
 
+  const handleEditPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const url = await uploadToStorage(file, 'images', 'player-photos');
+    if (url) setEditFormData(prev => ({ ...prev, photo_url: url }));
+    setUploading(false);
+  };
+
   const handleAddPlayer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.team_id) return toast.error('Selecione uma equipe!');
