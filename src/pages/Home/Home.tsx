@@ -30,7 +30,6 @@ const Home: React.FC = () => {
   const navigate = useNavigate();
   const { activePoll, loading: pollLoading, error: pollError, hasVoted, submitVote, refresh: refreshPoll } = usePolls();
   const { user } = useAuthContext();
-  const [showAuthModal, setShowAuthModal] = useState(false);
   const { scorers, assistants, galeraRank, loading: rankingsLoading, refresh: refreshRankings } = useRankings();
   const { role } = useAuthContext();
   const isAdmin = role === 'admin';
@@ -545,9 +544,7 @@ const Home: React.FC = () => {
                     className="btn-vote-now"
                     disabled={!selectedOption}
                     onClick={() => {
-                      if (!user) {
-                        setShowAuthModal(true);
-                      } else if (selectedOption) {
+                      if (selectedOption) {
                         submitVote(selectedOption);
                       }
                     }}
@@ -556,17 +553,7 @@ const Home: React.FC = () => {
                     Registrar Meu Voto
                   </button>
                 )}
-                {showAuthModal && (
-                  <div className="modal-auth-overlay" onClick={() => setShowAuthModal(false)}>
-                    <div className="modal-auth-content" onClick={(e) => e.stopPropagation()}>
-                      <h3 style={{ marginBottom: 16 }}>Faça login para votar</h3>
-                      <div style={{ marginBottom: 16 }}>
-                        <span>É necessário estar logado para participar da votação.</span>
-                      </div>
-                      <button className="btn-login" onClick={() => setShowAuthModal(false)} style={{ marginBottom: 16 }}>Fechar</button>
-                    </div>
-                  </div>
-                )}
+
                 {hasVoted && (
                   <p style={{ textAlign: 'center', marginTop: '10px', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
                     Voto registrado! Total de votos: {totalVotes}
