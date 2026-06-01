@@ -128,7 +128,8 @@ export const useAuth = () => {
         await applySession(session);
       } else if (event === 'SIGNED_OUT') {
         // No celular, SIGNED_OUT pode ser disparado por timeout de rede temporário.
-        // Damos um grace period de 4s: se uma nova sessão chegar nesse tempo, ignoramos o logout.
+        // Damos um grace period de 4s apenas se já estivermos rodando. Na inicialização, resolvemos na hora.
+        const delay = resolvedOnce.current ? 4000 : 0;
         signedOutGrace.current = setTimeout(() => {
           signedOutGrace.current = null;
           resolvedOnce.current = true;
@@ -137,7 +138,7 @@ export const useAuth = () => {
           lastKnownRole.current = null;
           lastKnownUser.current = null;
           setLoading(false);
-        }, 4000);
+        }, delay);
       } else if (event === 'TOKEN_REFRESHED') {
         if (session?.user) {
           setUser(session.user);
