@@ -517,11 +517,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                   <Image size={20} /> <span>Galeria</span>
                 </NavLink>
               </li>
-              <li>
-                <NavLink to="/live" className={({ isActive }) => (isActive ? 'nav-active' : '')} onClick={closeMobileMenu} {...navIntentHandlers('/live')}>
-                  <Play size={20} /> <span>LIVE</span>
-                </NavLink>
-              </li>
               {showAdminNav && (
                 <li>
                   <NavLink to="/admin" className={({ isActive }) => isActive ? 'nav-active' : ''} onClick={closeMobileMenu} {...navIntentHandlers('/admin')}>
