@@ -379,66 +379,7 @@ const Home: React.FC = () => {
         </div>
       )}
 
-      {/* Acontecendo Agora - Seção de Jogo ao Vivo Prioritária */}
-      <AnimatePresence>
-        {liveMatch && (
-          <motion.section 
-            className="live-now-banner glass animate-pulse-border"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-          >
-            <div className="live-now-content">
-              <div className="live-now-header">
-                <div className="live-indicator-v2">
-                  <div className="pulse-dot"></div>
-                  <span>EM ANDAMENTO</span>
-                </div>
-                <span className="live-now-location">{liveMatch.location}</span>
-              </div>
-              
-              <div className="live-now-main-score" onClick={() => navigate('/central-da-partida')}>
-                <div className="live-team-a">
-                   <span className="team-name-abbr">{liveMatch.teams_a?.name}</span>
-                   <div className="team-shield-mini">
-                     {liveMatch.teams_a?.badge_url ? (
-                       <img src={liveMatch.teams_a.badge_url} alt="" width="24" height="24" decoding="async" />
-                     ) : (
-                       <Shield size={24} />
-                     )}
-                   </div>
-                </div>
-                
-                <div className="live-score-display">
-                  <div className="live-score-main">
-                    <span className="live-score-val">{liveMatch.team_a_score}</span>
-                    <span className="live-score-sep">:</span>
-                    <span className="live-score-val">{liveMatch.team_b_score}</span>
-                  </div>
-                  <div className="live-score-period">
-                    {matchPeriod === 'INT' ? 'INTERVALO' : `${liveElapsed} • ${matchPeriod}`}
-                  </div>
-                </div>
 
-                <div className="live-team-b">
-                   <div className="team-shield-mini">
-                     {liveMatch.teams_b?.badge_url ? (
-                       <img src={liveMatch.teams_b.badge_url} alt="" width="24" height="24" decoding="async" />
-                     ) : (
-                       <Shield size={24} />
-                     )}
-                   </div>
-                   <span className="team-name-abbr">{liveMatch.teams_b?.name}</span>
-                </div>
-              </div>
-
-              <button className="btn-go-live" onClick={() => navigate('/central-da-partida')}>
-                ASSISTIR AO VIVO <ArrowRight size={16} />
-              </button>
-            </div>
-          </motion.section>
-        )}
-      </AnimatePresence>
 
       {/* Cinematic Hero */}
       <section className="hero-cinematic">
