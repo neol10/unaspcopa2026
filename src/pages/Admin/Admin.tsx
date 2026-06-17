@@ -3150,6 +3150,10 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         timer_offset_seconds: finalOffset,
         status: 'finalizado'
       };
+      if (match.round >= 1000 && match.team_a_score === match.team_b_score) {
+        updates.team_a_penalties = finalPenaltiesA;
+        updates.team_b_penalties = finalPenaltiesB;
+      }
       if (chosenMvp) {
         updates.match_mvp_player_id = chosenMvp.player_id;
         updates.match_mvp_description = chosenMvp.description;
