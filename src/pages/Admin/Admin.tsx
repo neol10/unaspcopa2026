@@ -2090,6 +2090,27 @@ const MatchManagement = () => {
       );
     }
 
+    const matchData = matches.find(m => m.id === id);
+    let finalPenaltiesA = matchData?.team_a_penalties ?? null;
+    let finalPenaltiesB = matchData?.team_b_penalties ?? null;
+
+    if (data.status === 'finalizado' && matchData && isKnockout && matchData.team_a_score === matchData.team_b_score) {
+      const inputA = window.prompt(`Partida empatada no mata-mata!\nQuantos pênaltis a equipe ${matchData.teams_a?.name || 'A'} converteu?`, finalPenaltiesA?.toString() || '');
+      if (inputA === null) return;
+      const inputB = window.prompt(`Quantos pênaltis a equipe ${matchData.teams_b?.name || 'B'} converteu?`, finalPenaltiesB?.toString() || '');
+      if (inputB === null) return;
+
+      finalPenaltiesA = parseInt(inputA, 10);
+      finalPenaltiesB = parseInt(inputB, 10);
+
+      if (isNaN(finalPenaltiesA) || isNaN(finalPenaltiesB)) {
+        return toast.error("Valores inválidos para os pênaltis. Atualização cancelada.");
+      }
+    } else if (data.status !== 'finalizado') {
+       finalPenaltiesA = null;
+       finalPenaltiesB = null;
+    }
+
     try {
       const updatePayload = {
         team_a_id: data.team_a_id,
@@ -2101,6 +2122,8 @@ const MatchManagement = () => {
         status: data.status,
         round: currentRound,
         night: nightValue,
+        team_a_penalties: finalPenaltiesA,
+        team_b_penalties: finalPenaltiesB,
       } as Record<string, unknown>;
 
       const doUpdate = async (payloadToUpdate: Record<string, unknown>) => {
