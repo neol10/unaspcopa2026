@@ -874,10 +874,6 @@
   text-shadow: 0 0 10px rgba(251, 191, 36, 0.2);
 }
 
-.match-team.winner .team-score {
-  color: var(--secondary);
-  text-shadow: 0 0 12px rgba(251, 191,  36, 0.2);
-}
 
 .team-info {
   display: flex;

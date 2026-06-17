@@ -62,7 +62,7 @@ export const useStandings = () => {
     queryFn: async () => {
       const [teamsPayload, matchesPayload] = await Promise.all([
         fetchPublicData<{ data: Array<{ id: string; name: string; group: string; badge_url: string }> }>('teams', { division }),
-        fetchPublicData<{ data: Array<{ team_a_id: string; team_b_id: string; team_a_score: number; team_b_score: number; team_a_penalties?: number; team_b_penalties?: number; match_date: string; status: string }> }>('matches', { division }),
+        fetchPublicData<{ data: Array<{ team_a_id: string; team_b_id: string; team_a_score: number; team_b_score: number; team_a_penalties?: number; team_b_penalties?: number; match_date: string; status: string; round: number }> }>('matches', { division }),
       ]);
       const teams = teamsPayload.data || [];
       const matches = matchesPayload.data || [];
@@ -91,6 +91,7 @@ export const useStandings = () => {
 
       matches.forEach(match => {
         if (match.status !== 'finalizado') return;
+        if (match.round >= 1000) return;
 
         const teamA = statsMap[match.team_a_id];
         const teamB = statsMap[match.team_b_id];

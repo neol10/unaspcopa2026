@@ -3148,8 +3148,23 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         status: 'finalizado'
       };
       if (match.round >= 1000 && match.team_a_score === match.team_b_score) {
-        updates.team_a_penalties = finalPenaltiesA;
-        updates.team_b_penalties = finalPenaltiesB;
+        const inputA = window.prompt(`Partida empatada no mata-mata!\nQuantos pênaltis a equipe ${match.teams_a?.name || 'A'} converteu?`, match.team_a_penalties?.toString() || '');
+        if (inputA === null) return;
+        const inputB = window.prompt(`Quantos pênaltis a equipe ${match.teams_b?.name || 'B'} converteu?`, match.team_b_penalties?.toString() || '');
+        if (inputB === null) return;
+
+        const penA = parseInt(inputA, 10);
+        const penB = parseInt(inputB, 10);
+
+        if (isNaN(penA) || isNaN(penB)) {
+          // Utiliza fallback silencioso ou cancela
+          toast.error("Valores inválidos para os pênaltis. Usando 0.");
+          updates.team_a_penalties = 0;
+          updates.team_b_penalties = 0;
+        } else {
+          updates.team_a_penalties = penA;
+          updates.team_b_penalties = penB;
+        }
       }
       if (chosenMvp) {
         updates.match_mvp_player_id = chosenMvp.player_id;
