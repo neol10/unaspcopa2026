@@ -1681,6 +1681,7 @@ const MatchWinnerVotesModal: React.FC<{ match: Match; onClose: () => void }> = (
 const MatchManagement = () => {
   const { matches, loading, refresh } = useMatches();
   const { teams } = useTeams();
+  const { players: allPlayers } = usePlayers();
   const queryClient = useQueryClient();
   const { division } = useDivisionContext();
   const { config } = useTournamentConfig();
