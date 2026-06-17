@@ -337,7 +337,13 @@ const Rankings: React.FC = () => {
                   <div className="winner-details">
                     <h4>{winner.name}</h4>
                     <span className="winner-team">{winner.team_name}{winner.position ? ` • ${winner.position.toUpperCase()}` : ''}</span>
-                    <p className="winner-reason">Craque do jogo — {unitLabel} {selectedRound}.</p>
+                    <p className="winner-reason">Craque do jogo — {Number(selectedRound) >= 1000 ? (
+                      Number(selectedRound) === 1000 ? 'Oitavas' :
+                      Number(selectedRound) === 2000 ? 'Quartas' :
+                      Number(selectedRound) === 3000 ? 'Semi' :
+                      Number(selectedRound) === 4000 ? 'Final' :
+                      Number(selectedRound) === 5000 ? '3º Lugar' : `Fase ${selectedRound}`
+                    ) : `${unitLabel} ${selectedRound}`}.</p>
                     {authRole === 'admin' && (
                       <button
                         type="button"
