@@ -92,14 +92,21 @@ const ShareCard: React.FC<ShareCardProps & { innerRef: React.RefObject<HTMLDivEl
               <span className="team-name-social">{match?.teams_a?.name || 'Equipe A'}</span>
             </div>
 
-            <div className="score-numbers">
-              {!isScheduled ? (
-                <>
-                  <span className="social-score">{match?.team_a_score ?? 0}</span>
-                  <span className="vs-social">x</span>
-                  <span className="social-score">{match?.team_b_score ?? 0}</span>
-                </>
-              ) : (
+              <div className="score-numbers" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                {!isScheduled ? (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      <span className="social-score">{match?.team_a_score ?? 0}</span>
+                      <span className="vs-social">x</span>
+                      <span className="social-score">{match?.team_b_score ?? 0}</span>
+                    </div>
+                    {(typeof match?.team_a_penalties === 'number' || typeof match?.team_b_penalties === 'number') && (
+                      <div className="social-penalties" style={{ fontSize: '18px', color: '#f59e0b', fontWeight: 'bold', marginTop: '8px', letterSpacing: '1px' }}>
+                        ({match?.team_a_penalties ?? 0}) Pênaltis ({match?.team_b_penalties ?? 0})
+                      </div>
+                    )}
+                  </>
+                ) : (
                 <div className="pre-match-center">
                   <span className="vs-big">VS</span>
                 </div>

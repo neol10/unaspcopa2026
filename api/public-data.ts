@@ -49,7 +49,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (resource === 'matches') {
       let q = supabase
         .from('matches')
-        .select('id, team_a_id, team_b_id, team_a_score, team_b_score, match_date, location, status, round, night, match_mvp_player_id, match_mvp_description, timer_started_at, timer_offset_seconds, is_timer_running, teams_a:teams!team_a_id(name, badge_url, group), teams_b:teams!team_b_id(name, badge_url, group)')
+        .select('id, team_a_id, team_b_id, team_a_score, team_b_score, team_a_penalties, team_b_penalties, match_date, location, status, round, night, match_mvp_player_id, match_mvp_description, timer_started_at, timer_offset_seconds, is_timer_running, teams_a:teams!team_a_id(name, badge_url, group), teams_b:teams!team_b_id(name, badge_url, group)')
         .order('match_date', { ascending: true });
       if (division) q = q.or(`division.eq.${division},division.is.null`);
       if (limit) q = q.limit(limit);
@@ -321,7 +321,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .eq('division', division),
         supabase
           .from('matches')
-          .select('id, match_date, round, night, status, match_mvp_player_id, match_mvp_description, team_a_id, team_b_id, team_a_score, team_b_score')
+          .select('id, match_date, round, night, status, match_mvp_player_id, match_mvp_description, team_a_id, team_b_id, team_a_score, team_b_score, team_a_penalties, team_b_penalties')
           .eq('division', division)
           .order('match_date', { ascending: true }),
       ]);

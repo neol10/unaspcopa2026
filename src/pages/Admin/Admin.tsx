@@ -4363,6 +4363,55 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         </div>
       )}
 
+      {match.status === 'finalizado' && match.round >= 1000 && match.team_a_score === match.team_b_score && (
+        <div className="live-mini-summary glass penalty-shootout-panel" style={{ marginTop: '16px', border: '1px solid #f59e0b' }}>
+          <div className="live-mini-header" style={{ borderBottomColor: 'rgba(245, 158, 11, 0.2)' }}>
+            <h6 style={{ color: '#f59e0b' }}>Disputa de Pênaltis</h6>
+          </div>
+          <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', alignItems: 'center', padding: '16px 0' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 'bold' }}>{match.teams_a?.name}</span>
+              <input 
+                type="number" 
+                min="0"
+                value={match.team_a_penalties ?? ''}
+                onChange={async (e) => {
+                  const val = parseInt(e.target.value, 10);
+                  const newScore = isNaN(val) ? null : val;
+                  const div = match.division || division;
+                  queryClient.setQueryData([`copa_unasp_cache_matches_${div}_all`], (old: any) => {
+                    if (!old || !old.data) return old;
+                    return { ...old, data: old.data.map((m: any) => m.id === match.id ? { ...m, team_a_penalties: newScore } : m) };
+                  });
+                  await supabase.from('matches').update({ team_a_penalties: newScore }).eq('id', match.id);
+                }}
+                style={{ width: '60px', textAlign: 'center', fontSize: '24px', padding: '8px', borderRadius: '8px', border: '1px solid #334155', background: '#0f172a', color: '#fff' }}
+              />
+            </div>
+            <span style={{ fontSize: '24px', color: '#94a3b8' }}>x</span>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 'bold' }}>{match.teams_b?.name}</span>
+              <input 
+                type="number" 
+                min="0"
+                value={match.team_b_penalties ?? ''}
+                onChange={async (e) => {
+                  const val = parseInt(e.target.value, 10);
+                  const newScore = isNaN(val) ? null : val;
+                  const div = match.division || division;
+                  queryClient.setQueryData([`copa_unasp_cache_matches_${div}_all`], (old: any) => {
+                    if (!old || !old.data) return old;
+                    return { ...old, data: old.data.map((m: any) => m.id === match.id ? { ...m, team_b_penalties: newScore } : m) };
+                  });
+                  await supabase.from('matches').update({ team_b_penalties: newScore }).eq('id', match.id);
+                }}
+                style={{ width: '60px', textAlign: 'center', fontSize: '24px', padding: '8px', borderRadius: '8px', border: '1px solid #334155', background: '#0f172a', color: '#fff' }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
 
       <div className="event-selector">
         <button type="button" className={eventType === 'gol' ? 'active' : ''} onClick={() => setEventType('gol')}>

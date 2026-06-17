@@ -52,8 +52,8 @@ export const KnockoutTeiaExport: React.FC<KnockoutTeiaExportProps> = ({ id, matc
               <div key={column.roundCode} className={`teia-column col-depth-${colIndex}`}>
                 {renderMatches.map((match) => {
                   const effectiveStatus = deriveMatchStatus(match, nowTs);
-                  const isTeamAWinner = effectiveStatus === 'finalizado' && (match.team_a_score ?? 0) > (match.team_b_score ?? 0);
-                  const isTeamBWinner = effectiveStatus === 'finalizado' && (match.team_b_score ?? 0) > (match.team_a_score ?? 0);
+                  const isTeamAWinner = effectiveStatus === 'finalizado' && ((match.team_a_score ?? 0) > (match.team_b_score ?? 0) || ((match.team_a_score ?? 0) === (match.team_b_score ?? 0) && (match.team_a_penalties ?? 0) > (match.team_b_penalties ?? 0)));
+                  const isTeamBWinner = effectiveStatus === 'finalizado' && ((match.team_b_score ?? 0) > (match.team_a_score ?? 0) || ((match.team_b_score ?? 0) === (match.team_a_score ?? 0) && (match.team_b_penalties ?? 0) > (match.team_a_penalties ?? 0)));
 
                   const matchDateObj = new Date(match.match_date);
                   // Se for placeholder, esconde a data ou mostra "A definir"
@@ -78,7 +78,10 @@ export const KnockoutTeiaExport: React.FC<KnockoutTeiaExportProps> = ({ id, matc
                             <span className="teia-team-name">{match.teams_a?.name || 'A definir'}</span>
                             {isTeamAWinner && <Trophy size={14} color="#fcd34d" />}
                           </div>
-                          <div className="teia-team-score">{effectiveStatus !== 'agendado' ? match.team_a_score : '-'}</div>
+                          <div className="teia-team-score">
+                            {effectiveStatus !== 'agendado' ? match.team_a_score : '-'}
+                            {match.team_a_penalties != null && <span style={{ fontSize: '10px', color: '#f59e0b', marginLeft: '4px' }}>({match.team_a_penalties})</span>}
+                          </div>
                         </div>
 
                         <div className={`teia-match-team ${isTeamBWinner ? 'winner' : ''}`}>
@@ -91,7 +94,10 @@ export const KnockoutTeiaExport: React.FC<KnockoutTeiaExportProps> = ({ id, matc
                             <span className="teia-team-name">{match.teams_b?.name || 'A definir'}</span>
                             {isTeamBWinner && <Trophy size={14} color="#fcd34d" />}
                           </div>
-                          <div className="teia-team-score">{effectiveStatus !== 'agendado' ? match.team_b_score : '-'}</div>
+                          <div className="teia-team-score">
+                            {effectiveStatus !== 'agendado' ? match.team_b_score : '-'}
+                            {match.team_b_penalties != null && <span style={{ fontSize: '10px', color: '#f59e0b', marginLeft: '4px' }}>({match.team_b_penalties})</span>}
+                          </div>
                         </div>
                       </div>
                     </div>

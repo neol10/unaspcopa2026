@@ -61,7 +61,7 @@ const prefetchQueriesByRoute = async (path: string, queryClient: QueryClient) =>
         queryFn: async () => {
           const base = supabase
             .from('matches')
-            .select('id, team_a_id, team_b_id, team_a_score, team_b_score, match_date, location, status, round')
+            .select('id, team_a_id, team_b_id, team_a_score, team_b_score, team_a_penalties, team_b_penalties, match_date, location, status, round')
             .order('match_date', { ascending: true });
 
           const q = withDivision ? base.eq('division', division) : base;
@@ -71,7 +71,7 @@ const prefetchQueriesByRoute = async (path: string, queryClient: QueryClient) =>
               markDivisionColumnMissing();
               const retry = await supabase
                 .from('matches')
-                .select('id, team_a_id, team_b_id, team_a_score, team_b_score, match_date, location, status, round')
+                .select('id, team_a_id, team_b_id, team_a_score, team_b_score, team_a_penalties, team_b_penalties, match_date, location, status, round')
                 .order('match_date', { ascending: true });
               if (retry.error) throw retry.error;
               return retry.data ?? [];
@@ -168,7 +168,7 @@ const prefetchQueriesByRoute = async (path: string, queryClient: QueryClient) =>
       queryFn: async () => {
         const base = supabase
           .from('matches')
-          .select('id, team_a_id, team_b_id, team_a_score, team_b_score, match_date, location, status, round')
+          .select('id, team_a_id, team_b_id, team_a_score, team_b_score, team_a_penalties, team_b_penalties, match_date, location, status, round')
           .order('match_date', { ascending: true });
 
         const q = withDivision ? base.eq('division', division) : base;
@@ -178,7 +178,7 @@ const prefetchQueriesByRoute = async (path: string, queryClient: QueryClient) =>
             markDivisionColumnMissing();
             const retry = await supabase
               .from('matches')
-              .select('id, team_a_id, team_b_id, team_a_score, team_b_score, match_date, location, status, round')
+              .select('id, team_a_id, team_b_id, team_a_score, team_b_score, team_a_penalties, team_b_penalties, match_date, location, status, round')
               .order('match_date', { ascending: true });
             if (retry.error) throw retry.error;
             return retry.data ?? [];

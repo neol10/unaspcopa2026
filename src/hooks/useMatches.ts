@@ -22,6 +22,8 @@ export interface Match {
   team_b_id: string;
   team_a_score: number;
   team_b_score: number;
+  team_a_penalties?: number | null;
+  team_b_penalties?: number | null;
   match_date: string;
   location: string;
   status: 'agendado' | 'ao_vivo' | 'finalizado';
@@ -76,6 +78,8 @@ export const useMatches = (limit?: number) => {
           'team_b_id',
           'team_a_score',
           'team_b_score',
+          'team_a_penalties',
+          'team_b_penalties',
           'match_date',
           'location',
           'status',

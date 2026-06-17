@@ -855,8 +855,8 @@ const Brackets: React.FC<BracketsProps> = ({ embedded = false }) => {
     const effectiveStatus = deriveMatchStatus(match, nowTs);
     const isLive = effectiveStatus === 'ao_vivo';
     const isFinished = effectiveStatus === 'finalizado';
-    const isTeamAWinner = isFinished && match.team_a_score > match.team_b_score;
-    const isTeamBWinner = isFinished && match.team_b_score > match.team_a_score;
+    const isTeamAWinner = isFinished && ((match.team_a_score > match.team_b_score) || (match.team_a_score === match.team_b_score && (match.team_a_penalties ?? 0) > (match.team_b_penalties ?? 0)));
+    const isTeamBWinner = isFinished && ((match.team_b_score > match.team_a_score) || (match.team_b_score === match.team_a_score && (match.team_b_penalties ?? 0) > (match.team_a_penalties ?? 0)));
     const liveMinutes = isLive ? getLiveMinutes(match) : null;
     const countdown = effectiveStatus === 'agendado' ? getCountdownLabel(match.match_date) : null;
 
@@ -983,7 +983,10 @@ const Brackets: React.FC<BracketsProps> = ({ embedded = false }) => {
                 </span>
               )}
             </div>
-            <div className="team-score">{effectiveStatus !== 'agendado' ? match.team_a_score : '-'}</div>
+            <div className="team-score">
+              {effectiveStatus !== 'agendado' ? match.team_a_score : '-'}
+              {match.team_a_penalties != null && <span style={{ fontSize: '12px', color: '#f59e0b', marginLeft: '6px' }}>({match.team_a_penalties})</span>}
+            </div>
           </div>
           
           <div className={`match-team ${isTeamBWinner ? 'winner' : ''}`}>
@@ -1007,7 +1010,10 @@ const Brackets: React.FC<BracketsProps> = ({ embedded = false }) => {
                 </span>
               )}
             </div>
-            <div className="team-score">{effectiveStatus !== 'agendado' ? match.team_b_score : '-'}</div>
+            <div className="team-score">
+              {effectiveStatus !== 'agendado' ? match.team_b_score : '-'}
+              {match.team_b_penalties != null && <span style={{ fontSize: '12px', color: '#f59e0b', marginLeft: '6px' }}>({match.team_b_penalties})</span>}
+            </div>
           </div>
         </div>
         {isKnockout && <div className="bracket-connectors"></div>}

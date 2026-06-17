@@ -62,7 +62,7 @@ export const useStandings = () => {
     queryFn: async () => {
       const [teamsPayload, matchesPayload] = await Promise.all([
         fetchPublicData<{ data: Array<{ id: string; name: string; group: string; badge_url: string }> }>('teams', { division }),
-        fetchPublicData<{ data: Array<{ team_a_id: string; team_b_id: string; team_a_score: number; team_b_score: number; match_date: string; status: string }> }>('matches', { division }),
+        fetchPublicData<{ data: Array<{ team_a_id: string; team_b_id: string; team_a_score: number; team_b_score: number; team_a_penalties?: number; team_b_penalties?: number; match_date: string; status: string }> }>('matches', { division }),
       ]);
       const teams = teamsPayload.data || [];
       const matches = matchesPayload.data || [];

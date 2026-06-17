@@ -12,6 +12,8 @@ interface ScoreboardProps {
     match_date?: string | null;
     team_a_score: number;
     team_b_score: number;
+    team_a_penalties?: number | null;
+    team_b_penalties?: number | null;
     round?: number;
     night?: number | null;
     is_timer_running?: boolean;
@@ -93,6 +95,11 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
             <span className="vs">:</span>
             <span className="num">{match.team_b_score}</span>
           </div>
+          {(typeof match.team_a_penalties === 'number' || typeof match.team_b_penalties === 'number') && (
+            <div className="penalties-score" style={{ textAlign: 'center', color: '#f59e0b', fontSize: '14px', fontWeight: 'bold', marginTop: '4px' }}>
+              ({match.team_a_penalties ?? 0}) Pênaltis ({match.team_b_penalties ?? 0})
+            </div>
+          )}
           <div className={`sb-timer active ${effectiveStatus === 'ao_vivo' && isPaused ? 'paused' : ''}`}> 
             <Timer size={14} className={effectiveStatus === 'ao_vivo' && !isPaused ? 'animate-pulse' : ''} />
             <div className="timer-info-group">
