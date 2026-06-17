@@ -855,8 +855,19 @@ const Brackets: React.FC<BracketsProps> = ({ embedded = false }) => {
     const effectiveStatus = deriveMatchStatus(match, nowTs);
     const isLive = effectiveStatus === 'ao_vivo';
     const isFinished = effectiveStatus === 'finalizado';
-    const isTeamAWinner = isFinished && ((match.team_a_score > match.team_b_score) || (match.team_a_score === match.team_b_score && (match.team_a_penalties ?? 0) > (match.team_b_penalties ?? 0)));
-    const isTeamBWinner = isFinished && ((match.team_b_score > match.team_a_score) || (match.team_b_score === match.team_a_score && (match.team_b_penalties ?? 0) > (match.team_a_penalties ?? 0)));
+    const scoreA = Number(match.team_a_score);
+    const scoreB = Number(match.team_b_score);
+    const penA = match.team_a_penalties != null ? Number(match.team_a_penalties) : null;
+    const penB = match.team_b_penalties != null ? Number(match.team_b_penalties) : null;
+    
+    const isTeamAWinner = isFinished && (
+      (scoreA > scoreB) || 
+      (scoreA === scoreB && penA !== null && penB !== null && penA > penB)
+    );
+    const isTeamBWinner = isFinished && (
+      (scoreB > scoreA) || 
+      (scoreB === scoreA && penA !== null && penB !== null && penB > penA)
+    );
     const liveMinutes = isLive ? getLiveMinutes(match) : null;
     const countdown = effectiveStatus === 'agendado' ? getCountdownLabel(match.match_date) : null;
 

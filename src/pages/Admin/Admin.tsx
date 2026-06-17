@@ -3147,7 +3147,9 @@ const LiveMatchControl: React.FC<{ match: Match }> = ({ match }) => {
         timer_offset_seconds: finalOffset,
         status: 'finalizado'
       };
-      if (match.round >= 1000 && match.team_a_score === match.team_b_score) {
+      const scoreA = Number(match.team_a_score);
+      const scoreB = Number(match.team_b_score);
+      if (match.round >= 1000 && scoreA === scoreB) {
         const inputA = window.prompt(`Partida empatada no mata-mata!\nQuantos pênaltis a equipe ${match.teams_a?.name || 'A'} converteu?`, match.team_a_penalties?.toString() || '');
         if (inputA === null) return;
         const inputB = window.prompt(`Quantos pênaltis a equipe ${match.teams_b?.name || 'B'} converteu?`, match.team_b_penalties?.toString() || '');
