@@ -1842,33 +1842,7 @@ const MatchManagement = () => {
   };
 
   const handleStartMatchClick = (match: Match) => {
-    const playersA = Array.isArray(allPlayers) ? allPlayers.filter(p => p.team_id === match.team_a_id) : [];
-    const playersB = Array.isArray(allPlayers) ? allPlayers.filter(p => p.team_id === match.team_b_id) : [];
-    
-    const getGks = (players: any[]) => players.filter(p => {
-      const pos = String(p.position || '').trim().toLowerCase();
-      return pos === 'goleiro' || pos === 'gol' || pos === 'gk' || pos.includes('gole');
-    });
-
-    const gksA = getGks(playersA);
-    const gksB = getGks(playersB);
-
-    if (gksA.length > 1 || gksB.length > 1) {
-      setStartingGkA(gksA.length === 1 ? gksA[0].id : '');
-      setStartingGkB(gksB.length === 1 ? gksB[0].id : '');
-      setStartingMatch(match);
-    } else {
-      const tasks: Promise<any>[] = [];
-      if (gksA.length === 1) {
-        tasks.push(supabase.from('match_events').insert([{ match_id: match.id, event_type: 'goleiro_titular', player_id: gksA[0].id, minute: 0, metadata: { team_side: 'a' } }]));
-      }
-      if (gksB.length === 1) {
-        tasks.push(supabase.from('match_events').insert([{ match_id: match.id, event_type: 'goleiro_titular', player_id: gksB[0].id, minute: 0, metadata: { team_side: 'b' } }]));
-      }
-      Promise.all(tasks).catch(() => {}).finally(() => {
-        updateStatus(match.id, 'ao_vivo', match);
-      });
-    }
+    updateStatus(match.id, 'ao_vivo', match);
   };
 
   const confirmStartMatch = async () => {
