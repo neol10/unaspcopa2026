@@ -475,8 +475,19 @@ const Standings: React.FC = () => {
           <div className="bracket-round" style={{ maxWidth: '100%', minWidth: '100%', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem', padding: '1rem 0' }}>
             {phaseMatches.map((match) => {
               const effectiveStatus = deriveMatchStatus(match, nowTs);
-              const isTeamAWinner = effectiveStatus === 'finalizado' && (match.team_a_score ?? 0) > (match.team_b_score ?? 0);
-              const isTeamBWinner = effectiveStatus === 'finalizado' && (match.team_b_score ?? 0) > (match.team_a_score ?? 0);
+              const scoreA = Number(match.team_a_score);
+              const scoreB = Number(match.team_b_score);
+              const penA = match.team_a_penalties != null ? Number(match.team_a_penalties) : null;
+              const penB = match.team_b_penalties != null ? Number(match.team_b_penalties) : null;
+              
+              const isTeamAWinner = effectiveStatus === 'finalizado' && (
+                (scoreA > scoreB) || 
+                (scoreA === scoreB && penA !== null && penB !== null && penA > penB)
+              );
+              const isTeamBWinner = effectiveStatus === 'finalizado' && (
+                (scoreB > scoreA) || 
+                (scoreB === scoreA && penA !== null && penB !== null && penB > penA)
+              );
               const matchDateObj = new Date(match.match_date);
               
               let liveMinutes: number | null = null;
@@ -552,7 +563,10 @@ const Standings: React.FC = () => {
                           </span>
                         )}
                       </div>
-                      <div className="team-score">{effectiveStatus !== 'agendado' ? match.team_a_score : '-'}</div>
+                      <div className="team-score">
+                        {effectiveStatus !== 'agendado' ? match.team_a_score : '-'}
+                        {match.team_a_penalties != null && <span style={{ fontSize: '12px', color: '#f59e0b', marginLeft: '6px' }}>({match.team_a_penalties})</span>}
+                      </div>
                     </div>
                     
                     <div className={`match-team ${isTeamBWinner ? 'winner' : ''}`}>
@@ -576,7 +590,10 @@ const Standings: React.FC = () => {
                           </span>
                         )}
                       </div>
-                      <div className="team-score">{effectiveStatus !== 'agendado' ? match.team_b_score : '-'}</div>
+                      <div className="team-score">
+                        {effectiveStatus !== 'agendado' ? match.team_b_score : '-'}
+                        {match.team_b_penalties != null && <span style={{ fontSize: '12px', color: '#f59e0b', marginLeft: '6px' }}>({match.team_b_penalties})</span>}
+                      </div>
                     </div>
                   </div>
                 </div>
