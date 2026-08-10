@@ -298,7 +298,7 @@ const Rankings: React.FC = () => {
                   type="button"
                   aria-pressed={selectedRound === r}
                 >
-                  {Number(r) >= 1000 ? (Number(r) === 1000 ? 'OIT' : Number(r) === 2000 ? 'QUA' : Number(r) === 3000 ? 'SEM' : Number(r) === 4000 ? 'FIN' : Number(r) === 5000 ? '3ºL' : 'M' + r) : unitChipPrefix + r}
+                  {Number(r) >= 1000 ? (Number(r) >= 1000 && Number(r) < 2000 ? 'OIT' : Number(r) >= 2000 && Number(r) < 3000 ? 'QUA' : Number(r) >= 3000 && Number(r) < 4000 ? 'SEM' : Number(r) >= 4000 && Number(r) < 5000 ? 'FIN' : Number(r) >= 5000 && Number(r) < 6000 ? '3ºL' : 'M' + r) : unitChipPrefix + r}
                 </button>
               ))}
             </div>
@@ -338,11 +338,11 @@ const Rankings: React.FC = () => {
                     <h4>{winner.name}</h4>
                     <span className="winner-team">{winner.team_name}{winner.position ? ` • ${winner.position.toUpperCase()}` : ''}</span>
                     <p className="winner-reason">Craque do jogo — {Number(selectedRound) >= 1000 ? (
-                      Number(selectedRound) === 1000 ? 'Oitavas' :
-                      Number(selectedRound) === 2000 ? 'Quartas' :
-                      Number(selectedRound) === 3000 ? 'Semi' :
-                      Number(selectedRound) === 4000 ? 'Final' :
-                      Number(selectedRound) === 5000 ? '3º Lugar' : `Fase ${selectedRound}`
+                      Number(selectedRound) >= 1000 && Number(selectedRound) < 2000 ? 'Oitavas' :
+                      Number(selectedRound) >= 2000 && Number(selectedRound) < 3000 ? 'Quartas' :
+                      Number(selectedRound) >= 3000 && Number(selectedRound) < 4000 ? 'Semi' :
+                      Number(selectedRound) >= 4000 && Number(selectedRound) < 5000 ? 'Final' :
+                      Number(selectedRound) >= 5000 && Number(selectedRound) < 6000 ? '3º Lugar' : `Fase ${selectedRound}`
                     ) : `${unitLabel} ${selectedRound}`}.</p>
                     {authRole === 'admin' && (
                       <button
