@@ -320,7 +320,7 @@ export const useRankings = () => {
       const unitGoals: Record<string, Record<string, number>> = {};
 
       matchesData.forEach((m) => {
-        const unitValue = groupUnit === 'round' ? m.round : m.night;
+        const unitValue = groupUnit === 'round' ? m.round : (m.round >= 1000 ? m.round : m.night);
         const unitKey = unitValue === null || unitValue === undefined ? '' : String(unitValue).trim();
         if (!matchesByUnit[unitKey]) matchesByUnit[unitKey] = [];
         matchesByUnit[unitKey].push(m);
@@ -418,7 +418,7 @@ export const useRankings = () => {
 
       const participationRank = [...playersWithTeam]
         .map((p) => {
-          const assists = assistCounts[p.id] ?? p.assists ?? 0;
+          const assists = p.assists || 0;
           const goals = p.goals_count || 0;
           return {
             ...p,
@@ -437,7 +437,7 @@ export const useRankings = () => {
       const result = {
         scorers: [...playersWithTeam].sort((a, b) => b.goals_count - a.goals_count).filter((p) => p.goals_count > 0).slice(0, 10),
         assistants: [...playersWithTeam]
-          .map((p) => ({ ...p, assists: assistCounts[p.id] ?? p.assists ?? 0 }))
+          .map((p) => ({ ...p, assists: p.assists || 0 }))
           .sort((a, b) => (b.assists || 0) - (a.assists || 0))
           .filter((p) => (p.assists || 0) > 0)
           .slice(0, 10),

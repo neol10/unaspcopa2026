@@ -298,7 +298,7 @@ const Rankings: React.FC = () => {
                   type="button"
                   aria-pressed={selectedRound === r}
                 >
-                  {unitChipPrefix}{r}
+                  {Number(r) >= 1000 ? (Number(r) === 1000 ? 'OIT' : Number(r) === 2000 ? 'QUA' : Number(r) === 3000 ? 'SEM' : Number(r) === 4000 ? 'FIN' : Number(r) === 5000 ? '3ºL' : 'M' + r) : unitChipPrefix + r}
                 </button>
               ))}
             </div>
