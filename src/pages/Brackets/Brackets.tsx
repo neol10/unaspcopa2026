@@ -244,33 +244,45 @@ const Brackets: React.FC<BracketsProps> = ({ embedded = false }) => {
 
   const sortedRounds = useMemo(() => {
     const parseGroupKey = (key: string) => {
-      if (key === 'noite-sem') return { unit: 'night' as const, value: null as number | null };
+      if (key === 'noite-sem') return { unit: 'night' as const, value: 999 };
       if (key.startsWith('noite-')) {
         const n = Number(key.replace('noite-', '').trim());
-        return { unit: 'night' as const, value: Number.isFinite(n) ? n : null };
+        return { unit: 'night' as const, value: Number.isFinite(n) ? n : 999 };
       }
-      if (key === 'rodada-sem') return { unit: 'round' as const, value: null as number | null };
+      if (key === 'rodada-sem') return { unit: 'round' as const, value: 999 };
       if (key.startsWith('rodada-')) {
         const n = Number(key.replace('rodada-', '').trim());
-        return { unit: 'round' as const, value: Number.isFinite(n) ? n : null };
+        return { unit: 'round' as const, value: Number.isFinite(n) ? n : 999 };
       }
       return null;
+    };
+
+    const roundKnockoutOrder = (name: string) => {
+      const lower = name.toLowerCase();
+      if (lower.includes('oitav')) return 1000;
+      if (lower.includes('quart')) return 1001;
+      if (lower.includes('semi')) return 1002;
+      if (lower.includes('final') && !lower.includes('3')) return 1003;
+      if (lower.includes('3o') || lower.includes('terceiro') || lower.includes('3º')) return 1004;
+      return 2000;
     };
 
     return Object.keys(roundsMap).sort((a, b) => {
       const ga = parseGroupKey(a);
       const gb = parseGroupKey(b);
 
-      // Para fase de grupos, ordena por número (Noite/Rodada) para evitar inversão por data.
       if (ga && gb) {
-        if (ga.value === null && gb.value === null) return 0;
-        if (ga.value === null) return 1;
-        if (gb.value === null) return -1;
         return ga.value - gb.value;
       }
+      if (ga && !gb) return -1;
+      if (!ga && gb) return 1;
 
-      const dateA = new Date(roundsMap[a][0].match_date).getTime();
-      const dateB = new Date(roundsMap[b][0].match_date).getTime();
+      const koA = roundKnockoutOrder(a);
+      const koB = roundKnockoutOrder(b);
+      if (koA !== koB) return koA - koB;
+
+      const dateA = new Date(roundsMap[a][0]?.match_date || 0).getTime();
+      const dateB = new Date(roundsMap[b][0]?.match_date || 0).getTime();
       return dateA - dateB;
     });
   }, [roundsMap]);
@@ -322,9 +334,17 @@ const Brackets: React.FC<BracketsProps> = ({ embedded = false }) => {
     if (name === 'noite-sem') return 'Sem Noite';
     if (/^\d+$/.test(name)) {
       const n = Number(name);
-      if (Number.isFinite(n) && n >= 1000) return `Fase ${name}`;
+      if (Number.isFinite(n) && n >= 1000) {
+        if (n === 1002) return 'Semifinal';
+        return KNOCKOUT_ROUND_LABELS[n] || `Fase ${name}`;
+      }
       return `${name}ª Rodada`;
     }
+    const lower = name.toLowerCase();
+    if (lower === 'semi' || lower === 'semis') return 'Semifinal';
+    if (lower === 'oitavas' || lower === 'oitava') return 'Oitavas de Final';
+    if (lower === 'quartas' || lower === 'quarta') return 'Quartas de Final';
+    if (lower === '3o lugar' || lower === '3o' || lower === 'terceiro' || lower === '3º lugar' || lower === '3º') return '3º Lugar';
     if (name.toLowerCase().includes('rodada')) return name;
     return name.charAt(0).toUpperCase() + name.slice(1);
   };
@@ -1223,45 +1243,29 @@ const Brackets: React.FC<BracketsProps> = ({ embedded = false }) => {
         </div>
       )}
 
-      {viewMode === 'list' && groupRounds.length > 0 && !shouldUsePhaseSelector && (
-        <div className="phase-jump-nav glass" aria-label="Navegação por noites/rodadas">
-          {groupRounds.map((roundName) => {
+      {viewMode === 'list' && sortedRounds.length > 0 && (
+        <div className="phase-jump-nav glass" aria-label="Navegação por noites e fases">
+          {sortedRounds.map((roundName) => {
+            const isKnockout = isKnockoutRoundName(roundName);
             const isCurrent =
-              config.current_phase === 'grupos' &&
-              (groupUnit === 'round'
-                ? (roundsMap[roundName] || []).some(
-                    (m) => (m.round ?? 0) < 1000 && (m.round ?? 0) === config.current_round,
-                  )
-                : (roundsMap[roundName] || []).some((m) => (m.night ?? null) === config.current_round));
+              config.current_phase === 'grupos'
+                ? (groupUnit === 'round'
+                    ? (roundsMap[roundName] || []).some(
+                        (m) => (m.round ?? 0) < 1000 && (m.round ?? 0) === config.current_round,
+                      )
+                    : (roundsMap[roundName] || []).some((m) => (m.night ?? null) === config.current_round))
+                : (roundName.toLowerCase().includes(config.current_phase.toLowerCase()) ||
+                   (config.current_phase === 'semifinal' && roundName.toLowerCase().includes('semi')));
 
             return (
               <button
                 key={roundName}
                 onClick={() => scrollToPhase(roundName)}
-                className={`jump-btn ${isCurrent ? 'active' : ''}`}
+                className={`jump-btn ${isCurrent ? 'active' : ''} ${isKnockout ? 'jump-btn-knockout' : ''}`}
                 type="button"
                 aria-pressed={isCurrent}
               >
-                {formatRoundName(roundName)}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {shouldUsePhaseSelector && (
-        <div className="phase-jump-nav glass" aria-label="Navegação por fases">
-          {knockoutRounds.map((roundName) => {
-            const isActive = (selectedKnockoutRound || defaultKnockoutRound) === roundName;
-            return (
-              <button
-                key={roundName}
-                onClick={() => setSelectedKnockoutRound(roundName)}
-                className={`jump-btn ${isActive ? 'active' : ''}`}
-                type="button"
-                aria-pressed={isActive}
-              >
-                {formatRoundName(roundName)}
+                {isKnockout ? '🏆 ' : ''}{formatRoundName(roundName)}
               </button>
             );
           })}
@@ -1370,17 +1374,17 @@ const Brackets: React.FC<BracketsProps> = ({ embedded = false }) => {
           ) : (
             /* Layout de Lista de Rodadas (Padrão) */
             <>
-              {(shouldUsePhaseSelector && (selectedKnockoutRound || defaultKnockoutRound)
-                ? [selectedKnockoutRound || defaultKnockoutRound]
-                : groupRounds
-              ).map((roundName) => {
+              {sortedRounds.map((roundName) => {
+                const isKnockout = isKnockoutRoundName(roundName);
                 const isCurrent =
-                  (!shouldUsePhaseSelector && config.current_phase === 'grupos') &&
-                  (groupUnit === 'round'
-                    ? (roundsMap[roundName] || []).some(
-                        (m) => (m.round ?? 0) < 1000 && (m.round ?? 0) === config.current_round,
-                      )
-                    : (roundsMap[roundName] || []).some((m) => (m.night ?? null) === config.current_round));
+                  config.current_phase === 'grupos'
+                    ? (groupUnit === 'round'
+                        ? (roundsMap[roundName] || []).some(
+                            (m) => (m.round ?? 0) < 1000 && (m.round ?? 0) === config.current_round,
+                          )
+                        : (roundsMap[roundName] || []).some((m) => (m.night ?? null) === config.current_round))
+                    : (roundName.toLowerCase().includes(config.current_phase.toLowerCase()) ||
+                       (config.current_phase === 'semifinal' && roundName.toLowerCase().includes('semi')));
 
                 const roundMatches = roundsMap[roundName] || [];
                 const detailMatch =
@@ -1388,6 +1392,7 @@ const Brackets: React.FC<BracketsProps> = ({ embedded = false }) => {
                   [...roundMatches]
                     .filter((m) => deriveMatchStatus(m, nowTs) === 'finalizado')
                     .sort((a, b) => new Date(b.match_date).getTime() - new Date(a.match_date).getTime())[0] ||
+                  roundMatches[0] ||
                   null;
                 const canOpenDetails = Boolean(detailMatch);
 
@@ -1395,11 +1400,11 @@ const Brackets: React.FC<BracketsProps> = ({ embedded = false }) => {
                   <div 
                     key={roundName} 
                     id={`phase-${toPhaseIdKey(roundName)}`}
-                    className="bracket-round"
+                    className={`bracket-round ${isKnockout ? 'is-knockout-round' : ''}`}
                   >
                     <h3 className="round-title">
                       <span className="round-dot"></span>
-                      <span className="round-chip">{formatRoundName(roundName)}</span>
+                      <span className="round-chip">{isKnockout ? '🏆 ' : ''}{formatRoundName(roundName)}</span>
                       <span className="round-title-spacer" />
                       <div className="round-actions">
                         {isCurrent && <span className="current-label"><Target size={12} /> Atual</span>}
@@ -1407,7 +1412,7 @@ const Brackets: React.FC<BracketsProps> = ({ embedded = false }) => {
                           className="round-details-btn"
                           type="button"
                           disabled={!canOpenDetails}
-                          title={canOpenDetails ? (shouldUsePhaseSelector ? 'Abrir detalhes desta fase' : 'Abrir detalhes desta noite/rodada') : (shouldUsePhaseSelector ? 'Sem jogos ao vivo/finalizados nesta fase' : 'Sem jogos ao vivo/finalizados nesta noite/rodada')}
+                          title={canOpenDetails ? 'Abrir na Central da Partida' : 'Sem partidas'}
                           onClick={(e) => {
                             e.stopPropagation();
                             if (!detailMatch) return;
@@ -1420,7 +1425,7 @@ const Brackets: React.FC<BracketsProps> = ({ embedded = false }) => {
                     </h3>
                     <div className="round-matches">
                       {(roundsMap[roundName] || []).map(m => (
-                        <MatchBox key={m.id} match={m} />
+                        <MatchBox key={m.id} match={m} isKnockout={isKnockout} />
                       ))}
                     </div>
                   </div>

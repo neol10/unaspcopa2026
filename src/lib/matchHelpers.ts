@@ -15,16 +15,18 @@ export const getTeamShortName = (name: string | null | undefined, fallback: stri
   return trimmed.replace(/\s+/g, '').slice(0, 3).toUpperCase();
 };
 
-/**
- * Checks if a round is a knockout phase.
- */
 export const isKnockoutRound = (roundText: string | null | undefined): boolean => {
-  const clean = String(roundText || '').toLowerCase();
+  const clean = String(roundText || '').toLowerCase().trim();
+  const num = Number(clean);
+  if (Number.isFinite(num) && num >= 1000) return true;
   return (
     clean.includes('final') || 
     clean.includes('semi') || 
     clean.includes('quarta') || 
-    clean.includes('oitava')
+    clean.includes('oitava') ||
+    clean.includes('terceiro') ||
+    clean.includes('3o') ||
+    clean.includes('3º')
   );
 };
 

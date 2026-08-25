@@ -313,7 +313,8 @@ const MatchCenter: React.FC = () => {
 
   const selectorDesktopTitle = useMemo(() => {
     const round = activeMatch?.round || 0;
-    if (round >= 1000) return 'Fase Atual';
+    if (round === 1002) return 'Semifinal';
+    if (round >= 1000) return KNOCKOUT_ROUND_LABELS[round] || 'Fase Final';
     const groupUnit = config.group_unit || 'night';
     return `${groupUnit === 'night' ? 'Noite' : 'Rodada'} Atual`;
   }, [activeMatch, config.group_unit]);
@@ -321,6 +322,7 @@ const MatchCenter: React.FC = () => {
   const selectorActiveChip = useMemo(() => {
     if (!activeMatch) return null;
     const round = activeMatch.round || 0;
+    if (round === 1002) return 'Semifinal';
     if (round >= 1000) return KNOCKOUT_ROUND_LABELS[round] || `Fase ${round}`;
     const groupUnit = config.group_unit || 'night';
     const label = groupUnit === 'night' ? 'Noite' : 'Rodada';
@@ -344,6 +346,28 @@ const MatchCenter: React.FC = () => {
     const groupUnit = config.group_unit || 'night';
     return groupUnit === 'night' ? (activeMatch?.night ?? null) : (activeMatch?.round ?? null);
   }, [activeMatch, config.group_unit]);
+
+  const availableKnockoutRounds = useMemo(() => {
+    const knockoutMatches = baseMatches.filter((m) => (m.round || 0) >= 1000);
+    const rounds = Array.from(new Set(knockoutMatches.map((m) => m.round))).sort((a, b) => a - b);
+    return rounds.map((roundCode) => {
+      const label = roundCode === 1002 ? 'Semifinal' : (KNOCKOUT_ROUND_LABELS[roundCode] || `Fase ${roundCode}`);
+      return { roundCode, label };
+    });
+  }, [baseMatches]);
+
+  const handleSelectKnockoutRound = (roundCode: number) => {
+    const inRound = baseMatches
+      .filter((m) => m.round === roundCode)
+      .sort((a, b) => new Date(a.match_date).getTime() - new Date(b.match_date).getTime());
+
+    const nowMs = Date.now();
+    const liveOrNext = inRound.find(m => deriveMatchStatus(m, nowMs) === 'ao_vivo') 
+                    || inRound.find(m => deriveMatchStatus(m, nowMs) === 'agendado') 
+                    || inRound[0];
+
+    if (liveOrNext) handleSelectMatch(liveOrNext.id);
+  };
 
   const handleSelectSlot = (slot: number) => {
     const groupUnit = config.group_unit || 'night';
@@ -439,10 +463,10 @@ const MatchCenter: React.FC = () => {
             style={{
               padding: '6px 16px',
               borderRadius: '20px',
-              border: activeSlotValue === slot ? 'none' : '1px solid rgba(255,255,255,0.1)',
-              background: activeSlotValue === slot ? 'var(--secondary)' : 'rgba(255,255,255,0.05)',
-              color: activeSlotValue === slot ? '#000' : '#fff',
-              fontWeight: activeSlotValue === slot ? 'bold' : 'normal',
+              border: ((activeMatch?.round || 0) < 1000 && activeSlotValue === slot) ? 'none' : '1px solid rgba(255,255,255,0.1)',
+              background: ((activeMatch?.round || 0) < 1000 && activeSlotValue === slot) ? 'var(--secondary)' : 'rgba(255,255,255,0.05)',
+              color: ((activeMatch?.round || 0) < 1000 && activeSlotValue === slot) ? '#000' : '#fff',
+              fontWeight: ((activeMatch?.round || 0) < 1000 && activeSlotValue === slot) ? 'bold' : 'normal',
               whiteSpace: 'nowrap',
               cursor: 'pointer'
             }}
@@ -450,26 +474,27 @@ const MatchCenter: React.FC = () => {
             {(config.group_unit || 'night') === 'night' ? 'Noite' : 'Rodada'} {slot}
           </button>
         ))}
-        {baseMatches.some(m => (m.round || 0) >= 1000) && (
-          <button
-            onClick={() => {
-              const knockoutMatch = baseMatches.find(m => (m.round || 0) >= 1000);
-              if (knockoutMatch) handleSelectMatch(knockoutMatch.id);
-            }}
-            style={{
-              padding: '6px 16px',
-              borderRadius: '20px',
-              border: (activeMatch?.round || 0) >= 1000 ? 'none' : '1px solid rgba(255,255,255,0.1)',
-              background: (activeMatch?.round || 0) >= 1000 ? 'var(--secondary)' : 'rgba(255,255,255,0.05)',
-              color: (activeMatch?.round || 0) >= 1000 ? '#000' : '#fff',
-              fontWeight: (activeMatch?.round || 0) >= 1000 ? 'bold' : 'normal',
-              whiteSpace: 'nowrap',
-              cursor: 'pointer'
-            }}
-          >
-            Fases Finais
-          </button>
-        )}
+        {availableKnockoutRounds.map(({ roundCode, label }) => {
+          const isActive = activeMatch?.round === roundCode;
+          return (
+            <button
+              key={roundCode}
+              onClick={() => handleSelectKnockoutRound(roundCode)}
+              style={{
+                padding: '6px 16px',
+                borderRadius: '20px',
+                border: isActive ? 'none' : '1px solid rgba(255,255,255,0.1)',
+                background: isActive ? 'var(--secondary)' : 'rgba(255,255,255,0.05)',
+                color: isActive ? '#000' : '#fff',
+                fontWeight: isActive ? 'bold' : 'normal',
+                whiteSpace: 'nowrap',
+                cursor: 'pointer'
+              }}
+            >
+              🏆 {label}
+            </button>
+          );
+        })}
       </div>
 
       <MatchSelector 

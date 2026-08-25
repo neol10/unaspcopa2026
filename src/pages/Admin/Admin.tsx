@@ -1662,20 +1662,39 @@ const MatchManagement = () => {
 
   const KO_ROUND_CODES: Record<string, number> = {
     oitavas: 1000,
+    'oitavas de final': 1000,
+    'oitavas-de-final': 1000,
+    oitava: 1000,
     quartas: 1001,
+    'quartas de final': 1001,
+    'quartas-de-final': 1001,
+    quarta: 1001,
     semi: 1002,
+    semis: 1002,
+    semifinal: 1002,
+    semifinais: 1002,
+    'semi-final': 1002,
+    'semi final': 1002,
     final: 1003,
+    finais: 1003,
+    'grande final': 1003,
     terceiro: 1004,
+    'terceiro lugar': 1004,
+    '3o': 1004,
+    '3º': 1004,
+    '3o lugar': 1004,
+    '3º lugar': 1004,
   };
 
   const KO_ROUND_LABELS: Record<number, string> = {
     ...KNOCKOUT_ROUND_LABELS,
+    1002: 'Semifinal',
   };
 
   const parseRoundInput = (value: string): number | null => {
     const raw = value.trim();
     if (!raw) return null;
-    const lower = raw.toLowerCase();
+    const lower = raw.toLowerCase().replace(/\s+/g, ' ');
     if (KO_ROUND_CODES[lower]) return KO_ROUND_CODES[lower];
     const parsed = Number(raw);
     if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
@@ -2330,7 +2349,8 @@ const MatchManagement = () => {
              <option value="8" />
              <option value="Oitavas" />
              <option value="Quartas" />
-             <option value="Semi" />
+              <option value="Semifinal" />
+              <option value="Semi" />
              <option value="Final" />
              <option value="3o Lugar" />
            </datalist>
